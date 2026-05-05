@@ -382,23 +382,23 @@ export default function MessagesPage() {
                   </div>
                 );
                 return (
-                  <div className="flex items-stretch">
+                  <div className={`flex items-stretch gap-2 ${isMine ? "" : "flex-row-reverse"}`}>
                     {lastImage && (
-                      <div className="flex-shrink-0 w-[50px]">
+                      <div className="flex-shrink-0 w-[80px] flex items-center justify-center">
                         <Image
                           src={lastImage.thumb}
                           alt="사진"
                           width={50}
                           height={50}
-                          className="w-[50px] h-full object-cover"
+                          className="w-[50px] h-[50px] object-cover rounded-[5px]"
                         />
                       </div>
                     )}
-                    <div className={`flex-1 px-3 py-3 ${lastImage ? "" : ""}`}>
+                    <div className={`flex-1 px-3 py-3`}>
                       <div className={`flex items-start gap-3 ${isMine ? "flex-row-reverse" : ""}`}>
                         {avatar}
                         <div className={`flex-1 min-w-0 ${isMine ? "text-right" : ""}`}>
-                          <div className={`flex items-baseline gap-2 ${isMine ? "flex-row-reverse" : "justify-between"}`}>
+                          <div className={`flex items-baseline gap-2 ${isMine ? "flex-row-reverse" : ""}`}>
                             <span className="font-semibold text-gray-900 text-sm">
                               {conv.other_user?.nickname ?? "알 수 없음"}
                             </span>
@@ -407,7 +407,7 @@ export default function MessagesPage() {
                             </span>
                           </div>
                           {conv.last_text_message && (
-                            <p className="text-gray-600 text-sm line-clamp-1 mt-1">
+                            <p className="text-gray-800 text-sm line-clamp-1 mt-1">
                               {conv.last_text_message.is_mine && <span className="text-gray-400">나: </span>}
                               {truncateMessage(conv.last_text_message.content)}
                             </p>
