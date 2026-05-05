@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import ClassCard, { ClassWithHost } from "@/components/class/ClassCard";
 
 const HOME_RESULTS_CACHE_KEY = "loco_home_results_cache_v3:all";
+const HOME_RESULTS_LOCAL_KEY = "loco_home_results_local_v1";
 
 interface CachedHomeResult {
   data: ClassWithHost[];
@@ -16,6 +17,7 @@ export default function HomeSearchResultsPage() {
   const region = searchParams.get("region") ?? "전체";
   const genres = searchParams.getAll("genre");
   const [loading, setLoading] = useState(true);
+  const isFirstVisit = typeof window !== "undefined" && !localStorage.getItem(HOME_RESULTS_LOCAL_KEY);
   const [allClasses, setAllClasses] = useState<ClassWithHost[]>([]);
   const warmedImageUrlsRef = useRef<Set<string>>(new Set());
   const orderedTopTen = useMemo(() => {
@@ -32,20 +34,39 @@ export default function HomeSearchResultsPage() {
     let cancelled = false;
 
     async function load() {
-      const cachedRaw = sessionStorage.getItem(HOME_RESULTS_CACHE_KEY);
-      if (cachedRaw) {
+      // 1. sessionStorage 우선
+      const sessionRaw = sessionStorage.getItem(HOME_RESULTS_CACHE_KEY);
+      if (sessionRaw) {
         try {
-          const cached = JSON.parse(cachedRaw) as CachedHomeResult;
-          const cachedList = (cached.data ?? []);
-          if (!cancelled) {
-            setAllClasses(cachedList);
-            setLoading(false);
-          }
+          const cached = JSON.parse(sessionRaw) as CachedHomeResult;
+          const cachedList = cached.data ?? [];
+          if (!cancelled) { setAllClasses(cachedList); setLoading(false); }
           warmImages(cachedList);
+          // 백그라운드로 최신 데이터 업데이트
+          fetchAndUpdate(cancelled);
           return;
         } catch {}
       }
 
+      // 2. localStorage 차선
+      const localRaw = localStorage.getItem(HOME_RESULTS_LOCAL_KEY);
+      if (localRaw) {
+        try {
+          const cached = JSON.parse(localRaw) as CachedHomeResult;
+          const cachedList = cached.data ?? [];
+          if (!cancelled) { setAllClasses(cachedList); setLoading(false); }
+          warmImages(cachedList);
+          // 백그라운드로 최신 데이터 업데이트
+          fetchAndUpdate(cancelled);
+          return;
+        } catch {}
+      }
+
+      // 3. 둘 다 없으면 API 호출
+      await fetchAndUpdate(cancelled);
+    }
+
+    async function fetchAndUpdate(cancelled: boolean) {
       try {
         const res = await fetch("/api/classes/search?page=0");
         const json = await res.json();
@@ -53,19 +74,11 @@ export default function HomeSearchResultsPage() {
           if (!cancelled) setLoading(false);
           return;
         }
-
-        const incoming = ((json.data ?? []) as ClassWithHost[]);
-
-        if (!cancelled) {
-          setAllClasses(incoming);
-          setLoading(false);
-        }
-
-        sessionStorage.setItem(
-          HOME_RESULTS_CACHE_KEY,
-          JSON.stringify({ data: incoming, count: json.count ?? 0 } satisfies CachedHomeResult)
-        );
-
+        const incoming = (json.data ?? []) as ClassWithHost[];
+        if (!cancelled) { setAllClasses(incoming); setLoading(false); }
+        const payload = JSON.stringify({ data: incoming, count: json.count ?? 0 } satisfies CachedHomeResult);
+        sessionStorage.setItem(HOME_RESULTS_CACHE_KEY, payload);
+        localStorage.setItem(HOME_RESULTS_LOCAL_KEY, payload);
         warmImages(incoming);
       } catch {
         if (!cancelled) setLoading(false);
@@ -93,7 +106,14 @@ export default function HomeSearchResultsPage() {
   }, []);
 
   return (
-    <div className="max-w-xl mx-auto bg-white">
+    <div className="max-w-xl mx-auto bg-white relative">
+      {loading && isFirstVisit && (
+        <div className="fixed inset-0 z-50 bg-white flex flex-col items-center justify-center">
+          <div className="w-48 h-2 bg-gray-100 rounded-full overflow-hidden">
+            <div className="h-full bg-yellow-400 rounded-full animate-[loading-bar_1.5s_ease-in-out_infinite]" />
+          </div>
+        </div>
+      )}
       <div className="flex flex-col pb-6">
         {orderedTopTen.map((c, idx) => (
           <ClassCard key={`${c.id}-${idx}`} classData={c} />
@@ -113,7 +133,6 @@ export default function HomeSearchResultsPage() {
         </div>
       )}
 
-      {loading && <div className="text-center py-6 text-gray-400 text-sm">로딩 중...</div>}
     </div>
   );
 }

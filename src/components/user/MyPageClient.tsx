@@ -21,6 +21,9 @@ export default function MyPageClient({ profile }: Props) {
   async function handleLogout() {
     try {
       sessionStorage.removeItem("loco_mypage_cache_v1");
+      // sessionStorage 캐시 → localStorage로 이전 (다음 로그인 시 즉각 표시용)
+      const homeCache = sessionStorage.getItem("loco_home_results_cache_v3:all");
+      if (homeCache) localStorage.setItem("loco_home_results_local_v1", homeCache);
     } catch {}
     await logoutAction();
     router.replace("/login");

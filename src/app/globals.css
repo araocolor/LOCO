@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+@keyframes loading-bar {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(400%); }
+}
+
 @keyframes heartPop {
   0%   { transform: scale(0); opacity: 1; }
   40%  { transform: scale(1.2); opacity: 1; }
