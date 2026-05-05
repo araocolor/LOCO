@@ -297,10 +297,10 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
         <h1 className="text-lg font-bold text-gray-900">메시지</h1>
         <button
           onClick={fetchConversations}
-          disabled={refreshDisabled}
-          className={`p-1 ${refreshDisabled ? "text-gray-300 cursor-not-allowed" : "text-gray-400 hover:text-gray-700"}`}
+          disabled={refreshDisabled && !isSpinning}
+          className={`p-1 ${refreshDisabled && !isSpinning ? "text-gray-400 cursor-not-allowed" : "text-gray-800 hover:text-gray-900"}`}
         >
-          <RefreshCw size={18} style={{ transition: "transform 0.6s ease-out", animation: isSpinning ? "spin 0.8s linear infinite" : "none" }} />
+          <RefreshCw size={18} className={isSpinning ? "animate-spin" : ""} style={{ animationDuration: "0.8s" }} />
         </button>
       </div>
 
@@ -359,7 +359,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
                         {avatar}
                         <div className={`flex-1 min-w-0 ${isMine ? "text-right" : ""}`}>
                           <div className={`flex items-baseline gap-2 ${isMine ? "flex-row-reverse" : ""}`}>
-                            <span className="font-semibold text-gray-900 text-sm">
+                            <span className="font-semibold text-gray-900" style={{ fontSize: "15px" }}>
                               {conv.other_user?.nickname ?? "알 수 없음"}
                             </span>
                             <span className="text-gray-400 text-xs flex-shrink-0">
@@ -367,7 +367,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
                             </span>
                           </div>
                           {conv.last_text_message && (
-                            <p className="text-gray-800 text-sm line-clamp-1 mt-1">
+                            <p className="text-gray-900 line-clamp-1 mt-1" style={{ fontSize: "16px" }}>
                               {conv.last_text_message.is_mine && <span className="text-gray-400">나: </span>}
                               {truncateMessage(conv.last_text_message.content)}
                             </p>
