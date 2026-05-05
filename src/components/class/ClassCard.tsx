@@ -10,6 +10,7 @@ import CommentSheet from "@/components/class/CommentSheet";
 import SendMessageModal from "@/components/modal/SendMessageModal";
 
 const LIKES_CACHE_KEY = "loco_liked_posts";
+const BOOKMARKS_CACHE_KEY = "loco_bookmark_ids_v1";
 
 interface ClassHost {
   id: string;
@@ -80,6 +81,7 @@ export default function ClassCard({ classData }: ClassCardProps) {
   const [commentOpen, setCommentOpen] = useState(false);
   const [userExpanded, setUserExpanded] = useState(false);
   const [liked, setLiked] = useState(false);
+  const [bookmarked, setBookmarked] = useState(false);
   const [heartVisible, setHeartVisible] = useState(false);
   const [heartLiked, setHeartLiked] = useState(false);
   const [messageModalOpen, setMessageModalOpen] = useState(false);
@@ -89,6 +91,9 @@ export default function ClassCard({ classData }: ClassCardProps) {
     const raw = localStorage.getItem(LIKES_CACHE_KEY);
     const likes: string[] = raw ? JSON.parse(raw) : [];
     setLiked(likes.includes(id));
+    const rawB = localStorage.getItem(BOOKMARKS_CACHE_KEY);
+    const bookmarks: { id: string; created_at: string }[] = rawB ? JSON.parse(rawB) : [];
+    setBookmarked(bookmarks.some((b) => b.id === id));
   }, [id]);
 
   async function handleImageClick() {
@@ -108,6 +113,20 @@ export default function ClassCard({ classData }: ClassCardProps) {
     setHeartVisible(true);
     setTimeout(() => setHeartVisible(false), 900);
   }
+  function handleBookmark() {
+    const rawB = localStorage.getItem(BOOKMARKS_CACHE_KEY);
+    const bookmarks: { id: string; created_at: string }[] = rawB ? JSON.parse(rawB) : [];
+    const isBookmarked = bookmarks.some((b) => b.id === id);
+    if (isBookmarked) {
+      localStorage.setItem(BOOKMARKS_CACHE_KEY, JSON.stringify(bookmarks.filter((b) => b.id !== id)));
+      setBookmarked(false);
+    } else {
+      const now = new Date().toISOString();
+      localStorage.setItem(BOOKMARKS_CACHE_KEY, JSON.stringify([...bookmarks, { id, created_at: now }]));
+      setBookmarked(true);
+    }
+  }
+
   const touchStartX = useRef(0);
   const touchStartY = useRef(0);
   const isHorizontal = useRef<boolean | null>(null);
@@ -165,12 +184,12 @@ export default function ClassCard({ classData }: ClassCardProps) {
             <Image
               src={host.profile_image_url}
               alt={host?.nickname ?? ""}
-              width={32}
-              height={32}
-              className="rounded-full object-cover flex-shrink-0"
+              width={35}
+              height={35}
+              className="rounded-full object-cover flex-shrink-0 w-[35px] h-[35px]"
             />
           ) : (
-            <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 text-xs font-medium flex-shrink-0">
+            <div className="w-[35px] h-[35px] rounded-full bg-gray-200 flex items-center justify-center text-gray-500 text-xs font-medium flex-shrink-0">
               {host?.nickname?.[0] ?? "?"}
             </div>
           )}
@@ -400,9 +419,11 @@ export default function ClassCard({ classData }: ClassCardProps) {
             </svg>
           </div>
           {/* 북마크 */}
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-800">
-            <polygon points="19 21 12 16 5 21 5 3 19 3" />
-          </svg>
+          <button onClick={handleBookmark}>
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill={bookmarked ? "#1a1a1a" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-800">
+              <polygon points="19 21 12 16 5 21 5 3 19 3" />
+            </svg>
+          </button>
         </div>
 
         {/* 제목/정보 */}

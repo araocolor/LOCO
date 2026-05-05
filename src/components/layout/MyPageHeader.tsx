@@ -57,22 +57,16 @@ const SECTIONS: SectionDef[] = [
     title: "클래스 공개범위 설정",
     items: [
       {
+        id: "class-privacy",
+        icon: <SlidersHorizontal size={18} />,
+        label: "업로드 클래스",
+        subItems: [{ label: "전체공개" }, { label: "친구공개" }, { label: "비공개" }],
+      },
+      {
         id: "bookmark",
         icon: <Bookmark size={18} />,
         label: "북마크 클래스",
         subItems: [{ label: "전체공개" }, { label: "친구공유" }, { label: "비공개" }],
-      },
-      {
-        id: "myclasses",
-        icon: <LayoutGrid size={18} />,
-        label: "마이클래스",
-        subItems: [{ label: "전체공개" }, { label: "친구공유" }, { label: "비공개" }],
-      },
-      {
-        id: "class-privacy",
-        icon: <SlidersHorizontal size={18} />,
-        label: "클래스 공개범위설정",
-        subItems: [{ label: "일반클래스" }, { label: "연습모임" }],
       },
     ],
   },
@@ -96,13 +90,6 @@ const SECTIONS: SectionDef[] = [
         ],
         actionLabel: "프로필 배지 신청",
       },
-      {
-        id: "payment",
-        icon: <CreditCard size={18} />,
-        label: "주문결제",
-        subItems: [],
-        emptyText: "현재 주문내역이 없습니다.",
-      },
     ],
   },
   {
@@ -117,8 +104,8 @@ const SECTIONS: SectionDef[] = [
       {
         id: "tag-privacy",
         icon: <Tag size={18} />,
-        label: "태그설정",
-        subItems: [{ label: "모든사람" }, { label: "친구끼리" }, { label: "태그삭제" }],
+        label: "친구 표시",
+        subItems: [{ label: "모든사람" }, { label: "비공개" }],
       },
       {
         id: "blacklist",
@@ -136,19 +123,22 @@ const SECTIONS: SectionDef[] = [
         id: "help",
         icon: <HelpCircle size={18} />,
         label: "도움말",
-        subItems: [{ label: "샘플 1" }, { label: "샘플 2" }, { label: "샘플 3" }],
+        noAccordion: true,
+        subItems: [],
       },
       {
         id: "privacy-center",
         icon: <ShieldCheck size={18} />,
         label: "개인정보보호센터",
-        subItems: [{ label: "샘플 1" }, { label: "샘플 2" }, { label: "샘플 3" }],
+        noAccordion: true,
+        subItems: [],
       },
       {
         id: "terms",
         icon: <FileText size={18} />,
         label: "이용 약관",
-        subItems: [{ label: "샘플 1" }, { label: "샘플 2" }, { label: "샘플 3" }],
+        noAccordion: true,
+        subItems: [],
       },
     ],
   },
@@ -170,7 +160,7 @@ const SECTIONS: SectionDef[] = [
       {
         id: "location",
         icon: <MapPin size={18} />,
-        label: "위치",
+        label: "국가",
         subItems: [{ label: "샘플 1" }],
         selectOptions: [
           {
@@ -189,7 +179,7 @@ const SECTIONS: SectionDef[] = [
       },
       {
         id: "logout",
-        icon: null,
+        icon: <LogOut size={18} />,
         label: "로그아웃",
         subItems: [],
         subtle: true,
@@ -216,16 +206,11 @@ export default function MyPageHeader() {
   const [openIds, setOpenIds] = useState<Set<string>>(new Set());
   const [toggles, setToggles] = useState<Record<string, boolean>>({
     "bookmark-0": true,
-    "bookmark-1": true,
     "myclasses-0": true,
-    "myclasses-1": true,
     "class-privacy-0": true,
     "profile-privacy-0": true,
-    "profile-privacy-1": true,
     "message-privacy-0": true,
-    "message-privacy-1": true,
     "tag-privacy-0": true,
-    "tag-privacy-1": true,
   });
   const [selections, setSelections] = useState<Record<string, string>>({});
 
@@ -242,24 +227,41 @@ export default function MyPageHeader() {
 
   function handleItemClick(id: string, noAccordion?: boolean) {
     if (noAccordion) return;
-    const clickedSection = getSectionIndex(id);
     setOpenIds((prev) => {
-      const next = new Set<string>();
-      prev.forEach((openId) => {
-        if (getSectionIndex(openId) === clickedSection) next.add(openId);
-      });
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
+      if (prev.has(id)) return new Set<string>();
+      return new Set<string>([id]);
     });
   }
 
   function handleToggle(key: string) {
-    setToggles((prev) => ({ ...prev, [key]: !prev[key] }));
+    setToggles((prev) => {
+      if (prev[key]) return prev;
+      const itemId = key.split("-").slice(0, -1).join("-");
+      const next = { ...prev };
+      Object.keys(next).forEach((k) => {
+        if (k.startsWith(itemId + "-")) next[k] = false;
+      });
+      next[key] = true;
+      return next;
+    });
   }
 
   async function handleLogout() {
     try {
+      const { createClient } = await import("@/lib/supabase/client");
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const rawB = localStorage.getItem("loco_bookmark_ids_v1");
+        const bookmarks: { id: string; created_at: string }[] = rawB ? JSON.parse(rawB) : [];
+        await supabase.from("class_bookmarks").delete().eq("user_id", user.id);
+        if (bookmarks.length > 0) {
+          await supabase.from("class_bookmarks").insert(
+            bookmarks.map((b) => ({ user_id: user.id, class_id: b.id, created_at: b.created_at }))
+          );
+        }
+        localStorage.removeItem("loco_bookmark_ids_v1");
+      }
       sessionStorage.removeItem("loco_mypage_cache_v1");
     } catch {}
     await logoutAction();
@@ -287,23 +289,24 @@ export default function MyPageHeader() {
 
       {/* 슬라이드 시트 */}
       <div
-        className={`fixed top-0 left-0 h-full w-full bg-white z-[200] overflow-y-auto transition-transform duration-300 ease-in-out ${
+        className={`fixed top-0 left-0 h-full w-full bg-white z-[200] flex flex-col transition-transform duration-300 ease-in-out ${
           open ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        {/* 시트 헤더 */}
-        <div className="flex items-center justify-between px-4 h-14 border-b border-gray-100">
+        {/* 시트 헤더 - 고정 */}
+        <div className="flex-shrink-0 flex items-center justify-between px-4 h-14 border-b border-gray-100">
           <span className="text-[20px] font-bold text-[#333333]">설정</span>
           <button type="button" onClick={() => setOpen(false)}>
             <X className="w-5 h-5 text-gray-500" />
           </button>
         </div>
 
-        {/* 섹션 목록 */}
+        {/* 섹션 목록 - 스크롤 */}
+        <div className="flex-1 overflow-y-auto">
         {SECTIONS.map((section) => (
           <div key={section.title ?? "default"} className="border-t border-gray-100">
             {section.title && (
-              <p className="px-5 pt-4 pb-1 text-xs font-semibold text-gray-400">
+              <p className="px-5 pt-4 pb-1 text-xs font-semibold text-white">
                 {section.title}
               </p>
             )}
@@ -313,7 +316,7 @@ export default function MyPageHeader() {
                 <div key={item.id}>
                   <button
                     type="button"
-                    className="flex items-center gap-3 w-full px-5 py-2.5 text-left active:bg-gray-50"
+                    className={`flex items-center gap-3 w-full px-5 py-2.5 text-left transition-colors duration-200 active:bg-gray-100 ${item.id === "logout" ? "bg-black/70" : isOpen ? "bg-gray-50" : "hover:bg-gray-50"}`}
                     onClick={() => {
                       if (item.id === "logout") {
                         handleLogout();
@@ -323,14 +326,14 @@ export default function MyPageHeader() {
                     }}
                   >
                     {item.icon && (
-                      <span className={item.danger ? "text-red-500" : "text-gray-400"}>
+                      <span className={item.subtle ? "text-white" : item.danger ? "text-red-500" : "text-gray-400"}>
                         {item.icon}
                       </span>
                     )}
                     <span
                       className={`${item.subtle ? "" : "flex-1"} ${
                         item.subtle
-                          ? "text-[14px] text-gray-400"
+                          ? "text-[14px] text-white"
                           : item.danger
                           ? "text-[17px] text-red-500"
                           : "text-[17px] text-[#333333]"
@@ -350,7 +353,7 @@ export default function MyPageHeader() {
 
                   {/* 아코디언 서브 항목 */}
                   {isOpen && (
-                    <div className="bg-gray-50 border-t border-gray-100 px-6 py-3">
+                    <div className="bg-gray-50 border-t border-gray-100 pl-[50px] pr-5 py-1.5">
                       {item.blacklistGrid ? (
                         <div className="grid grid-cols-6 gap-2 py-1">
                           {[0, 1, 2].map((i) => (
@@ -413,7 +416,7 @@ export default function MyPageHeader() {
                           return (
                             <div
                               key={key}
-                              className="flex items-center justify-between py-3 border-b border-gray-100 last:border-b-0"
+                              className="flex items-center justify-between py-2 border-b border-gray-100 last:border-b-0"
                             >
                               <span className="text-[15px] text-[#333333]">{sub.label}</span>
                               <IosToggle
@@ -431,6 +434,7 @@ export default function MyPageHeader() {
             })}
           </div>
         ))}
+        </div>
       </div>
     </>
   );
@@ -449,13 +453,13 @@ function IosToggle({
       role="switch"
       aria-checked={checked}
       onClick={onChange}
-      className={`relative inline-flex h-[31px] w-[51px] shrink-0 rounded-full transition-colors duration-200 focus:outline-none ${
+      className={`relative inline-flex h-[22px] w-[36px] shrink-0 rounded-full transition-colors duration-200 focus:outline-none ${
         checked ? "bg-[#34C759]" : "bg-[#E5E5EA]"
       }`}
     >
       <span
-        className={`inline-block h-[27px] w-[27px] rounded-full bg-white shadow-md transition-transform duration-200 mt-[2px] ${
-          checked ? "translate-x-[22px]" : "translate-x-[2px]"
+        className={`inline-block h-[18px] w-[18px] rounded-full bg-white shadow-md transition-transform duration-200 mt-[2px] ${
+          checked ? "translate-x-[16px]" : "translate-x-[2px]"
         }`}
       />
     </button>

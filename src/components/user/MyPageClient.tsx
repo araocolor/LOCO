@@ -1,12 +1,23 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { UserCircle, X } from "lucide-react";
 import { logoutAction } from "@/actions/auth";
 import { createClient } from "@/lib/supabase/client";
 import AvatarCropModal from "./AvatarCropModal";
+
+type TabType = "all" | "my" | "bookmark";
+
+interface GridClass {
+  id: string;
+  images: string[] | null;
+  title: string;
+  status?: string;
+  created_at?: string;
+  isBookmark?: boolean;
+}
 
 interface Profile {
   id: string;
@@ -25,11 +36,91 @@ export default function MyPageClient({ profile }: Props) {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(profile.profile_image_url);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [activeTab, setActiveTab] = useState<TabType>("all");
+  const [myClasses, setMyClasses] = useState<GridClass[]>([]);
+  const [bookmarkClasses, setBookmarkClasses] = useState<GridClass[]>([]);
+
+  useEffect(() => {
+    async function fetchClasses() {
+      const supabase = createClient();
+
+      // 내 클래스
+      const { data: my } = await supabase
+        .from("classes")
+        .select("id, images, title, status, created_at")
+        .eq("host_id", profile.id)
+        .order("created_at", { ascending: false });
+      setMyClasses(my ?? []);
+
+      // 북마크: localStorage 캐시 우선 [{id, created_at}]
+      const rawBm = localStorage.getItem("loco_bookmark_ids_v1");
+      const bmEntries: { id: string; created_at: string }[] | null = rawBm ? JSON.parse(rawBm) : null;
+
+      if (bmEntries !== null && Array.isArray(bmEntries) && bmEntries[0]?.created_at) {
+        const homeRaw = localStorage.getItem("loco_home_results_local_v1");
+        const homeClasses: any[] = homeRaw ? (JSON.parse(homeRaw).data ?? []) : [];
+        const homeMap = new Map(homeClasses.map((c) => [c.id, c]));
+
+        const found: GridClass[] = [];
+        const missing: { id: string; created_at: string }[] = [];
+        bmEntries.forEach(({ id, created_at }) => {
+          const c = homeMap.get(id);
+          if (c) found.push({ id: c.id, images: c.images, title: c.title, created_at, isBookmark: true });
+          else missing.push({ id, created_at });
+        });
+
+        if (missing.length > 0) {
+          const { data: extra } = await supabase
+            .from("classes")
+            .select("id, images, title")
+            .in("id", missing.map((m) => m.id));
+          const extraMapped = (extra ?? []).map((c) => ({
+            ...c,
+            created_at: missing.find((m) => m.id === c.id)?.created_at,
+            isBookmark: true,
+          }));
+          setBookmarkClasses([...found, ...extraMapped]);
+        } else {
+          setBookmarkClasses(found);
+        }
+      } else {
+        // 캐시 없으면 전체 DB fetch
+        const { data: bm } = await supabase
+          .from("class_bookmarks")
+          .select("class_id, created_at, classes(id, images, title)")
+          .eq("user_id", profile.id)
+          .order("created_at", { ascending: false });
+        const bmClasses = (bm ?? []).map((b: any) => ({
+          ...b.classes,
+          created_at: b.created_at,
+          isBookmark: true,
+        }));
+        setBookmarkClasses(bmClasses);
+        localStorage.setItem("loco_bookmark_ids_v1", JSON.stringify(
+          bmClasses.map((c: any) => ({ id: c.id, created_at: c.created_at }))
+        ));
+      }
+    }
+    fetchClasses();
+  }, [profile.id]);
 
   async function handleLogout() {
     try {
+      // 북마크 캐시 → DB 동기화
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const rawB = localStorage.getItem("loco_bookmark_ids_v1");
+        const bookmarks: { id: string; created_at: string }[] = rawB ? JSON.parse(rawB) : [];
+        await supabase.from("class_bookmarks").delete().eq("user_id", user.id);
+        if (bookmarks.length > 0) {
+          await supabase.from("class_bookmarks").insert(
+            bookmarks.map((b) => ({ user_id: user.id, class_id: b.id, created_at: b.created_at }))
+          );
+        }
+        localStorage.removeItem("loco_bookmark_ids_v1");
+      }
       sessionStorage.removeItem("loco_mypage_cache_v1");
-      // sessionStorage 캐시 → localStorage로 이전 (다음 로그인 시 즉각 표시용)
       const homeCache = sessionStorage.getItem("loco_home_results_cache_v3:all");
       if (homeCache) localStorage.setItem("loco_home_results_local_v1", homeCache);
     } catch {}
@@ -105,13 +196,13 @@ export default function MyPageClient({ profile }: Props) {
               <Image
                 src={avatarUrl}
                 alt="프로필"
-                width={40}
-                height={40}
-                className="rounded-full object-cover w-10 h-10"
+                width={60}
+                height={60}
+                className="rounded-full object-cover w-[60px] h-[60px]"
                 unoptimized
               />
             ) : (
-              <UserCircle size={40} className="text-gray-400" />
+              <UserCircle size={60} className="text-gray-400" />
             )}
           </button>
           <span className="text-[15px] font-semibold text-[#333333]">
@@ -134,8 +225,61 @@ export default function MyPageClient({ profile }: Props) {
         </div>
       </div>
 
-      {/* 하단 70% */}
-      <div className="flex-1 bg-gray-50" />
+      {/* 하단 클래스 그리드 */}
+      <div className="flex-1 bg-white">
+        {/* 탭 필터 */}
+        <div className="flex gap-2 px-4 py-3">
+          {([["all", "전체목록"], ["my", "내클래스"], ["bookmark", "북마크"]] as const).map(([tab, label]) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`px-4 py-1.5 rounded-full text-[13px] font-medium transition-colors ${
+                activeTab === tab
+                  ? "bg-gray-900 text-white"
+                  : "bg-gray-100 text-gray-500"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {/* 3x3 그리드 */}
+        <div className="grid grid-cols-3 gap-[1px] bg-gray-200">
+          {(activeTab === "all"
+            ? [...myClasses, ...bookmarkClasses].sort((a, b) =>
+                new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime()
+              )
+            : activeTab === "my"
+            ? myClasses
+            : bookmarkClasses
+          ).map((item) => (
+            <div key={item.id + (item.isBookmark ? "-bm" : "")} className="aspect-square bg-gray-100 relative overflow-hidden">
+              {item.images?.[0]?.card_url ?? item.images?.[0] ? (
+                <Image
+                  src={item.images[0]?.card_url ?? item.images[0]}
+                  alt={item.title}
+                  fill
+                  className="object-cover"
+                  unoptimized
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center bg-gray-100">
+                  <span className="text-gray-300 text-xs">없음</span>
+                </div>
+              )}
+              {item.isBookmark && (
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="white" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="absolute top-1.5 right-1.5">
+                  <polygon points="19 21 12 16 5 21 5 3 19 3" />
+                </svg>
+              )}
+              {!item.isBookmark && item.status === "recruiting" && (
+                <div className="absolute top-1.5 right-1.5 w-3 h-3 rounded-full bg-green-500" />
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
 
       {/* 프로필 편집 슬라이드 */}
       <div
@@ -174,13 +318,13 @@ export default function MyPageClient({ profile }: Props) {
                 <Image
                   src={avatarUrl}
                   alt="프로필"
-                  width={50}
-                  height={50}
-                  className="rounded-full object-cover w-[50px] h-[50px]"
+                  width={60}
+                  height={60}
+                  className="rounded-full object-cover w-[60px] h-[60px]"
                   unoptimized
                 />
               ) : (
-                <UserCircle size={50} className="text-gray-400" />
+                <UserCircle size={60} className="text-gray-400" />
               )}
               {uploading && (
                 <span className="absolute text-[10px] text-white bg-black/60 px-2 py-0.5 rounded mt-1">

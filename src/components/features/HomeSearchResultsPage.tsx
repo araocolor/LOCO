@@ -84,9 +84,20 @@ export default function HomeSearchResultsPage() {
         sessionStorage.setItem(HOME_RESULTS_CACHE_KEY, payload);
         localStorage.setItem(HOME_RESULTS_LOCAL_KEY, payload);
         warmImages(incoming);
+        fetchBookmarkIds();
       } catch {
         if (!cancelled) setLoading(false);
       }
+    }
+
+    async function fetchBookmarkIds() {
+      try {
+        const res = await fetch("/api/bookmarks/ids");
+        if (!res.ok) return;
+        const json = await res.json();
+        const ids: string[] = json.ids ?? [];
+        localStorage.setItem("loco_bookmark_ids_v1", JSON.stringify(ids));
+      } catch {}
     }
 
     function warmImages(items: ClassWithHost[]) {
