@@ -17,7 +17,7 @@ export default function HomeSearchResultsPage() {
   const region = searchParams.get("region") ?? "전체";
   const genres = searchParams.getAll("genre");
   const [loading, setLoading] = useState(true);
-  const isFirstVisit = typeof window !== "undefined" && !localStorage.getItem(HOME_RESULTS_LOCAL_KEY);
+  const [isFirstVisit, setIsFirstVisit] = useState(false);
   const [allClasses, setAllClasses] = useState<ClassWithHost[]>([]);
   const warmedImageUrlsRef = useRef<Set<string>>(new Set());
   const orderedTopTen = useMemo(() => {
@@ -29,6 +29,10 @@ export default function HomeSearchResultsPage() {
     }
     return filtered.slice(0, 10);
   }, [allClasses, region, genres]);
+
+  useEffect(() => {
+    setIsFirstVisit(!localStorage.getItem(HOME_RESULTS_LOCAL_KEY));
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
