@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   Ban,
@@ -24,6 +25,7 @@ import {
   X,
 } from "lucide-react";
 import { RiVerifiedBadgeFill } from "react-icons/ri";
+import { logoutAction } from "@/actions/auth";
 import type { ReactNode } from "react";
 
 type SubItem = { label: string };
@@ -198,6 +200,7 @@ const SECTIONS: SectionDef[] = [
 ];
 
 export default function MyPageHeader() {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [nickname, setNickname] = useState<string | null>(null);
 
@@ -255,6 +258,14 @@ export default function MyPageHeader() {
     setToggles((prev) => ({ ...prev, [key]: !prev[key] }));
   }
 
+  async function handleLogout() {
+    try {
+      sessionStorage.removeItem("loco_mypage_cache_v1");
+    } catch {}
+    await logoutAction();
+    router.replace("/login");
+  }
+
   return (
     <>
       <header className="sticky top-0 z-50 bg-white border-b border-[#e5e7eb] h-14 px-4 relative flex items-center">
@@ -303,7 +314,13 @@ export default function MyPageHeader() {
                   <button
                     type="button"
                     className="flex items-center gap-3 w-full px-5 py-2.5 text-left active:bg-gray-50"
-                    onClick={() => handleItemClick(item.id, item.noAccordion)}
+                    onClick={() => {
+                      if (item.id === "logout") {
+                        handleLogout();
+                      } else {
+                        handleItemClick(item.id, item.noAccordion);
+                      }
+                    }}
                   >
                     {item.icon && (
                       <span className={item.danger ? "text-red-500" : "text-gray-400"}>

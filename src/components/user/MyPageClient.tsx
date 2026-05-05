@@ -1,7 +1,9 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { UserCircle } from "lucide-react";
+import { logoutAction } from "@/actions/auth";
 
 interface Profile {
   id: string;
@@ -14,10 +16,20 @@ interface Props {
 }
 
 export default function MyPageClient({ profile }: Props) {
+  const router = useRouter();
+
+  async function handleLogout() {
+    try {
+      sessionStorage.removeItem("loco_mypage_cache_v1");
+    } catch {}
+    await logoutAction();
+    router.replace("/login");
+  }
+
   return (
     <div className="flex flex-col h-full">
       {/* 상단 30% */}
-      <div className="h-[30vh] bg-white flex items-start px-4 pt-5">
+      <div className="h-[30vh] bg-white flex flex-col items-start justify-between px-4 pt-5 pb-5">
         <div className="flex items-center gap-3">
           {profile.profile_image_url ? (
             <Image
@@ -34,6 +46,12 @@ export default function MyPageClient({ profile }: Props) {
             {profile.nickname}
           </span>
         </div>
+        <button
+          onClick={handleLogout}
+          className="text-[15px] text-gray-400 font-medium hover:text-gray-600 transition-colors"
+        >
+          로그아웃
+        </button>
       </div>
 
       {/* 하단 70% */}

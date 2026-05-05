@@ -275,3 +275,159 @@ CREATE TRIGGER pro_requests_updated_at
 
 CREATE INDEX idx_pro_requests_user_id ON pro_requests (user_id);
 CREATE INDEX idx_pro_requests_status  ON pro_requests (status);
+
+
+-- ============================================================
+-- 6. friendships (친구 관계)
+-- ============================================================
+CREATE TABLE friendships (
+  id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id    UUID        NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  friend_id  UUID        NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  status     TEXT        NOT NULL DEFAULT 'pending'
+             CHECK (status IN ('pending', 'approved', 'blocked')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (user_id, friend_id),
+  CHECK (user_id != friend_id)
+);
+
+ALTER TABLE friendships ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "friendships: 본인 친구 관계만 조회"
+  ON friendships FOR SELECT USING (
+    auth.uid() = user_id OR auth.uid() = friend_id
+  );
+
+CREATE POLICY "friendships: 본인만 요청"
+  ON friendships FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "friendships: 본인만 수정"
+  ON friendships FOR UPDATE USING (
+    auth.uid() = user_id OR auth.uid() = friend_id
+  );
+
+CREATE TRIGGER friendships_updated_at
+  BEFORE UPDATE ON friendships
+  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+CREATE INDEX idx_friendships_user_id ON friendships (user_id);
+CREATE INDEX idx_friendships_friend_id ON friendships (friend_id);
+CREATE INDEX idx_friendships_status ON friendships (status);
+
+
+-- ============================================================
+-- 7. messages (1:1 메시지)
+-- ============================================================
+CREATE TABLE messages (
+  id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  sender_id   UUID        NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  receiver_id UUID        NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  content     TEXT        NOT NULL,
+  sent_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  read_at     TIMESTAMPTZ,
+  deleted_by  JSONB       NOT NULL DEFAULT '[]',
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CHECK (sender_id != receiver_id)
+);
+
+ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "messages: 발신자와 수신자만 조회"
+  ON messages FOR SELECT USING (
+    auth.uid() = sender_id OR auth.uid() = receiver_id
+  );
+
+CREATE POLICY "messages: 로그인 사용자만 발송"
+  ON messages FOR INSERT WITH CHECK (auth.uid() = sender_id);
+
+CREATE POLICY "messages: 발신자와 수신자만 삭제"
+  ON messages FOR UPDATE USING (
+    auth.uid() = sender_id OR auth.uid() = receiver_id
+  );
+
+CREATE INDEX idx_messages_sender_id ON messages (sender_id);
+CREATE INDEX idx_messages_receiver_id ON messages (receiver_id);
+CREATE INDEX idx_messages_sent_at ON messages (sent_at DESC);
+CREATE INDEX idx_messages_conversation ON messages (
+  LEAST(sender_id, receiver_id),
+  GREATEST(sender_id, receiver_id),
+  sent_at DESC
+);
+
+
+-- ============================================================
+-- 8. conversations (메시지 목록 최적화)
+-- ============================================================
+CREATE TABLE conversations (
+  id             UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id        UUID        NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  other_user_id  UUID        NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  last_message_id UUID       REFERENCES messages(id) ON DELETE SET NULL,
+  last_message_at TIMESTAMPTZ,
+  unread_count   INTEGER     NOT NULL DEFAULT 0,
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (user_id, other_user_id),
+  CHECK (user_id != other_user_id)
+);
+
+ALTER TABLE conversations ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "conversations: 본인 대화만 조회"
+  ON conversations FOR SELECT USING (auth.uid() = user_id);
+
+CREATE POLICY "conversations: 본인만 수정"
+  ON conversations FOR UPDATE USING (auth.uid() = user_id);
+
+CREATE TRIGGER conversations_updated_at
+  BEFORE UPDATE ON conversations
+  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+CREATE INDEX idx_conversations_user_id ON conversations (user_id);
+CREATE INDEX idx_conversations_updated_at ON conversations (user_id, updated_at DESC);
+
+
+-- ============================================================
+-- 9. user_settings (사용자 설정)
+-- ============================================================
+CREATE TABLE user_settings (
+  id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id    UUID        NOT NULL UNIQUE REFERENCES profiles(id) ON DELETE CASCADE,
+  message_from TEXT       NOT NULL DEFAULT 'anyone'
+             CHECK (message_from IN ('anyone', 'friends_only')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE user_settings ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "user_settings: 본인만 조회"
+  ON user_settings FOR SELECT USING (auth.uid() = user_id);
+
+CREATE POLICY "user_settings: 본인만 수정"
+  ON user_settings FOR UPDATE USING (auth.uid() = user_id);
+
+CREATE TRIGGER user_settings_updated_at
+  BEFORE UPDATE ON user_settings
+  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+CREATE INDEX idx_user_settings_user_id ON user_settings (user_id);
+
+
+-- ============================================================
+-- 신규 회원 생성 시 user_settings 자동 생성
+-- ============================================================
+CREATE OR REPLACE FUNCTION handle_new_user_settings()
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO public.user_settings (user_id, message_from)
+  VALUES (NEW.id, 'anyone')
+  ON CONFLICT (user_id) DO NOTHING;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+CREATE TRIGGER on_auth_user_created_settings
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION handle_new_user_settings();

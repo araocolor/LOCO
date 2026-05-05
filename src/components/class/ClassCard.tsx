@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { DanceClass, DANCE_GENRE_LABELS, CLASS_LEVEL_LABELS } from "@/types/class";
 import CommentSheet from "@/components/class/CommentSheet";
+import SendMessageModal from "@/components/modal/SendMessageModal";
 
 const LIKES_CACHE_KEY = "loco_liked_posts";
 
@@ -81,6 +82,7 @@ export default function ClassCard({ classData }: ClassCardProps) {
   const [liked, setLiked] = useState(false);
   const [heartVisible, setHeartVisible] = useState(false);
   const [heartLiked, setHeartLiked] = useState(false);
+  const [messageModalOpen, setMessageModalOpen] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -214,7 +216,13 @@ export default function ClassCard({ classData }: ClassCardProps) {
                   </button>
                   <div className="border-t border-gray-100 mx-3" />
                   {/* 메세지전송 */}
-                  <button className="flex items-center justify-between w-full px-4 py-3 text-sm text-gray-700">
+                  <button
+                    onClick={() => {
+                      setMenuOpen(false);
+                      setMessageModalOpen(true);
+                    }}
+                    className="flex items-center justify-between w-full px-4 py-3 text-sm text-gray-700"
+                  >
                     <span>메세지전송</span>
                     <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500">
                       <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
@@ -416,6 +424,17 @@ export default function ClassCard({ classData }: ClassCardProps) {
         </div>
       </div>
       <CommentSheet open={commentOpen} onClose={() => setCommentOpen(false)} classId={id} />
+      {host && (
+        <SendMessageModal
+          isOpen={messageModalOpen}
+          onClose={() => setMessageModalOpen(false)}
+          receiver={{
+            id: host.id,
+            nickname: host.nickname,
+            profile_image_url: host.profile_image_url,
+          }}
+        />
+      )}
     </>
   );
 }
