@@ -81,7 +81,7 @@ export default function BottomNav({ isLoggedIn }: { isLoggedIn: boolean }) {
       {NAV_ITEMS.map(({ href, label, icon }) => {
         const isActive =
           href === "/" ? pathname === "/" : pathname.startsWith(href);
-        const className = `flex-1 flex flex-col items-center justify-center gap-0.5 transition-colors ${
+        const className = `flex-1 h-full flex flex-col items-center justify-center gap-0.5 transition-colors ${
           isActive ? "text-[#FEE500]" : "text-gray-400"
         }`;
 

@@ -25,13 +25,21 @@ export async function GET() {
       return NextResponse.json({ data: [] });
     }
 
-    // 각 사용자별 최신 메시지만 뽑기
+    // 각 사용자별 최신 메시지 + 최신 텍스트 메시지 뽑기
     const conversationMap = new Map<string, (typeof messages)[0]>();
+    const lastTextMap = new Map<string, (typeof messages)[0]>();
 
     messages.forEach((msg) => {
       const otherUserId = msg.sender_id === user.id ? msg.receiver_id : msg.sender_id;
       if (!conversationMap.has(otherUserId)) {
         conversationMap.set(otherUserId, msg);
+      }
+      if (!lastTextMap.has(otherUserId)) {
+        try {
+          const parsed = JSON.parse(msg.content);
+          if (parsed.type === "image") return;
+        } catch {}
+        lastTextMap.set(otherUserId, msg);
       }
     });
 
@@ -57,6 +65,7 @@ export async function GET() {
     const result = conversations.map((msg) => {
       const otherUserId = msg.sender_id === user.id ? msg.receiver_id : msg.sender_id;
       const otherUser = profileMap.get(otherUserId);
+      const lastText = lastTextMap.get(otherUserId);
 
       return {
         id: `${user.id}-${otherUserId}`,
@@ -70,6 +79,10 @@ export async function GET() {
           sent_at: msg.sent_at,
           is_mine: msg.sender_id === user.id,
         },
+        last_text_message: lastText ? {
+          content: lastText.content,
+          is_mine: lastText.sender_id === user.id,
+        } : null,
         unread_count: 0,
         updated_at: msg.sent_at,
       };
