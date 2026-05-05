@@ -7,12 +7,13 @@ import { UserCircle, X } from "lucide-react";
 import { logoutAction } from "@/actions/auth";
 import { createClient } from "@/lib/supabase/client";
 import AvatarCropModal from "./AvatarCropModal";
+import { ClassImage } from "@/types/class";
 
 type TabType = "all" | "my" | "bookmark";
 
 interface GridClass {
   id: string;
-  images: string[] | null | any[];
+  images: ClassImage[] | null;
   title: string;
   status?: string;
   created_at?: string;
@@ -255,9 +256,9 @@ export default function MyPageClient({ profile }: Props) {
             : bookmarkClasses
           ).map((item) => (
             <div key={item.id + (item.isBookmark ? "-bm" : "")} className="aspect-square bg-gray-100 relative overflow-hidden">
-              {item.images?.[0] ? (
+              {item.images?.[0]?.card_url ? (
                 <Image
-                  src={item.images[0]}
+                  src={item.images[0].card_url}
                   alt={item.title}
                   fill
                   className="object-cover"
