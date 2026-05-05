@@ -165,9 +165,9 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
 
   function appendMessageCache(userId: string, message: Message) {
     const cacheKey = `${MESSAGES_CACHE_PREFIX}${userId}`;
-    const cached = sessionStorage.getItem(cacheKey);
+    const cached = localStorage.getItem(cacheKey);
     const msgs: Message[] = cached ? JSON.parse(cached) : [];
-    sessionStorage.setItem(cacheKey, JSON.stringify(limitImageMessages([...msgs, message])));
+    localStorage.setItem(cacheKey, JSON.stringify(limitImageMessages([...msgs, message])));
   }
 
 
@@ -181,7 +181,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
       const json = await res.json();
       if (json.data) {
         setConversations(json.data);
-        sessionStorage.setItem(CACHE_KEY, JSON.stringify(json.data));
+        localStorage.setItem(CACHE_KEY, JSON.stringify(json.data));
       }
     } catch (error) {
       console.error("Failed to load conversations:", error);
@@ -191,7 +191,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
   }
 
   useEffect(() => {
-    const cached = sessionStorage.getItem(CACHE_KEY);
+    const cached = localStorage.getItem(CACHE_KEY);
 
     if (cached) {
       setConversations(JSON.parse(cached));
@@ -219,7 +219,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
     if (profile) setOtherUser(profile);
 
     const cacheKey = `${MESSAGES_CACHE_PREFIX}${otherId}`;
-    const cached = sessionStorage.getItem(cacheKey);
+    const cached = localStorage.getItem(cacheKey);
     if (cached) {
       setMessages(JSON.parse(cached));
     } else {
@@ -230,7 +230,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
         .order("sent_at", { ascending: true });
       if (msgs) {
         setMessages(msgs);
-        sessionStorage.setItem(cacheKey, JSON.stringify(msgs));
+        localStorage.setItem(cacheKey, JSON.stringify(msgs));
       }
     }
 

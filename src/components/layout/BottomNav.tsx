@@ -1,6 +1,7 @@
 "use client";
+import { useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
 const NAV_ITEMS = [
   {
@@ -72,6 +73,8 @@ const NAV_ITEMS = [
 
 export default function BottomNav({ isLoggedIn }: { isLoggedIn: boolean }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const [activeHref, setActiveHref] = useState(pathname);
   void isLoggedIn;
 
   if (pathname === "/classes/new") return null;
@@ -80,13 +83,20 @@ export default function BottomNav({ isLoggedIn }: { isLoggedIn: boolean }) {
     <nav className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-[#e5e7eb] h-16 flex items-center">
       {NAV_ITEMS.map(({ href, label, icon }) => {
         const isActive =
-          href === "/" ? pathname === "/" : pathname.startsWith(href);
+          href === "/" ? activeHref === "/" : activeHref.startsWith(href);
         const className = `flex-1 h-full flex flex-col items-center justify-center gap-0.5 transition-colors ${
           isActive ? "text-[#FEE500]" : "text-gray-400"
         }`;
 
         return (
-          <Link key={href} href={href} className={className}>
+          <Link
+            key={href}
+            href={href}
+            className={className}
+            prefetch={href === "/" || href === "/messages" ? true : undefined}
+            onTouchStart={() => { setActiveHref(href); router.push(href); }}
+            onMouseDown={() => { setActiveHref(href); router.push(href); }}
+          >
             {icon}
             <span className="sr-only">{label}</span>
           </Link>
