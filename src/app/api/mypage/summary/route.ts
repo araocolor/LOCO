@@ -19,6 +19,14 @@ interface AppliedClassRow {
   class: AppliedClassInfo | null;
 }
 
+interface MyClassRow {
+  id: string;
+  title: string;
+  status: ClassStatus;
+  created_at: string;
+  images: { card_url: string }[] | null;
+}
+
 interface MyPageSummary {
   profile: {
     id: string;
@@ -30,6 +38,7 @@ interface MyPageSummary {
     kakao_notification_enabled: boolean;
   };
   appliedClasses: AppliedClassRow[];
+  myClasses: MyClassRow[];
   hasPendingProRequest: boolean;
 }
 
@@ -43,7 +52,7 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const [profileResult, appliedResult, proRequestResult] = await Promise.all([
+  const [profileResult, appliedResult, myClassesResult, proRequestResult] = await Promise.all([
     supabase
       .from("profiles")
       .select("id, nickname, bio, region, role, profile_image_url, kakao_notification_enabled")
@@ -53,6 +62,11 @@ export async function GET() {
       .from("applications")
       .select("id, status, created_at, class:classes(id, title, datetime, region, status)")
       .eq("applicant_id", user.id)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("classes")
+      .select("id, title, status, created_at, images:class_images(card_url)")
+      .eq("host_id", user.id)
       .order("created_at", { ascending: false }),
     supabase
       .from("pro_requests")
@@ -98,6 +112,7 @@ export async function GET() {
       kakao_notification_enabled: profile.kakao_notification_enabled,
     },
     appliedClasses,
+    myClasses: (myClassesResult.data ?? []) as MyClassRow[],
     hasPendingProRequest: !!proRequestResult.data,
   };
 

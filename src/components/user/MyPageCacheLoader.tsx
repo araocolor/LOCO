@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import MyPageClient from "@/components/user/MyPageClient";
-import type { ClassStatus } from "@/types/class";
+import type { ClassStatus, ClassImage } from "@/types/class";
 import type { ApplicationStatus } from "@/types/application";
 import type { UserRole } from "@/types/user";
 
@@ -34,9 +34,18 @@ interface CachedAppliedClass {
   class: CachedAppliedClassInfo | null;
 }
 
+interface CachedMyClass {
+  id: string;
+  title: string;
+  status: string;
+  created_at: string;
+  images: ClassImage[] | null;
+}
+
 interface MyPageSummaryCache {
   profile: CachedProfile;
   appliedClasses: CachedAppliedClass[];
+  myClasses: CachedMyClass[];
   hasPendingProRequest: boolean;
 }
 
@@ -106,5 +115,5 @@ export default function MyPageCacheLoader() {
     return <div className="max-w-3xl mx-auto px-4 py-10 text-sm text-gray-500">로딩 중...</div>;
   }
 
-  return <MyPageClient profile={data.profile} />;
+  return <MyPageClient profile={data.profile} myClasses={data.myClasses ?? []} />;
 }

@@ -28,9 +28,10 @@ interface Profile {
 
 interface Props {
   profile: Profile;
+  myClasses: GridClass[];
 }
 
-export default function MyPageClient({ profile }: Props) {
+export default function MyPageClient({ profile, myClasses: initialMyClasses }: Props) {
   const router = useRouter();
   const [editOpen, setEditOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -38,20 +39,12 @@ export default function MyPageClient({ profile }: Props) {
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [activeTab, setActiveTab] = useState<TabType>("all");
-  const [myClasses, setMyClasses] = useState<GridClass[]>([]);
+  const [myClasses, setMyClasses] = useState<GridClass[]>(initialMyClasses);
   const [bookmarkClasses, setBookmarkClasses] = useState<GridClass[]>([]);
 
   useEffect(() => {
     async function fetchClasses() {
       const supabase = createClient();
-
-      // 내 클래스
-      const { data: my } = await supabase
-        .from("classes")
-        .select("id, images, title, status, created_at")
-        .eq("host_id", profile.id)
-        .order("created_at", { ascending: false });
-      setMyClasses(my ?? []);
 
       // 북마크: localStorage 캐시 우선 [{id, created_at}]
       const rawBm = localStorage.getItem("loco_bookmark_ids_v1");
