@@ -65,7 +65,7 @@ export async function GET() {
       .order("created_at", { ascending: false }),
     supabase
       .from("classes")
-      .select("id, title, status, created_at, images:class_images(card_url)")
+      .select("id, title, status, created_at, images")
       .eq("host_id", user.id)
       .order("created_at", { ascending: false }),
     supabase
@@ -100,6 +100,10 @@ export async function GET() {
   });
 
   const profile = profileResult.data;
+
+  if (myClassesResult.error) {
+    return NextResponse.json({ error: myClassesResult.error.message }, { status: 500 });
+  }
 
   const payload: MyPageSummary = {
     profile: {
