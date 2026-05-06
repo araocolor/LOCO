@@ -419,14 +419,14 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses }: P
           </div>
           {/* 2행~: 닉네임, 이메일, 자기소개 */}
           <span className="text-[17px] font-bold text-[#333333]">{profile.nickname}</span>
-          <span className="text-[14px] text-gray-400">{profile.email ?? ""}</span>
           {profile.member_type?.[0] && (
-            <span className="px-2.5 py-0.5 rounded-full bg-gray-800 text-white text-[13px] self-start">
+            <span className="px-2.5 py-0 rounded-full bg-gray-800 text-white text-[13px] self-start">
               {profile.member_type[0]}
             </span>
           )}
+          <span className="text-[14px] text-gray-400 -mt-1">{profile.email ?? ""}</span>
           {profile.bio && (
-            <span className="text-[16px] w-[80%]" style={{ color: "#000000cc" }}>{profile.bio}</span>
+            <span className="text-[16px] w-[80%] mt-2" style={{ color: "#000000cc" }}>{profile.bio}</span>
           )}
         </div>
       </div>
@@ -540,7 +540,7 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses }: P
             </button>
             <span className="text-base font-semibold text-gray-900">{profile.nickname}</span>
             {memberTypes[0] && (
-              <span className="px-3 py-0.5 rounded-full bg-gray-800 text-[14px]" style={{ color: "rgba(255,255,255,0.9)" }}>
+              <span className="px-2.5 py-0 rounded-full bg-gray-800 text-[13px]" style={{ color: "rgba(255,255,255,0.9)" }}>
                 {memberTypes[0]}
               </span>
             )}
