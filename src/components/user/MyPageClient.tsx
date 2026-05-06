@@ -130,8 +130,11 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses }: P
           .eq("status", "approved"),
       ]);
       if (data) {
+        const rows = data as unknown as Array<{
+          profiles: { id: string; nickname: string; profile_image_url: string | null } | null;
+        }>;
         setFriendAvatars(
-          data.map((row: { profiles: { id: string; nickname: string; profile_image_url: string | null } | null }) => ({
+          rows.map((row) => ({
             id: row.profiles?.id ?? "",
             nickname: row.profiles?.nickname ?? "",
             profile_image_url: row.profiles?.profile_image_url ?? null,
