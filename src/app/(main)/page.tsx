@@ -1,14 +1,7 @@
-import { Suspense } from "react";
-import MainHeader from "@/components/layout/MainHeader";
-import HomeSearchResultsPage from "@/components/features/HomeSearchResultsPage";
-
 export default function MainPage() {
   return (
-    <>
-      <MainHeader />
-      <Suspense>
-        <HomeSearchResultsPage />
-      </Suspense>
-    </>
+    <div className="flex items-center justify-center min-h-screen">
+      <p className="text-2xl font-bold">welcome</p>
+    </div>
   );
 }
