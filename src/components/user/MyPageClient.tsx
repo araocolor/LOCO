@@ -168,20 +168,18 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses }: P
           .eq("user_id", profile.id)
           .order("created_at", { ascending: false });
         const bmRows = (bm ?? []) as BookmarkClassRow[];
-        const bmClasses = bmRows
-          .filter(hasBookmarkClass)
-          .map((b) => {
-            const cls = getBookmarkClassInfo(b);
-            if (!cls) return null;
-            return {
-              id: cls.id,
-              images: cls.images,
-              title: cls.title,
-              created_at: b.created_at,
-              isBookmark: true,
-            };
-          })
-          .filter((item): item is GridClass => item !== null);
+        const bmClasses: GridClass[] = bmRows.flatMap((b) => {
+          if (!hasBookmarkClass(b)) return [];
+          const cls = getBookmarkClassInfo(b);
+          if (!cls) return [];
+          return [{
+            id: cls.id,
+            images: cls.images,
+            title: cls.title,
+            created_at: b.created_at,
+            isBookmark: true,
+          }];
+        });
         setBookmarkClasses(bmClasses);
         localStorage.setItem("loco_bookmark_ids_v1", JSON.stringify(
           bmClasses.map((c) => ({ id: c.id, created_at: c.created_at }))
