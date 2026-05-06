@@ -77,6 +77,7 @@ export default function ClassCard({ classData }: ClassCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [imgIndex, setImgIndex] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [friendMsg, setFriendMsg] = useState("");
   const [statusExpanded, setStatusExpanded] = useState(false);
   const [commentOpen, setCommentOpen] = useState(false);
   const [userExpanded, setUserExpanded] = useState(false);
@@ -226,9 +227,22 @@ export default function ClassCard({ classData }: ClassCardProps) {
                     </svg>
                   </button>
                   <div className="border-t border-gray-100 mx-3" />
-                  {/* 친구신청 */}
-                  <button className="flex items-center justify-between w-full px-4 py-3 text-sm text-gray-700">
-                    <span>친구신청</span>
+                  {/* 친구등록 */}
+                  <button
+                    onClick={async () => {
+                      if (!host?.id) return;
+                      setMenuOpen(false);
+                      const res = await fetch("/api/friends", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ target_id: host.id }),
+                      });
+                      const data = await res.json();
+                      setFriendMsg(res.ok ? "친구등록 완료!" : (data.error ?? "오류가 발생했습니다"));
+                      setTimeout(() => setFriendMsg(""), 3000);
+                    }}
+                    className="flex items-center justify-between w-full px-4 py-3 text-sm text-gray-700">
+                    <span>친구등록</span>
                     <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500">
                       <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/>
                     </svg>
@@ -445,6 +459,11 @@ export default function ClassCard({ classData }: ClassCardProps) {
         </div>
       </div>
       <CommentSheet open={commentOpen} onClose={() => setCommentOpen(false)} classId={id} />
+      {friendMsg && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[300] bg-gray-800 text-white text-sm px-4 py-2 rounded-full shadow-lg">
+          {friendMsg}
+        </div>
+      )}
       {host && (
         <SendMessageModal
           isOpen={messageModalOpen}

@@ -106,6 +106,39 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses }: P
   const [favoriteGenres, setFavoriteGenres] = useState<string[]>(profileMeta.favorite_genre ?? []);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [activeTab, setActiveTab] = useState<TabType>("all");
+  const [friendAvatars, setFriendAvatars] = useState<{ id: string; profile_image_url: string | null; nickname: string }[]>([]);
+  const [friendCount, setFriendCount] = useState(0);
+
+  useEffect(() => {
+    async function fetchFriends() {
+      const supabase = createClient();
+      const [{ data }, { count }] = await Promise.all([
+        supabase
+          .from("friendships")
+          .select("user_id, profiles!friendships_user_id_fkey(id, nickname, profile_image_url)")
+          .eq("friend_id", profile.id)
+          .eq("status", "approved")
+          .order("last_registered_at", { ascending: false })
+          .limit(5),
+        supabase
+          .from("friendships")
+          .select("id", { count: "exact", head: true })
+          .eq("friend_id", profile.id)
+          .eq("status", "approved"),
+      ]);
+      if (data) {
+        setFriendAvatars(
+          data.map((row: { profiles: { id: string; nickname: string; profile_image_url: string | null } | null }) => ({
+            id: row.profiles?.id ?? "",
+            nickname: row.profiles?.nickname ?? "",
+            profile_image_url: row.profiles?.profile_image_url ?? null,
+          }))
+        );
+      }
+      setFriendCount(count ?? 0);
+    }
+    fetchFriends();
+  }, [profile.id]);
   const [myClasses] = useState<GridClass[]>(initialMyClasses);
   const [bookmarkClasses, setBookmarkClasses] = useState<GridClass[]>([]);
 
@@ -321,37 +354,68 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses }: P
   return (
     <div className="flex flex-col h-full">
       {/* 상단 30% */}
-      <div className="h-[30vh] bg-white flex flex-col items-start justify-between px-4 pt-5 pb-5">
-        <div className="flex flex-col items-start gap-1">
-          <button
-            onClick={handleOpenEditModal}
-            className="relative flex-shrink-0 hover:opacity-80 transition-opacity cursor-pointer"
-          >
-            {avatarUrl ? (
-              <Image
-                src={avatarUrl}
-                alt="프로필"
-                width={60}
-                height={60}
-                className="rounded-full object-cover w-[60px] h-[60px]"
-                unoptimized
-              />
-            ) : (
-              <UserCircle size={60} className="text-gray-400" />
-            )}
-            <span
-              onClick={(e) => { e.stopPropagation(); handleOpenEditModal(); }}
-              className="absolute bottom-0 right-0 w-5 h-5 bg-white rounded-full flex items-center justify-center shadow-sm border border-gray-200"
-            >
-              <Settings size={12} className="text-gray-600" />
-            </span>
-          </button>
-          <span className="text-[17px] font-bold text-[#333333]">
-            {profile.nickname}
-          </span>
+      <div className="bg-white flex flex-col items-start px-4 pt-5 pb-5">
+        <div className="flex flex-col w-full gap-1">
+          {/* 1행: 내 아바타 | 친구 아바타 */}
+          <div className="flex items-center w-full">
+            <div className="w-1/2 flex items-start">
+              <button
+                onClick={handleOpenEditModal}
+                className="relative flex-shrink-0 hover:opacity-80 transition-opacity cursor-pointer"
+              >
+                {avatarUrl ? (
+                  <Image
+                    src={avatarUrl}
+                    alt="프로필"
+                    width={60}
+                    height={60}
+                    className="rounded-full object-cover w-[60px] h-[60px]"
+                    unoptimized
+                  />
+                ) : (
+                  <UserCircle size={60} className="text-gray-400" />
+                )}
+                <span
+                  onClick={(e) => { e.stopPropagation(); handleOpenEditModal(); }}
+                  className="absolute bottom-0 right-0 w-5 h-5 bg-white rounded-full flex items-center justify-center shadow-sm border border-gray-200"
+                >
+                  <Settings size={12} className="text-gray-600" />
+                </span>
+              </button>
+            </div>
+            <div className="w-1/2 flex flex-col gap-1 items-center">
+              {friendAvatars.length > 0 ? (
+                <div className="flex items-center">
+                  {friendAvatars.slice(0, 5).map((f, i) => (
+                    <div key={f.id} className="rounded-full border-2 border-white" style={{ marginLeft: i === 0 ? 0 : -10, zIndex: i }}>
+                      {f.profile_image_url ? (
+                        <Image
+                          src={f.profile_image_url}
+                          alt={f.nickname}
+                          width={30}
+                          height={30}
+                          className="rounded-full object-cover w-[30px] h-[30px]"
+                          unoptimized
+                        />
+                      ) : (
+                        <UserCircle size={30} className="text-gray-300" />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <span className="text-[12px] text-gray-300">친구없음</span>
+              )}
+              {friendCount > 0 && (
+                <span className="text-[16px] font-bold text-gray-700">{friendCount}</span>
+              )}
+            </div>
+          </div>
+          {/* 2행~: 닉네임, 이메일, 자기소개 */}
+          <span className="text-[17px] font-bold text-[#333333]">{profile.nickname}</span>
           <span className="text-[13px] text-gray-400">{profile.email ?? ""}</span>
           {profile.bio && (
-            <span className="text-[13px] text-gray-500 mt-1 w-[60%]">{profile.bio}</span>
+            <span className="text-[13px] text-gray-500 w-[60%]">{profile.bio}</span>
           )}
         </div>
       </div>
