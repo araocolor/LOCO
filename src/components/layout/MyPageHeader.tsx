@@ -271,7 +271,7 @@ export default function MyPageHeader() {
   return (
     <>
       <header className="sticky top-0 z-50 bg-white border-b border-[#e5e7eb] h-14 px-4 relative flex items-center">
-        <button type="button" onClick={() => setOpen(true)} className="p-1 -ml-1">
+        <button type="button" onClick={() => setOpen(true)} className="p-1 -mr-1 ml-auto">
           <Menu className="w-6 h-6 text-gray-700" />
         </button>
         <div className="absolute left-1/2 -translate-x-1/2 font-bold text-[17px] text-[#333333] leading-none">

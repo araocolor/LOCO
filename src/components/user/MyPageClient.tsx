@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { UserCircle, X } from "lucide-react";
+import { UserCircle, X, Settings } from "lucide-react";
 import { logoutAction } from "@/actions/auth";
 import { createClient } from "@/lib/supabase/client";
 import { REGIONS } from "@/lib/constants";
@@ -322,10 +322,10 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses }: P
     <div className="flex flex-col h-full">
       {/* 상단 30% */}
       <div className="h-[30vh] bg-white flex flex-col items-start justify-between px-4 pt-5 pb-5">
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col items-start gap-1">
           <button
-            onClick={handleAvatarClick}
-            className="flex-shrink-0 hover:opacity-80 transition-opacity cursor-pointer"
+            onClick={handleOpenEditModal}
+            className="relative flex-shrink-0 hover:opacity-80 transition-opacity cursor-pointer"
           >
             {avatarUrl ? (
               <Image
@@ -339,24 +339,20 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses }: P
             ) : (
               <UserCircle size={60} className="text-gray-400" />
             )}
+            <span
+              onClick={(e) => { e.stopPropagation(); handleOpenEditModal(); }}
+              className="absolute bottom-0 right-0 w-5 h-5 bg-white rounded-full flex items-center justify-center shadow-sm border border-gray-200"
+            >
+              <Settings size={12} className="text-gray-600" />
+            </span>
           </button>
-          <span className="text-[15px] font-semibold text-[#333333]">
+          <span className="text-[17px] font-bold text-[#333333]">
             {profile.nickname}
           </span>
-        </div>
-        <div className="flex gap-2">
-          <button
-            onClick={handleOpenEditModal}
-            className="px-4 py-2 bg-yellow-400 text-gray-900 font-medium rounded-lg hover:bg-yellow-500 transition-colors text-[15px]"
-          >
-            프로필 편집
-          </button>
-          <button
-            onClick={handleLogout}
-            className="text-[15px] text-gray-400 font-medium hover:text-gray-600 transition-colors"
-          >
-            로그아웃
-          </button>
+          <span className="text-[13px] text-gray-400">{profile.email ?? ""}</span>
+          {profile.bio && (
+            <span className="text-[13px] text-gray-500 mt-1 w-[60%]">{profile.bio}</span>
+          )}
         </div>
       </div>
 
@@ -476,9 +472,13 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses }: P
               <h3 className="text-sm font-semibold text-gray-900 mb-2">자기소개</h3>
               <textarea
                 value={bio}
-                onChange={(e) => setBio(e.target.value)}
-                placeholder="자기소개를 입력하세요"
-                className="w-full h-[100px] overflow-hidden px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400 resize-none"
+                onChange={(e) => {
+                  const lines = e.target.value.split("\n");
+                  if (lines.length <= 4) setBio(e.target.value);
+                }}
+                placeholder="자기소개를 입력하세요 (최대 4줄)"
+                rows={4}
+                className="w-full overflow-hidden px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400 resize-none"
               />
             </section>
 
