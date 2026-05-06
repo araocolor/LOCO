@@ -7,7 +7,7 @@ import type { ClassStatus, ClassImage } from "@/types/class";
 import type { ApplicationStatus } from "@/types/application";
 import type { UserRole } from "@/types/user";
 
-const MY_PAGE_CACHE_PREFIX = "loco_mypage_cache_v1";
+const MY_PAGE_CACHE_KEY = "loco_mypage_cache_local_v2";
 
 interface CachedProfile {
   id: string;
@@ -55,11 +55,11 @@ export default function MyPageCacheLoader() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    const cacheKey = MY_PAGE_CACHE_PREFIX;
+    const cacheKey = MY_PAGE_CACHE_KEY;
     if (data) return;
 
     try {
-      const raw = sessionStorage.getItem(cacheKey);
+      const raw = localStorage.getItem(cacheKey);
       if (raw) {
         setData(JSON.parse(raw) as MyPageSummaryCache);
         return;
@@ -92,7 +92,7 @@ export default function MyPageCacheLoader() {
         if (!cancelled) {
           setData(json as MyPageSummaryCache);
           try {
-            sessionStorage.setItem(cacheKey, JSON.stringify(json));
+            localStorage.setItem(cacheKey, JSON.stringify(json));
           } catch {}
         }
       } catch {

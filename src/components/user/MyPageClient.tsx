@@ -32,6 +32,7 @@ interface Props {
 }
 
 export default function MyPageClient({ profile, myClasses: initialMyClasses }: Props) {
+  const MY_PAGE_CACHE_KEY = "loco_mypage_cache_local_v2";
   const router = useRouter();
   const [editOpen, setEditOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -114,7 +115,7 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses }: P
         }
         localStorage.removeItem("loco_bookmark_ids_v1");
       }
-      sessionStorage.removeItem("loco_mypage_cache_v1");
+      localStorage.removeItem(MY_PAGE_CACHE_KEY);
       const homeCache = sessionStorage.getItem("loco_home_results_cache_v3:all");
       if (homeCache) localStorage.setItem("loco_home_results_local_v1", homeCache);
     } catch {}
@@ -164,7 +165,7 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses }: P
       }
 
       try {
-        sessionStorage.removeItem("loco_mypage_cache_v1");
+        localStorage.removeItem(MY_PAGE_CACHE_KEY);
       } catch {}
 
       setAvatarUrl(publicUrl);

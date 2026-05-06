@@ -190,13 +190,14 @@ const SECTIONS: SectionDef[] = [
 ];
 
 export default function MyPageHeader() {
+  const MY_PAGE_CACHE_KEY = "loco_mypage_cache_local_v2";
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [nickname, setNickname] = useState<string | null>(null);
 
   useEffect(() => {
     try {
-      const raw = sessionStorage.getItem("loco_mypage_cache_v1");
+      const raw = localStorage.getItem(MY_PAGE_CACHE_KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
         setNickname(parsed?.profile?.nickname ?? null);
@@ -262,7 +263,7 @@ export default function MyPageHeader() {
         }
         localStorage.removeItem("loco_bookmark_ids_v1");
       }
-      sessionStorage.removeItem("loco_mypage_cache_v1");
+      localStorage.removeItem(MY_PAGE_CACHE_KEY);
     } catch {}
     await logoutAction();
     router.replace("/login");
