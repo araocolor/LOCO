@@ -6,7 +6,7 @@ import Image from "next/image";
 import { UserCircle, X, Settings } from "lucide-react";
 import { logoutAction } from "@/actions/auth";
 import { createClient } from "@/lib/supabase/client";
-import { REGIONS } from "@/lib/constants";
+import { REGIONS, MEMBER_TYPES, MAX_MEMBER_TYPE } from "@/lib/constants";
 import AvatarCropModal from "./AvatarCropModal";
 import { ClassImage } from "@/types/class";
 
@@ -69,6 +69,7 @@ interface Profile {
   country: string | null;
   region: string | null;
   favorite_genre: string[];
+  member_type: string[];
   profile_image_url: string | null;
 }
 
@@ -77,7 +78,7 @@ interface Props {
   myClasses: GridClass[];
 }
 
-type CacheProfilePatch = Partial<Pick<Profile, "bio" | "country" | "region" | "favorite_genre" | "profile_image_url">>;
+type CacheProfilePatch = Partial<Pick<Profile, "bio" | "country" | "region" | "favorite_genre" | "member_type" | "profile_image_url">>;
 
 export default function MyPageClient({ profile, myClasses: initialMyClasses }: Props) {
   const MY_PAGE_CACHE_KEY = "loco_mypage_cache_local_v2";
@@ -93,17 +94,19 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses }: P
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(profile.profile_image_url);
   const [uploading, setUploading] = useState(false);
-  const [profileMeta, setProfileMeta] = useState<Pick<Profile, "bio" | "country" | "region" | "favorite_genre">>({
+  const [profileMeta, setProfileMeta] = useState<Pick<Profile, "bio" | "country" | "region" | "favorite_genre" | "member_type">>({
     bio: profile.bio,
     country: profile.country,
     region: profile.region,
     favorite_genre: profile.favorite_genre ?? [],
+    member_type: profile.member_type ?? [],
   });
   const [saving, setSaving] = useState(false);
   const [bio, setBio] = useState(profileMeta.bio ?? "");
   const [country, setCountry] = useState(profileMeta.country ?? "대한민국");
   const [region, setRegion] = useState(profileMeta.region ?? "");
   const [favoriteGenres, setFavoriteGenres] = useState<string[]>(profileMeta.favorite_genre ?? []);
+  const [memberTypes, setMemberTypes] = useState<string[]>(profileMeta.member_type ?? []);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [activeTab, setActiveTab] = useState<TabType>("all");
   const [friendAvatars, setFriendAvatars] = useState<{ id: string; profile_image_url: string | null; nickname: string }[]>([]);
@@ -318,6 +321,7 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses }: P
           country: country || null,
           region: region || null,
           favorite_genre: favoriteGenres,
+          member_type: memberTypes,
         })
         .eq("id", profile.id);
 
@@ -328,6 +332,7 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses }: P
         country: country || null,
         region: region || null,
         favorite_genre: favoriteGenres,
+        member_type: memberTypes,
       };
       setProfileMeta(nextProfileMeta);
       patchMyPageProfileCache(nextProfileMeta);
@@ -346,6 +351,7 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses }: P
     setCountry(profileMeta.country ?? "대한민국");
     setRegion(profileMeta.region ?? "");
     setFavoriteGenres(profileMeta.favorite_genre ?? []);
+    setMemberTypes(profileMeta.member_type ?? []);
     setEditOpen(true);
   }
 
@@ -413,9 +419,14 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses }: P
           </div>
           {/* 2행~: 닉네임, 이메일, 자기소개 */}
           <span className="text-[17px] font-bold text-[#333333]">{profile.nickname}</span>
-          <span className="text-[13px] text-gray-400">{profile.email ?? ""}</span>
+          <span className="text-[14px] text-gray-400">{profile.email ?? ""}</span>
+          {profile.member_type?.[0] && (
+            <span className="px-2.5 py-0.5 rounded-full bg-gray-800 text-white text-[13px] self-start">
+              {profile.member_type[0]}
+            </span>
+          )}
           {profile.bio && (
-            <span className="text-[13px] text-gray-500 w-[60%]">{profile.bio}</span>
+            <span className="text-[16px] w-[80%]" style={{ color: "#000000cc" }}>{profile.bio}</span>
           )}
         </div>
       </div>
@@ -484,7 +495,7 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses }: P
         onClick={() => setEditOpen(false)}
       />
       <div
-        className={`fixed top-0 left-0 right-0 z-[60] bg-white h-[75vh] transition-transform duration-300 ease-in-out ${
+        className={`fixed top-0 left-0 right-0 z-[60] bg-white h-screen transition-transform duration-300 ease-in-out ${
           editOpen ? "translate-y-0" : "-translate-y-full"
         }`}
       >
@@ -528,12 +539,17 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses }: P
               )}
             </button>
             <span className="text-base font-semibold text-gray-900">{profile.nickname}</span>
-            <span className="text-xs text-gray-500 mt-0.5">{profile.email ?? ""}</span>
+            {memberTypes[0] && (
+              <span className="px-3 py-0.5 rounded-full bg-gray-800 text-[14px]" style={{ color: "rgba(255,255,255,0.9)" }}>
+                {memberTypes[0]}
+              </span>
+            )}
+            <span className="text-[14px] text-gray-500">{profile.email ?? ""}</span>
           </div>
 
           <div className="flex-1 overflow-y-auto pr-1 space-y-3 mb-4">
-            <section className="rounded-xl p-3">
-              <h3 className="text-sm font-semibold text-gray-900 mb-2">자기소개</h3>
+            <section className="rounded-xl px-3 pt-0 pb-3">
+              <h3 className="text-sm font-semibold text-gray-900 mb-2">프로필 수정</h3>
               <textarea
                 value={bio}
                 onChange={(e) => {
@@ -542,11 +558,11 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses }: P
                 }}
                 placeholder="자기소개를 입력하세요 (최대 4줄)"
                 rows={4}
-                className="w-full overflow-hidden px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400 resize-none"
+                className="w-full overflow-hidden px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 resize-none" style={{ fontSize: "16px", color: "#000000cc" }}
               />
             </section>
 
-            <section className="rounded-xl p-3">
+            <section className="rounded-xl px-3 pt-0 pb-3">
               <h3 className="text-sm font-semibold text-gray-900 mb-2">활동지역</h3>
               <div className="grid grid-cols-2 gap-2">
                 <select
@@ -555,11 +571,11 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses }: P
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400 bg-white"
                 >
                   <option value="">국가 선택</option>
-                  <option value="대한민국">대한민국</option>
                   <option value="스페인">España</option>
                   <option value="중국">中国</option>
                   <option value="베트남">Việt Nam</option>
                   <option value="일본">日本</option>
+                  <option value="대한민국">대한민국</option>
                   <option value="미국">United States</option>
                   <option value="러시아">Russia</option>
                   <option value="기타">Other</option>
@@ -607,23 +623,67 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses }: P
                 })}
               </div>
             </section>
+
+            <section>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-semibold text-gray-900">회원구분</h3>
+                <span className="text-xs text-gray-500">{memberTypes.length}/{MAX_MEMBER_TYPE}</span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {MEMBER_TYPES.map((type) => {
+                  const active = memberTypes.includes(type);
+                  const isMain = memberTypes[0] === type;
+                  const limitReached = !active && memberTypes.length >= MAX_MEMBER_TYPE;
+                  return (
+                    <button
+                      key={type}
+                      type="button"
+                      onClick={() => {
+                        if (active) setMemberTypes((prev) => prev.filter((v) => v !== type));
+                        else if (!limitReached) setMemberTypes((prev) => [...prev, type]);
+                      }}
+                      disabled={limitReached}
+                      className={`px-3 py-1.5 rounded-full text-sm border transition-colors ${
+                        isMain
+                          ? "bg-gray-800 border-gray-800 text-white"
+                          : active
+                          ? "bg-yellow-400 border-yellow-500 text-gray-900"
+                          : "bg-white border-gray-300 text-gray-700"
+                      } ${limitReached ? "opacity-40 cursor-not-allowed" : "hover:border-gray-400"}`}
+                    >
+                      {type}
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
           </div>
 
           {/* 3행: 취소, 확인 버튼 */}
-          <div className="flex gap-2 justify-end h-fit">
+          <div className="flex gap-2 justify-center h-fit">
             <button
               onClick={() => setEditOpen(false)}
               className="px-4 py-2 border border-gray-300 text-gray-900 font-medium rounded-lg hover:bg-gray-50 transition-colors text-sm"
             >
               취소
             </button>
-            <button
-              onClick={handleSaveProfile}
-              disabled={saving}
-              className="px-4 py-2 bg-yellow-400 text-gray-900 font-medium rounded-lg hover:bg-yellow-500 transition-colors text-sm disabled:opacity-60"
-            >
-              {saving ? "저장 중..." : "확인"}
-            </button>
+            {(() => {
+              const hasChange =
+                bio.trim() !== (profileMeta.bio ?? "") ||
+                country !== (profileMeta.country ?? "대한민국") ||
+                region !== (profileMeta.region ?? "") ||
+                JSON.stringify(favoriteGenres) !== JSON.stringify(profileMeta.favorite_genre ?? []) ||
+                JSON.stringify(memberTypes) !== JSON.stringify(profileMeta.member_type ?? []);
+              return (
+                <button
+                  onClick={() => { if (hasChange) handleSaveProfile(); else setEditOpen(false); }}
+                  disabled={saving}
+                  className="px-4 py-2 bg-yellow-400 text-gray-900 font-medium rounded-lg hover:bg-yellow-500 transition-colors text-sm disabled:opacity-60"
+                >
+                  {saving ? "저장 중..." : hasChange ? "업데이트" : "확인"}
+                </button>
+              );
+            })()}
           </div>
         </div>
       </div>

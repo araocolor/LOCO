@@ -5,6 +5,9 @@ export const REGIONS = [
   "대전",
   "대구",
   "광주",
+  "창원",
+  "포항",
+  "울산",
   "부산",
   "제주",
 ] as const;
@@ -48,6 +51,14 @@ export const CLASS_TYPES = [
   { value: "group", label: "그룹" },
   { value: "private", label: "1:1" },
 ] as const;
+
+export const MEMBER_TYPES = [
+  "일반회원", "운영진", "인스트럭터", "인플루언서",
+  "프로댄서", "오거나이저", "아카데미대표", "독립군",
+  "왕초보", "고인물", "블랙", "화이트",
+] as const;
+
+export const MAX_MEMBER_TYPE = 3;
 
 export const VENUES = [
   { value: "전체", label: "전체" },
