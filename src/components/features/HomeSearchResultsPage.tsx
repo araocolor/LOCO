@@ -17,7 +17,6 @@ export default function HomeSearchResultsPage() {
   const region = searchParams.get("region") ?? "전체";
   const genres = searchParams.getAll("genre");
   const [loading, setLoading] = useState(true);
-  const [isFirstVisit, setIsFirstVisit] = useState(false);
   const [allClasses, setAllClasses] = useState<ClassWithHost[]>([]);
   const warmedImageUrlsRef = useRef<Set<string>>(new Set());
   const orderedTopTen = useMemo(() => {
@@ -29,10 +28,6 @@ export default function HomeSearchResultsPage() {
     }
     return filtered.slice(0, 10);
   }, [allClasses, region, genres]);
-
-  useEffect(() => {
-    setIsFirstVisit(!localStorage.getItem(HOME_RESULTS_LOCAL_KEY));
-  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -122,11 +117,9 @@ export default function HomeSearchResultsPage() {
 
   return (
     <div className="max-w-xl mx-auto bg-white relative">
-      {loading && isFirstVisit && (
-        <div className="fixed inset-0 z-50 bg-white flex flex-col items-center justify-center">
-          <div className="w-48 h-2 bg-gray-100 rounded-full overflow-hidden">
-            <div className="h-full bg-yellow-400 rounded-full animate-[loading-bar_1.5s_ease-in-out_infinite]" />
-          </div>
+      {loading && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center">
+          <div className="w-10 h-10 border-4 border-[#FEE500] border-t-transparent rounded-full animate-spin" />
         </div>
       )}
       <div className="flex flex-col pb-6">
