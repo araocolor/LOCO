@@ -11,6 +11,7 @@ const MY_PAGE_CACHE_KEY = "loco_mypage_cache_local_v2";
 
 interface CachedProfile {
   id: string;
+  email: string | null;
   nickname: string;
   bio: string | null;
   country: string | null;
@@ -53,15 +54,7 @@ interface MyPageSummaryCache {
 
 export default function MyPageCacheLoader() {
   const router = useRouter();
-  const [data, setData] = useState<MyPageSummaryCache | null>(() => {
-    if (typeof window === "undefined") return null;
-    try {
-      const raw = localStorage.getItem(MY_PAGE_CACHE_KEY);
-      return raw ? (JSON.parse(raw) as MyPageSummaryCache) : null;
-    } catch {
-      return null;
-    }
-  });
+  const [data, setData] = useState<MyPageSummaryCache | null>(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -72,6 +65,14 @@ export default function MyPageCacheLoader() {
 
     async function load() {
       try {
+        // 하이드레이션 불일치 방지를 위해 마운트 이후에만 로컬 캐시를 읽는다.
+        await Promise.resolve();
+        const raw = localStorage.getItem(cacheKey);
+        if (raw) {
+          if (!cancelled) setData(JSON.parse(raw) as MyPageSummaryCache);
+          return;
+        }
+
         const res = await fetch("/api/mypage/summary", { method: "GET" });
 
         if (res.status === 401) {

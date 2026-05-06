@@ -63,6 +63,7 @@ function hasBookmarkClass(row: BookmarkClassRow): row is BookmarkClassRow & {
 
 interface Profile {
   id: string;
+  email: string | null;
   nickname: string;
   bio: string | null;
   country: string | null;
@@ -467,6 +468,7 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses }: P
               )}
             </button>
             <span className="text-base font-semibold text-gray-900">{profile.nickname}</span>
+            <span className="text-xs text-gray-500 mt-0.5">{profile.email ?? ""}</span>
           </div>
 
           <div className="flex-1 overflow-y-auto pr-1 space-y-3 mb-4">

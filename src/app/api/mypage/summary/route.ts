@@ -30,6 +30,7 @@ interface MyClassRow {
 interface MyPageSummary {
   profile: {
     id: string;
+    email: string | null;
     nickname: string;
     bio: string | null;
     country: string | null;
@@ -57,7 +58,7 @@ export async function GET() {
   const [profileResult, appliedResult, myClassesResult, proRequestResult] = await Promise.all([
     supabase
       .from("profiles")
-      .select("id, nickname, bio, country, region, favorite_genre, role, profile_image_url, kakao_notification_enabled")
+      .select("id, email, nickname, bio, country, region, favorite_genre, role, profile_image_url, kakao_notification_enabled")
       .eq("id", user.id)
       .single(),
     supabase
@@ -110,6 +111,7 @@ export async function GET() {
   const payload: MyPageSummary = {
     profile: {
       id: profile.id,
+      email: profile.email,
       nickname: profile.nickname,
       bio: profile.bio,
       country: profile.country,

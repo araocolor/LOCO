@@ -182,7 +182,6 @@ const SECTIONS: SectionDef[] = [
         icon: <LogOut size={18} />,
         label: "로그아웃",
         subItems: [],
-        subtle: true,
         noAccordion: true,
       },
     ],
@@ -317,7 +316,7 @@ export default function MyPageHeader() {
                 <div key={item.id}>
                   <button
                     type="button"
-                    className={`flex items-center gap-3 w-full px-5 py-2.5 text-left transition-colors duration-200 active:bg-gray-100 ${item.id === "logout" ? "bg-black/70" : isOpen ? "bg-gray-50" : "hover:bg-gray-50"}`}
+                    className={`flex items-center gap-3 w-full px-5 py-2.5 text-left transition-colors duration-200 active:bg-gray-100 ${isOpen ? "bg-gray-50" : "hover:bg-gray-50"}`}
                     onClick={() => {
                       if (item.id === "logout") {
                         handleLogout();

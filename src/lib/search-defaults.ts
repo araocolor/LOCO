@@ -1,6 +1,4 @@
 export const SEARCH_DEFAULTS_STORAGE_KEY = "loco_search_defaults";
-export const HOME_CLASSES_CACHE_KEY = "loco_home_classes_cache";
-export const HOME_SEARCH_CONDITION_CACHE_KEY = "loco_home_search_condition_cache";
 
 export interface SearchOptions {
   region: string;

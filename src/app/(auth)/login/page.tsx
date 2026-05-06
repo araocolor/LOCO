@@ -60,6 +60,7 @@ function LoginForm() {
           <input
             type="email"
             className="input-field"
+            style={{ fontSize: "16px" }}
             placeholder="email@example.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -71,6 +72,7 @@ function LoginForm() {
           <input
             type="password"
             className="input-field"
+            style={{ fontSize: "16px" }}
             placeholder="비워두면 loco1234 자동 적용"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
