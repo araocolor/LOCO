@@ -48,7 +48,7 @@
 }
 
 body {
-  background: #ff0000;
+  background: var(--color-bg);
   color: #111111;
   font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo",
     "Malgun Gothic", Pretendard, sans-serif;
