@@ -1,5 +1,14 @@
-import HomeSearchResultsPage2 from "@/components/features/HomeSearchResultsPage2";
+import { Suspense } from "react";
+import MainHeader from "@/components/layout/MainHeader";
+import HomeSearchResultsPage from "@/components/features/HomeSearchResultsPage";
 
 export default function MainPage() {
-  return <HomeSearchResultsPage2 />;
+  return (
+    <>
+      <MainHeader />
+      <Suspense>
+        <HomeSearchResultsPage />
+      </Suspense>
+    </>
+  );
 }
