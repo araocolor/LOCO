@@ -533,12 +533,12 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
                         <Image
                           src={otherUser.profile_image_url}
                           alt={otherUser.nickname}
-                          width={24}
-                          height={24}
+                          width={30}
+                          height={30}
                           className="rounded-full object-cover flex-shrink-0"
                         />
                       ) : (
-                        <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 text-xs font-medium flex-shrink-0">
+                        <div className="w-[30px] h-[30px] rounded-full bg-gray-200 flex items-center justify-center text-gray-500 text-xs font-medium flex-shrink-0">
                           {otherUser?.nickname?.[0] ?? "?"}
                         </div>
                       )}
@@ -551,9 +551,9 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
                       <div
                         className={`rounded-lg text-base overflow-hidden ${
                           imageData ? "" : "px-3 py-2"
-                        } ${isMine ? "text-gray-900" : "max-w-xs bg-white text-gray-900"}`}
+                        } ${isMine ? "text-gray-900" : "bg-white text-gray-900"}`}
                         style={{
-                          ...(isMine ? { maxWidth: "75%" } : {}),
+                          ...(isMine ? { maxWidth: "75%" } : { maxWidth: "270px" }),
                           ...(isMine && !imageData ? { backgroundColor: "#FEE500" } : {}),
                         }}
                       >
@@ -585,7 +585,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
             onChange={(e) => setNewMessage(e.target.value)}
             onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
             placeholder="메시지 입력..."
-            className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400"
+            className="flex-1 px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400" style={{ fontSize: "16px", color: "#000000cc" }}
             disabled={sending}
           />
           <button
