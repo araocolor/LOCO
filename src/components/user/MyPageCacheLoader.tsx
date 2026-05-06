@@ -17,6 +17,7 @@ interface CachedProfile {
   country: string | null;
   region: string | null;
   favorite_genre: string[];
+  member_type: string[];
   role: UserRole;
   profile_image_url: string | null;
   kakao_notification_enabled: boolean;
