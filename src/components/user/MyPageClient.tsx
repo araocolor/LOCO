@@ -6,6 +6,7 @@ import Image from "next/image";
 import { UserCircle, X } from "lucide-react";
 import { logoutAction } from "@/actions/auth";
 import { createClient } from "@/lib/supabase/client";
+import { REGIONS } from "@/lib/constants";
 import AvatarCropModal from "./AvatarCropModal";
 import { ClassImage } from "@/types/class";
 
@@ -20,9 +21,53 @@ interface GridClass {
   isBookmark?: boolean;
 }
 
+interface HomeClassCache {
+  id: string;
+  images: ClassImage[] | null;
+  title: string;
+}
+
+interface BookmarkClassRow {
+  created_at: string;
+  classes:
+    | {
+        id: string;
+        images: ClassImage[] | null;
+        title: string;
+      }
+    | {
+        id: string;
+        images: ClassImage[] | null;
+        title: string;
+      }[]
+    | null;
+}
+
+interface BookmarkClassInfo {
+  id: string;
+  images: ClassImage[] | null;
+  title: string;
+}
+
+function getBookmarkClassInfo(row: BookmarkClassRow): BookmarkClassInfo | null {
+  if (!row.classes) return null;
+  if (Array.isArray(row.classes)) return row.classes[0] ?? null;
+  return row.classes;
+}
+
+function hasBookmarkClass(row: BookmarkClassRow): row is BookmarkClassRow & {
+  classes: BookmarkClassInfo | BookmarkClassInfo[];
+} {
+  return getBookmarkClassInfo(row) !== null;
+}
+
 interface Profile {
   id: string;
   nickname: string;
+  bio: string | null;
+  country: string | null;
+  region: string | null;
+  favorite_genre: string[];
   profile_image_url: string | null;
 }
 
@@ -31,17 +76,54 @@ interface Props {
   myClasses: GridClass[];
 }
 
+type CacheProfilePatch = Partial<Pick<Profile, "bio" | "country" | "region" | "favorite_genre" | "profile_image_url">>;
+
 export default function MyPageClient({ profile, myClasses: initialMyClasses }: Props) {
   const MY_PAGE_CACHE_KEY = "loco_mypage_cache_local_v2";
+  const FAVORITE_GENRE_OPTIONS = [
+    { value: "salsa", label: "살사" },
+    { value: "bachata", label: "바차타" },
+    { value: "kizomba", label: "키좀바" },
+    { value: "bachata_zouk", label: "바차타쥬크" },
+  ] as const;
+  const MAX_FAVORITE_GENRE = 2;
   const router = useRouter();
   const [editOpen, setEditOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(profile.profile_image_url);
   const [uploading, setUploading] = useState(false);
+  const [profileMeta, setProfileMeta] = useState<Pick<Profile, "bio" | "country" | "region" | "favorite_genre">>({
+    bio: profile.bio,
+    country: profile.country,
+    region: profile.region,
+    favorite_genre: profile.favorite_genre ?? [],
+  });
+  const [saving, setSaving] = useState(false);
+  const [bio, setBio] = useState(profileMeta.bio ?? "");
+  const [country, setCountry] = useState(profileMeta.country ?? "대한민국");
+  const [region, setRegion] = useState(profileMeta.region ?? "");
+  const [favoriteGenres, setFavoriteGenres] = useState<string[]>(profileMeta.favorite_genre ?? []);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [activeTab, setActiveTab] = useState<TabType>("all");
-  const [myClasses, setMyClasses] = useState<GridClass[]>(initialMyClasses);
+  const [myClasses] = useState<GridClass[]>(initialMyClasses);
   const [bookmarkClasses, setBookmarkClasses] = useState<GridClass[]>([]);
+
+  function patchMyPageProfileCache(patch: CacheProfilePatch) {
+    try {
+      const raw = localStorage.getItem(MY_PAGE_CACHE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as { profile?: Record<string, unknown> };
+      if (!parsed.profile) return;
+      const next = {
+        ...parsed,
+        profile: {
+          ...parsed.profile,
+          ...patch,
+        },
+      };
+      localStorage.setItem(MY_PAGE_CACHE_KEY, JSON.stringify(next));
+    } catch {}
+  }
 
   useEffect(() => {
     async function fetchClasses() {
@@ -53,7 +135,7 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses }: P
 
       if (bmEntries !== null && Array.isArray(bmEntries) && bmEntries[0]?.created_at) {
         const homeRaw = localStorage.getItem("loco_home_results_local_v1");
-        const homeClasses: any[] = homeRaw ? (JSON.parse(homeRaw).data ?? []) : [];
+        const homeClasses: HomeClassCache[] = homeRaw ? ((JSON.parse(homeRaw).data ?? []) as HomeClassCache[]) : [];
         const homeMap = new Map(homeClasses.map((c) => [c.id, c]));
 
         const found: GridClass[] = [];
@@ -85,14 +167,24 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses }: P
           .select("class_id, created_at, classes(id, images, title)")
           .eq("user_id", profile.id)
           .order("created_at", { ascending: false });
-        const bmClasses = (bm ?? []).map((b: any) => ({
-          ...b.classes,
-          created_at: b.created_at,
-          isBookmark: true,
-        }));
+        const bmRows = (bm ?? []) as BookmarkClassRow[];
+        const bmClasses = bmRows
+          .filter(hasBookmarkClass)
+          .map((b) => {
+            const cls = getBookmarkClassInfo(b);
+            if (!cls) return null;
+            return {
+              id: cls.id,
+              images: cls.images,
+              title: cls.title,
+              created_at: b.created_at,
+              isBookmark: true,
+            };
+          })
+          .filter((item): item is GridClass => item !== null);
         setBookmarkClasses(bmClasses);
         localStorage.setItem("loco_bookmark_ids_v1", JSON.stringify(
-          bmClasses.map((c: any) => ({ id: c.id, created_at: c.created_at }))
+          bmClasses.map((c) => ({ id: c.id, created_at: c.created_at }))
         ));
       }
     }
@@ -164,11 +256,8 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses }: P
         await supabase.storage.from("avatars").remove(oldFiles);
       }
 
-      try {
-        localStorage.removeItem(MY_PAGE_CACHE_KEY);
-      } catch {}
-
       setAvatarUrl(publicUrl);
+      patchMyPageProfileCache({ profile_image_url: publicUrl });
       router.refresh();
     } catch (err) {
       console.error("아바타 업로드 실패:", err);
@@ -177,6 +266,58 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses }: P
       setUploading(false);
     }
   }
+
+  function toggleFavoriteGenre(value: string) {
+    setFavoriteGenres((prev) => {
+      if (prev.includes(value)) return prev.filter((v) => v !== value);
+      if (prev.length >= MAX_FAVORITE_GENRE) return prev;
+      return [...prev, value];
+    });
+  }
+
+  async function handleSaveProfile() {
+    setSaving(true);
+    try {
+      const supabase = createClient();
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          bio: bio.trim() || null,
+          country: country || null,
+          region: region || null,
+          favorite_genre: favoriteGenres,
+        })
+        .eq("id", profile.id);
+
+      if (error) throw error;
+
+      const nextProfileMeta = {
+        bio: bio.trim() || null,
+        country: country || null,
+        region: region || null,
+        favorite_genre: favoriteGenres,
+      };
+      setProfileMeta(nextProfileMeta);
+      patchMyPageProfileCache(nextProfileMeta);
+      setEditOpen(false);
+      router.refresh();
+    } catch (err) {
+      console.error("프로필 저장 실패:", err);
+      alert("저장에 실패했어요. 다시 시도해주세요.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function handleOpenEditModal() {
+    setBio(profileMeta.bio ?? "");
+    setCountry(profileMeta.country ?? "대한민국");
+    setRegion(profileMeta.region ?? "");
+    setFavoriteGenres(profileMeta.favorite_genre ?? []);
+    setEditOpen(true);
+  }
+
+  const isKoreaSelected = country === "대한민국";
 
   return (
     <div className="flex flex-col h-full">
@@ -206,7 +347,7 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses }: P
         </div>
         <div className="flex gap-2">
           <button
-            onClick={() => setEditOpen(true)}
+            onClick={handleOpenEditModal}
             className="px-4 py-2 bg-yellow-400 text-gray-900 font-medium rounded-lg hover:bg-yellow-500 transition-colors text-[15px]"
           >
             프로필 편집
@@ -284,7 +425,7 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses }: P
         onClick={() => setEditOpen(false)}
       />
       <div
-        className={`fixed top-0 left-0 right-0 z-[60] bg-white h-[40vh] transition-transform duration-300 ease-in-out ${
+        className={`fixed top-0 left-0 right-0 z-[60] bg-white h-[75vh] transition-transform duration-300 ease-in-out ${
           editOpen ? "translate-y-0" : "-translate-y-full"
         }`}
       >
@@ -330,12 +471,78 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses }: P
             <span className="text-base font-semibold text-gray-900">{profile.nickname}</span>
           </div>
 
-          {/* 2행: 자기소개 문장 입력창 */}
-          <div className="flex-1 mb-4">
-            <textarea
-              placeholder="자기소개를 입력하세요"
-              className="w-full h-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400 resize-none"
-            />
+          <div className="flex-1 overflow-y-auto pr-1 space-y-3 mb-4">
+            <section className="rounded-xl p-3">
+              <h3 className="text-sm font-semibold text-gray-900 mb-2">자기소개</h3>
+              <textarea
+                value={bio}
+                onChange={(e) => setBio(e.target.value)}
+                placeholder="자기소개를 입력하세요"
+                className="w-full h-[100px] overflow-hidden px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400 resize-none"
+              />
+            </section>
+
+            <section className="rounded-xl p-3">
+              <h3 className="text-sm font-semibold text-gray-900 mb-2">활동지역</h3>
+              <div className="grid grid-cols-2 gap-2">
+                <select
+                  value={country}
+                  onChange={(e) => setCountry(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400 bg-white"
+                >
+                  <option value="">국가 선택</option>
+                  <option value="대한민국">대한민국</option>
+                  <option value="스페인">España</option>
+                  <option value="중국">中国</option>
+                  <option value="베트남">Việt Nam</option>
+                  <option value="일본">日本</option>
+                  <option value="미국">United States</option>
+                  <option value="러시아">Russia</option>
+                  <option value="기타">Other</option>
+                </select>
+                <select
+                  value={region}
+                  onChange={(e) => setRegion(e.target.value)}
+                  disabled={!isKoreaSelected}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400 bg-white disabled:bg-gray-100 disabled:text-gray-400"
+                >
+                  <option value="">도시 선택</option>
+                  {REGIONS.map((city) => (
+                    <option key={city} value={city}>
+                      {city}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </section>
+
+            <section className="rounded-xl p-3">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-semibold text-gray-900">관심분야</h3>
+                <span className="text-xs text-gray-500">{favoriteGenres.length}/2</span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {FAVORITE_GENRE_OPTIONS.map((genre) => {
+                  const active = favoriteGenres.includes(genre.value);
+                  const limitReached = !active && favoriteGenres.length >= MAX_FAVORITE_GENRE;
+                  return (
+                    <button
+                      key={genre.value}
+                      type="button"
+                      onClick={() => toggleFavoriteGenre(genre.value)}
+                      disabled={limitReached}
+                      className={`px-3 py-1.5 rounded-full text-sm border transition-colors ${
+                        active
+                          ? "bg-yellow-400 border-yellow-500 text-gray-900"
+                          : "bg-white border-gray-300 text-gray-700"
+                      } ${limitReached ? "opacity-40 cursor-not-allowed" : "hover:border-gray-400"}`}
+                    >
+                      {genre.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
           </div>
 
           {/* 3행: 취소, 확인 버튼 */}
@@ -347,10 +554,11 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses }: P
               취소
             </button>
             <button
-              onClick={() => setEditOpen(false)}
-              className="px-4 py-2 bg-yellow-400 text-gray-900 font-medium rounded-lg hover:bg-yellow-500 transition-colors text-sm"
+              onClick={handleSaveProfile}
+              disabled={saving}
+              className="px-4 py-2 bg-yellow-400 text-gray-900 font-medium rounded-lg hover:bg-yellow-500 transition-colors text-sm disabled:opacity-60"
             >
-              확인
+              {saving ? "저장 중..." : "확인"}
             </button>
           </div>
         </div>

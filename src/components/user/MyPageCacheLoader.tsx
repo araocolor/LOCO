@@ -13,7 +13,9 @@ interface CachedProfile {
   id: string;
   nickname: string;
   bio: string | null;
+  country: string | null;
   region: string | null;
+  favorite_genre: string[];
   role: UserRole;
   profile_image_url: string | null;
   kakao_notification_enabled: boolean;
@@ -51,20 +53,20 @@ interface MyPageSummaryCache {
 
 export default function MyPageCacheLoader() {
   const router = useRouter();
-  const [data, setData] = useState<MyPageSummaryCache | null>(null);
+  const [data, setData] = useState<MyPageSummaryCache | null>(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      const raw = localStorage.getItem(MY_PAGE_CACHE_KEY);
+      return raw ? (JSON.parse(raw) as MyPageSummaryCache) : null;
+    } catch {
+      return null;
+    }
+  });
   const [error, setError] = useState("");
 
   useEffect(() => {
     const cacheKey = MY_PAGE_CACHE_KEY;
     if (data) return;
-
-    try {
-      const raw = localStorage.getItem(cacheKey);
-      if (raw) {
-        setData(JSON.parse(raw) as MyPageSummaryCache);
-        return;
-      }
-    } catch {}
 
     let cancelled = false;
 

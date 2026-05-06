@@ -32,7 +32,9 @@ interface MyPageSummary {
     id: string;
     nickname: string;
     bio: string | null;
+    country: string | null;
     region: string | null;
+    favorite_genre: string[];
     role: UserRole;
     profile_image_url: string | null;
     kakao_notification_enabled: boolean;
@@ -55,7 +57,7 @@ export async function GET() {
   const [profileResult, appliedResult, myClassesResult, proRequestResult] = await Promise.all([
     supabase
       .from("profiles")
-      .select("id, nickname, bio, region, role, profile_image_url, kakao_notification_enabled")
+      .select("id, nickname, bio, country, region, favorite_genre, role, profile_image_url, kakao_notification_enabled")
       .eq("id", user.id)
       .single(),
     supabase
@@ -110,7 +112,9 @@ export async function GET() {
       id: profile.id,
       nickname: profile.nickname,
       bio: profile.bio,
+      country: profile.country,
       region: profile.region,
+      favorite_genre: profile.favorite_genre ?? [],
       role: profile.role as UserRole,
       profile_image_url: profile.profile_image_url,
       kakao_notification_enabled: profile.kakao_notification_enabled,

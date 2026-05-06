@@ -28,7 +28,9 @@ export interface User {
   phone: string | null;
   kakao_id: string | null;
   bio: string | null;
+  country: string | null;
   region: string | null;
+  favorite_genre: string[];
   default_search_options: SearchOptions | null;
   kakao_notification_enabled: boolean;
   created_at: string;
