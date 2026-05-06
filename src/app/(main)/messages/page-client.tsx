@@ -40,6 +40,11 @@ interface OtherUser {
   profile_image_url: string | null;
 }
 
+interface MyProfile {
+  nickname: string;
+  profile_image_url: string | null;
+}
+
 export default function MessagesPageClient({ userId }: { userId: string }) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -49,6 +54,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
   const [chatOpen, setChatOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [otherUser, setOtherUser] = useState<OtherUser | null>(null);
+  const [myProfile, setMyProfile] = useState<MyProfile | null>(null);
   const [chatLoading, setChatLoading] = useState(false);
   const [newMessage, setNewMessage] = useState("");
   const [sending, setSending] = useState(false);
@@ -201,6 +207,29 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
     }
   }, []);
 
+  useEffect(() => {
+    let mounted = true;
+
+    async function fetchMyProfile() {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from("profiles")
+        .select("nickname, profile_image_url")
+        .eq("id", userId)
+        .single();
+
+      if (mounted && data) {
+        setMyProfile(data);
+      }
+    }
+
+    fetchMyProfile();
+
+    return () => {
+      mounted = false;
+    };
+  }, [userId]);
+
   async function openChat(otherId: string) {
     setSelectedUserId(otherId);
     setChatOpen(true);
@@ -286,7 +315,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
     return `${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`;
   }
 
-  function truncateMessage(content: string, length: number = 15) {
+  function truncateMessage(content: string, length: number = 20) {
     return content.length > length ? content.substring(0, length) + "..." : content;
   }
 
@@ -328,19 +357,27 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
                   if (parsed.type === "image") lastImage = parsed;
                 } catch {}
 
-                const avatar = conv.other_user?.profile_image_url ? (
+                const avatarUser = isMine
+                  ? {
+                      nickname: myProfile?.nickname ?? "나",
+                      profile_image_url: myProfile?.profile_image_url ?? null,
+                    }
+                  : conv.other_user;
+
+                const avatar = avatarUser?.profile_image_url ? (
                   <Image
-                    src={conv.other_user.profile_image_url}
-                    alt={conv.other_user.nickname}
+                    src={avatarUser.profile_image_url}
+                    alt={avatarUser.nickname}
                     width={40}
                     height={40}
                     className="rounded-full object-cover flex-shrink-0"
                   />
                 ) : (
                   <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 text-xs font-medium flex-shrink-0">
-                    {conv.other_user?.nickname?.[0] ?? "?"}
+                    {avatarUser?.nickname?.[0] ?? "?"}
                   </div>
                 );
+                const displayNickname = conv.other_user?.nickname ?? "알 수 없음";
                 return (
                   <div className={`flex items-stretch gap-2 ${isMine ? "" : "flex-row-reverse"}`}>
                     {lastImage && (
@@ -359,8 +396,13 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
                         {avatar}
                         <div className={`flex-1 min-w-0 ${isMine ? "text-right" : ""}`}>
                           <div className={`flex items-baseline gap-2 ${isMine ? "flex-row-reverse" : ""}`}>
-                            <span className="font-semibold text-gray-900" style={{ fontSize: "15px" }}>
-                              {conv.other_user?.nickname ?? "알 수 없음"}
+                            <span className="font-bold text-gray-900" style={{ fontSize: "17px" }}>
+                              {displayNickname}
+                              {isMine && (
+                                <span className="font-normal text-gray-900 ml-1" style={{ fontSize: "15px" }}>
+                                  에게
+                                </span>
+                              )}
                             </span>
                             <span className="text-gray-400 text-xs flex-shrink-0">
                               {conv.last_message?.sent_at ? formatDate(conv.last_message.sent_at) : ""}
@@ -368,7 +410,6 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
                           </div>
                           {conv.last_text_message && (
                             <p className="text-gray-900 line-clamp-1 mt-1" style={{ fontSize: "16px" }}>
-                              {conv.last_text_message.is_mine && <span className="text-gray-400">나: </span>}
                               {truncateMessage(conv.last_text_message.content)}
                             </p>
                           )}
@@ -459,7 +500,9 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
             messages.map((msg, idx) => {
               const isMine = msg.sender_id === userId;
               const prevMsg = idx > 0 ? messages[idx - 1] : null;
-              const showSenderName = !isMine && (!prevMsg || prevMsg.sender_id !== msg.sender_id);
+              const isNewGroup = !prevMsg || prevMsg.sender_id !== msg.sender_id;
+              const showSenderName = !isMine && isNewGroup;
+              const showMyAvatar = isMine && isNewGroup;
               let imageData: { thumb: string; full: string } | null = null;
               try {
                 const parsed = JSON.parse(msg.content);
@@ -467,6 +510,23 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
               } catch {}
               return (
                 <div key={msg.id}>
+                  {showMyAvatar && (
+                    <div className="flex justify-end mb-2">
+                      {myProfile?.profile_image_url ? (
+                        <Image
+                          src={myProfile.profile_image_url}
+                          alt={myProfile.nickname ?? "나"}
+                          width={35}
+                          height={35}
+                          className="rounded-full object-cover flex-shrink-0"
+                        />
+                      ) : (
+                        <div className="w-[35px] h-[35px] rounded-full bg-gray-200 flex items-center justify-center text-gray-500 text-xs font-medium flex-shrink-0">
+                          {myProfile?.nickname?.[0] ?? "나"}
+                        </div>
+                      )}
+                    </div>
+                  )}
                   {showSenderName && (
                     <div className="flex items-center gap-2 mb-2">
                       {otherUser?.profile_image_url ? (
@@ -487,21 +547,26 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
                   )}
                   <div className={`flex ${isMine ? "justify-end" : "justify-start"} gap-2 items-end`}>
                     {!isMine && <span className="text-xs text-gray-700 flex-shrink-0 order-2">{formatTime(msg.sent_at)}</span>}
-                    <div
-                      className={`max-w-xs rounded-lg text-base overflow-hidden ${
-                        imageData ? "" : "px-3 py-2"
-                      } ${isMine ? "text-gray-900" : "bg-white text-gray-900"}`}
-                      style={isMine && !imageData ? { backgroundColor: "#FEE500" } : {}}
-                    >
-                      {imageData ? (
-                        <a href={imageData.full} target="_blank" rel="noreferrer">
-                          <Image src={imageData.thumb} alt="사진" width={200} height={200} className="rounded-lg object-cover" />
-                        </a>
-                      ) : (
-                        <p className="break-words">{msg.content}</p>
-                      )}
+                    <div className={`flex ${isMine ? "flex-col items-end" : ""} gap-1`}>
+                      <div
+                        className={`rounded-lg text-base overflow-hidden ${
+                          imageData ? "" : "px-3 py-2"
+                        } ${isMine ? "text-gray-900" : "max-w-xs bg-white text-gray-900"}`}
+                        style={{
+                          ...(isMine ? { maxWidth: "75%" } : {}),
+                          ...(isMine && !imageData ? { backgroundColor: "#FEE500" } : {}),
+                        }}
+                      >
+                        {imageData ? (
+                          <a href={imageData.full} target="_blank" rel="noreferrer">
+                            <Image src={imageData.thumb} alt="사진" width={200} height={200} className="rounded-lg object-cover" />
+                          </a>
+                        ) : (
+                          <p className="break-words">{msg.content}</p>
+                        )}
+                      </div>
+                      {isMine && <span className="text-xs text-gray-700">{formatTime(msg.sent_at)}</span>}
                     </div>
-                    {isMine && <span className="text-xs text-gray-700 flex-shrink-0">{formatTime(msg.sent_at)}</span>}
                   </div>
                 </div>
               );
