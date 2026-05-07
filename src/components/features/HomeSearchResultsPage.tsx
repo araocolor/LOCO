@@ -11,7 +11,6 @@ import {
   type SearchOptions,
 } from "@/lib/search-defaults";
 
-const HOME_RESULTS_CACHE_KEY = "loco_home_results_cache_v3:all";
 const HOME_RESULTS_LOCAL_KEY = "loco_home_results_local_v1";
 const HOME_RESULTS_USER_LOCAL_KEY = "loco_home_results_local_v1:user-default";
 
@@ -83,22 +82,7 @@ export default function HomeSearchResultsPage() {
     let cancelled = false;
 
     async function load() {
-      // 1. sessionStorage 우선
-      const sessionRaw = sessionStorage.getItem(HOME_RESULTS_CACHE_KEY);
-      if (sessionRaw) {
-        try {
-          const cached = JSON.parse(sessionRaw) as CachedHomeResult;
-          const cachedList = cached.data ?? [];
-          if (!cancelled) { setAllClasses(cachedList); setLoading(false); }
-          warmImages(cachedList);
-          // 백그라운드로 최신 데이터 업데이트
-          void fetchAndUpdate(cancelled);
-          void fetchAndApplyUserDefaults(cancelled);
-          return;
-        } catch {}
-      }
-
-      // 2. localStorage 차선
+      // 1. localStorage 우선
       const localRaw = localStorage.getItem(HOME_RESULTS_LOCAL_KEY);
       if (localRaw) {
         try {
@@ -113,7 +97,7 @@ export default function HomeSearchResultsPage() {
         } catch {}
       }
 
-      // 3. 둘 다 없으면 API 호출
+      // 2. 캐시 없으면 API 호출
       await fetchAndUpdate(cancelled);
       void fetchAndApplyUserDefaults(cancelled);
     }
@@ -129,7 +113,6 @@ export default function HomeSearchResultsPage() {
         const incoming = (json.data ?? []) as ClassWithHost[];
         if (!cancelled) { setAllClasses(incoming); setLoading(false); }
         const payload = JSON.stringify({ data: incoming, count: json.count ?? 0 } satisfies CachedHomeResult);
-        sessionStorage.setItem(HOME_RESULTS_CACHE_KEY, payload);
         localStorage.setItem(HOME_RESULTS_LOCAL_KEY, payload);
         warmImages(incoming);
         fetchBookmarkIds();

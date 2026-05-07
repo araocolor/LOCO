@@ -8,7 +8,7 @@ import { DANCE_GENRE_LABELS, CLASS_LEVEL_LABELS } from "@/types/class";
 import type { ClassWithHost } from "@/components/class/ClassCard";
 import ClassDetailImageGallery from "@/components/class/ClassDetailImageGallery";
 
-const HOME_RESULTS_CACHE_KEY = "loco_home_results_cache_v3:all";
+const HOME_RESULTS_LOCAL_KEY = "loco_home_results_local_v1";
 
 interface CachedHomeResult {
   data: ClassWithHost[];
@@ -59,7 +59,7 @@ export default function CachedClassDetailPage() {
       return;
     }
 
-    const raw = sessionStorage.getItem(HOME_RESULTS_CACHE_KEY);
+    const raw = localStorage.getItem(HOME_RESULTS_LOCAL_KEY);
     if (!raw) {
       setLoaded(true);
       return;

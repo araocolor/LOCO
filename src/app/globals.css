@@ -104,13 +104,6 @@ body {
   border-color: #111111;
 }
 
-.btn-logout-center {
-  display: flex;
-  width: fit-content;
-  margin-left: auto;
-  margin-right: auto;
-}
-
 /* ── 칩 (장르/필터 선택) ── */
 .chip {
   display: inline-flex;

@@ -4,7 +4,6 @@ import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { UserCircle, X, Settings } from "lucide-react";
-import { logoutAction } from "@/actions/auth";
 import { createClient } from "@/lib/supabase/client";
 import { REGIONS, MEMBER_TYPES, MAX_MEMBER_TYPE } from "@/lib/constants";
 import AvatarCropModal from "./AvatarCropModal";
@@ -228,30 +227,6 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses }: P
     }
     fetchClasses();
   }, [profile.id]);
-
-  async function handleLogout() {
-    try {
-      // 북마크 캐시 → DB 동기화
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const rawB = localStorage.getItem("loco_bookmark_ids_v1");
-        const bookmarks: { id: string; created_at: string }[] = rawB ? JSON.parse(rawB) : [];
-        await supabase.from("class_bookmarks").delete().eq("user_id", user.id);
-        if (bookmarks.length > 0) {
-          await supabase.from("class_bookmarks").insert(
-            bookmarks.map((b) => ({ user_id: user.id, class_id: b.id, created_at: b.created_at }))
-          );
-        }
-        localStorage.removeItem("loco_bookmark_ids_v1");
-      }
-      localStorage.removeItem(MY_PAGE_CACHE_KEY);
-      const homeCache = sessionStorage.getItem("loco_home_results_cache_v3:all");
-      if (homeCache) localStorage.setItem("loco_home_results_local_v1", homeCache);
-    } catch {}
-    await logoutAction();
-    router.replace("/login");
-  }
 
   function handleAvatarClick() {
     fileInputRef.current?.click();
