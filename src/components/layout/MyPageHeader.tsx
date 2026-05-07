@@ -241,6 +241,8 @@ export default function MyPageHeader() {
 
   async function handleLogout() {
     await logoutAction();
+    localStorage.clear();
+    sessionStorage.clear();
     router.replace("/login");
   }
 
