@@ -5,6 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { parseBookmarkEntries } from "@/lib/bookmarks/local";
 import { DanceClass, DANCE_GENRE_LABELS, CLASS_LEVEL_LABELS } from "@/types/class";
 import CommentSheet from "@/components/class/CommentSheet";
 import SendMessageModal from "@/components/modal/SendMessageModal";
@@ -93,7 +94,7 @@ export default function ClassCard({ classData }: ClassCardProps) {
     const likes: string[] = raw ? JSON.parse(raw) : [];
     setLiked(likes.includes(id));
     const rawB = localStorage.getItem(BOOKMARKS_CACHE_KEY);
-    const bookmarks: { id: string; created_at: string }[] = rawB ? JSON.parse(rawB) : [];
+    const bookmarks = parseBookmarkEntries(rawB);
     setBookmarked(bookmarks.some((b) => b.id === id));
   }, [id]);
 
@@ -116,7 +117,7 @@ export default function ClassCard({ classData }: ClassCardProps) {
   }
   function handleBookmark() {
     const rawB = localStorage.getItem(BOOKMARKS_CACHE_KEY);
-    const bookmarks: { id: string; created_at: string }[] = rawB ? JSON.parse(rawB) : [];
+    const bookmarks = parseBookmarkEntries(rawB);
     const isBookmarked = bookmarks.some((b) => b.id === id);
     if (isBookmarked) {
       localStorage.setItem(BOOKMARKS_CACHE_KEY, JSON.stringify(bookmarks.filter((b) => b.id !== id)));

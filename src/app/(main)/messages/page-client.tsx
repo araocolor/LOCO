@@ -150,6 +150,9 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
           id: string;
           nickname: string;
           profile_image_url: string | null;
+          email: string | null;
+          bio: string | null;
+          member_type: string[];
           opened_classes: SessionClassItem[];
           bookmarked_classes: SessionClassItem[];
         }
@@ -170,6 +173,9 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
           id: user.id,
           nickname: user.nickname,
           profile_image_url: user.profile_image_url ?? null,
+          email: null,
+          bio: null,
+          member_type: [],
           opened_classes: [],
           bookmarked_classes: [],
         };
@@ -177,6 +183,17 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
 
       if (userIds.length > 0) {
         const supabase = createClient();
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("id, email, bio, member_type")
+          .in("id", userIds);
+
+        (profiles ?? []).forEach((p) => {
+          if (!sessionMap[p.id]) return;
+          sessionMap[p.id].email = p.email ?? null;
+          sessionMap[p.id].bio = p.bio ?? null;
+          sessionMap[p.id].member_type = p.member_type ?? [];
+        });
 
         const { data: openedClasses } = await supabase
           .from("classes")
@@ -317,8 +334,9 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
       setConversations(next);
       void saveMessageUserSession(next);
       setLoading(false);
+    } else {
+      void fetchConversations({ force: true });
     }
-    void fetchConversations({ force: true });
   }, []);
 
   useEffect(() => {
