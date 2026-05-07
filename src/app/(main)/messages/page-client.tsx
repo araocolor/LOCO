@@ -325,16 +325,19 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
         const now = new Date().toISOString();
         localStorage.setItem(CACHE_SINCE_KEY, now);
 
-        if (manual && since && incoming.length > 0) {
-          // 새 대화만 기존 목록 앞에 추가 + 세션에 메시지 저장
-          setConversations((prev) => {
-            const existingIds = new Set(prev.map((c) => c.id));
-            const newOnes = incoming.filter((c) => !existingIds.has(c.id));
-            const next = [...newOnes, ...prev].slice(0, CONVERSATIONS_LIMIT);
-            localStorage.setItem(CACHE_KEY, JSON.stringify(next));
-            void prefetchMessagesToSession(newOnes);
-            return next;
-          });
+        if (manual && since) {
+          if (incoming.length > 0) {
+            // 새 대화만 기존 목록 앞에 추가 + 세션에 메시지 저장
+            setConversations((prev) => {
+              const existingIds = new Set(prev.map((c) => c.id));
+              const newOnes = incoming.filter((c) => !existingIds.has(c.id));
+              const next = [...newOnes, ...prev].slice(0, CONVERSATIONS_LIMIT);
+              localStorage.setItem(CACHE_KEY, JSON.stringify(next));
+              void prefetchMessagesToSession(newOnes);
+              return next;
+            });
+          }
+          // 신규 없으면 기존 목록 유지
         } else {
           setConversations(incoming);
           localStorage.setItem(CACHE_KEY, JSON.stringify(incoming.slice(0, CONVERSATIONS_LIMIT)));
