@@ -33,8 +33,12 @@ export default function ChatPage() {
   useEffect(() => {
     if (!userId) return;
 
+    const supabase = createClient();
+    let currentUserId: string | null = null;
+
     async function loadData() {
-      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      currentUserId = user?.id ?? null;
 
       // 상대방 프로필 조회
       const { data: profile } = await supabase
@@ -51,7 +55,7 @@ export default function ChatPage() {
       const { data: msgs } = await supabase
         .from("messages")
         .select("*")
-        .or(`and(sender_id.eq.${(await supabase.auth.getUser()).data.user?.id},receiver_id.eq.${userId}),and(sender_id.eq.${userId},receiver_id.eq.${(await supabase.auth.getUser()).data.user?.id})`)
+        .or(`and(sender_id.eq.${currentUserId},receiver_id.eq.${userId}),and(sender_id.eq.${userId},receiver_id.eq.${currentUserId})`)
         .order("sent_at", { ascending: true });
 
       if (msgs) {
@@ -61,7 +65,30 @@ export default function ChatPage() {
       setLoading(false);
     }
 
-    loadData();
+    loadData().then(() => {
+      const channel = supabase
+        .channel(`chat-${userId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "messages",
+          },
+          (payload) => {
+            const newMsg = payload.new as Message;
+            const isRelevant =
+              (newMsg.sender_id === userId && newMsg.receiver_id === currentUserId) ||
+              (newMsg.sender_id === currentUserId && newMsg.receiver_id === userId);
+            if (isRelevant) {
+              setMessages((prev) => [...prev, newMsg]);
+            }
+          }
+        )
+        .subscribe();
+
+      return () => { supabase.removeChannel(channel); };
+    });
   }, [userId]);
 
   async function handleSendMessage() {
