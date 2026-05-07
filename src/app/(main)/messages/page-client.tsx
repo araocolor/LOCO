@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { ArrowLeft, Send, Paperclip, Image as ImageIcon, FileText, MapPin, CalendarDays, Search, RefreshCw } from "lucide-react";
+import { ArrowLeft, Send, Paperclip, Image as ImageIcon, FileText, MapPin, CalendarDays, RefreshCw } from "lucide-react";
 
 interface Conversation {
   id: string;
@@ -74,7 +74,9 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
   const [uploadDone, setUploadDone] = useState(false);
   const [refreshDisabled, setRefreshDisabled] = useState(false);
   const [isSpinning, setIsSpinning] = useState(false);
+  const [shakingMsgId, setShakingMsgId] = useState<string | null>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   async function resizeToBlob(bitmap: ImageBitmap, maxW: number): Promise<Blob> {
     const scale = bitmap.width > maxW ? maxW / bitmap.width : 1;
@@ -202,7 +204,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
           .select("id, host_id, title, images, status, created_at")
           .in("host_id", userIds)
           .order("created_at", { ascending: false })
-          .limit(1000);
+          .limit(10);
 
         (openedClasses ?? []).forEach((cls) => {
           const hostId = (cls as { host_id?: string }).host_id;
@@ -221,7 +223,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
           .select("user_id, created_at, classes(id, title, images, status)")
           .in("user_id", userIds)
           .order("created_at", { ascending: false })
-          .limit(1000);
+          .limit(10);
 
         (bookmarkRows ?? []).forEach((row) => {
           const userIdRow = (row as { user_id?: string }).user_id;
@@ -325,16 +327,19 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
         const now = new Date().toISOString();
         localStorage.setItem(CACHE_SINCE_KEY, now);
 
-        if (manual && since && incoming.length > 0) {
-          // 새 대화만 기존 목록 앞에 추가 + 세션에 메시지 저장
-          setConversations((prev) => {
-            const existingIds = new Set(prev.map((c) => c.id));
-            const newOnes = incoming.filter((c) => !existingIds.has(c.id));
-            const next = [...newOnes, ...prev].slice(0, CONVERSATIONS_LIMIT);
-            localStorage.setItem(CACHE_KEY, JSON.stringify(next));
-            void prefetchMessagesToSession(newOnes);
-            return next;
-          });
+        if (manual && since) {
+          if (incoming.length > 0) {
+            // 새 대화만 기존 목록 앞에 추가 + 세션에 메시지 저장
+            setConversations((prev) => {
+              const existingIds = new Set(prev.map((c) => c.id));
+              const newOnes = incoming.filter((c) => !existingIds.has(c.id));
+              const next = [...newOnes, ...prev].slice(0, CONVERSATIONS_LIMIT);
+              localStorage.setItem(CACHE_KEY, JSON.stringify(next));
+              void prefetchMessagesToSession(newOnes);
+              return next;
+            });
+          }
+          // 신규 없으면 기존 목록 유지
         } else {
           setConversations(incoming);
           localStorage.setItem(CACHE_KEY, JSON.stringify(incoming.slice(0, CONVERSATIONS_LIMIT)));
@@ -471,6 +476,31 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
     }
 
     setSending(false);
+  }
+
+  function startLongPress(msgId: string, isMine: boolean) {
+    if (!isMine) return;
+    longPressTimer.current = setTimeout(() => {
+      setShakingMsgId(msgId);
+    }, 500);
+  }
+
+  function cancelLongPress() {
+    if (longPressTimer.current) clearTimeout(longPressTimer.current);
+  }
+
+  async function deleteMessage(msgId: string) {
+    setMessages((prev) => prev.filter((m) => m.id !== msgId));
+    setShakingMsgId(null);
+    if (selectedUserId) {
+      const cacheKey = `${MESSAGES_CACHE_PREFIX}${selectedUserId}`;
+      const cached = sessionStorage.getItem(cacheKey);
+      if (cached) {
+        const msgs: Message[] = JSON.parse(cached);
+        sessionStorage.setItem(cacheKey, JSON.stringify(msgs.filter((m) => m.id !== msgId)));
+      }
+    }
+    await fetch(`/api/messages/${msgId}`, { method: "DELETE" });
   }
 
   function formatDate(dateStr: string) {
@@ -624,7 +654,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
         }`}
       >
         {/* 대화창 헤더 */}
-        <div className="h-[70px] flex items-center justify-between px-4 border-b border-gray-100">
+        <div className="h-14 shrink-0 relative flex items-center justify-between px-4 border-b border-gray-100">
           <button onClick={closeChat} className="p-1 -ml-1 text-gray-600 hover:text-gray-900">
             <ArrowLeft size={20} />
           </button>
@@ -632,9 +662,6 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
             <span className="font-bold text-gray-900" style={{ fontSize: "18px" }}>{otherUser?.nickname ?? "로딩중..."}</span>
           </div>
           <div className="flex items-center gap-1">
-            <button className="p-1 text-gray-600">
-              <Search size={20} />
-            </button>
             <div className="relative">
             <button onClick={() => setChatMenuOpen((v) => !v)} className="p-1 text-gray-600 hover:text-gray-900">
               <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -647,23 +674,36 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
               <>
                 <div className="fixed inset-0 z-[70]" onClick={() => setChatMenuOpen(false)} />
                 <div className="absolute right-0 top-full z-[80] bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden" style={{ width: 180 }}>
-                  <button className="flex items-center justify-between w-full px-4 py-3 text-sm text-gray-700">
+                  <button
+                    className="flex items-center justify-between w-full px-4 py-3 text-gray-700" style={{ fontSize: "16px" }}
+                    onClick={async () => {
+                      if (!selectedUserId) return;
+                      setChatMenuOpen(false);
+                      const res = await fetch("/api/friends", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ target_id: selectedUserId }),
+                      });
+                      const data = await res.json();
+                      alert(res.ok ? "친구 신청 완료!" : (data.error ?? "오류가 발생했습니다"));
+                    }}
+                  >
                     <span>친구 신청</span>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500">
                       <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/>
                     </svg>
                   </button>
                   <div className="border-t border-gray-100 mx-3" />
-                  <button className="flex items-center justify-between w-full px-4 py-3 text-sm text-gray-700">
+                  <button className="flex items-center justify-between w-full px-4 py-3 text-gray-700" style={{ fontSize: "16px" }}>
                     <span>대화 삭제</span>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500">
                       <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
                     </svg>
                   </button>
                   <div className="border-t border-gray-100 mx-3" />
-                  <button className="flex items-center justify-between w-full px-4 py-3 text-sm text-red-500">
+                  <button className="flex items-center justify-between w-full px-4 py-3 text-red-500" style={{ fontSize: "16px" }}>
                     <span>차단하기</span>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-red-400">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-red-400">
                       <circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
                     </svg>
                   </button>
@@ -675,7 +715,15 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
         </div>
 
         {/* 메시지 목록 */}
-        <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3" style={{ backgroundColor: "#B2C7D9" }} onClick={() => setAttachOpen(false)}>
+        <style>{`
+          @keyframes shake {
+            0%, 100% { transform: rotate(0deg); }
+            25% { transform: rotate(-2deg); }
+            75% { transform: rotate(2deg); }
+          }
+          .msg-shake { animation: shake 0.3s ease-in-out infinite; }
+        `}</style>
+        <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3" style={{ backgroundColor: "#B2C7D9" }} onClick={() => { setAttachOpen(false); setShakingMsgId(null); }}>
           {chatLoading ? (
             <div className="flex items-center justify-center h-full text-gray-600">로딩 중...</div>
           ) : messages.length === 0 ? (
@@ -702,12 +750,12 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
                         <Image
                           src={myProfile.profile_image_url}
                           alt={myProfile.nickname ?? "나"}
-                          width={35}
-                          height={35}
+                          width={40}
+                          height={40}
                           className="rounded-full object-cover flex-shrink-0"
                         />
                       ) : (
-                        <div className="w-[35px] h-[35px] rounded-full bg-gray-200 flex items-center justify-center text-gray-500 text-xs font-medium flex-shrink-0">
+                        <div className="w-[40px] h-[40px] rounded-full bg-gray-200 flex items-center justify-center text-gray-500 text-xs font-medium flex-shrink-0">
                           {myProfile?.nickname?.[0] ?? "나"}
                         </div>
                       )}
@@ -719,12 +767,12 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
                         <Image
                           src={otherUser.profile_image_url}
                           alt={otherUser.nickname}
-                          width={30}
-                          height={30}
+                          width={40}
+                          height={40}
                           className="rounded-full object-cover flex-shrink-0"
                         />
                       ) : (
-                        <div className="w-[30px] h-[30px] rounded-full bg-gray-200 flex items-center justify-center text-gray-500 text-xs font-medium flex-shrink-0">
+                        <div className="w-[40px] h-[40px] rounded-full bg-gray-200 flex items-center justify-center text-gray-500 text-xs font-medium flex-shrink-0">
                           {otherUser?.nickname?.[0] ?? "?"}
                         </div>
                       )}
@@ -735,14 +783,27 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
                     {!isMine && <span className="text-xs text-gray-700 flex-shrink-0 order-2">{formatTime(msg.sent_at)}</span>}
                     <div className={`flex ${isMine ? "flex-col items-end" : ""} gap-1`}>
                       <div
-                        className={`rounded-lg text-base overflow-hidden ${
+                        className={`relative rounded-lg text-base overflow-visible ${
                           imageData ? "" : "px-3 py-2"
-                        } ${isMine ? "text-gray-900" : "bg-white text-gray-900"}`}
+                        } ${isMine ? "text-gray-900" : "bg-white text-gray-900"} ${isMine && shakingMsgId === msg.id ? "msg-shake" : ""}`}
                         style={{
                           ...(isMine ? { maxWidth: "75%" } : { maxWidth: "270px" }),
                           ...(isMine && !imageData ? { backgroundColor: "#FEE500" } : {}),
                         }}
+                        onTouchStart={() => startLongPress(msg.id, isMine)}
+                        onTouchEnd={cancelLongPress}
+                        onMouseDown={() => startLongPress(msg.id, isMine)}
+                        onMouseUp={cancelLongPress}
+                        onMouseLeave={cancelLongPress}
                       >
+                        {isMine && shakingMsgId === msg.id && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); void deleteMessage(msg.id); }}
+                            className="absolute -top-2 -left-2 z-10 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center"
+                          >
+                            <span className="text-white text-xs font-bold leading-none">✕</span>
+                          </button>
+                        )}
                         {imageData ? (
                           <a href={imageData.full} target="_blank" rel="noreferrer">
                             <Image src={imageData.thumb} alt="사진" width={200} height={200} className="rounded-lg object-cover" />
@@ -761,8 +822,8 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
         </div>
 
         {/* 입력창 */}
-        <div className="border-t border-gray-100 px-3 py-3 flex gap-2 items-center min-h-[70px]">
-          <button className="text-gray-500 flex-shrink-0" onClick={() => setAttachOpen((v) => !v)}>
+        <div className="border-t border-gray-100 px-3 pt-3 pb-3 flex gap-2 items-start min-h-[80px]">
+          <button className="text-gray-500 flex-shrink-0 mt-2" onClick={() => setAttachOpen((v) => !v)}>
             <Paperclip size={22} strokeWidth={2.5} />
           </button>
           <input
@@ -771,13 +832,13 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
             onChange={(e) => setNewMessage(e.target.value)}
             onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
             placeholder="메시지 입력..."
-            className="flex-1 px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400" style={{ fontSize: "16px", color: "#000000cc" }}
+            className="flex-1 px-3 py-2 border border-gray-200 rounded-full focus:outline-none focus:ring-2 focus:ring-yellow-400" style={{ fontSize: "16px", color: "#000000cc" }}
             disabled={sending}
           />
           <button
             onClick={handleSendMessage}
             disabled={!newMessage.trim() || sending}
-            className="px-3 py-2 bg-yellow-400 text-gray-900 rounded-lg hover:bg-yellow-500 disabled:opacity-50"
+            className="w-9 h-9 flex items-center justify-center bg-yellow-400 text-gray-900 rounded-full hover:bg-yellow-500 disabled:opacity-50 mt-1 flex-shrink-0"
           >
             <Send size={16} />
           </button>

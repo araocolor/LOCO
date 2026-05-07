@@ -8,14 +8,9 @@ const NAV_ITEMS = [
     href: "/",
     label: "home",
     icon: (
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        width="35"
-        height="35"
-        viewBox="0 0 24 24"
-        fill="currentColor"
-      >
-        <path d="M12 2.8a1 1 0 0 1 .7.29l7.2 7.02a1 1 0 0 1 .3.72V20a2 2 0 0 1-2 2h-4.2a1 1 0 0 1-1-1v-4.6a.6.6 0 0 0-.6-.6h-.8a.6.6 0 0 0-.6.6V21a1 1 0 0 1-1 1H5.8a2 2 0 0 1-2-2v-9.17a1 1 0 0 1 .3-.72l7.2-7.02a1 1 0 0 1 .7-.29Z" />
+      <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V9.5z"/>
+        <polyline points="9 21 9 12 15 12 15 21"/>
       </svg>
     ),
   },
@@ -23,14 +18,8 @@ const NAV_ITEMS = [
     href: "/messages",
     label: "message",
     icon: (
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        width="35"
-        height="35"
-        viewBox="0 0 24 24"
-        fill="currentColor"
-      >
-        <path d="M12 3.2c-4.7 0-8.5 3.53-8.5 7.9 0 2.03.82 3.87 2.18 5.26l-.98 3.26a.8.8 0 0 0 1 .98l3.16-.96A9.3 9.3 0 0 0 12 20c4.7 0 8.5-3.53 8.5-7.9S16.7 3.2 12 3.2Zm-3.1 9.3a1.1 1.1 0 1 1 0-2.2 1.1 1.1 0 0 1 0 2.2Zm3.1 0a1.1 1.1 0 1 1 0-2.2 1.1 1.1 0 0 1 0 2.2Zm3.1 0a1.1 1.1 0 1 1 0-2.2 1.1 1.1 0 0 1 0 2.2Z" />
+      <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
       </svg>
     ),
   },
@@ -38,19 +27,11 @@ const NAV_ITEMS = [
     href: "/search",
     label: "Search",
     icon: (
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        width="35"
-        height="35"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <path d="M12 21s-6-5.1-6-10a6 6 0 1 1 12 0c0 4.9-6 10-6 10z" />
-        <circle cx="12" cy="11" r="2.5" />
+      <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+        <circle cx="9" cy="7" r="4"/>
+        <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+        <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
       </svg>
     ),
   },
@@ -58,14 +39,9 @@ const NAV_ITEMS = [
     href: "/mypage",
     label: "My",
     icon: (
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        width="35"
-        height="35"
-        viewBox="0 0 24 24"
-        fill="currentColor"
-      >
-        <path d="M12 12.2a4.2 4.2 0 1 0 0-8.4 4.2 4.2 0 0 0 0 8.4ZM12 13.8c-3.75 0-6.8 2.45-6.8 5.46 0 .52.42.94.94.94h11.72c.52 0 .94-.42.94-.94 0-3.01-3.05-5.46-6.8-5.46Z" />
+      <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
       </svg>
     ),
   },

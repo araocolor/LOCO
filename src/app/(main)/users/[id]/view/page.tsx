@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import HeaderBackCircleButton from "@/components/layout/HeaderBackCircleButton";
 import UserViewLoader from "@/components/user/UserViewLoader";
+import UserViewHeaderMenu from "@/components/user/UserViewHeaderMenu";
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -23,6 +24,13 @@ export default async function UserViewPage({
 }) {
   const { id } = await params;
 
+  const supabase = await createClient();
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("nickname, profile_image_url")
+    .eq("id", id)
+    .single();
+
   return (
     <div
       data-page-shell
@@ -35,7 +43,13 @@ export default async function UserViewPage({
         <div className="absolute left-1/2 -translate-x-1/2 font-bold text-[17px] text-[#333333] leading-none">
           프로필
         </div>
-        <div className="w-10" />
+        <div className="ml-auto">
+          <UserViewHeaderMenu
+            userId={id}
+            nickname={profile?.nickname ?? ""}
+            profile_image_url={profile?.profile_image_url ?? null}
+          />
+        </div>
       </header>
 
       <div className="flex-1 overflow-y-auto overflow-x-hidden">
