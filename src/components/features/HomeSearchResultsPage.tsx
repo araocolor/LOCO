@@ -14,6 +14,7 @@ import { parseBookmarkEntries } from "@/lib/bookmarks/local";
 
 const HOME_RESULTS_LOCAL_KEY = "loco_home_results_local_v1";
 const CONVERSATIONS_CACHE_KEY = "loco_conversations_cache_v2";
+const MYPAGE_CACHE_KEY = "loco_mypage_cache_local_v2";
 const PAGE_SIZE = 10;
 
 interface CachedHomeResult {
@@ -213,8 +214,23 @@ export default function HomeSearchResultsPage({ initialClasses = [] }: Props) {
       } catch {}
     }
 
+    async function prefetchMyPage() {
+      try {
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+        const res = await fetch("/api/mypage/summary");
+        if (!res.ok) return;
+        const json = await res.json();
+        if (json.profile) {
+          localStorage.setItem(MYPAGE_CACHE_KEY, JSON.stringify(json));
+        }
+      } catch {}
+    }
+
     void load();
     void prefetchConversations();
+    void prefetchMyPage();
     return () => { cancelled = true; };
   }, []);
 
