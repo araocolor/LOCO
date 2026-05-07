@@ -396,10 +396,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
         { event: "INSERT", schema: "public", table: "messages" },
         (payload) => {
           const newMsg = payload.new as Message;
-          const isRelevant =
-            (newMsg.sender_id === selectedUserId && newMsg.receiver_id === userId) ||
-            (newMsg.sender_id === userId && newMsg.receiver_id === selectedUserId);
-          if (isRelevant) {
+          if (newMsg.sender_id === selectedUserId && newMsg.receiver_id === userId) {
             setMessages((prev) => [...prev, newMsg]);
             appendMessageCache(selectedUserId, newMsg);
           }
