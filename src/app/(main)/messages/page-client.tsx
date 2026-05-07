@@ -386,6 +386,31 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
   }, []);
 
   useEffect(() => {
+    if (!selectedUserId) return;
+
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`chat-${selectedUserId}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "messages" },
+        (payload) => {
+          const newMsg = payload.new as Message;
+          if (newMsg.sender_id === selectedUserId && newMsg.receiver_id === userId) {
+            setMessages((prev) => {
+              if (prev.some((m) => m.id === newMsg.id)) return prev;
+              return [...prev, newMsg];
+            });
+            appendMessageCache(selectedUserId, newMsg);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [selectedUserId, userId]);
+
+  useEffect(() => {
     let mounted = true;
 
     async function fetchMyProfile() {
