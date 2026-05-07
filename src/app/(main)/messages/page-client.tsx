@@ -397,7 +397,10 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
         (payload) => {
           const newMsg = payload.new as Message;
           if (newMsg.sender_id === selectedUserId && newMsg.receiver_id === userId) {
-            setMessages((prev) => [...prev, newMsg]);
+            setMessages((prev) => {
+              if (prev.some((m) => m.id === newMsg.id)) return prev;
+              return [...prev, newMsg];
+            });
             appendMessageCache(selectedUserId, newMsg);
           }
         }
