@@ -654,7 +654,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
         }`}
       >
         {/* 대화창 헤더 */}
-        <div className="h-[70px] flex items-center justify-between px-4 border-b border-gray-100">
+        <div className="h-[80px] flex items-start justify-between px-4 pt-3 border-b border-gray-100">
           <button onClick={closeChat} className="p-1 -ml-1 text-gray-600 hover:text-gray-900">
             <ArrowLeft size={20} />
           </button>
@@ -677,23 +677,36 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
               <>
                 <div className="fixed inset-0 z-[70]" onClick={() => setChatMenuOpen(false)} />
                 <div className="absolute right-0 top-full z-[80] bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden" style={{ width: 180 }}>
-                  <button className="flex items-center justify-between w-full px-4 py-3 text-sm text-gray-700">
+                  <button
+                    className="flex items-center justify-between w-full px-4 py-3 text-gray-700" style={{ fontSize: "16px" }}
+                    onClick={async () => {
+                      if (!selectedUserId) return;
+                      setChatMenuOpen(false);
+                      const res = await fetch("/api/friends", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ target_id: selectedUserId }),
+                      });
+                      const data = await res.json();
+                      alert(res.ok ? "친구 신청 완료!" : (data.error ?? "오류가 발생했습니다"));
+                    }}
+                  >
                     <span>친구 신청</span>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500">
                       <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/>
                     </svg>
                   </button>
                   <div className="border-t border-gray-100 mx-3" />
-                  <button className="flex items-center justify-between w-full px-4 py-3 text-sm text-gray-700">
+                  <button className="flex items-center justify-between w-full px-4 py-3 text-gray-700" style={{ fontSize: "16px" }}>
                     <span>대화 삭제</span>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500">
                       <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
                     </svg>
                   </button>
                   <div className="border-t border-gray-100 mx-3" />
-                  <button className="flex items-center justify-between w-full px-4 py-3 text-sm text-red-500">
+                  <button className="flex items-center justify-between w-full px-4 py-3 text-red-500" style={{ fontSize: "16px" }}>
                     <span>차단하기</span>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-red-400">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-red-400">
                       <circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
                     </svg>
                   </button>
@@ -812,8 +825,8 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
         </div>
 
         {/* 입력창 */}
-        <div className="border-t border-gray-100 px-3 py-3 flex gap-2 items-center min-h-[70px]">
-          <button className="text-gray-500 flex-shrink-0" onClick={() => setAttachOpen((v) => !v)}>
+        <div className="border-t border-gray-100 px-3 pt-3 pb-3 flex gap-2 items-start min-h-[80px]">
+          <button className="text-gray-500 flex-shrink-0 mt-2" onClick={() => setAttachOpen((v) => !v)}>
             <Paperclip size={22} strokeWidth={2.5} />
           </button>
           <input
@@ -822,13 +835,13 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
             onChange={(e) => setNewMessage(e.target.value)}
             onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
             placeholder="메시지 입력..."
-            className="flex-1 px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400" style={{ fontSize: "16px", color: "#000000cc" }}
+            className="flex-1 px-3 py-2 border border-gray-200 rounded-full focus:outline-none focus:ring-2 focus:ring-yellow-400" style={{ fontSize: "16px", color: "#000000cc" }}
             disabled={sending}
           />
           <button
             onClick={handleSendMessage}
             disabled={!newMessage.trim() || sending}
-            className="px-3 py-2 bg-yellow-400 text-gray-900 rounded-lg hover:bg-yellow-500 disabled:opacity-50"
+            className="w-9 h-9 flex items-center justify-center bg-yellow-400 text-gray-900 rounded-full hover:bg-yellow-500 disabled:opacity-50 mt-1 flex-shrink-0"
           >
             <Send size={16} />
           </button>
