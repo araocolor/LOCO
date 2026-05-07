@@ -753,12 +753,12 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
                         <Image
                           src={myProfile.profile_image_url}
                           alt={myProfile.nickname ?? "나"}
-                          width={35}
-                          height={35}
+                          width={40}
+                          height={40}
                           className="rounded-full object-cover flex-shrink-0"
                         />
                       ) : (
-                        <div className="w-[35px] h-[35px] rounded-full bg-gray-200 flex items-center justify-center text-gray-500 text-xs font-medium flex-shrink-0">
+                        <div className="w-[40px] h-[40px] rounded-full bg-gray-200 flex items-center justify-center text-gray-500 text-xs font-medium flex-shrink-0">
                           {myProfile?.nickname?.[0] ?? "나"}
                         </div>
                       )}
@@ -770,12 +770,12 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
                         <Image
                           src={otherUser.profile_image_url}
                           alt={otherUser.nickname}
-                          width={30}
-                          height={30}
+                          width={40}
+                          height={40}
                           className="rounded-full object-cover flex-shrink-0"
                         />
                       ) : (
-                        <div className="w-[30px] h-[30px] rounded-full bg-gray-200 flex items-center justify-center text-gray-500 text-xs font-medium flex-shrink-0">
+                        <div className="w-[40px] h-[40px] rounded-full bg-gray-200 flex items-center justify-center text-gray-500 text-xs font-medium flex-shrink-0">
                           {otherUser?.nickname?.[0] ?? "?"}
                         </div>
                       )}
