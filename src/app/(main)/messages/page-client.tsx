@@ -654,7 +654,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
         }`}
       >
         {/* 대화창 헤더 */}
-        <div className="h-[80px] flex items-start justify-between px-4 pt-3 border-b border-gray-100">
+        <div className="h-12 shrink-0 relative flex items-center justify-between px-4 border-b border-gray-100">
           <button onClick={closeChat} className="p-1 -ml-1 text-gray-600 hover:text-gray-900">
             <ArrowLeft size={20} />
           </button>
