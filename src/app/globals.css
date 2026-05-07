@@ -259,6 +259,21 @@ body {
   animation: page-slide-in-from-left 240ms ease-out both;
 }
 
+@keyframes page-slide-in-from-right {
+  from {
+    transform: translateX(100%);
+    opacity: 0.98;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.page-slide-in-from-right {
+  animation: page-slide-in-from-right 240ms ease-out both;
+}
+
 @keyframes page-slide-in-from-top {
   from {
     transform: translateY(-100%);
@@ -331,6 +346,9 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
   .page-slide-in-from-left {
+    animation: none;
+  }
+  .page-slide-in-from-right {
     animation: none;
   }
   .page-slide-in-from-top {

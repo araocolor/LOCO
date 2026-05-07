@@ -77,7 +77,7 @@ export default function BottomNav({ isLoggedIn }: { isLoggedIn: boolean }) {
   const [activeHref, setActiveHref] = useState(pathname);
   void isLoggedIn;
 
-  if (pathname === "/classes/new") return null;
+  if (pathname.startsWith("/classes/") || pathname.startsWith("/users/")) return null;
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-[#e5e7eb] h-[70px] flex items-center">

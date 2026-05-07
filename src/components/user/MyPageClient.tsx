@@ -438,7 +438,12 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses }: P
             ? myClasses
             : bookmarkClasses
           ).map((item) => (
-            <div key={item.id + (item.isBookmark ? "-bm" : "")} className="aspect-square bg-gray-100 relative overflow-hidden">
+            <button
+              key={item.id + (item.isBookmark ? "-bm" : "")}
+              type="button"
+              onClick={() => router.push(`/classes/${item.id}`)}
+              className="aspect-square bg-gray-100 relative overflow-hidden cursor-pointer"
+            >
               {item.images?.[0]?.card_url ? (
                 <Image
                   src={item.images[0].card_url}
@@ -460,7 +465,7 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses }: P
               {!item.isBookmark && item.status === "recruiting" && (
                 <div className="absolute top-1.5 right-1.5 w-3 h-3 rounded-full bg-green-500" />
               )}
-            </div>
+            </button>
           ))}
         </div>
       </div>

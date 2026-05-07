@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { ArrowLeft, Send, Paperclip, Image as ImageIcon, FileText, MapPin, CalendarDays, Search, RefreshCw } from "lucide-react";
 
@@ -45,7 +46,16 @@ interface MyProfile {
   profile_image_url: string | null;
 }
 
+interface SessionClassItem {
+  id: string;
+  title: string;
+  images: { card_url?: string }[] | null;
+  status?: string;
+  created_at?: string;
+}
+
 export default function MessagesPageClient({ userId }: { userId: string }) {
+  const router = useRouter();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -130,6 +140,96 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
 
   const CACHE_KEY = "loco_conversations_cache";
   const MESSAGES_CACHE_PREFIX = "loco_messages_cache_";
+  const MESSAGE_USER_SESSION_KEY = "message_userid_session";
+
+  async function saveMessageUserSession(convs: Conversation[]) {
+    try {
+      const sessionMap: Record<
+        string,
+        {
+          id: string;
+          nickname: string;
+          profile_image_url: string | null;
+          opened_classes: SessionClassItem[];
+          bookmarked_classes: SessionClassItem[];
+        }
+      > = {};
+
+      const userIds = Array.from(
+        new Set(
+          convs
+            .map((conv) => conv.other_user?.id)
+            .filter((id): id is string => Boolean(id))
+        )
+      );
+
+      convs.forEach((conv) => {
+        const user = conv.other_user;
+        if (!user?.id) return;
+        sessionMap[user.id] = {
+          id: user.id,
+          nickname: user.nickname,
+          profile_image_url: user.profile_image_url ?? null,
+          opened_classes: [],
+          bookmarked_classes: [],
+        };
+      });
+
+      if (userIds.length > 0) {
+        const supabase = createClient();
+
+        const { data: openedClasses } = await supabase
+          .from("classes")
+          .select("id, host_id, title, images, status, created_at")
+          .in("host_id", userIds)
+          .order("created_at", { ascending: false })
+          .limit(1000);
+
+        (openedClasses ?? []).forEach((cls) => {
+          const hostId = (cls as { host_id?: string }).host_id;
+          if (!hostId || !sessionMap[hostId]) return;
+          sessionMap[hostId].opened_classes.push({
+            id: cls.id,
+            title: cls.title,
+            images: cls.images,
+            status: cls.status,
+            created_at: cls.created_at,
+          });
+        });
+
+        const { data: bookmarkRows } = await supabase
+          .from("class_bookmarks")
+          .select("user_id, created_at, classes(id, title, images, status)")
+          .in("user_id", userIds)
+          .order("created_at", { ascending: false })
+          .limit(1000);
+
+        (bookmarkRows ?? []).forEach((row) => {
+          const userIdRow = (row as { user_id?: string }).user_id;
+          if (!userIdRow || !sessionMap[userIdRow]) return;
+          const clsRaw = (row as { classes?: unknown }).classes;
+          const cls = Array.isArray(clsRaw) ? clsRaw[0] : clsRaw;
+          if (!cls || typeof cls !== "object") return;
+          const c = cls as {
+            id?: string;
+            title?: string;
+            images?: { card_url?: string }[] | null;
+            status?: string;
+          };
+          if (!c.id || !c.title) return;
+          sessionMap[userIdRow].bookmarked_classes.push({
+            id: c.id,
+            title: c.title,
+            images: c.images ?? null,
+            status: c.status,
+            created_at: (row as { created_at?: string }).created_at,
+          });
+        });
+      }
+
+      sessionStorage.setItem(MESSAGE_USER_SESSION_KEY, JSON.stringify(sessionMap));
+    } catch {}
+  }
 
   function isImageMessage(content: string) {
     try { return JSON.parse(content)?.type === "image"; } catch { return false; }
@@ -177,7 +277,18 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
   }
 
 
-  async function fetchConversations() {
+  async function fetchConversations(options?: { force?: boolean }) {
+    const force = options?.force ?? false;
+    const hasUserSession = Boolean(sessionStorage.getItem(MESSAGE_USER_SESSION_KEY));
+    if (!force && hasUserSession) {
+      const cached = localStorage.getItem(CACHE_KEY);
+      if (cached) {
+        setConversations(JSON.parse(cached) as Conversation[]);
+      }
+      setLoading(false);
+      return;
+    }
+
     setRefreshDisabled(true);
     setIsSpinning(true);
     setTimeout(() => setRefreshDisabled(false), 60000);
@@ -186,8 +297,10 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
       const res = await fetch("/api/conversations");
       const json = await res.json();
       if (json.data) {
-        setConversations(json.data);
-        localStorage.setItem(CACHE_KEY, JSON.stringify(json.data));
+        const next = json.data as Conversation[];
+        setConversations(next);
+        localStorage.setItem(CACHE_KEY, JSON.stringify(next));
+        await saveMessageUserSession(next);
       }
     } catch (error) {
       console.error("Failed to load conversations:", error);
@@ -200,11 +313,12 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
     const cached = localStorage.getItem(CACHE_KEY);
 
     if (cached) {
-      setConversations(JSON.parse(cached));
+      const next = JSON.parse(cached) as Conversation[];
+      setConversations(next);
+      void saveMessageUserSession(next);
       setLoading(false);
-    } else {
-      fetchConversations();
     }
+    void fetchConversations({ force: true });
   }, []);
 
   useEffect(() => {
@@ -325,7 +439,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
       <div className="h-12 flex items-center justify-between px-4 border-b border-gray-100">
         <h1 className="text-lg font-bold text-gray-900">메시지</h1>
         <button
-          onClick={fetchConversations}
+          onClick={() => { void fetchConversations({ force: true }); }}
           disabled={refreshDisabled && !isSpinning}
           className={`p-1 ${refreshDisabled && !isSpinning ? "text-gray-400 cursor-not-allowed" : "text-gray-800 hover:text-gray-900"}`}
         >
@@ -359,23 +473,36 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
 
                 const avatarUser = isMine
                   ? {
+                      id: userId,
                       nickname: myProfile?.nickname ?? "나",
                       profile_image_url: myProfile?.profile_image_url ?? null,
                     }
                   : conv.other_user;
-
-                const avatar = avatarUser?.profile_image_url ? (
-                  <Image
-                    src={avatarUser.profile_image_url}
-                    alt={avatarUser.nickname}
-                    width={40}
-                    height={40}
-                    className="rounded-full object-cover flex-shrink-0"
-                  />
-                ) : (
-                  <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 text-xs font-medium flex-shrink-0">
-                    {avatarUser?.nickname?.[0] ?? "?"}
-                  </div>
+                const avatar = (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (!avatarUser?.id) return;
+                      router.push(`/users/${avatarUser.id}/view`);
+                    }}
+                    className="flex-shrink-0"
+                    aria-label={`${avatarUser?.nickname ?? "사용자"} 프로필 보기`}
+                  >
+                    {avatarUser?.profile_image_url ? (
+                      <Image
+                        src={avatarUser.profile_image_url}
+                        alt={avatarUser.nickname}
+                        width={40}
+                        height={40}
+                        className="rounded-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 text-xs font-medium">
+                        {avatarUser?.nickname?.[0] ?? "?"}
+                      </div>
+                    )}
+                  </button>
                 );
                 const displayNickname = conv.other_user?.nickname ?? "알 수 없음";
                 return (
