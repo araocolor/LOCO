@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { ArrowLeft, Send, Paperclip, Image as ImageIcon, FileText, MapPin, CalendarDays, Search, RefreshCw } from "lucide-react";
+import { ArrowLeft, Send, Paperclip, Image as ImageIcon, FileText, MapPin, CalendarDays, RefreshCw } from "lucide-react";
 
 interface Conversation {
   id: string;
@@ -662,9 +662,6 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
             <span className="font-bold text-gray-900" style={{ fontSize: "18px" }}>{otherUser?.nickname ?? "로딩중..."}</span>
           </div>
           <div className="flex items-center gap-1">
-            <button className="p-1 text-gray-600">
-              <Search size={20} />
-            </button>
             <div className="relative">
             <button onClick={() => setChatMenuOpen((v) => !v)} className="p-1 text-gray-600 hover:text-gray-900">
               <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
