@@ -138,7 +138,8 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
     }
   }
 
-  const CACHE_KEY = "loco_conversations_cache";
+  const CACHE_KEY = "loco_conversations_cache_v2";
+  const CONVERSATIONS_LIMIT = 20;
   const MESSAGES_CACHE_PREFIX = "loco_messages_cache_";
   const MESSAGE_USER_SESSION_KEY = "message_userid_session";
 
@@ -316,7 +317,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
       if (json.data) {
         const next = json.data as Conversation[];
         setConversations(next);
-        localStorage.setItem(CACHE_KEY, JSON.stringify(next));
+        localStorage.setItem(CACHE_KEY, JSON.stringify(next.slice(0, CONVERSATIONS_LIMIT)));
         await saveMessageUserSession(next);
       }
     } catch (error) {
@@ -327,16 +328,16 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
   }
 
   useEffect(() => {
+    // v1: 로컬 캐시 즉시 표시
     const cached = localStorage.getItem(CACHE_KEY);
-
     if (cached) {
       const next = JSON.parse(cached) as Conversation[];
       setConversations(next);
-      void saveMessageUserSession(next);
       setLoading(false);
-    } else {
-      void fetchConversations({ force: true });
     }
+
+    // v2: 백그라운드에서 최신 데이터 갱신 및 세션 저장
+    void fetchConversations({ force: !cached });
   }, []);
 
   useEffect(() => {
