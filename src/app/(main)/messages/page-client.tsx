@@ -77,6 +77,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
   const [shakingMsgId, setShakingMsgId] = useState<string | null>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   async function resizeToBlob(bitmap: ImageBitmap, maxW: number): Promise<Blob> {
     const scale = bitmap.width > maxW ? maxW / bitmap.width : 1;
@@ -411,6 +412,12 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
   }, [selectedUserId, userId]);
 
   useEffect(() => {
+    if (messages.length > 0) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages]);
+
+  useEffect(() => {
     let mounted = true;
 
     async function fetchMyProfile() {
@@ -548,7 +555,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
   }
 
   return (
-    <div className="max-w-xl mx-auto bg-white min-h-screen flex flex-col">
+    <div className="max-w-xl mx-auto bg-white flex flex-col" style={{ height: "calc(100vh - 126px)" }}>
       {/* 메시지 목록 */}
       <div className="h-12 flex items-center justify-between px-4 border-b border-gray-100">
         <h1 className="text-lg font-bold text-gray-900">메시지</h1>
@@ -812,7 +819,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
                           imageData ? "" : "px-3 py-2"
                         } ${isMine ? "text-gray-900" : "bg-white text-gray-900"} ${isMine && shakingMsgId === msg.id ? "msg-shake" : ""}`}
                         style={{
-                          ...(isMine ? { maxWidth: "75%" } : { maxWidth: "270px" }),
+                          ...(isMine ? { maxWidth: "72vw" } : { maxWidth: "270px" }),
                           ...(isMine && !imageData ? { backgroundColor: "#FEE500" } : {}),
                         }}
                         onTouchStart={() => startLongPress(msg.id, isMine)}
@@ -844,6 +851,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
               );
             })
           )}
+          <div ref={messagesEndRef} />
         </div>
 
         {/* 입력창 */}
