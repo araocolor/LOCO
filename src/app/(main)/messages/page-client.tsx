@@ -139,6 +139,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
   }
 
   const CACHE_KEY = "loco_conversations_cache_v2";
+  const CACHE_SINCE_KEY = "loco_conversations_since";
   const CONVERSATIONS_LIMIT = 20;
   const MESSAGES_CACHE_PREFIX = "loco_messages_cache_";
   const MESSAGE_USER_SESSION_KEY = "message_userid_session";
@@ -295,8 +296,9 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
   }
 
 
-  async function fetchConversations(options?: { force?: boolean }) {
+  async function fetchConversations(options?: { force?: boolean; manual?: boolean }) {
     const force = options?.force ?? false;
+    const manual = options?.manual ?? false;
     const hasUserSession = Boolean(sessionStorage.getItem(MESSAGE_USER_SESSION_KEY));
     if (!force && hasUserSession) {
       const cached = localStorage.getItem(CACHE_KEY);
@@ -307,18 +309,36 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
       return;
     }
 
-    setRefreshDisabled(true);
-    setIsSpinning(true);
-    setTimeout(() => setRefreshDisabled(false), 60000);
-    setTimeout(() => setIsSpinning(false), 2000);
+    if (manual) {
+      setRefreshDisabled(true);
+      setIsSpinning(true);
+      setTimeout(() => setRefreshDisabled(false), 60000);
+      setTimeout(() => setIsSpinning(false), 2000);
+    }
     try {
-      const res = await fetch("/api/conversations");
+      const since = manual ? localStorage.getItem(CACHE_SINCE_KEY) : null;
+      const url = since ? `/api/conversations?since=${encodeURIComponent(since)}` : "/api/conversations";
+      const res = await fetch(url);
       const json = await res.json();
       if (json.data) {
-        const next = json.data as Conversation[];
-        setConversations(next);
-        localStorage.setItem(CACHE_KEY, JSON.stringify(next.slice(0, CONVERSATIONS_LIMIT)));
-        await saveMessageUserSession(next);
+        const incoming = json.data as Conversation[];
+        const now = new Date().toISOString();
+        localStorage.setItem(CACHE_SINCE_KEY, now);
+
+        if (manual && since && incoming.length > 0) {
+          // 새 대화만 기존 목록 앞에 추가
+          setConversations((prev) => {
+            const existingIds = new Set(prev.map((c) => c.id));
+            const newOnes = incoming.filter((c) => !existingIds.has(c.id));
+            const next = [...newOnes, ...prev].slice(0, CONVERSATIONS_LIMIT);
+            localStorage.setItem(CACHE_KEY, JSON.stringify(next));
+            return next;
+          });
+        } else {
+          setConversations(incoming);
+          localStorage.setItem(CACHE_KEY, JSON.stringify(incoming.slice(0, CONVERSATIONS_LIMIT)));
+          await saveMessageUserSession(incoming);
+        }
       }
     } catch (error) {
       console.error("Failed to load conversations:", error);
@@ -458,7 +478,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
       <div className="h-12 flex items-center justify-between px-4 border-b border-gray-100">
         <h1 className="text-lg font-bold text-gray-900">메시지</h1>
         <button
-          onClick={() => { void fetchConversations({ force: true }); }}
+          onClick={() => { void fetchConversations({ force: true, manual: true }); }}
           disabled={refreshDisabled && !isSpinning}
           className={`p-1 ${refreshDisabled && !isSpinning ? "text-gray-400 cursor-not-allowed" : "text-gray-800 hover:text-gray-900"}`}
         >

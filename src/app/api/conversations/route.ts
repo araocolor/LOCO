@@ -1,8 +1,11 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const { searchParams } = new URL(request.url);
+    const since = searchParams.get("since");
+
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
 
@@ -11,11 +14,15 @@ export async function GET() {
     }
 
     // messages 테이블에서 사용자가 주고받은 모든 메시지 조회
-    const { data: messages, error: msgError } = await supabase
+    let query = supabase
       .from("messages")
       .select("id, sender_id, receiver_id, content, sent_at")
       .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`)
       .order("sent_at", { ascending: false });
+
+    if (since) query = query.gt("sent_at", since);
+
+    const { data: messages, error: msgError } = await query;
 
     if (msgError) {
       return NextResponse.json({ error: msgError.message }, { status: 500 });
