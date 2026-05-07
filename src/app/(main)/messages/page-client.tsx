@@ -290,9 +290,9 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
 
   function appendMessageCache(userId: string, message: Message) {
     const cacheKey = `${MESSAGES_CACHE_PREFIX}${userId}`;
-    const cached = localStorage.getItem(cacheKey);
+    const cached = sessionStorage.getItem(cacheKey);
     const msgs: Message[] = cached ? JSON.parse(cached) : [];
-    localStorage.setItem(cacheKey, JSON.stringify(limitImageMessages([...msgs, message])));
+    sessionStorage.setItem(cacheKey, JSON.stringify(limitImageMessages([...msgs, message])));
   }
 
 
@@ -326,12 +326,13 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
         localStorage.setItem(CACHE_SINCE_KEY, now);
 
         if (manual && since && incoming.length > 0) {
-          // 새 대화만 기존 목록 앞에 추가
+          // 새 대화만 기존 목록 앞에 추가 + 세션에 메시지 저장
           setConversations((prev) => {
             const existingIds = new Set(prev.map((c) => c.id));
             const newOnes = incoming.filter((c) => !existingIds.has(c.id));
             const next = [...newOnes, ...prev].slice(0, CONVERSATIONS_LIMIT);
             localStorage.setItem(CACHE_KEY, JSON.stringify(next));
+            void prefetchMessagesToSession(newOnes);
             return next;
           });
         } else {
@@ -347,16 +348,35 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
     }
   }
 
+  async function prefetchMessagesToSession(convs: Conversation[]) {
+    const supabase = createClient();
+    for (const conv of convs) {
+      const otherId = conv.other_user?.id;
+      if (!otherId) continue;
+      const cacheKey = `${MESSAGES_CACHE_PREFIX}${otherId}`;
+      if (sessionStorage.getItem(cacheKey)) continue;
+      try {
+        const { data: msgs } = await supabase
+          .from("messages")
+          .select("*")
+          .or(`and(sender_id.eq.${userId},receiver_id.eq.${otherId}),and(sender_id.eq.${otherId},receiver_id.eq.${userId})`)
+          .order("sent_at", { ascending: true });
+        if (msgs) sessionStorage.setItem(cacheKey, JSON.stringify(msgs));
+      } catch {}
+    }
+  }
+
   useEffect(() => {
-    // v1: 로컬 캐시 즉시 표시
+    // v1: 로컬 캐시 즉시 표시 후 대화 내용 세션 저장
     const cached = localStorage.getItem(CACHE_KEY);
     if (cached) {
       const next = JSON.parse(cached) as Conversation[];
       setConversations(next);
       setLoading(false);
+      void prefetchMessagesToSession(next);
     }
 
-    // v2: 백그라운드에서 최신 데이터 갱신 및 세션 저장
+    // v2: 백그라운드에서 최신 데이터 갱신
     void fetchConversations({ force: !cached });
   }, []);
 
@@ -401,7 +421,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
     if (profile) setOtherUser(profile);
 
     const cacheKey = `${MESSAGES_CACHE_PREFIX}${otherId}`;
-    const cached = localStorage.getItem(cacheKey);
+    const cached = sessionStorage.getItem(cacheKey);
     if (cached) {
       setMessages(JSON.parse(cached));
     } else {
@@ -412,7 +432,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
         .order("sent_at", { ascending: true });
       if (msgs) {
         setMessages(msgs);
-        localStorage.setItem(cacheKey, JSON.stringify(msgs));
+        sessionStorage.setItem(cacheKey, JSON.stringify(msgs));
       }
     }
 
