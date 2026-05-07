@@ -202,7 +202,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
           .select("id, host_id, title, images, status, created_at")
           .in("host_id", userIds)
           .order("created_at", { ascending: false })
-          .limit(1000);
+          .limit(10);
 
         (openedClasses ?? []).forEach((cls) => {
           const hostId = (cls as { host_id?: string }).host_id;
@@ -221,7 +221,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
           .select("user_id, created_at, classes(id, title, images, status)")
           .in("user_id", userIds)
           .order("created_at", { ascending: false })
-          .limit(1000);
+          .limit(10);
 
         (bookmarkRows ?? []).forEach((row) => {
           const userIdRow = (row as { user_id?: string }).user_id;
