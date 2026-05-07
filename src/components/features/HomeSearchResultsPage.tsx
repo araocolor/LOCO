@@ -10,6 +10,7 @@ import {
   buildSearchQuery,
   type SearchOptions,
 } from "@/lib/search-defaults";
+import { parseBookmarkEntries } from "@/lib/bookmarks/local";
 
 const HOME_RESULTS_LOCAL_KEY = "loco_home_results_local_v1";
 const HOME_RESULTS_USER_LOCAL_KEY = "loco_home_results_local_v1:user-default";
@@ -41,13 +42,17 @@ function isDefaultOptions(opts: SearchOptions) {
   );
 }
 
-export default function HomeSearchResultsPage() {
+interface Props {
+  initialClasses?: ClassWithHost[];
+}
+
+export default function HomeSearchResultsPage({ initialClasses = [] }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const region = searchParams.get("region") ?? "전체";
   const genres = searchParams.getAll("genre");
-  const [loading, setLoading] = useState(true);
-  const [allClasses, setAllClasses] = useState<ClassWithHost[]>([]);
+  const [loading, setLoading] = useState(initialClasses.length === 0);
+  const [allClasses, setAllClasses] = useState<ClassWithHost[]>(initialClasses);
   const warmedImageUrlsRef = useRef<Set<string>>(new Set());
   const orderedTopTen = useMemo(() => {
     let filtered =
@@ -82,7 +87,15 @@ export default function HomeSearchResultsPage() {
     let cancelled = false;
 
     async function load() {
-      // 1. localStorage 우선
+      // 1. 서버에서 받은 initialClasses가 있으면 즉시 표시, 백그라운드 갱신만
+      if (initialClasses.length > 0) {
+        warmImages(initialClasses);
+        void fetchAndUpdate(cancelled);
+        void fetchAndApplyUserDefaults(cancelled);
+        return;
+      }
+
+      // 2. localStorage 우선
       const localRaw = localStorage.getItem(HOME_RESULTS_LOCAL_KEY);
       if (localRaw) {
         try {
@@ -90,14 +103,13 @@ export default function HomeSearchResultsPage() {
           const cachedList = cached.data ?? [];
           if (!cancelled) { setAllClasses(cachedList); setLoading(false); }
           warmImages(cachedList);
-          // 백그라운드로 최신 데이터 업데이트
           void fetchAndUpdate(cancelled);
           void fetchAndApplyUserDefaults(cancelled);
           return;
         } catch {}
       }
 
-      // 2. 캐시 없으면 API 호출
+      // 3. 캐시 없으면 API 호출
       await fetchAndUpdate(cancelled);
       void fetchAndApplyUserDefaults(cancelled);
     }
@@ -126,8 +138,20 @@ export default function HomeSearchResultsPage() {
         const res = await fetch("/api/bookmarks/ids");
         if (!res.ok) return;
         const json = await res.json();
+        const bookmarks =
+          Array.isArray(json.bookmarks)
+            ? parseBookmarkEntries(JSON.stringify(json.bookmarks))
+            : [];
+        if (bookmarks.length > 0) {
+          localStorage.setItem("loco_bookmark_ids_v1", JSON.stringify(bookmarks));
+          return;
+        }
         const ids: string[] = json.ids ?? [];
-        localStorage.setItem("loco_bookmark_ids_v1", JSON.stringify(ids));
+        const now = new Date().toISOString();
+        localStorage.setItem(
+          "loco_bookmark_ids_v1",
+          JSON.stringify(ids.map((id) => ({ id, created_at: now })))
+        );
       } catch {}
     }
 

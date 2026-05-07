@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { UserCircle, X, Settings } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { parseBookmarkEntries } from "@/lib/bookmarks/local";
 import { REGIONS, MEMBER_TYPES, MAX_MEMBER_TYPE } from "@/lib/constants";
 import AvatarCropModal from "./AvatarCropModal";
 import { ClassImage } from "@/types/class";
@@ -170,9 +171,9 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses }: P
 
       // 북마크: localStorage 캐시 우선 [{id, created_at}]
       const rawBm = localStorage.getItem("loco_bookmark_ids_v1");
-      const bmEntries: { id: string; created_at: string }[] | null = rawBm ? JSON.parse(rawBm) : null;
+      const bmEntries = parseBookmarkEntries(rawBm);
 
-      if (bmEntries !== null && Array.isArray(bmEntries) && bmEntries[0]?.created_at) {
+      if (bmEntries.length > 0) {
         const homeRaw = localStorage.getItem("loco_home_results_local_v1");
         const homeClasses: HomeClassCache[] = homeRaw ? ((JSON.parse(homeRaw).data ?? []) as HomeClassCache[]) : [];
         const homeMap = new Map(homeClasses.map((c) => [c.id, c]));

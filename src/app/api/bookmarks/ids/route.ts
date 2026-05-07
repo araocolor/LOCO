@@ -8,9 +8,10 @@ export async function GET() {
 
   const { data } = await supabase
     .from("class_bookmarks")
-    .select("class_id")
+    .select("class_id, created_at")
     .eq("user_id", user.id);
 
-  const ids = (data ?? []).map((r) => r.class_id);
-  return NextResponse.json({ ids });
+  const bookmarks = (data ?? []).map((r) => ({ id: r.class_id, created_at: r.created_at }));
+  const ids = bookmarks.map((r) => r.id);
+  return NextResponse.json({ ids, bookmarks });
 }
