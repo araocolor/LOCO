@@ -74,7 +74,9 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
   const [uploadDone, setUploadDone] = useState(false);
   const [refreshDisabled, setRefreshDisabled] = useState(false);
   const [isSpinning, setIsSpinning] = useState(false);
+  const [shakingMsgId, setShakingMsgId] = useState<string | null>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   async function resizeToBlob(bitmap: ImageBitmap, maxW: number): Promise<Blob> {
     const scale = bitmap.width > maxW ? maxW / bitmap.width : 1;
@@ -476,6 +478,31 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
     setSending(false);
   }
 
+  function startLongPress(msgId: string, isMine: boolean) {
+    if (!isMine) return;
+    longPressTimer.current = setTimeout(() => {
+      setShakingMsgId(msgId);
+    }, 500);
+  }
+
+  function cancelLongPress() {
+    if (longPressTimer.current) clearTimeout(longPressTimer.current);
+  }
+
+  async function deleteMessage(msgId: string) {
+    setMessages((prev) => prev.filter((m) => m.id !== msgId));
+    setShakingMsgId(null);
+    if (selectedUserId) {
+      const cacheKey = `${MESSAGES_CACHE_PREFIX}${selectedUserId}`;
+      const cached = sessionStorage.getItem(cacheKey);
+      if (cached) {
+        const msgs: Message[] = JSON.parse(cached);
+        sessionStorage.setItem(cacheKey, JSON.stringify(msgs.filter((m) => m.id !== msgId)));
+      }
+    }
+    await fetch(`/api/messages/${msgId}`, { method: "DELETE" });
+  }
+
   function formatDate(dateStr: string) {
     const d = new Date(dateStr);
     const today = new Date();
@@ -678,7 +705,15 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
         </div>
 
         {/* 메시지 목록 */}
-        <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3" style={{ backgroundColor: "#B2C7D9" }} onClick={() => setAttachOpen(false)}>
+        <style>{`
+          @keyframes shake {
+            0%, 100% { transform: rotate(0deg); }
+            25% { transform: rotate(-2deg); }
+            75% { transform: rotate(2deg); }
+          }
+          .msg-shake { animation: shake 0.3s ease-in-out infinite; }
+        `}</style>
+        <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3" style={{ backgroundColor: "#B2C7D9" }} onClick={() => { setAttachOpen(false); setShakingMsgId(null); }}>
           {chatLoading ? (
             <div className="flex items-center justify-center h-full text-gray-600">로딩 중...</div>
           ) : messages.length === 0 ? (
@@ -738,14 +773,27 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
                     {!isMine && <span className="text-xs text-gray-700 flex-shrink-0 order-2">{formatTime(msg.sent_at)}</span>}
                     <div className={`flex ${isMine ? "flex-col items-end" : ""} gap-1`}>
                       <div
-                        className={`rounded-lg text-base overflow-hidden ${
+                        className={`relative rounded-lg text-base overflow-visible ${
                           imageData ? "" : "px-3 py-2"
-                        } ${isMine ? "text-gray-900" : "bg-white text-gray-900"}`}
+                        } ${isMine ? "text-gray-900" : "bg-white text-gray-900"} ${isMine && shakingMsgId === msg.id ? "msg-shake" : ""}`}
                         style={{
                           ...(isMine ? { maxWidth: "75%" } : { maxWidth: "270px" }),
                           ...(isMine && !imageData ? { backgroundColor: "#FEE500" } : {}),
                         }}
+                        onTouchStart={() => startLongPress(msg.id, isMine)}
+                        onTouchEnd={cancelLongPress}
+                        onMouseDown={() => startLongPress(msg.id, isMine)}
+                        onMouseUp={cancelLongPress}
+                        onMouseLeave={cancelLongPress}
                       >
+                        {isMine && shakingMsgId === msg.id && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); void deleteMessage(msg.id); }}
+                            className="absolute -top-2 -left-2 z-10 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center"
+                          >
+                            <span className="text-white text-xs font-bold leading-none">✕</span>
+                          </button>
+                        )}
                         {imageData ? (
                           <a href={imageData.full} target="_blank" rel="noreferrer">
                             <Image src={imageData.thumb} alt="사진" width={200} height={200} className="rounded-lg object-cover" />
