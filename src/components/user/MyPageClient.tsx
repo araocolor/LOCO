@@ -398,9 +398,9 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses }: P
           </div>
           {/* 2행~: 닉네임, 이메일, 자기소개 */}
           <span className="text-[17px] font-bold text-[#333333]">{profile.nickname}</span>
-          {profile.member_type?.[0] && (
+          {profileMeta.member_type?.[0] && (
             <span className="px-2.5 py-0 rounded-full bg-gray-800 text-white text-[13px] self-start">
-              {profile.member_type[0]}
+              {profileMeta.member_type[0]}
             </span>
           )}
           <span className="text-[14px] text-gray-400 -mt-1">{profile.email ?? ""}</span>

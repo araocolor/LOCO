@@ -505,6 +505,15 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
       setMessages((prev) => [...prev, message]);
       appendMessageCache(selectedUserId, message);
       setNewMessage("");
+      setConversations((prev) => {
+        const updated = prev.map((conv) =>
+          conv.other_user?.id === selectedUserId
+            ? { ...conv, last_message: { content: message.content, sent_at: message.sent_at, is_mine: true }, last_text_message: { content: message.content, is_mine: true } }
+            : conv
+        );
+        try { localStorage.setItem(CACHE_KEY, JSON.stringify(updated)); } catch {}
+        return updated;
+      });
     }
 
     setSending(false);
