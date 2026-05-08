@@ -64,6 +64,18 @@ export default function MyPageCacheLoader() {
 
     let cancelled = false;
 
+    async function fetchAndUpdate() {
+      const res = await fetch("/api/mypage/summary", { method: "GET" });
+      if (res.status === 401) { router.replace("/login?next=/mypage"); return; }
+      const json = await res.json();
+      if (json?.needsOnboarding) { router.replace("/onboarding"); return; }
+      if (!res.ok) return;
+      if (!cancelled) {
+        setData(json as MyPageSummaryCache);
+        try { localStorage.setItem(cacheKey, JSON.stringify(json)); } catch {}
+      }
+    }
+
     async function load() {
       try {
         // 하이드레이션 불일치 방지를 위해 마운트 이후에만 로컬 캐시를 읽는다.
@@ -71,34 +83,12 @@ export default function MyPageCacheLoader() {
         const raw = localStorage.getItem(cacheKey);
         if (raw) {
           if (!cancelled) setData(JSON.parse(raw) as MyPageSummaryCache);
+          void fetchAndUpdate();
           return;
         }
 
-        const res = await fetch("/api/mypage/summary", { method: "GET" });
-
-        if (res.status === 401) {
-          router.replace("/login?next=/mypage");
-          return;
-        }
-
-        const json = await res.json();
-
-        if (json?.needsOnboarding) {
-          router.replace("/onboarding");
-          return;
-        }
-
-        if (!res.ok) {
-          if (!cancelled) setError("마이페이지를 불러오지 못했습니다.");
-          return;
-        }
-
-        if (!cancelled) {
-          setData(json as MyPageSummaryCache);
-          try {
-            localStorage.setItem(cacheKey, JSON.stringify(json));
-          } catch {}
-        }
+        await fetchAndUpdate();
+        if (!data && !cancelled) setError("마이페이지를 불러오지 못했습니다.");
       } catch {
         if (!cancelled) setError("마이페이지를 불러오지 못했습니다.");
       }
