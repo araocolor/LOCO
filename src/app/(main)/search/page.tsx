@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { RefreshCw, MoreVertical, Plus, Check } from "lucide-react";
+import { MoreVertical, Plus, Check } from "lucide-react";
 import SearchHeader from "@/components/layout/SearchHeader";
+import { createClient } from "@/lib/supabase/client";
 
 type Tab = "followers" | "online";
 
@@ -65,8 +66,8 @@ export default function SearchPage() {
   const [showCheck, setShowCheck] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>("followers");
   const [friendSearch, setFriendSearch] = useState("");
-  const [isSpinning, setIsSpinning] = useState(false);
-  const [refreshDisabled, setRefreshDisabled] = useState(false);
+  const [onlineIds, setOnlineIds] = useState<Set<string>>(new Set());
+  const channelRef = useRef<ReturnType<ReturnType<typeof createClient>["channel"]> | null>(null);
 
   const CACHE_KEY = "search_prefetch_cache";
 
@@ -110,14 +111,31 @@ export default function SearchPage() {
       .finally(() => setSuggestionsLoading(false));
   }, [loadFromCache, fetchFollowersAndFollowing]);
 
-  function handleRefresh() {
-    if (refreshDisabled) return;
-    setRefreshDisabled(true);
-    setIsSpinning(true);
-    setTimeout(() => setRefreshDisabled(false), 60000);
-    setTimeout(() => setIsSpinning(false), 2000);
-    fetchFollowersAndFollowing();
-  }
+  // 페이지 진입 시 자동으로 Presence 구독
+  useEffect(() => {
+    const supabase = createClient();
+    const channel = supabase.channel("online-users");
+
+    const updateOnlineIds = () => {
+      const state = channel.presenceState<{ user_id: string }>();
+      const ids = new Set(Object.values(state).flat().map((p) => p.user_id));
+      setOnlineIds(ids);
+    };
+
+    channel
+      .on("presence", { event: "sync" }, updateOnlineIds)
+      .on("presence", { event: "join" }, updateOnlineIds)
+      .on("presence", { event: "leave" }, updateOnlineIds)
+      .subscribe(async (status) => {
+        if (status === "SUBSCRIBED") {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) await channel.track({ user_id: user.id });
+        }
+      });
+
+    channelRef.current = channel;
+    return () => { supabase.removeChannel(channel); };
+  }, []);
 
   function handleAddFriend(id: string) {
     if (addedIds.has(id)) return;
@@ -219,23 +237,19 @@ export default function SearchPage() {
                     placeholder="아이디로 검색"
                     value={friendSearch}
                     onChange={(e) => setFriendSearch(e.target.value)}
-                    className="w-full h-8 pl-3 pr-8 text-xs border border-gray-200 rounded-full bg-gray-50 focus:outline-none focus:border-gray-400"
+                    className="w-full h-8 pl-3 pr-8 border border-gray-200 rounded-full bg-gray-50 focus:outline-none focus:border-gray-400"
+                    style={{ fontSize: 15 }}
                   />
-                  <button
-                    onClick={() => setFriendSearch("")}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-gray-300 flex items-center justify-center"
-                  >
-                    <span className="text-white text-[10px] leading-none font-bold">×</span>
-                  </button>
+                  {friendSearch && (
+                    <button
+                      onClick={() => setFriendSearch("")}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-gray-300 flex items-center justify-center"
+                    >
+                      <span className="text-white text-[10px] leading-none font-bold">×</span>
+                    </button>
+                  )}
                 </div>
               </div>
-              <button
-                onClick={handleRefresh}
-                disabled={refreshDisabled && !isSpinning}
-                className={`p-1 ${refreshDisabled && !isSpinning ? "text-gray-300 cursor-not-allowed" : "text-gray-500 hover:text-gray-800"}`}
-              >
-                <RefreshCw size={16} className={isSpinning ? "animate-spin" : ""} style={{ animationDuration: "0.8s" }} />
-              </button>
             </div>
             {following.length === 0 ? (
               <p className="text-sm text-gray-400">아직 친구가 없어요</p>
@@ -246,7 +260,12 @@ export default function SearchPage() {
                 ).map((f) => (
                   <div key={f.id} className="flex items-center gap-3 py-3 border-b border-gray-50">
                     <button onClick={() => router.push(`/users/${f.id}/view`)}>
-                      <Avatar src={f.profile_image_url} nickname={f.nickname} size={44} />
+                      <div className="relative">
+                        <Avatar src={f.profile_image_url} nickname={f.nickname} size={44} />
+                        {onlineIds.has(f.id) && (
+                          <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-400 rounded-full border-2 border-white" />
+                        )}
+                      </div>
                     </button>
                     <button
                       className="flex-1 text-left min-w-0"
