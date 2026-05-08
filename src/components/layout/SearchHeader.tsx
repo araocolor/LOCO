@@ -22,7 +22,7 @@ export default function SearchHeader({ activeTab, onTabChange }: SearchHeaderPro
               : "border-transparent text-gray-400"
           }`}
         >
-          팔로워
+          친구들
         </button>
         <button
           onClick={() => onTabChange("online")}
@@ -32,7 +32,7 @@ export default function SearchHeader({ activeTab, onTabChange }: SearchHeaderPro
               : "border-transparent text-gray-400"
           }`}
         >
-          내친구들
+          팔로워
         </button>
       </div>
     </header>

@@ -60,6 +60,7 @@ export default function SearchPage() {
   const [followers, setFollowers] = useState<Follower[]>([]);
   const [following, setFollowing] = useState<Follower[]>([]);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [suggestionsLoading, setSuggestionsLoading] = useState(true);
   const [addedIds, setAddedIds] = useState<Set<string>>(new Set());
   const [showCheck, setShowCheck] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>("followers");
@@ -73,29 +74,25 @@ export default function SearchPage() {
     try {
       const cached = localStorage.getItem(CACHE_KEY);
       if (cached) {
-        const { followers, following, suggestions } = JSON.parse(cached);
+        const { followers, following } = JSON.parse(cached);
         if (followers) setFollowers(followers);
         if (following) setFollowing(following);
-        if (suggestions) setSuggestions(suggestions);
       }
     } catch {}
   }, []);
 
-  const fetchAll = useCallback(() => {
+  const fetchFollowersAndFollowing = useCallback(() => {
     Promise.all([
       fetch("/api/friends/followers").then((r) => r.json()),
       fetch("/api/friends/following").then((r) => r.json()),
-      fetch("/api/friends/suggestions").then((r) => r.json()),
     ])
-      .then(([f, fw, s]) => {
+      .then(([f, fw]) => {
         const followers = f.data ?? [];
         const following = fw.data ?? [];
-        const suggestions = s.data ?? [];
         setFollowers(followers);
         setFollowing(following);
-        setSuggestions(suggestions);
         try {
-          localStorage.setItem(CACHE_KEY, JSON.stringify({ followers, following, suggestions, ts: Date.now() }));
+          localStorage.setItem(CACHE_KEY, JSON.stringify({ followers, following, ts: Date.now() }));
         } catch {}
       })
       .catch(() => {});
@@ -103,8 +100,15 @@ export default function SearchPage() {
 
   useEffect(() => {
     loadFromCache();
-    fetchAll();
-  }, [loadFromCache, fetchAll]);
+    fetchFollowersAndFollowing();
+    // 추천친구는 매번 새로 fetch
+    setSuggestionsLoading(true);
+    fetch("/api/friends/suggestions")
+      .then((r) => r.json())
+      .then((json) => { if (json.data) setSuggestions(json.data); })
+      .catch(() => {})
+      .finally(() => setSuggestionsLoading(false));
+  }, [loadFromCache, fetchFollowersAndFollowing]);
 
   function handleRefresh() {
     if (refreshDisabled) return;
@@ -112,22 +116,53 @@ export default function SearchPage() {
     setIsSpinning(true);
     setTimeout(() => setRefreshDisabled(false), 60000);
     setTimeout(() => setIsSpinning(false), 2000);
-    fetchAll();
+    fetchFollowersAndFollowing();
   }
 
-  async function handleAddFriend(id: string) {
+  function handleAddFriend(id: string) {
     if (addedIds.has(id)) return;
-    try {
-      const res = await fetch("/api/friends", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ target_id: id }),
+    const added = suggestions.find((s) => s.id === id);
+
+    // 1. 즉시 UI + 캐시 업데이트
+    setAddedIds((prev) => new Set(prev).add(id));
+    setSuggestions((prev) => prev.filter((s) => s.id !== id));
+    if (added) {
+      setFollowing((prev) => {
+        const updated = [added, ...prev];
+        try {
+          const cached = localStorage.getItem(CACHE_KEY);
+          const parsed = cached ? JSON.parse(cached) : {};
+          localStorage.setItem(CACHE_KEY, JSON.stringify({ ...parsed, following: updated, ts: Date.now() }));
+        } catch {}
+        return updated;
       });
-      if (!res.ok) return;
-      setAddedIds((prev) => new Set(prev).add(id));
-      setShowCheck(true);
-      setTimeout(() => setShowCheck(false), 1200);
-    } catch {}
+    }
+    setShowCheck(true);
+    setTimeout(() => setShowCheck(false), 1200);
+
+    // 2. 백그라운드 API 호출, 실패 시 롤백
+    fetch("/api/friends", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ target_id: id }),
+    }).then((res) => {
+      if (!res.ok) throw new Error();
+    }).catch(() => {
+      // 롤백
+      setAddedIds((prev) => { const next = new Set(prev); next.delete(id); return next; });
+      if (added) {
+        setSuggestions((prev) => [added, ...prev]);
+        setFollowing((prev) => {
+          const updated = prev.filter((f) => f.id !== id);
+          try {
+            const cached = localStorage.getItem(CACHE_KEY);
+            const parsed = cached ? JSON.parse(cached) : {};
+            localStorage.setItem(CACHE_KEY, JSON.stringify({ ...parsed, following: updated, ts: Date.now() }));
+          } catch {}
+          return updated;
+        });
+      }
+    });
   }
 
   return (
@@ -136,7 +171,16 @@ export default function SearchPage() {
 
       {activeTab === "followers" && (
         <div className="px-4 pt-4 min-h-screen bg-white">
-          {suggestions.length > 0 && (
+          {suggestionsLoading ? (
+            <div className="flex gap-7 overflow-x-auto pb-3 pt-2 mb-6 scrollbar-hide">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div key={i} className="flex flex-col items-center gap-1 flex-shrink-0">
+                  <div className="w-[60px] h-[60px] rounded-full bg-gray-200 animate-pulse" />
+                  <div className="w-10 h-3 rounded bg-gray-200 animate-pulse mt-1" />
+                </div>
+              ))}
+            </div>
+          ) : suggestions.length > 0 && (
             <div className="flex gap-7 overflow-x-auto pb-3 pt-2 mb-6 scrollbar-hide">
               {suggestions.map((s) => (
                 <div key={s.id} className="flex flex-col items-center gap-1 flex-shrink-0">
@@ -164,10 +208,10 @@ export default function SearchPage() {
             </div>
           )}
 
-          {/* 팔로워 리스트 */}
+          {/* 친구들 리스트 */}
           <div className="border-t border-gray-100 pt-3">
             <div className="flex items-center mb-3">
-              <p className="text-base font-bold text-gray-400">팔로워</p>
+              <p className="text-base font-bold text-gray-400">친구들</p>
               <div className="flex-1 flex justify-center">
                 <div className="relative" style={{ width: 200 }}>
                   <input
@@ -193,11 +237,11 @@ export default function SearchPage() {
                 <RefreshCw size={16} className={isSpinning ? "animate-spin" : ""} style={{ animationDuration: "0.8s" }} />
               </button>
             </div>
-            {followers.length === 0 ? (
-              <p className="text-sm text-gray-400">아직 팔로워가 없어요</p>
+            {following.length === 0 ? (
+              <p className="text-sm text-gray-400">아직 친구가 없어요</p>
             ) : (
               <div className="flex flex-col">
-                {followers.filter((f) =>
+                {following.filter((f) =>
                   friendSearch === "" || f.nickname.toLowerCase().includes(friendSearch.toLowerCase())
                 ).map((f) => (
                   <div key={f.id} className="flex items-center gap-3 py-3 border-b border-gray-50">
@@ -224,29 +268,34 @@ export default function SearchPage() {
 
       {activeTab === "online" && (
         <div className="px-4 pt-4 min-h-screen bg-white">
-          {following.length === 0 ? (
-            <p className="text-sm text-gray-400">친구로 등록한 사람이 없어요</p>
-          ) : (
-            <div className="flex flex-col">
-              {following.map((f) => (
-                <div key={f.id} className="flex items-center gap-3 py-3 border-b border-gray-50">
-                  <button onClick={() => router.push(`/users/${f.id}/view`)}>
-                    <Avatar src={f.profile_image_url} nickname={f.nickname} size={44} />
-                  </button>
-                  <button
-                    className="flex-1 text-left min-w-0"
-                    onClick={() => router.push(`/users/${f.id}/view`)}
-                  >
-                    <p className="font-semibold text-gray-900 truncate" style={{ fontSize: 16 }}>{f.nickname}</p>
-                    <p className="text-xs text-gray-400 truncate">{f.region ?? "지역 미설정"}</p>
-                  </button>
-                  <button className="p-1 text-gray-400 hover:text-gray-700 flex-shrink-0">
-                    <MoreVertical size={18} />
-                  </button>
-                </div>
-              ))}
+          <div className="border-t border-gray-100 pt-3">
+            <div className="flex items-center mb-3">
+              <p className="text-base font-bold text-gray-400">팔로워</p>
             </div>
-          )}
+            {followers.length === 0 ? (
+              <p className="text-sm text-gray-400">아직 팔로워가 없어요</p>
+            ) : (
+              <div className="flex flex-col">
+                {followers.map((f) => (
+                  <div key={f.id} className="flex items-center gap-3 py-3 border-b border-gray-50">
+                    <button onClick={() => router.push(`/users/${f.id}/view`)}>
+                      <Avatar src={f.profile_image_url} nickname={f.nickname} size={44} />
+                    </button>
+                    <button
+                      className="flex-1 text-left min-w-0"
+                      onClick={() => router.push(`/users/${f.id}/view`)}
+                    >
+                      <p className="font-semibold text-gray-900 truncate" style={{ fontSize: 16 }}>{f.nickname}</p>
+                      <p className="text-xs text-gray-400 truncate">{f.region ?? "지역 미설정"}</p>
+                    </button>
+                    <button className="p-1 text-gray-400 hover:text-gray-700 flex-shrink-0">
+                      <MoreVertical size={18} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
 

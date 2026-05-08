@@ -20,17 +20,15 @@ export async function GET() {
     const friendIds = (friends ?? []).map((f) => f.friend_id);
     const excludeIds = [...friendIds, user.id];
 
-    // 친구가 아닌 사람 중 랜덤 10명
     const { data, error } = await supabase
       .from("profiles")
       .select("id, nickname, profile_image_url, region")
       .not("id", "in", `(${excludeIds.join(",")})`)
-      .limit(50);
+      .limit(100);
 
     if (error) throw error;
 
-    // 클라이언트에서 랜덤 10명 추출
-    const shuffled = (data ?? []).sort(() => Math.random() - 0.5).slice(0, 10);
+    const shuffled = (data ?? []).sort(() => Math.random() - 0.5).slice(0, 30);
 
     return NextResponse.json({ data: shuffled });
   } catch (e) {

@@ -9,15 +9,13 @@ export default function SearchPrefetch() {
     Promise.all([
       fetch("/api/friends/followers").then((r) => r.json()),
       fetch("/api/friends/following").then((r) => r.json()),
-      fetch("/api/friends/suggestions").then((r) => r.json()),
     ])
-      .then(([followers, following, suggestions]) => {
+      .then(([followers, following]) => {
         localStorage.setItem(
           CACHE_KEY,
           JSON.stringify({
             followers: followers.data ?? [],
             following: following.data ?? [],
-            suggestions: suggestions.data ?? [],
             ts: Date.now(),
           })
         );
