@@ -5,6 +5,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { ArrowLeft, Send, Paperclip, Image as ImageIcon, FileText, MapPin, CalendarDays, RefreshCw } from "lucide-react";
+import { PRESENCE_EVENT } from "@/components/features/PresenceTracker";
 
 interface Conversation {
   id: string;
@@ -58,6 +59,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
   const router = useRouter();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
+  const [onlineIds, setOnlineIds] = useState<Set<string>>(new Set());
 
   // 대화창 상태
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
@@ -387,6 +389,15 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
   }, []);
 
   useEffect(() => {
+    if (window.__onlineIds) setOnlineIds(window.__onlineIds);
+    const handler = (e: Event) => {
+      setOnlineIds((e as CustomEvent<Set<string>>).detail);
+    };
+    window.addEventListener(PRESENCE_EVENT, handler);
+    return () => window.removeEventListener(PRESENCE_EVENT, handler);
+  }, []);
+
+  useEffect(() => {
     if (!selectedUserId) return;
 
     const supabase = createClient();
@@ -608,6 +619,8 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
                       profile_image_url: myProfile?.profile_image_url ?? null,
                     }
                   : conv.other_user;
+                const showOnlineDot =
+                  !isMine && conv.other_user?.id ? onlineIds.has(conv.other_user.id) : false;
                 const avatar = (
                   <button
                     type="button"
@@ -616,7 +629,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
                       if (!avatarUser?.id) return;
                       router.push(`/users/${avatarUser.id}/view`);
                     }}
-                    className="flex-shrink-0"
+                    className="flex-shrink-0 relative"
                     aria-label={`${avatarUser?.nickname ?? "사용자"} 프로필 보기`}
                   >
                     {avatarUser?.profile_image_url ? (
@@ -631,6 +644,9 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
                       <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 text-xs font-medium">
                         {avatarUser?.nickname?.[0] ?? "?"}
                       </div>
+                    )}
+                    {showOnlineDot && (
+                      <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-green-500 border-2 border-white" />
                     )}
                   </button>
                 );

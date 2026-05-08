@@ -5,6 +5,12 @@ import { createClient } from "@/lib/supabase/client";
 
 export const PRESENCE_EVENT = "presence-online-ids-updated";
 
+declare global {
+  interface Window {
+    __onlineIds?: Set<string>;
+  }
+}
+
 export default function PresenceTracker() {
   useEffect(() => {
     const supabase = createClient();
@@ -13,6 +19,7 @@ export default function PresenceTracker() {
     const updateOnlineIds = () => {
       const state = channel.presenceState<{ user_id: string }>();
       const ids = new Set(Object.values(state).flat().map((p) => p.user_id));
+      window.__onlineIds = ids;
       window.dispatchEvent(new CustomEvent(PRESENCE_EVENT, { detail: ids }));
     };
 

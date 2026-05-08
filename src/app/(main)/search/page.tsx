@@ -112,6 +112,7 @@ export default function SearchPage() {
 
   // PresenceTracker에서 브로드캐스트하는 이벤트 수신
   useEffect(() => {
+    if (window.__onlineIds) setOnlineIds(window.__onlineIds);
     const handler = (e: Event) => {
       setOnlineIds((e as CustomEvent<Set<string>>).detail);
     };
