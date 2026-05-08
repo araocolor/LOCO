@@ -111,30 +111,32 @@ export default function SearchPage() {
       .finally(() => setSuggestionsLoading(false));
   }, [loadFromCache, fetchFollowersAndFollowing]);
 
-  // 페이지 진입 시 자동으로 Presence 구독
+  // PresenceTracker의 채널을 재사용해서 onlineIds 읽기
   useEffect(() => {
     const supabase = createClient();
-    const channel = supabase.channel("online-users");
+    // 기존 채널이 있으면 재사용, 없으면 새로 생성
+    const channels = supabase.getChannels();
+    const existing = channels.find((c) => c.topic === "realtime:online-users");
 
-    const updateOnlineIds = () => {
+    const updateOnlineIds = (channel: typeof existing) => {
+      if (!channel) return;
       const state = channel.presenceState<{ user_id: string }>();
       const ids = new Set(Object.values(state).flat().map((p) => p.user_id));
       setOnlineIds(ids);
     };
 
-    channel
-      .on("presence", { event: "sync" }, updateOnlineIds)
-      .on("presence", { event: "join" }, updateOnlineIds)
-      .on("presence", { event: "leave" }, updateOnlineIds)
-      .subscribe(async (status) => {
-        if (status === "SUBSCRIBED") {
-          const { data: { user } } = await supabase.auth.getUser();
-          if (user) await channel.track({ user_id: user.id });
-        }
-      });
+    if (existing) {
+      existing
+        .on("presence", { event: "sync" }, () => updateOnlineIds(existing))
+        .on("presence", { event: "join" }, () => updateOnlineIds(existing))
+        .on("presence", { event: "leave" }, () => updateOnlineIds(existing));
+      updateOnlineIds(existing);
+      channelRef.current = existing;
+    }
 
-    channelRef.current = channel;
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      // 서치 페이지를 나갈 때 리스너만 제거 (채널은 PresenceTracker가 관리)
+    };
   }, []);
 
   function handleAddFriend(id: string) {
