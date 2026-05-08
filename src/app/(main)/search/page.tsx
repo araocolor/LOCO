@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { MoreVertical, Plus, Check } from "lucide-react";
 import SearchHeader from "@/components/layout/SearchHeader";
-import { createClient } from "@/lib/supabase/client";
+import { PRESENCE_EVENT } from "@/components/features/PresenceTracker";
 
 type Tab = "followers" | "online";
 
@@ -67,7 +67,6 @@ export default function SearchPage() {
   const [activeTab, setActiveTab] = useState<Tab>("followers");
   const [friendSearch, setFriendSearch] = useState("");
   const [onlineIds, setOnlineIds] = useState<Set<string>>(new Set());
-  const channelRef = useRef<ReturnType<ReturnType<typeof createClient>["channel"]> | null>(null);
 
   const CACHE_KEY = "search_prefetch_cache";
 
@@ -111,32 +110,13 @@ export default function SearchPage() {
       .finally(() => setSuggestionsLoading(false));
   }, [loadFromCache, fetchFollowersAndFollowing]);
 
-  // PresenceTracker의 채널을 재사용해서 onlineIds 읽기
+  // PresenceTracker에서 브로드캐스트하는 이벤트 수신
   useEffect(() => {
-    const supabase = createClient();
-    // 기존 채널이 있으면 재사용, 없으면 새로 생성
-    const channels = supabase.getChannels();
-    const existing = channels.find((c) => c.topic === "realtime:online-users");
-
-    const updateOnlineIds = (channel: typeof existing) => {
-      if (!channel) return;
-      const state = channel.presenceState<{ user_id: string }>();
-      const ids = new Set(Object.values(state).flat().map((p) => p.user_id));
-      setOnlineIds(ids);
+    const handler = (e: Event) => {
+      setOnlineIds((e as CustomEvent<Set<string>>).detail);
     };
-
-    if (existing) {
-      existing
-        .on("presence", { event: "sync" }, () => updateOnlineIds(existing))
-        .on("presence", { event: "join" }, () => updateOnlineIds(existing))
-        .on("presence", { event: "leave" }, () => updateOnlineIds(existing));
-      updateOnlineIds(existing);
-      channelRef.current = existing;
-    }
-
-    return () => {
-      // 서치 페이지를 나갈 때 리스너만 제거 (채널은 PresenceTracker가 관리)
-    };
+    window.addEventListener(PRESENCE_EVENT, handler);
+    return () => window.removeEventListener(PRESENCE_EVENT, handler);
   }, []);
 
   function handleAddFriend(id: string) {
