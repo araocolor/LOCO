@@ -612,47 +612,11 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
                   if (parsed.type === "image") lastImage = parsed;
                 } catch {}
 
-                const avatarUser = isMine
-                  ? {
-                      id: userId,
-                      nickname: myProfile?.nickname ?? "나",
-                      profile_image_url: myProfile?.profile_image_url ?? null,
-                    }
-                  : conv.other_user;
                 const showOnlineDot =
-                  !isMine && conv.other_user?.id ? onlineIds.has(conv.other_user.id) : false;
-                const avatar = (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (!avatarUser?.id) return;
-                      router.push(`/users/${avatarUser.id}/view`);
-                    }}
-                    className="flex-shrink-0 relative"
-                    aria-label={`${avatarUser?.nickname ?? "사용자"} 프로필 보기`}
-                  >
-                    {avatarUser?.profile_image_url ? (
-                      <Image
-                        src={avatarUser.profile_image_url}
-                        alt={avatarUser.nickname}
-                        width={40}
-                        height={40}
-                        className="rounded-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 text-xs font-medium">
-                        {avatarUser?.nickname?.[0] ?? "?"}
-                      </div>
-                    )}
-                    {showOnlineDot && (
-                      <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-green-500 border-2 border-white" />
-                    )}
-                  </button>
-                );
+                  conv.other_user?.id ? onlineIds.has(conv.other_user.id) : false;
                 const displayNickname = conv.other_user?.nickname ?? "알 수 없음";
                 return (
-                  <div className={`flex items-stretch gap-2 ${isMine ? "" : "flex-row-reverse"}`}>
+                  <div className={`flex items-stretch gap-2`}>
                     {lastImage && (
                       <div className="flex-shrink-0 w-[80px] flex items-center justify-center">
                         <Image
@@ -665,14 +629,40 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
                       </div>
                     )}
                     <div className={`flex-1 px-3 py-3`}>
-                      <div className={`flex items-start gap-3 ${isMine ? "flex-row-reverse" : ""}`}>
-                        {avatar}
-                        <div className={`flex-1 min-w-0 ${isMine ? "text-right" : ""}`}>
-                          <div className={`flex items-baseline gap-2 ${isMine ? "flex-row-reverse" : ""}`}>
-                            <span className="font-bold text-gray-900" style={{ fontSize: "17px" }}>
+                      <div className={`flex items-start gap-3`}>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (!conv.other_user?.id) return;
+                            router.push(`/users/${conv.other_user.id}/view`);
+                          }}
+                          className="flex-shrink-0 relative"
+                          aria-label={`${conv.other_user?.nickname ?? "사용자"} 프로필 보기`}
+                        >
+                          {conv.other_user?.profile_image_url ? (
+                            <Image
+                              src={conv.other_user.profile_image_url}
+                              alt={conv.other_user.nickname}
+                              width={40}
+                              height={40}
+                              className="rounded-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 text-xs font-medium">
+                              {conv.other_user?.nickname?.[0] ?? "?"}
+                            </div>
+                          )}
+                          {showOnlineDot && (
+                            <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-green-500 border-2 border-white" />
+                          )}
+                        </button>
+                        <div className={`flex-1 min-w-0`}>
+                          <div className={`flex items-baseline gap-2`}>
+                            <span className={`font-bold ${isMine ? "text-gray-400" : "text-gray-900"}`} style={{ fontSize: "17px" }}>
                               {displayNickname}
                               {isMine && (
-                                <span className="font-normal text-gray-900 ml-1" style={{ fontSize: "15px" }}>
+                                <span className="font-normal ml-1" style={{ fontSize: "15px" }}>
                                   에게
                                 </span>
                               )}
@@ -682,7 +672,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
                             </span>
                           </div>
                           {conv.last_text_message && (
-                            <p className="text-gray-900 line-clamp-1 mt-1" style={{ fontSize: "16px" }}>
+                            <p className={`line-clamp-1 mt-1 ${isMine ? "text-gray-400" : "text-gray-900"}`} style={{ fontSize: "16px" }}>
                               {truncateMessage(conv.last_text_message.content)}
                             </p>
                           )}
@@ -701,8 +691,6 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
           ))
         )}
       </div>
-
-      <div className="h-12 border-t border-gray-100" />
 
       {/* 대화창 슬라이드 오버레이 */}
       <div

@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { MoreVertical, Plus, Check } from "lucide-react";
+import { MoreVertical, Plus, Check, UserMinus, MessageCircle, Ban } from "lucide-react";
 import SearchHeader from "@/components/layout/SearchHeader";
 import { PRESENCE_EVENT } from "@/components/features/PresenceTracker";
 
@@ -67,6 +67,7 @@ export default function SearchPage() {
   const [activeTab, setActiveTab] = useState<Tab>("followers");
   const [friendSearch, setFriendSearch] = useState("");
   const [onlineIds, setOnlineIds] = useState<Set<string>>(new Set());
+  const [menuTarget, setMenuTarget] = useState<{ id: string; nickname: string; x: number; y: number } | null>(null);
 
   const CACHE_KEY = "search_prefetch_cache";
 
@@ -166,12 +167,30 @@ export default function SearchPage() {
     });
   }
 
+  async function handleUnfriend(targetId: string) {
+    setMenuTarget(null);
+    await fetch("/api/friends", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ target_id: targetId }),
+    });
+    setFollowing((prev) => {
+      const updated = prev.filter((f) => f.id !== targetId);
+      try {
+        const cached = localStorage.getItem(CACHE_KEY);
+        const parsed = cached ? JSON.parse(cached) : {};
+        localStorage.setItem(CACHE_KEY, JSON.stringify({ ...parsed, following: updated, ts: Date.now() }));
+      } catch {}
+      return updated;
+    });
+  }
+
   return (
     <>
       <SearchHeader activeTab={activeTab} onTabChange={setActiveTab} />
 
       {activeTab === "followers" && (
-        <div className="px-4 pt-4 min-h-screen bg-white">
+        <div className="px-4 pt-4 bg-white">
           {suggestionsLoading ? (
             <div className="flex gap-7 overflow-x-auto pb-3 pt-2 mb-6 scrollbar-hide">
               {Array.from({ length: 8 }).map((_, i) => (
@@ -257,7 +276,10 @@ export default function SearchPage() {
                       <p className="font-semibold text-gray-900 truncate" style={{ fontSize: 16 }}>{f.nickname}</p>
                       <p className="text-xs text-gray-400 truncate">{f.region ?? "지역 미설정"}</p>
                     </button>
-                    <button className="p-1 text-gray-400 hover:text-gray-700 flex-shrink-0">
+                    <button
+                      className="p-1 text-gray-400 hover:text-gray-700 flex-shrink-0"
+                      onClick={(e) => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); setMenuTarget({ id: f.id, nickname: f.nickname, x: r.right, y: r.bottom }); }}
+                    >
                       <MoreVertical size={18} />
                     </button>
                   </div>
@@ -269,8 +291,8 @@ export default function SearchPage() {
       )}
 
       {activeTab === "online" && (
-        <div className="px-4 pt-4 min-h-screen bg-white">
-          <div className="border-t border-gray-100 pt-3">
+        <div className="px-4 pt-4 bg-white">
+          <div className="pt-3">
             <div className="flex items-center mb-3">
               <p className="text-base font-bold text-gray-400">팔로워</p>
             </div>
@@ -290,7 +312,10 @@ export default function SearchPage() {
                       <p className="font-semibold text-gray-900 truncate" style={{ fontSize: 16 }}>{f.nickname}</p>
                       <p className="text-xs text-gray-400 truncate">{f.region ?? "지역 미설정"}</p>
                     </button>
-                    <button className="p-1 text-gray-400 hover:text-gray-700 flex-shrink-0">
+                    <button
+                      className="p-1 text-gray-400 hover:text-gray-700 flex-shrink-0"
+                      onClick={(e) => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); setMenuTarget({ id: f.id, nickname: f.nickname, x: r.right, y: r.bottom }); }}
+                    >
                       <MoreVertical size={18} />
                     </button>
                   </div>
@@ -302,6 +327,40 @@ export default function SearchPage() {
       )}
 
       {showCheck && <CheckModal />}
+
+      {menuTarget && (
+        <>
+          <div className="fixed inset-0 z-[70]" onClick={() => setMenuTarget(null)} />
+          <div className="fixed z-[80] bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden" style={{ width: 180, top: menuTarget.y, left: menuTarget.x - 180 }}>
+            <button
+              className="flex items-center justify-between w-full px-4 py-3 text-gray-700"
+              style={{ fontSize: "16px" }}
+              onClick={() => handleUnfriend(menuTarget.id)}
+            >
+              <span>친구 취소</span>
+              <UserMinus size={20} className="text-gray-500" />
+            </button>
+            <div className="border-t border-gray-100 mx-3" />
+            <button
+              className="flex items-center justify-between w-full px-4 py-3 text-gray-700"
+              style={{ fontSize: "16px" }}
+              onClick={() => { setMenuTarget(null); router.push(`/messages?userId=${menuTarget.id}`); }}
+            >
+              <span>메시지 보내기</span>
+              <MessageCircle size={20} className="text-gray-500" />
+            </button>
+            <div className="border-t border-gray-100 mx-3" />
+            <button
+              className="flex items-center justify-between w-full px-4 py-3 text-red-500"
+              style={{ fontSize: "16px" }}
+              onClick={() => setMenuTarget(null)}
+            >
+              <span>차단하기</span>
+              <Ban size={20} className="text-red-400" />
+            </button>
+          </div>
+        </>
+      )}
     </>
   );
 }

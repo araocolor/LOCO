@@ -19,7 +19,7 @@
   --color-kakao-black: #191600;
 
   /* Surface */
-  --color-bg: #f6f8fb;
+  --color-bg: #ffffff;
   --color-surface: #ffffff;
   --color-border: #e5e7eb;
 
@@ -45,6 +45,21 @@
 *::before,
 *::after {
   box-sizing: border-box;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+*::-webkit-scrollbar {
+  display: none;
+}
+
+html {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+html::-webkit-scrollbar {
+  display: none;
 }
 
 body {
@@ -229,7 +244,13 @@ body {
   animation: search-slide-out-to-left 180ms ease-in both;
 }
 
+.search-half-panel::-webkit-scrollbar {
+  display: none;
+}
+
 .search-half-panel {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
   position: fixed;
   bottom: 0;
   left: 0;
