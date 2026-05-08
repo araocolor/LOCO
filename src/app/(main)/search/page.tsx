@@ -19,9 +19,26 @@ export default function SearchPage() {
   const [refreshDisabled, setRefreshDisabled] = useState(false);
 
   useEffect(() => {
+    const CACHE_KEY = "followers_cache";
+    const CACHE_TTL = 5 * 60 * 1000;
+    try {
+      const cached = localStorage.getItem(CACHE_KEY);
+      if (cached) {
+        const { data, ts } = JSON.parse(cached);
+        if (Date.now() - ts < CACHE_TTL) {
+          setFollowers(data);
+          return;
+        }
+      }
+    } catch {}
     fetch("/api/friends/followers")
       .then((r) => r.json())
-      .then((json) => { if (json.data) setFollowers(json.data); })
+      .then((json) => {
+        if (json.data) {
+          setFollowers(json.data);
+          try { localStorage.setItem(CACHE_KEY, JSON.stringify({ data: json.data, ts: Date.now() })); } catch {}
+        }
+      })
       .catch(() => {});
   }, []);
 
@@ -40,7 +57,9 @@ export default function SearchPage() {
         const existingIds = new Set(prev.map((f) => f.id));
         const newOnes = incoming.filter((f) => !existingIds.has(f.id));
         if (newOnes.length === 0) return prev;
-        return [...newOnes, ...prev];
+        const merged = [...newOnes, ...prev];
+        try { localStorage.setItem("followers_cache", JSON.stringify({ data: merged, ts: Date.now() })); } catch {}
+        return merged;
       });
     } catch {}
   }
