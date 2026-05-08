@@ -37,6 +37,7 @@ export default function AvatarCropModal({ imageSrc, onCancel, onConfirm }: Props
     image.src = imageSrc;
   }, [imageSrc]);
 
+
   function clampPos(x: number, y: number, s: number) {
     if (!img) return { x, y };
     const w = img.width * s;
@@ -90,7 +91,6 @@ export default function AvatarCropModal({ imageSrc, onCancel, onConfirm }: Props
   function onTouchMove(e: React.TouchEvent) {
     if (!img) return;
     if (e.touches.length === 2 && pinchRef.current) {
-      e.preventDefault();
       const dx = e.touches[0].clientX - e.touches[1].clientX;
       const dy = e.touches[0].clientY - e.touches[1].clientY;
       const dist = Math.hypot(dx, dy);
@@ -102,7 +102,6 @@ export default function AvatarCropModal({ imageSrc, onCancel, onConfirm }: Props
       setScale(next);
       setPos((p) => clampPos(p.x, p.y, next));
     } else if (e.touches.length === 1 && dragRef.current) {
-      e.preventDefault();
       const t = e.touches[0];
       const dx = t.clientX - dragRef.current.x;
       const dy = t.clientY - dragRef.current.y;

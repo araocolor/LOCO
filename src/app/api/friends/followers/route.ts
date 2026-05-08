@@ -13,12 +13,12 @@ export async function GET() {
     const [{ data, error }, { data: admins }] = await Promise.all([
       supabase
         .from("friendships")
-        .select("user_id, profiles!friendships_user_id_fkey(id, nickname, profile_image_url)")
+        .select("user_id, profiles!friendships_user_id_fkey(id, nickname, profile_image_url, region)")
         .eq("friend_id", user.id)
         .eq("status", "approved"),
       supabase
         .from("profiles")
-        .select("id, nickname, profile_image_url")
+        .select("id, nickname, profile_image_url, region")
         .eq("role", "admin")
         .neq("id", user.id),
     ]);
@@ -31,6 +31,7 @@ export async function GET() {
         id: p?.id ?? row.user_id,
         nickname: p?.nickname ?? "",
         profile_image_url: p?.profile_image_url ?? null,
+        region: p?.region ?? null,
       };
     });
 
@@ -41,6 +42,7 @@ export async function GET() {
         id: a.id,
         nickname: a.nickname ?? "",
         profile_image_url: a.profile_image_url ?? null,
+        region: a.region ?? null,
       }));
 
     return NextResponse.json({ data: [...followers, ...adminFollowers] });

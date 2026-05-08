@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import MainHeader from "@/components/layout/MainHeader";
 import HomeSearchResultsPage from "@/components/features/HomeSearchResultsPage";
+import SearchPrefetch from "@/components/features/SearchPrefetch";
 import { createClient } from "@/lib/supabase/server";
 import { ClassWithHost } from "@/components/class/ClassCard";
 
@@ -26,6 +27,7 @@ export default async function MainPage() {
   return (
     <>
       <MainHeader />
+      <SearchPrefetch />
       <Suspense>
         <HomeSearchResultsPage initialClasses={initialClasses} />
       </Suspense>

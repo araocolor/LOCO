@@ -172,7 +172,7 @@ export default function HomeSearchResultsPage({ initialClasses = [] }: Props) {
 
         // 다음 페이지 이미지 미리 다운로드
         if (json.hasMore) {
-          fetch(`/api/classes/search?page=1&limit=${PAGE_SIZE}`)
+          fetch(`/api/classes/search?page=0&limit=${PAGE_SIZE}`)
             .then((r) => r.json())
             .then((j) => { if (j.data) warmImages(j.data); })
             .catch(() => {});
