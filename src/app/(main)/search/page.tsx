@@ -5,9 +5,10 @@ import Avatar from "@/components/ui/Avatar";
 import { useRouter } from "next/navigation";
 import { MoreVertical, Plus, Check, UserMinus, MessageCircle, Ban, UserCircle } from "lucide-react";
 import SearchHeader from "@/components/layout/SearchHeader";
+import NearbyMap from "@/components/features/NearbyMap";
 import { PRESENCE_EVENT } from "@/components/features/PresenceTracker";
 
-type Tab = "followers" | "online";
+type Tab = "followers" | "online" | "nearby";
 
 interface Follower {
   id: string;
@@ -347,6 +348,15 @@ export default function SearchPage() {
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {activeTab === "nearby" && (
+        <div className="bg-white">
+          <div className="px-4 pt-4 pb-2">
+            <p className="text-base font-bold" style={{ color: "#333333" }}>검색범위</p>
+          </div>
+          <NearbyMap />
         </div>
       )}
 

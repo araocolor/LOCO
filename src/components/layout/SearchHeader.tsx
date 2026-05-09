@@ -1,6 +1,6 @@
 "use client";
 
-type Tab = "followers" | "online";
+type Tab = "followers" | "online" | "nearby";
 
 interface SearchHeaderProps {
   activeTab: Tab;
@@ -35,6 +35,17 @@ export default function SearchHeader({ activeTab, onTabChange }: SearchHeaderPro
           }`}
         >
           팔로워
+        </button>
+        <button
+          onClick={() => onTabChange("nearby")}
+          style={{ fontSize: 17 }}
+          className={`pb-2 font-bold border-b-2 transition-colors ${
+            activeTab === "nearby"
+              ? "border-black text-black"
+              : "border-transparent text-gray-400"
+          }`}
+        >
+          내근처
         </button>
       </div>
     </header>
