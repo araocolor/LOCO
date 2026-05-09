@@ -7,6 +7,7 @@ import { MoreVertical, Plus, Check, UserMinus, MessageCircle, Ban, UserCircle } 
 import SearchHeader from "@/components/layout/SearchHeader";
 import NearbyMap from "@/components/features/NearbyMap";
 import { PRESENCE_EVENT } from "@/components/features/PresenceTracker";
+import { saveLocationIfSessionExpired } from "@/lib/location-session";
 
 type Tab = "followers" | "online" | "nearby";
 
@@ -22,6 +23,32 @@ interface Suggestion {
   nickname: string;
   profile_image_url: string | null;
   region: string | null;
+}
+
+function saveCurrentLocationIfAlreadyAllowed() {
+  if (!("geolocation" in navigator) || !navigator.permissions?.query) return;
+
+  navigator.permissions
+    .query({ name: "geolocation" })
+    .then((permission) => {
+      if (permission.state !== "granted") return;
+
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const { latitude: lat, longitude: lng } = pos.coords;
+          saveLocationIfSessionExpired(lat, lng).catch((error) => {
+            console.warn("Failed to save location on search page.", error);
+          });
+        },
+        (error) => {
+          console.warn("Failed to read location on search page.", error);
+        },
+        { enableHighAccuracy: false, maximumAge: 60_000, timeout: 5_000 }
+      );
+    })
+    .catch((error) => {
+      console.warn("Failed to check geolocation permission on search page.", error);
+    });
 }
 
 
@@ -49,6 +76,10 @@ export default function SearchPage() {
   const [menuTarget, setMenuTarget] = useState<{ id: string; nickname: string; x: number; y: number } | null>(null);
 
   const CACHE_KEY = "search_prefetch_cache";
+
+  useEffect(() => {
+    saveCurrentLocationIfAlreadyAllowed();
+  }, []);
 
   const loadFromCache = useCallback(() => {
     try {
@@ -79,16 +110,22 @@ export default function SearchPage() {
   }, []);
 
   useEffect(() => {
-    loadFromCache();
+    queueMicrotask(() => loadFromCache());
     fetchFollowersAndFollowing();
     const cached = localStorage.getItem("search_suggestions_cache");
     if (cached) {
       try {
         const { suggestions } = JSON.parse(cached);
-        if (suggestions) { setSuggestions(suggestions); setSuggestionsLoading(false); return; }
+        if (suggestions) {
+          queueMicrotask(() => {
+            setSuggestions(suggestions);
+            setSuggestionsLoading(false);
+          });
+          return;
+        }
       } catch {}
     }
-    setSuggestionsLoading(true);
+    queueMicrotask(() => setSuggestionsLoading(true));
     fetch("/api/friends/suggestions")
       .then((r) => r.json())
       .then((json) => { if (json.data) setSuggestions(json.data); })
@@ -98,7 +135,9 @@ export default function SearchPage() {
 
   // PresenceTracker에서 브로드캐스트하는 이벤트 수신
   useEffect(() => {
-    if (window.__onlineIds) setOnlineIds(window.__onlineIds);
+    queueMicrotask(() => {
+      if (window.__onlineIds) setOnlineIds(window.__onlineIds);
+    });
     const handler = (e: Event) => {
       setOnlineIds((e as CustomEvent<Set<string>>).detail);
     };

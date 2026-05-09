@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Avatar from "@/components/ui/Avatar";
+import { readFreshLocationSession, saveLocationIfSessionExpired } from "@/lib/location-session";
 
 interface NearbyUser {
   id: string;
@@ -111,18 +112,6 @@ export default function NearbyMap() {
     } catch {}
   }
 
-  const saveLocation = useCallback(async (lat: number, lng: number) => {
-    const res = await fetch("/api/location", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ lat, lng }),
-    });
-    const json = await res.json().catch(() => null) as { ok?: boolean; error?: ApiError } | null;
-    if (!res.ok || json?.ok === false) {
-      throw new Error(getApiErrorMessage(json?.error, "위치 저장에 실패했습니다."));
-    }
-  }, []);
-
   const fetchNearby = useCallback(async (lat: number, lng: number) => {
     const res = await fetch(`/api/location/nearby?lat=${lat}&lng=${lng}`);
     const json = await res.json().catch(() => null) as { data?: NearbyUser[]; debug?: NearbyDebug; error?: ApiError } | null;
@@ -140,13 +129,29 @@ export default function NearbyMap() {
   }, [phase]);
 
   useEffect(() => {
+    const freshSession = readFreshLocationSession();
+    if (freshSession) {
+      const { lat, lng } = freshSession;
+      coordsRef.current = { lat, lng };
+      queueMicrotask(() => setMyCoords({ lat, lng }));
+      fetchNearby(lat, lng)
+        .then((result) => {
+          setNearbyUsers(result.users);
+          setDebugInfo(result.debug);
+          setError(null);
+          setTimeout(() => setPhase("result"), 2000);
+        })
+        .catch((err) => setError(err instanceof Error ? err.message : "주변 회원 조회 중 오류가 발생했습니다."));
+      return;
+    }
+
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         const { latitude: lat, longitude: lng } = pos.coords;
         coordsRef.current = { lat, lng };
         setMyCoords({ lat, lng });
         try {
-          await saveLocation(lat, lng);
+          await saveLocationIfSessionExpired(lat, lng);
           const result = await fetchNearby(lat, lng);
           setNearbyUsers(result.users);
           setDebugInfo(result.debug);
@@ -158,13 +163,13 @@ export default function NearbyMap() {
       },
       () => setError("위치 권한을 허용해주세요.")
     );
-  }, [saveLocation, fetchNearby]);
+  }, [fetchNearby]);
 
   useEffect(() => {
     const interval = setInterval(() => {
       if (!coordsRef.current) return;
       const { lat, lng } = coordsRef.current;
-      saveLocation(lat, lng)
+      saveLocationIfSessionExpired(lat, lng)
         .then(() => fetchNearby(lat, lng))
         .then((result) => {
           setNearbyUsers(result.users);
@@ -174,7 +179,7 @@ export default function NearbyMap() {
         .catch((err) => setError(err instanceof Error ? err.message : "위치 새로고침 중 오류가 발생했습니다."));
     }, REFRESH_INTERVAL);
     return () => clearInterval(interval);
-  }, [saveLocation, fetchNearby]);
+  }, [fetchNearby]);
 
   if (error) {
     return (
