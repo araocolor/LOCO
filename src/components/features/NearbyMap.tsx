@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Avatar from "@/components/ui/Avatar";
 import { readFreshLocationSession, saveLocationIfSessionExpired } from "@/lib/location-session";
@@ -15,8 +15,8 @@ interface NearbyUser {
 
 interface MenuTarget {
   user: NearbyUser;
-  x: number;
-  y: number;
+  left: number;
+  top: number;
 }
 
 interface NearbyDebug {
@@ -43,6 +43,13 @@ interface ApiError {
 
 const REFRESH_INTERVAL = 10 * 60 * 1000;
 const RADIUS_KM = 30;
+const RADAR_RADIUS = 130;
+const AVATAR_SIZE = 40;
+const TOP_SAFE_GAP = 20;
+const BOTTOM_SAFE_GAP = 20;
+const FORCE_MOCK_NEARBY_USERS = true;
+const MOCK_NEARBY_USER_COUNT = 50;
+const DEFAULT_TEST_COORDS = { lat: 37.5665, lng: 126.978 };
 
 function getApiErrorMessage(error: ApiError | undefined, fallback: string) {
   if (!error) return fallback;
@@ -51,26 +58,152 @@ function getApiErrorMessage(error: ApiError | undefined, fallback: string) {
     .join(" / ");
 }
 
-function toRadarPosition(myLat: number, myLng: number, userLat: number, userLng: number, radarRadius: number) {
-  const dLat = (userLat - myLat) * 111;
-  const dLng = (userLng - myLng) * 111 * Math.cos((myLat * Math.PI) / 180);
-  const dist = Math.sqrt(dLat ** 2 + dLng ** 2);
-  const scale = Math.min(dist / RADIUS_KM, 0.95);
-  const angle = Math.atan2(dLng, dLat);
-  return {
-    x: Math.sin(angle) * scale * radarRadius,
-    y: -Math.cos(angle) * scale * radarRadius,
+function hashString(input: string) {
+  let hash = 2166136261;
+  for (let i = 0; i < input.length; i += 1) {
+    hash ^= input.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function makePrng(seed: number) {
+  let t = seed || 1;
+  return () => {
+    t += 0x6d2b79f5;
+    let v = Math.imul(t ^ (t >>> 15), t | 1);
+    v ^= v + Math.imul(v ^ (v >>> 7), v | 61);
+    return ((v ^ (v >>> 14)) >>> 0) / 4294967296;
   };
+}
+
+function buildRandomNearbyPositions(count: number, areaWidth: number, areaHeight: number, seedKey: string) {
+  const positions: { x: number; y: number }[] = [];
+  if (areaWidth <= 0 || areaHeight <= 0) return positions;
+
+  const avatarRadius = AVATAR_SIZE / 2;
+  const minGap = AVATAR_SIZE - 2;
+  const centerClearRadius = AVATAR_SIZE + avatarRadius + 10;
+  const maxX = Math.max(1, areaWidth / 2 - avatarRadius - 4);
+  const maxYUp = Math.max(1, areaHeight / 2 - avatarRadius - 4 - TOP_SAFE_GAP);
+  const maxYDown = Math.max(1, areaHeight / 2 - avatarRadius - 4 - BOTTOM_SAFE_GAP);
+  const maxYSymmetric = Math.max(1, Math.min(maxYUp, maxYDown));
+  const maxRadial = Math.max(1, Math.min(maxX, maxYSymmetric));
+  const ringStep = AVATAR_SIZE + 2;
+  const rand = makePrng(hashString(seedKey));
+  const yMin = -maxYUp;
+  const yMax = maxYDown;
+
+  const canPlace = (x: number, y: number) => {
+    if (Math.abs(x) > maxX || y < yMin || y > yMax) return false;
+    if (Math.sqrt(x * x + y * y) < centerClearRadius) return false;
+    return !positions.some((p) => {
+      const dx = p.x - x;
+      const dy = p.y - y;
+      return Math.sqrt(dx * dx + dy * dy) < minGap;
+    });
+  };
+
+  const pushIfValid = (x: number, y: number) => {
+    if (!canPlace(x, y)) return false;
+    positions.push({ x, y });
+    return true;
+  };
+
+  // 상단/하단 빈 공간 활용: 각 10명 우선 배치
+  const edgeTargetPerSide = 10;
+  const bandThickness = Math.min(140, Math.max(70, areaHeight * 0.18));
+  let topPlaced = 0;
+  let bottomPlaced = 0;
+  for (let tries = 0; tries < 2500 && (topPlaced < edgeTargetPerSide || bottomPlaced < edgeTargetPerSide); tries += 1) {
+    if (topPlaced < edgeTargetPerSide) {
+      const x = (rand() * 2 - 1) * maxX * 0.95;
+      const y = yMin + 8 + rand() * Math.max(8, bandThickness - 16);
+      if (pushIfValid(x, y)) topPlaced += 1;
+    }
+    if (bottomPlaced < edgeTargetPerSide) {
+      const x = (rand() * 2 - 1) * maxX * 0.95;
+      const y = yMax - 8 - rand() * Math.max(8, bandThickness - 16);
+      if (pushIfValid(x, y)) bottomPlaced += 1;
+    }
+  }
+
+  // 중앙에서 바깥으로 고르게 퍼지는 동심원 슬롯 생성
+  for (let radius = centerClearRadius; radius <= maxRadial && positions.length < count; radius += ringStep) {
+    const circumference = 2 * Math.PI * radius;
+    const slotCount = Math.max(4, Math.floor(circumference / (minGap - 4)));
+    const startAngle = rand() * Math.PI * 2;
+
+    for (let i = 0; i < slotCount && positions.length < count; i += 1) {
+      const angle = startAngle + (i * Math.PI * 2) / slotCount;
+      const x = Math.cos(angle) * radius;
+      const y = Math.sin(angle) * radius;
+
+      if (!pushIfValid(x, y)) continue;
+    }
+  }
+
+  // 슬롯만으로 부족하면 동일 조건에서 랜덤 채움
+  while (positions.length < count) {
+    let placed = false;
+    for (let tries = 0; tries < 1200; tries += 1) {
+      const angle = rand() * Math.PI * 2;
+      const radius = centerClearRadius + Math.sqrt(rand()) * (maxRadial - centerClearRadius);
+      const x = Math.cos(angle) * radius;
+      const y = Math.sin(angle) * radius;
+
+      if (!pushIfValid(x, y)) continue;
+      placed = true;
+      break;
+    }
+    if (!placed) break;
+  }
+
+  return positions.slice(0, count);
+}
+
+function generateMockNearbyUsers(count: number, myLat: number, myLng: number): NearbyUser[] {
+  const rand = makePrng(hashString(`${myLat}-${myLng}-${count}`));
+  const cosLat = Math.cos((myLat * Math.PI) / 180) || 1;
+
+  return Array.from({ length: count }).map((_, idx) => {
+    const angle = rand() * Math.PI * 2;
+    const radiusKm = Math.sqrt(rand()) * RADIUS_KM;
+    const dLatKm = Math.cos(angle) * radiusKm;
+    const dLngKm = Math.sin(angle) * radiusKm;
+    return {
+      id: `mock-nearby-${idx + 1}`,
+      lat: myLat + dLatKm / 111,
+      lng: myLng + dLngKm / (111 * cosLat),
+      nickname: `테스트${idx + 1}`,
+      profile_image_url: null,
+    };
+  });
+}
+
+function getGeolocationErrorMessage(error: GeolocationPositionError) {
+  if (error.code === error.PERMISSION_DENIED) {
+    return `위치 권한이 차단되었습니다. 브라우저에서 ${window.location.origin} 위치 권한을 허용해주세요.`;
+  }
+  if (error.code === error.POSITION_UNAVAILABLE) {
+    return "위치 정보를 가져올 수 없습니다. 기기 위치 서비스(GPS/네트워크 위치)를 확인해주세요.";
+  }
+  if (error.code === error.TIMEOUT) {
+    return "위치 조회 시간이 초과되었습니다. 잠시 후 다시 시도해주세요.";
+  }
+  return `위치 조회에 실패했습니다. (${error.message})`;
 }
 
 export default function NearbyMap() {
   const router = useRouter();
   const radarRef = useRef<HTMLDivElement>(null);
+  const layoutRef = useRef<HTMLDivElement>(null);
   const [phase, setPhase] = useState<"radar" | "result">("radar");
   const [error, setError] = useState<string | null>(null);
   const [nearbyUsers, setNearbyUsers] = useState<NearbyUser[]>([]);
   const [myCoords, setMyCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [menuTarget, setMenuTarget] = useState<MenuTarget | null>(null);
+  const [rippleAnimating, setRippleAnimating] = useState(true);
   const [myProfile] = useState<{ nickname: string; profile_image_url: string | null } | null>(() => {
     try {
       const raw = localStorage.getItem("loco_mypage_cache_local_v2");
@@ -84,6 +217,17 @@ export default function NearbyMap() {
   const [debugInfo, setDebugInfo] = useState<NearbyDebug | null>(null);
   const coordsRef = useRef<{ lat: number; lng: number } | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
+  const [layoutSize, setLayoutSize] = useState({ width: 0, height: 0 });
+  const radarRadius = RADAR_RADIUS;
+  const randomPositions = useMemo(
+    () => buildRandomNearbyPositions(
+      nearbyUsers.length,
+      layoutSize.width,
+      layoutSize.height,
+      nearbyUsers.map((u) => u.id).join("|")
+    ),
+    [nearbyUsers, layoutSize.height, layoutSize.width]
+  );
 
   function playSonarPing() {
     try {
@@ -121,11 +265,44 @@ export default function NearbyMap() {
     return { users: (json?.data ?? []) as NearbyUser[], debug: json?.debug ?? null };
   }, []);
 
+  const setMockNearbyUsers = useCallback((lat: number, lng: number) => {
+    setNearbyUsers(generateMockNearbyUsers(MOCK_NEARBY_USER_COUNT, lat, lng));
+    setDebugInfo(null);
+    setError(null);
+  }, []);
+
+  useEffect(() => {
+    const node = layoutRef.current;
+    if (!node) return;
+
+    const updateSize = () => {
+      setLayoutSize({ width: node.clientWidth, height: node.clientHeight });
+    };
+
+    updateSize();
+    const observer = new ResizeObserver(updateSize);
+    observer.observe(node);
+    window.addEventListener("orientationchange", updateSize);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("orientationchange", updateSize);
+    };
+  }, []);
+
   useEffect(() => {
     if (phase !== "radar") return;
+    queueMicrotask(() => setRippleAnimating(true));
     playSonarPing();
     const interval = setInterval(playSonarPing, 700);
     return () => clearInterval(interval);
+  }, [phase]);
+
+  useEffect(() => {
+    if (phase !== "result") return;
+    const stopTimer = setTimeout(() => {
+      setRippleAnimating(false);
+    }, 3000);
+    return () => clearTimeout(stopTimer);
   }, [phase]);
 
   useEffect(() => {
@@ -134,6 +311,11 @@ export default function NearbyMap() {
       const { lat, lng } = freshSession;
       coordsRef.current = { lat, lng };
       queueMicrotask(() => setMyCoords({ lat, lng }));
+      if (FORCE_MOCK_NEARBY_USERS) {
+        queueMicrotask(() => setMockNearbyUsers(lat, lng));
+        setTimeout(() => setPhase("result"), 2000);
+        return;
+      }
       fetchNearby(lat, lng)
         .then((result) => {
           setNearbyUsers(result.users);
@@ -145,6 +327,19 @@ export default function NearbyMap() {
       return;
     }
 
+    if (!("geolocation" in navigator)) {
+      if (FORCE_MOCK_NEARBY_USERS) {
+        const fallback = freshSession ?? { ...DEFAULT_TEST_COORDS, savedAt: Date.now() };
+        coordsRef.current = { lat: fallback.lat, lng: fallback.lng };
+        queueMicrotask(() => setMyCoords({ lat: fallback.lat, lng: fallback.lng }));
+        queueMicrotask(() => setMockNearbyUsers(fallback.lat, fallback.lng));
+        setTimeout(() => setPhase("result"), 2000);
+        return;
+      }
+      queueMicrotask(() => setError("이 브라우저는 위치 기능을 지원하지 않습니다."));
+      return;
+    }
+
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         const { latitude: lat, longitude: lng } = pos.coords;
@@ -152,6 +347,11 @@ export default function NearbyMap() {
         setMyCoords({ lat, lng });
         try {
           await saveLocationIfSessionExpired(lat, lng);
+          if (FORCE_MOCK_NEARBY_USERS) {
+            setMockNearbyUsers(lat, lng);
+            setTimeout(() => setPhase("result"), 2000);
+            return;
+          }
           const result = await fetchNearby(lat, lng);
           setNearbyUsers(result.users);
           setDebugInfo(result.debug);
@@ -161,14 +361,28 @@ export default function NearbyMap() {
           setError(err instanceof Error ? err.message : "위치 처리 중 오류가 발생했습니다.");
         }
       },
-      () => setError("위치 권한을 허용해주세요.")
+      (geoError) => {
+        if (FORCE_MOCK_NEARBY_USERS) {
+          const fallback = freshSession ?? { ...DEFAULT_TEST_COORDS, savedAt: Date.now() };
+          coordsRef.current = { lat: fallback.lat, lng: fallback.lng };
+          queueMicrotask(() => setMyCoords({ lat: fallback.lat, lng: fallback.lng }));
+          queueMicrotask(() => setMockNearbyUsers(fallback.lat, fallback.lng));
+          setTimeout(() => setPhase("result"), 2000);
+          return;
+        }
+        setError(getGeolocationErrorMessage(geoError));
+      }
     );
-  }, [fetchNearby]);
+  }, [fetchNearby, setMockNearbyUsers]);
 
   useEffect(() => {
     const interval = setInterval(() => {
       if (!coordsRef.current) return;
       const { lat, lng } = coordsRef.current;
+      if (FORCE_MOCK_NEARBY_USERS) {
+        setMockNearbyUsers(lat, lng);
+        return;
+      }
       saveLocationIfSessionExpired(lat, lng)
         .then(() => fetchNearby(lat, lng))
         .then((result) => {
@@ -179,7 +393,7 @@ export default function NearbyMap() {
         .catch((err) => setError(err instanceof Error ? err.message : "위치 새로고침 중 오류가 발생했습니다."));
     }, REFRESH_INTERVAL);
     return () => clearInterval(interval);
-  }, [fetchNearby]);
+  }, [fetchNearby, setMockNearbyUsers]);
 
   if (error) {
     return (
@@ -187,27 +401,30 @@ export default function NearbyMap() {
     );
   }
 
-  const radarRadius = 130;
-
   return (
-    <div className="relative w-full bg-white flex flex-col items-center" style={{ height: "calc(100vh - 160px)" }}>
+    <div className="relative w-full bg-white flex flex-col" style={{ height: "calc(100vh - 160px)" }}>
 
       {/* 레이더 */}
-      <div ref={radarRef} className="relative flex items-center justify-center mt-16" style={{ width: radarRadius * 2, height: radarRadius * 2 }}>
-        {/* 레이더 원 */}
-        {[1, 0.66, 0.33].map((scale, i) => (
+      <div ref={layoutRef} className="relative w-full flex-1 overflow-hidden">
+        <div
+          ref={radarRef}
+          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+          style={{ width: radarRadius * 2, height: radarRadius * 2 }}
+        >
+        {/* 고정 원 (작은/중간/큰) */}
+        {[0.33, 0.66, 1].map((scale, i) => (
           <div
-            key={i}
-            className="absolute rounded-full border border-gray-200"
+            key={`ring-${i}`}
+            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-gray-200"
             style={{ width: radarRadius * 2 * scale, height: radarRadius * 2 * scale }}
           />
         ))}
 
-        {/* 물결 파동 애니메이션 */}
-        {phase === "radar" && [0, 0.5, 1].map((delay, i) => (
+        {/* 물결 파동 애니메이션 (레이더 중 + 결과 진입 후 3초까지만 표시) */}
+        {(phase === "radar" || rippleAnimating) && [0, 0.5, 1].map((delay, i) => (
           <div
             key={i}
-            className="absolute rounded-full"
+            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full"
             style={{
               width: radarRadius * 2,
               height: radarRadius * 2,
@@ -217,37 +434,50 @@ export default function NearbyMap() {
           />
         ))}
 
-        {/* 내 위치 */}
+        {/* 내 위치: 가장 작은 원의 정중앙 */}
         {phase === "result" && (
           <div
             className="absolute z-10"
             style={{
-              top: "50%", left: "50%",
-              width: 50, height: 50,
-              animation: "fadeInScale 1s ease-out forwards",
+              left: "50%",
+              top: "50%",
+              marginLeft: -20,
+              marginTop: -20,
+              width: 40, height: 40,
+              animation: "none",
             }}
           >
-            <div className="rounded-full border-2 border-black overflow-hidden w-full h-full">
-              <Avatar src={myProfile?.profile_image_url ?? null} nickname={myProfile?.nickname ?? "me"} size={50} />
+            <div className="rounded-full overflow-hidden w-full h-full">
+              <Avatar src={myProfile?.profile_image_url ?? null} nickname={myProfile?.nickname ?? "me"} size={40} />
             </div>
           </div>
         )}
+        </div>
 
         {/* 회원 아바타 */}
-        {phase === "result" && myCoords && nearbyUsers.map((u) => {
-          const pos = toRadarPosition(myCoords.lat, myCoords.lng, u.lat, u.lng, radarRadius);
+        {phase === "result" && myCoords && nearbyUsers.map((u, idx) => {
+          const pos = randomPositions[idx] ?? { x: 0, y: 0 };
           return (
             <button
               key={u.id}
-              className="absolute z-20"
-              style={{ transform: `translate(${pos.x - 18}px, ${pos.y - 18}px)` }}
+              className="absolute z-20 left-1/2 top-1/2"
+              style={{ transform: `translate(${pos.x - 20}px, ${pos.y - 20}px)` }}
               onClick={(e) => {
                 const rect = e.currentTarget.getBoundingClientRect();
-                setMenuTarget({ user: u, x: rect.left, y: rect.bottom });
+                const menuWidth = 180;
+                const menuHeight = 96;
+                const gap = 2;
+                const isRightOfCenter = pos.x >= 0;
+                const left = isRightOfCenter
+                  ? Math.max(8, rect.left - menuWidth - gap)
+                  : Math.min(window.innerWidth - menuWidth - 8, rect.right + gap);
+                const centerTop = rect.top + rect.height / 2;
+                const top = Math.min(window.innerHeight - menuHeight / 2 - 8, Math.max(menuHeight / 2 + 8, centerTop));
+                setMenuTarget({ user: u, left, top });
               }}
             >
-              <div className="rounded-full border-2 border-[#FEE500] overflow-hidden" style={{ width: 36, height: 36 }}>
-                <Avatar src={u.profile_image_url} nickname={u.nickname} size={36} />
+              <div className="rounded-full border-2 border-[#FEE500] overflow-hidden" style={{ width: 40, height: 40 }}>
+                <Avatar src={u.profile_image_url} nickname={u.nickname} size={40} />
               </div>
             </button>
           );
@@ -255,7 +485,7 @@ export default function NearbyMap() {
       </div>
 
       {/* 결과 텍스트 */}
-      <div className="mt-8 text-sm text-gray-500">
+      <div className="pb-2 text-center text-sm text-gray-500">
         {phase === "radar"
           ? "주변 회원을 탐색 중..."
           : nearbyUsers.length > 0
@@ -265,7 +495,7 @@ export default function NearbyMap() {
 
       {phase === "result" && debugInfo && (
         <div
-          className="mt-3 mx-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 leading-5"
+          className="mb-2 mx-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 leading-5"
           style={{ width: "min(calc(100% - 32px), 360px)" }}
         >
           <p className="font-semibold">진단 정보</p>
@@ -282,7 +512,7 @@ export default function NearbyMap() {
           <div className="fixed inset-0 z-[70]" onClick={() => setMenuTarget(null)} />
           <div
             className="fixed z-[80] bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden"
-            style={{ width: 180, top: menuTarget.y + 8, left: menuTarget.x }}
+            style={{ width: 180, top: menuTarget.top, left: menuTarget.left, transform: "translateY(-50%)" }}
           >
             <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-100">
               <Avatar src={menuTarget.user.profile_image_url} nickname={menuTarget.user.nickname} size={32} />
