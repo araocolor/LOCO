@@ -16,7 +16,8 @@ export default function SearchHeader({ activeTab, onTabChange }: SearchHeaderPro
       <div className="flex px-4 gap-6 pb-0">
         <button
           onClick={() => onTabChange("followers")}
-          className={`pb-2 text-sm font-semibold border-b-2 transition-colors ${
+          style={{ fontSize: 17 }}
+          className={`pb-2 font-bold border-b-2 transition-colors ${
             activeTab === "followers"
               ? "border-black text-black"
               : "border-transparent text-gray-400"
@@ -26,7 +27,8 @@ export default function SearchHeader({ activeTab, onTabChange }: SearchHeaderPro
         </button>
         <button
           onClick={() => onTabChange("online")}
-          className={`pb-2 text-sm font-semibold border-b-2 transition-colors ${
+          style={{ fontSize: 17 }}
+          className={`pb-2 font-bold border-b-2 transition-colors ${
             activeTab === "online"
               ? "border-black text-black"
               : "border-transparent text-gray-400"

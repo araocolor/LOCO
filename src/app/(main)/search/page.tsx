@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import Image from "next/image";
+import Avatar from "@/components/ui/Avatar";
 import { useRouter } from "next/navigation";
-import { MoreVertical, Plus, Check, UserMinus, MessageCircle, Ban } from "lucide-react";
+import { MoreVertical, Plus, Check, UserMinus, MessageCircle, Ban, UserCircle } from "lucide-react";
 import SearchHeader from "@/components/layout/SearchHeader";
 import { PRESENCE_EVENT } from "@/components/features/PresenceTracker";
 
@@ -23,28 +23,6 @@ interface Suggestion {
   region: string | null;
 }
 
-function Avatar({ src, nickname, size }: { src: string | null; nickname: string; size: number }) {
-  if (src) {
-    return (
-      <Image
-        src={src}
-        alt={nickname}
-        width={size}
-        height={size}
-        className="rounded-full object-cover flex-shrink-0"
-        style={{ width: size, height: size }}
-      />
-    );
-  }
-  return (
-    <div
-      className="rounded-full bg-gray-200 flex items-center justify-center text-gray-500 font-medium flex-shrink-0"
-      style={{ width: size, height: size, fontSize: size * 0.4 }}
-    >
-      {nickname[0]}
-    </div>
-  );
-}
 
 function CheckModal() {
   return (
@@ -102,7 +80,13 @@ export default function SearchPage() {
   useEffect(() => {
     loadFromCache();
     fetchFollowersAndFollowing();
-    // 추천친구는 매번 새로 fetch
+    const cached = localStorage.getItem("search_suggestions_cache");
+    if (cached) {
+      try {
+        const { suggestions } = JSON.parse(cached);
+        if (suggestions) { setSuggestions(suggestions); setSuggestionsLoading(false); return; }
+      } catch {}
+    }
     setSuggestionsLoading(true);
     fetch("/api/friends/suggestions")
       .then((r) => r.json())
@@ -121,13 +105,45 @@ export default function SearchPage() {
     return () => window.removeEventListener(PRESENCE_EVENT, handler);
   }, []);
 
+  function refillSuggestionsCache(excludeIds: Set<string>, count: number) {
+    fetch(`/api/friends/suggestions?limit=${count}`)
+      .then((r) => r.json())
+      .then((json) => {
+        if (!json.data) return;
+        const sc = localStorage.getItem("search_suggestions_cache");
+        const existing: Suggestion[] = sc ? (JSON.parse(sc).suggestions ?? []) : [];
+        const existingIds = new Set(existing.map((s) => s.id));
+        const newItems = (json.data as Suggestion[]).filter((s) => !existingIds.has(s.id) && !excludeIds.has(s.id));
+        const merged = [...existing, ...newItems].slice(0, 30);
+        localStorage.setItem("search_suggestions_cache", JSON.stringify({ suggestions: merged, ts: Date.now() }));
+        setSuggestions((prev) => {
+          const prevIds = new Set(prev.map((s) => s.id));
+          return [...prev, ...newItems.filter((s) => !prevIds.has(s.id))];
+        });
+      })
+      .catch(() => {});
+  }
+
   function handleAddFriend(id: string) {
     if (addedIds.has(id)) return;
     const added = suggestions.find((s) => s.id === id);
 
     // 1. 즉시 UI + 캐시 업데이트
-    setAddedIds((prev) => new Set(prev).add(id));
+    const nextAddedIds = new Set(addedIds).add(id);
+    setAddedIds(nextAddedIds);
     setSuggestions((prev) => prev.filter((s) => s.id !== id));
+    try {
+      const sc = localStorage.getItem("search_suggestions_cache");
+      if (sc) {
+        const parsed = JSON.parse(sc);
+        parsed.suggestions = (parsed.suggestions ?? []).filter((s: { id: string }) => s.id !== id);
+        localStorage.setItem("search_suggestions_cache", JSON.stringify(parsed));
+      }
+    } catch {}
+
+    if (nextAddedIds.size === 10) {
+      refillSuggestionsCache(nextAddedIds, 10);
+    }
     if (added) {
       setFollowing((prev) => {
         const updated = [added, ...prev];
@@ -231,7 +247,7 @@ export default function SearchPage() {
           {/* 친구들 리스트 */}
           <div className="border-t border-gray-100 pt-3">
             <div className="flex items-center mb-3">
-              <p className="text-base font-bold text-gray-400">친구들</p>
+              <p className="font-bold" style={{ fontSize: 15, color: "#333333" }}>친구목록 <span className="font-normal text-sm">{following.length}</span></p>
               <div className="flex-1 flex justify-center">
                 <div className="relative" style={{ width: 200 }}>
                   <input
@@ -278,7 +294,15 @@ export default function SearchPage() {
                     </button>
                     <button
                       className="p-1 text-gray-400 hover:text-gray-700 flex-shrink-0"
-                      onClick={(e) => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); setMenuTarget({ id: f.id, nickname: f.nickname, x: r.right, y: r.bottom }); }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const r = e.currentTarget.getBoundingClientRect();
+                        setMenuTarget({ id: f.id, nickname: f.nickname, x: r.right, y: r.bottom });
+                        fetch(`/api/users/${f.id}/view-summary`)
+                          .then((res) => res.json())
+                          .then((json) => { sessionStorage.setItem(`user_view_${f.id}`, JSON.stringify(json)); })
+                          .catch(() => {});
+                      }}
                     >
                       <MoreVertical size={18} />
                     </button>
@@ -332,6 +356,15 @@ export default function SearchPage() {
         <>
           <div className="fixed inset-0 z-[70]" onClick={() => setMenuTarget(null)} />
           <div className="fixed z-[80] bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden" style={{ width: 180, top: menuTarget.y, left: menuTarget.x - 180 }}>
+            <button
+              className="flex items-center justify-between w-full px-4 py-3 text-gray-700"
+              style={{ fontSize: "16px" }}
+              onClick={() => { setMenuTarget(null); router.push(`/users/${menuTarget.id}/view`); }}
+            >
+              <span>친구 프로필</span>
+              <UserCircle size={20} className="text-gray-500" />
+            </button>
+            <div className="border-t border-gray-100 mx-3" />
             <button
               className="flex items-center justify-between w-full px-4 py-3 text-gray-700"
               style={{ fontSize: "16px" }}

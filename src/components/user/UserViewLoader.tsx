@@ -50,6 +50,20 @@ export default function UserViewLoader({ userId }: { userId: string }) {
 
     async function load() {
       try {
+        const prefetched = sessionStorage.getItem(`user_view_${userId}`);
+        if (prefetched) {
+          const json = JSON.parse(prefetched) as UserViewData;
+          if (!cancelled) {
+            setData({
+              profile: json.profile,
+              myClasses: (json.myClasses ?? []).map((c) => ({ ...c, isBookmark: false })),
+              bookmarkClasses: (json.bookmarkClasses ?? []).map((c) => ({ ...c, isBookmark: true })),
+            });
+            setLoading(false);
+          }
+          return;
+        }
+
         const raw = sessionStorage.getItem(MESSAGE_USER_SESSION_KEY);
         if (raw) {
           const sessionMap = JSON.parse(raw) as Record<string, SessionUserData>;
