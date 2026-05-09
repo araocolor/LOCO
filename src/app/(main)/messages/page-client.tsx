@@ -383,17 +383,23 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
     const cached = localStorage.getItem(CACHE_KEY);
     if (cached) {
       const next = JSON.parse(cached) as Conversation[];
-      setConversations(next);
-      setLoading(false);
-      void prefetchMessagesToSession(next);
+      queueMicrotask(() => {
+        setConversations(next);
+        setLoading(false);
+        void prefetchMessagesToSession(next);
+      });
     }
 
     // v2: 백그라운드에서 최신 데이터 갱신
-    void fetchConversations({ force: !cached });
+    queueMicrotask(() => {
+      void fetchConversations({ force: !cached });
+    });
   }, []);
 
   useEffect(() => {
-    if (window.__onlineIds) setOnlineIds(window.__onlineIds);
+    queueMicrotask(() => {
+      if (window.__onlineIds) setOnlineIds(window.__onlineIds);
+    });
     const handler = (e: Event) => {
       setOnlineIds((e as CustomEvent<Set<string>>).detail);
     };
@@ -617,13 +623,15 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
             내근처
           </button>
         </div>
-        <button
-          onClick={() => { void fetchConversations({ force: true, manual: true }); }}
-          disabled={refreshDisabled && !isSpinning}
-          className={`pb-2 p-1 ${refreshDisabled && !isSpinning ? "text-gray-400 cursor-not-allowed" : "text-gray-800 hover:text-gray-900"}`}
-        >
-          <RefreshCw size={18} className={isSpinning ? "animate-spin" : ""} style={{ animationDuration: "0.8s" }} />
-        </button>
+        {activeMenuTab === "messages" && (
+          <button
+            onClick={() => { void fetchConversations({ force: true, manual: true }); }}
+            disabled={refreshDisabled && !isSpinning}
+            className={`pb-2 p-1 ${refreshDisabled && !isSpinning ? "text-gray-400 cursor-not-allowed" : "text-gray-800 hover:text-gray-900"}`}
+          >
+            <RefreshCw size={18} className={isSpinning ? "animate-spin" : ""} style={{ animationDuration: "0.8s" }} />
+          </button>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto">
