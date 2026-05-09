@@ -18,8 +18,37 @@ interface MenuTarget {
   y: number;
 }
 
+interface NearbyDebug {
+  serverNowUtc: string;
+  serverNowKst: string;
+  staleThresholdUtc: string;
+  staleThresholdKst: string;
+  staleMinutes: number;
+  radiusKm: number;
+  candidateCount: number;
+  freshCount: number;
+  nearbyCount: number;
+  staleCount: number;
+  outsideRadiusCount: number;
+  likelyReason: string;
+}
+
+interface ApiError {
+  message?: string;
+  code?: string | null;
+  details?: string | null;
+  hint?: string | null;
+}
+
 const REFRESH_INTERVAL = 10 * 60 * 1000;
 const RADIUS_KM = 30;
+
+function getApiErrorMessage(error: ApiError | undefined, fallback: string) {
+  if (!error) return fallback;
+  return [error.message, error.code ? `code: ${error.code}` : null, error.details, error.hint]
+    .filter(Boolean)
+    .join(" / ");
+}
 
 function toRadarPosition(myLat: number, myLng: number, userLat: number, userLng: number, radarRadius: number) {
   const dLat = (userLat - myLat) * 111;
@@ -41,7 +70,17 @@ export default function NearbyMap() {
   const [nearbyUsers, setNearbyUsers] = useState<NearbyUser[]>([]);
   const [myCoords, setMyCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [menuTarget, setMenuTarget] = useState<MenuTarget | null>(null);
-  const [myProfile, setMyProfile] = useState<{ nickname: string; profile_image_url: string | null } | null>(null);
+  const [myProfile] = useState<{ nickname: string; profile_image_url: string | null } | null>(() => {
+    try {
+      const raw = localStorage.getItem("loco_mypage_cache_local_v2");
+      if (!raw) return null;
+      const cache = JSON.parse(raw);
+      return { nickname: cache.profile?.nickname ?? "", profile_image_url: cache.profile?.profile_image_url ?? null };
+    } catch {
+      return null;
+    }
+  });
+  const [debugInfo, setDebugInfo] = useState<NearbyDebug | null>(null);
   const coordsRef = useRef<{ lat: number; lng: number } | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
 
@@ -73,27 +112,24 @@ export default function NearbyMap() {
   }
 
   const saveLocation = useCallback(async (lat: number, lng: number) => {
-    await fetch("/api/location", {
+    const res = await fetch("/api/location", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ lat, lng }),
-    }).catch(() => {});
+    });
+    const json = await res.json().catch(() => null) as { ok?: boolean; error?: ApiError } | null;
+    if (!res.ok || json?.ok === false) {
+      throw new Error(getApiErrorMessage(json?.error, "위치 저장에 실패했습니다."));
+    }
   }, []);
 
   const fetchNearby = useCallback(async (lat: number, lng: number) => {
     const res = await fetch(`/api/location/nearby?lat=${lat}&lng=${lng}`);
-    const json = await res.json();
-    return (json.data ?? []) as NearbyUser[];
-  }, []);
-
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem("loco_mypage_cache_local_v2");
-      if (raw) {
-        const cache = JSON.parse(raw);
-        setMyProfile({ nickname: cache.profile?.nickname ?? "", profile_image_url: cache.profile?.profile_image_url ?? null });
-      }
-    } catch {}
+    const json = await res.json().catch(() => null) as { data?: NearbyUser[]; debug?: NearbyDebug; error?: ApiError } | null;
+    if (!res.ok || json?.error) {
+      throw new Error(getApiErrorMessage(json?.error, "주변 회원 조회에 실패했습니다."));
+    }
+    return { users: (json?.data ?? []) as NearbyUser[], debug: json?.debug ?? null };
   }, []);
 
   useEffect(() => {
@@ -101,7 +137,6 @@ export default function NearbyMap() {
     playSonarPing();
     const interval = setInterval(playSonarPing, 700);
     return () => clearInterval(interval);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase]);
 
   useEffect(() => {
@@ -110,10 +145,16 @@ export default function NearbyMap() {
         const { latitude: lat, longitude: lng } = pos.coords;
         coordsRef.current = { lat, lng };
         setMyCoords({ lat, lng });
-        await saveLocation(lat, lng);
-        const users = await fetchNearby(lat, lng);
-        setNearbyUsers(users);
-        setTimeout(() => setPhase("result"), 2000);
+        try {
+          await saveLocation(lat, lng);
+          const result = await fetchNearby(lat, lng);
+          setNearbyUsers(result.users);
+          setDebugInfo(result.debug);
+          setError(null);
+          setTimeout(() => setPhase("result"), 2000);
+        } catch (err) {
+          setError(err instanceof Error ? err.message : "위치 처리 중 오류가 발생했습니다.");
+        }
       },
       () => setError("위치 권한을 허용해주세요.")
     );
@@ -123,15 +164,21 @@ export default function NearbyMap() {
     const interval = setInterval(() => {
       if (!coordsRef.current) return;
       const { lat, lng } = coordsRef.current;
-      saveLocation(lat, lng);
-      fetchNearby(lat, lng).then(setNearbyUsers);
+      saveLocation(lat, lng)
+        .then(() => fetchNearby(lat, lng))
+        .then((result) => {
+          setNearbyUsers(result.users);
+          setDebugInfo(result.debug);
+          setError(null);
+        })
+        .catch((err) => setError(err instanceof Error ? err.message : "위치 새로고침 중 오류가 발생했습니다."));
     }, REFRESH_INTERVAL);
     return () => clearInterval(interval);
   }, [saveLocation, fetchNearby]);
 
   if (error) {
     return (
-      <div className="flex items-center justify-center h-64 text-sm text-gray-400">{error}</div>
+      <div className="flex items-center justify-center h-64 px-6 text-sm text-red-500 text-center whitespace-pre-wrap">{error}</div>
     );
   }
 
@@ -210,6 +257,19 @@ export default function NearbyMap() {
           ? `반경 ${RADIUS_KM}km 내 회원 ${nearbyUsers.length}명 발견`
           : `반경 ${RADIUS_KM}km 내 회원이 없습니다`}
       </div>
+
+      {phase === "result" && debugInfo && (
+        <div
+          className="mt-3 mx-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 leading-5"
+          style={{ width: "min(calc(100% - 32px), 360px)" }}
+        >
+          <p className="font-semibold">진단 정보</p>
+          <p>현재 서버시각: {debugInfo.serverNowKst}</p>
+          <p>조회 기준: {debugInfo.staleMinutes}분 이내, 반경 {debugInfo.radiusKm}km</p>
+          <p>후보 {debugInfo.candidateCount}명 / 최근 {debugInfo.freshCount}명 / 반경 내 {debugInfo.nearbyCount}명</p>
+          <p>{debugInfo.likelyReason}</p>
+        </div>
+      )}
 
       {/* 아바타 클릭 메뉴 */}
       {menuTarget && (
