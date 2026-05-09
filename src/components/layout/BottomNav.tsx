@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 
 const NAV_ITEMS = [
   {
@@ -49,11 +49,15 @@ const NAV_ITEMS = [
 
 export default function BottomNav({ isLoggedIn }: { isLoggedIn: boolean }) {
   const pathname = usePathname();
-  const router = useRouter();
-  const [activeHref, setActiveHref] = useState(pathname);
+  const [pressedNav, setPressedNav] = useState<{ href: string; basePath: string } | null>(null);
   void isLoggedIn;
 
   if (pathname.startsWith("/classes/") || pathname.startsWith("/users/")) return null;
+
+  const activeHref =
+    pressedNav && pressedNav.basePath === pathname
+      ? pressedNav.href
+      : pathname;
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-[#e5e7eb] h-[70px] flex items-center">
@@ -70,8 +74,22 @@ export default function BottomNav({ isLoggedIn }: { isLoggedIn: boolean }) {
             href={href}
             className={className}
             prefetch={href === "/" || href === "/messages" ? true : undefined}
-            onTouchStart={() => { setActiveHref(href); router.push(href); }}
-            onMouseDown={() => { setActiveHref(href); router.push(href); }}
+            onTouchStart={() => {
+              setPressedNav({ href, basePath: pathname });
+              setTimeout(() => {
+                setPressedNav((prev) =>
+                  prev?.href === href && prev?.basePath === pathname ? null : prev
+                );
+              }, 1200);
+            }}
+            onMouseDown={() => {
+              setPressedNav({ href, basePath: pathname });
+              setTimeout(() => {
+                setPressedNav((prev) =>
+                  prev?.href === href && prev?.basePath === pathname ? null : prev
+                );
+              }, 1200);
+            }}
           >
             {icon}
             <span className="sr-only">{label}</span>

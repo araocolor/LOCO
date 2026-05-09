@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { ArrowLeft, Send, Paperclip, Image as ImageIcon, FileText, MapPin, CalendarDays, RefreshCw } from "lucide-react";
 import { PRESENCE_EVENT } from "@/components/features/PresenceTracker";
+import NearbyMap from "@/components/features/NearbyMap";
 
 interface Conversation {
   id: string;
@@ -55,11 +56,14 @@ interface SessionClassItem {
   created_at?: string;
 }
 
+type MessageMenuTab = "messages" | "my-chat" | "nearby";
+
 export default function MessagesPageClient({ userId }: { userId: string }) {
   const router = useRouter();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [onlineIds, setOnlineIds] = useState<Set<string>>(new Set());
+  const [activeMenuTab, setActiveMenuTab] = useState<MessageMenuTab>("messages");
 
   // 대화창 상태
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
@@ -577,19 +581,62 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
   return (
     <div className="max-w-xl mx-auto bg-white flex flex-col" style={{ height: "calc(100vh - 126px)" }}>
       {/* 메시지 목록 */}
-      <div className="h-12 flex items-center justify-between px-4 border-b border-gray-100">
-        <h1 className="text-lg font-bold text-gray-900">메시지</h1>
+      <div className="flex items-end justify-between px-4 border-b border-[#e5e7eb]">
+        <div className="flex gap-6">
+          <button
+            onClick={() => setActiveMenuTab("messages")}
+            style={{ fontSize: 17 }}
+            className={`pb-2 font-bold border-b-2 transition-colors ${
+              activeMenuTab === "messages"
+                ? "border-black text-black"
+                : "border-transparent text-gray-400"
+            }`}
+          >
+            메시지
+          </button>
+          <button
+            onClick={() => setActiveMenuTab("my-chat")}
+            style={{ fontSize: 17 }}
+            className={`pb-2 font-bold border-b-2 transition-colors ${
+              activeMenuTab === "my-chat"
+                ? "border-black text-black"
+                : "border-transparent text-gray-400"
+            }`}
+          >
+            클래스
+          </button>
+          <button
+            onClick={() => setActiveMenuTab("nearby")}
+            style={{ fontSize: 17 }}
+            className={`pb-2 font-bold border-b-2 transition-colors ${
+              activeMenuTab === "nearby"
+                ? "border-black text-black"
+                : "border-transparent text-gray-400"
+            }`}
+          >
+            내근처
+          </button>
+        </div>
         <button
           onClick={() => { void fetchConversations({ force: true, manual: true }); }}
           disabled={refreshDisabled && !isSpinning}
-          className={`p-1 ${refreshDisabled && !isSpinning ? "text-gray-400 cursor-not-allowed" : "text-gray-800 hover:text-gray-900"}`}
+          className={`pb-2 p-1 ${refreshDisabled && !isSpinning ? "text-gray-400 cursor-not-allowed" : "text-gray-800 hover:text-gray-900"}`}
         >
           <RefreshCw size={18} className={isSpinning ? "animate-spin" : ""} style={{ animationDuration: "0.8s" }} />
         </button>
       </div>
 
       <div className="flex-1 overflow-y-auto">
-        {loading ? (
+        {activeMenuTab === "my-chat" ? (
+          <div className="h-full bg-white" />
+        ) : activeMenuTab === "nearby" ? (
+          <div className="bg-white">
+            <div className="px-4 pt-4 pb-2">
+              <p className="text-base font-bold" style={{ color: "#333333" }}>검색범위</p>
+            </div>
+            <NearbyMap />
+          </div>
+        ) : loading ? (
           <div className="flex items-center justify-center h-32 text-gray-400">로딩 중...</div>
         ) : conversations.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-32 text-gray-400">

@@ -44,6 +44,10 @@ interface MyPageSummary {
   appliedClasses: AppliedClassRow[];
   myClasses: MyClassRow[];
   hasPendingProRequest: boolean;
+  socialCounts: {
+    following: number;
+    followers: number;
+  };
 }
 
 export async function GET() {
@@ -56,7 +60,7 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const [profileResult, appliedResult, myClassesResult, proRequestResult] = await Promise.all([
+  const [profileResult, appliedResult, myClassesResult, proRequestResult, followingResult, followersResult] = await Promise.all([
     supabase
       .from("profiles")
       .select("id, email, nickname, bio, country, region, favorite_genre, member_type, role, profile_image_url, kakao_notification_enabled")
@@ -78,6 +82,16 @@ export async function GET() {
       .eq("user_id", user.id)
       .eq("status", "pending")
       .maybeSingle(),
+    supabase
+      .from("friendships")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .eq("status", "approved"),
+    supabase
+      .from("friendships")
+      .select("id", { count: "exact", head: true })
+      .eq("friend_id", user.id)
+      .eq("status", "approved"),
   ]);
 
   if (!profileResult.data) {
@@ -126,6 +140,10 @@ export async function GET() {
     appliedClasses,
     myClasses: (myClassesResult.data ?? []) as MyClassRow[],
     hasPendingProRequest: !!proRequestResult.data,
+    socialCounts: {
+      following: followingResult.count ?? 0,
+      followers: followersResult.count ?? 0,
+    },
   };
 
   return NextResponse.json(payload);

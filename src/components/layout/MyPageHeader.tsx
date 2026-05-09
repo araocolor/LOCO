@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import {
   Ban,
   BadgeCheck,
@@ -24,6 +24,8 @@ import {
 import { RiVerifiedBadgeFill } from "react-icons/ri";
 import { logoutAction } from "@/actions/auth";
 import type { ReactNode } from "react";
+
+const MY_PAGE_CACHE_KEY = "loco_mypage_cache_local_v2";
 
 type SubItem = { label: string };
 
@@ -185,21 +187,27 @@ const SECTIONS: SectionDef[] = [
   },
 ];
 
+function readMyPageNickname() {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(MY_PAGE_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed?.profile?.nickname ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function subscribeMyPageCache(onStoreChange: () => void) {
+  window.addEventListener("storage", onStoreChange);
+  return () => window.removeEventListener("storage", onStoreChange);
+}
+
 export default function MyPageHeader() {
-  const MY_PAGE_CACHE_KEY = "loco_mypage_cache_local_v2";
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [nickname] = useState<string | null>(() => {
-    if (typeof window === "undefined") return null;
-    try {
-      const raw = localStorage.getItem(MY_PAGE_CACHE_KEY);
-      if (!raw) return null;
-      const parsed = JSON.parse(raw);
-      return parsed?.profile?.nickname ?? null;
-    } catch {
-      return null;
-    }
-  });
+  const nickname = useSyncExternalStore(subscribeMyPageCache, readMyPageNickname, () => null);
   const [openIds, setOpenIds] = useState<Set<string>>(new Set());
   const [toggles, setToggles] = useState<Record<string, boolean>>({
     "bookmark-0": true,

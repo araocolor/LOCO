@@ -13,11 +13,13 @@ export default function SearchPrefetch() {
         fetch("/api/friends/following").then((r) => r.json()),
       ])
         .then(([followers, following]) => {
+          const nextFollowers = followers.data ?? [];
+          const nextFollowing = following.data ?? [];
           localStorage.setItem(
             CACHE_KEY,
             JSON.stringify({
-              followers: followers.data ?? [],
-              following: following.data ?? [],
+              followers: nextFollowers,
+              following: nextFollowing,
               ts: Date.now(),
             })
           );

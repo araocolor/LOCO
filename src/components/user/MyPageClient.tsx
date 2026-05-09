@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
+import Link from "next/link";
 import { UserCircle, X, Settings } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { parseBookmarkEntries } from "@/lib/bookmarks/local";
@@ -76,11 +77,15 @@ interface Profile {
 interface Props {
   profile: Profile;
   myClasses: GridClass[];
+  socialCounts?: {
+    following: number;
+    followers: number;
+  };
 }
 
 type CacheProfilePatch = Partial<Pick<Profile, "bio" | "country" | "region" | "favorite_genre" | "member_type" | "profile_image_url">>;
 
-export default function MyPageClient({ profile, myClasses: initialMyClasses }: Props) {
+export default function MyPageClient({ profile, myClasses: initialMyClasses, socialCounts }: Props) {
   const MY_PAGE_CACHE_KEY = "loco_mypage_cache_local_v2";
   const FAVORITE_GENRE_OPTIONS = [
     { value: "salsa", label: "살사" },
@@ -109,44 +114,10 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses }: P
   const [memberTypes, setMemberTypes] = useState<string[]>(profileMeta.member_type ?? []);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [activeTab, setActiveTab] = useState<TabType>("all");
-  const [friendAvatars, setFriendAvatars] = useState<{ id: string; profile_image_url: string | null; nickname: string }[]>([]);
-  const [friendCount, setFriendCount] = useState(0);
-
-  useEffect(() => {
-    async function fetchFriends() {
-      const supabase = createClient();
-      const [{ data }, { count }] = await Promise.all([
-        supabase
-          .from("friendships")
-          .select("user_id, profiles!friendships_user_id_fkey(id, nickname, profile_image_url)")
-          .eq("friend_id", profile.id)
-          .eq("status", "approved")
-          .order("last_registered_at", { ascending: false })
-          .limit(5),
-        supabase
-          .from("friendships")
-          .select("id", { count: "exact", head: true })
-          .eq("friend_id", profile.id)
-          .eq("status", "approved"),
-      ]);
-      if (data) {
-        const rows = data as unknown as Array<{
-          profiles: { id: string; nickname: string; profile_image_url: string | null } | null;
-        }>;
-        setFriendAvatars(
-          rows.map((row) => ({
-            id: row.profiles?.id ?? "",
-            nickname: row.profiles?.nickname ?? "",
-            profile_image_url: row.profiles?.profile_image_url ?? null,
-          }))
-        );
-      }
-      setFriendCount(count ?? 0);
-    }
-    fetchFriends();
-  }, [profile.id]);
   const [myClasses] = useState<GridClass[]>(initialMyClasses);
   const [bookmarkClasses, setBookmarkClasses] = useState<GridClass[]>([]);
+  const followingCount = socialCounts?.following ?? 0;
+  const followersCount = socialCounts?.followers ?? 0;
 
   function patchMyPageProfileCache(patch: CacheProfilePatch) {
     try {
@@ -368,32 +339,23 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses }: P
                 </span>
               </button>
             </div>
-            <div className="w-1/2 flex flex-col gap-1 items-center">
-              {friendAvatars.length > 0 ? (
-                <div className="flex items-center">
-                  {friendAvatars.slice(0, 5).map((f, i) => (
-                    <div key={f.id} className="rounded-full border-2 border-white" style={{ marginLeft: i === 0 ? 0 : -10, zIndex: i }}>
-                      {f.profile_image_url ? (
-                        <Image
-                          src={f.profile_image_url}
-                          alt={f.nickname}
-                          width={30}
-                          height={30}
-                          className="rounded-full object-cover w-[30px] h-[30px]"
-                          unoptimized
-                        />
-                      ) : (
-                        <UserCircle size={30} className="text-gray-300" />
-                      )}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <span className="text-[12px] text-gray-300">친구없음</span>
-              )}
-              {friendCount > 0 && (
-                <span className="text-[16px] font-bold text-gray-700">{friendCount}</span>
-              )}
+            <div className="w-1/2 flex justify-end">
+              <div className="grid grid-cols-2 w-full max-w-[170px] text-center">
+                <Link
+                  href="/search?tab=friends"
+                  className="flex flex-col items-center gap-0.5"
+                >
+                  <span className="text-[13px] font-medium text-gray-500 leading-none">친구들</span>
+                  <span className="text-[18px] font-bold text-gray-900 leading-tight">{followingCount}</span>
+                </Link>
+                <Link
+                  href="/search?tab=follower"
+                  className="flex flex-col items-center gap-0.5"
+                >
+                  <span className="text-[13px] font-medium text-gray-500 leading-none">팔로워</span>
+                  <span className="text-[18px] font-bold text-gray-900 leading-tight">{followersCount}</span>
+                </Link>
+              </div>
             </div>
           </div>
           {/* 2행~: 닉네임, 이메일, 자기소개 */}

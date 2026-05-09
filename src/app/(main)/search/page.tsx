@@ -1,15 +1,14 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useSyncExternalStore } from "react";
 import Avatar from "@/components/ui/Avatar";
 import { useRouter } from "next/navigation";
 import { MoreVertical, Plus, Check, UserMinus, MessageCircle, Ban, UserCircle } from "lucide-react";
 import SearchHeader from "@/components/layout/SearchHeader";
-import NearbyMap from "@/components/features/NearbyMap";
 import { PRESENCE_EVENT } from "@/components/features/PresenceTracker";
 import { saveLocationIfSessionExpired } from "@/lib/location-session";
 
-type Tab = "followers" | "online" | "nearby";
+type Tab = "friends" | "follower";
 
 interface Follower {
   id: string;
@@ -23,6 +22,51 @@ interface Suggestion {
   nickname: string;
   profile_image_url: string | null;
   region: string | null;
+}
+
+const SEARCH_CACHE_KEY = "search_prefetch_cache";
+const MYPAGE_CACHE_KEY = "loco_mypage_cache_local_v2";
+const SEARCH_TAB_CHANGE_EVENT = "loco-search-tab-change";
+
+function getSearchTab(): Tab {
+  if (typeof window === "undefined") return "friends";
+  const tab = new URLSearchParams(window.location.search).get("tab");
+  if (tab === "follower") return "follower";
+  return "friends";
+}
+
+function subscribeSearchTab(onStoreChange: () => void) {
+  window.addEventListener("popstate", onStoreChange);
+  window.addEventListener(SEARCH_TAB_CHANGE_EVENT, onStoreChange);
+  return () => {
+    window.removeEventListener("popstate", onStoreChange);
+    window.removeEventListener(SEARCH_TAB_CHANGE_EVENT, onStoreChange);
+  };
+}
+
+function replaceSearchTab(tab: Tab) {
+  const url = new URL(window.location.href);
+  url.searchParams.set("tab", tab);
+  window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+  window.dispatchEvent(new Event(SEARCH_TAB_CHANGE_EVENT));
+}
+
+function syncMyPageSocialCounts(followers: Follower[], following: Follower[]) {
+  try {
+    const raw = localStorage.getItem(MYPAGE_CACHE_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    localStorage.setItem(
+      MYPAGE_CACHE_KEY,
+      JSON.stringify({
+        ...parsed,
+        socialCounts: {
+          following: following.length,
+          followers: followers.length,
+        },
+      })
+    );
+  } catch {}
 }
 
 function saveCurrentLocationIfAlreadyAllowed() {
@@ -70,12 +114,14 @@ export default function SearchPage() {
   const [suggestionsLoading, setSuggestionsLoading] = useState(true);
   const [addedIds, setAddedIds] = useState<Set<string>>(new Set());
   const [showCheck, setShowCheck] = useState(false);
-  const [activeTab, setActiveTab] = useState<Tab>("followers");
+  const activeTab = useSyncExternalStore(subscribeSearchTab, getSearchTab, () => "friends");
   const [friendSearch, setFriendSearch] = useState("");
   const [onlineIds, setOnlineIds] = useState<Set<string>>(new Set());
   const [menuTarget, setMenuTarget] = useState<{ id: string; nickname: string; x: number; y: number } | null>(null);
 
-  const CACHE_KEY = "search_prefetch_cache";
+  const handleTabChange = useCallback((tab: Tab) => {
+    replaceSearchTab(tab);
+  }, []);
 
   useEffect(() => {
     saveCurrentLocationIfAlreadyAllowed();
@@ -83,7 +129,7 @@ export default function SearchPage() {
 
   const loadFromCache = useCallback(() => {
     try {
-      const cached = localStorage.getItem(CACHE_KEY);
+      const cached = localStorage.getItem(SEARCH_CACHE_KEY);
       if (cached) {
         const { followers, following } = JSON.parse(cached);
         if (followers) setFollowers(followers);
@@ -103,7 +149,7 @@ export default function SearchPage() {
         setFollowers(followers);
         setFollowing(following);
         try {
-          localStorage.setItem(CACHE_KEY, JSON.stringify({ followers, following, ts: Date.now() }));
+          localStorage.setItem(SEARCH_CACHE_KEY, JSON.stringify({ followers, following, ts: Date.now() }));
         } catch {}
       })
       .catch(() => {});
@@ -188,9 +234,10 @@ export default function SearchPage() {
       setFollowing((prev) => {
         const updated = [added, ...prev];
         try {
-          const cached = localStorage.getItem(CACHE_KEY);
+          const cached = localStorage.getItem(SEARCH_CACHE_KEY);
           const parsed = cached ? JSON.parse(cached) : {};
-          localStorage.setItem(CACHE_KEY, JSON.stringify({ ...parsed, following: updated, ts: Date.now() }));
+          localStorage.setItem(SEARCH_CACHE_KEY, JSON.stringify({ ...parsed, following: updated, ts: Date.now() }));
+          syncMyPageSocialCounts(followers, updated);
         } catch {}
         return updated;
       });
@@ -213,9 +260,10 @@ export default function SearchPage() {
         setFollowing((prev) => {
           const updated = prev.filter((f) => f.id !== id);
           try {
-            const cached = localStorage.getItem(CACHE_KEY);
+            const cached = localStorage.getItem(SEARCH_CACHE_KEY);
             const parsed = cached ? JSON.parse(cached) : {};
-            localStorage.setItem(CACHE_KEY, JSON.stringify({ ...parsed, following: updated, ts: Date.now() }));
+            localStorage.setItem(SEARCH_CACHE_KEY, JSON.stringify({ ...parsed, following: updated, ts: Date.now() }));
+            syncMyPageSocialCounts(followers, updated);
           } catch {}
           return updated;
         });
@@ -233,9 +281,10 @@ export default function SearchPage() {
     setFollowing((prev) => {
       const updated = prev.filter((f) => f.id !== targetId);
       try {
-        const cached = localStorage.getItem(CACHE_KEY);
+        const cached = localStorage.getItem(SEARCH_CACHE_KEY);
         const parsed = cached ? JSON.parse(cached) : {};
-        localStorage.setItem(CACHE_KEY, JSON.stringify({ ...parsed, following: updated, ts: Date.now() }));
+        localStorage.setItem(SEARCH_CACHE_KEY, JSON.stringify({ ...parsed, following: updated, ts: Date.now() }));
+        syncMyPageSocialCounts(followers, updated);
       } catch {}
       return updated;
     });
@@ -243,9 +292,9 @@ export default function SearchPage() {
 
   return (
     <>
-      <SearchHeader activeTab={activeTab} onTabChange={setActiveTab} />
+      <SearchHeader activeTab={activeTab} onTabChange={handleTabChange} />
 
-      {activeTab === "followers" && (
+      {activeTab === "friends" && (
         <div className="px-4 pt-4 bg-white">
           {suggestionsLoading ? (
             <div className="flex gap-7 overflow-x-auto pb-3 pt-2 mb-6 scrollbar-hide">
@@ -354,7 +403,7 @@ export default function SearchPage() {
         </div>
       )}
 
-      {activeTab === "online" && (
+      {activeTab === "follower" && (
         <div className="px-4 pt-4 bg-white">
           <div className="pt-3">
             <div className="flex items-center mb-3">
@@ -387,15 +436,6 @@ export default function SearchPage() {
               </div>
             )}
           </div>
-        </div>
-      )}
-
-      {activeTab === "nearby" && (
-        <div className="bg-white">
-          <div className="px-4 pt-4 pb-2">
-            <p className="text-base font-bold" style={{ color: "#333333" }}>검색범위</p>
-          </div>
-          <NearbyMap />
         </div>
       )}
 

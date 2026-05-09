@@ -51,6 +51,10 @@ interface MyPageSummaryCache {
   appliedClasses: CachedAppliedClass[];
   myClasses: CachedMyClass[];
   hasPendingProRequest: boolean;
+  socialCounts?: {
+    following: number;
+    followers: number;
+  };
 }
 
 export default function MyPageCacheLoader() {
@@ -60,20 +64,21 @@ export default function MyPageCacheLoader() {
 
   useEffect(() => {
     const cacheKey = MY_PAGE_CACHE_KEY;
-    if (data) return;
 
     let cancelled = false;
 
     async function fetchAndUpdate() {
-      const res = await fetch("/api/mypage/summary", { method: "GET" });
-      if (res.status === 401) { router.replace("/login?next=/mypage"); return; }
+      const res = await fetch("/api/mypage/summary", { method: "GET", cache: "no-store" });
+      if (res.status === 401) { router.replace("/login?next=/mypage"); return true; }
       const json = await res.json();
-      if (json?.needsOnboarding) { router.replace("/onboarding"); return; }
-      if (!res.ok) return;
+      if (json?.needsOnboarding) { router.replace("/onboarding"); return true; }
+      if (!res.ok) return false;
       if (!cancelled) {
-        setData(json as MyPageSummaryCache);
-        try { localStorage.setItem(cacheKey, JSON.stringify(json)); } catch {}
+        const nextData = json as MyPageSummaryCache;
+        setData(nextData);
+        try { localStorage.setItem(cacheKey, JSON.stringify(nextData)); } catch {}
       }
+      return true;
     }
 
     async function load() {
@@ -87,8 +92,8 @@ export default function MyPageCacheLoader() {
           return;
         }
 
-        await fetchAndUpdate();
-        if (!data && !cancelled) setError("마이페이지를 불러오지 못했습니다.");
+        const loaded = await fetchAndUpdate();
+        if (!loaded && !cancelled) setError("마이페이지를 불러오지 못했습니다.");
       } catch {
         if (!cancelled) setError("마이페이지를 불러오지 못했습니다.");
       }
@@ -99,7 +104,7 @@ export default function MyPageCacheLoader() {
     return () => {
       cancelled = true;
     };
-  }, [data, router]);
+  }, [router]);
 
   if (error) {
     return <div className="max-w-3xl mx-auto px-4 py-10 text-sm text-red-500">{error}</div>;
@@ -109,5 +114,5 @@ export default function MyPageCacheLoader() {
     return <div className="max-w-3xl mx-auto px-4 py-10 text-sm text-gray-500">로딩 중...</div>;
   }
 
-  return <MyPageClient profile={data.profile} myClasses={data.myClasses ?? []} />;
+  return <MyPageClient profile={data.profile} myClasses={data.myClasses ?? []} socialCounts={data.socialCounts} />;
 }

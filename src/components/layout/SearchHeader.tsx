@@ -1,6 +1,6 @@
 "use client";
 
-type Tab = "followers" | "online" | "nearby";
+type Tab = "friends" | "follower";
 
 interface SearchHeaderProps {
   activeTab: Tab;
@@ -15,10 +15,10 @@ export default function SearchHeader({ activeTab, onTabChange }: SearchHeaderPro
       </div>
       <div className="flex px-4 gap-6 pb-0">
         <button
-          onClick={() => onTabChange("followers")}
+          onClick={() => onTabChange("friends")}
           style={{ fontSize: 17 }}
           className={`pb-2 font-bold border-b-2 transition-colors ${
-            activeTab === "followers"
+            activeTab === "friends"
               ? "border-black text-black"
               : "border-transparent text-gray-400"
           }`}
@@ -26,26 +26,15 @@ export default function SearchHeader({ activeTab, onTabChange }: SearchHeaderPro
           친구들
         </button>
         <button
-          onClick={() => onTabChange("online")}
+          onClick={() => onTabChange("follower")}
           style={{ fontSize: 17 }}
           className={`pb-2 font-bold border-b-2 transition-colors ${
-            activeTab === "online"
+            activeTab === "follower"
               ? "border-black text-black"
               : "border-transparent text-gray-400"
           }`}
         >
           팔로워
-        </button>
-        <button
-          onClick={() => onTabChange("nearby")}
-          style={{ fontSize: 17 }}
-          className={`pb-2 font-bold border-b-2 transition-colors ${
-            activeTab === "nearby"
-              ? "border-black text-black"
-              : "border-transparent text-gray-400"
-          }`}
-        >
-          내근처
         </button>
       </div>
     </header>
