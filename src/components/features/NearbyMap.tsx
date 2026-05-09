@@ -47,9 +47,7 @@ const RADAR_RADIUS = 130;
 const AVATAR_SIZE = 40;
 const TOP_SAFE_GAP = 20;
 const BOTTOM_SAFE_GAP = 20;
-const FORCE_MOCK_NEARBY_USERS = true;
-const MOCK_NEARBY_USER_COUNT = 50;
-const DEFAULT_TEST_COORDS = { lat: 37.5665, lng: 126.978 };
+const MAX_VISIBLE_USERS = 50;
 
 function getApiErrorMessage(error: ApiError | undefined, fallback: string) {
   if (!error) return fallback;
@@ -162,25 +160,6 @@ function buildRandomNearbyPositions(count: number, areaWidth: number, areaHeight
   return positions.slice(0, count);
 }
 
-function generateMockNearbyUsers(count: number, myLat: number, myLng: number): NearbyUser[] {
-  const rand = makePrng(hashString(`${myLat}-${myLng}-${count}`));
-  const cosLat = Math.cos((myLat * Math.PI) / 180) || 1;
-
-  return Array.from({ length: count }).map((_, idx) => {
-    const angle = rand() * Math.PI * 2;
-    const radiusKm = Math.sqrt(rand()) * RADIUS_KM;
-    const dLatKm = Math.cos(angle) * radiusKm;
-    const dLngKm = Math.sin(angle) * radiusKm;
-    return {
-      id: `mock-nearby-${idx + 1}`,
-      lat: myLat + dLatKm / 111,
-      lng: myLng + dLngKm / (111 * cosLat),
-      nickname: `테스트${idx + 1}`,
-      profile_image_url: null,
-    };
-  });
-}
-
 function getGeolocationErrorMessage(error: GeolocationPositionError) {
   if (error.code === error.PERMISSION_DENIED) {
     return `위치 권한이 차단되었습니다. 브라우저에서 ${window.location.origin} 위치 권한을 허용해주세요.`;
@@ -203,7 +182,9 @@ export default function NearbyMap() {
   const [nearbyUsers, setNearbyUsers] = useState<NearbyUser[]>([]);
   const [myCoords, setMyCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [menuTarget, setMenuTarget] = useState<MenuTarget | null>(null);
+  const [debugPopupOpen, setDebugPopupOpen] = useState(false);
   const [rippleAnimating, setRippleAnimating] = useState(true);
+  const [showMyAvatar, setShowMyAvatar] = useState(false);
   const [myProfile] = useState<{ nickname: string; profile_image_url: string | null } | null>(() => {
     try {
       const raw = localStorage.getItem("loco_mypage_cache_local_v2");
@@ -262,13 +243,7 @@ export default function NearbyMap() {
     if (!res.ok || json?.error) {
       throw new Error(getApiErrorMessage(json?.error, "주변 회원 조회에 실패했습니다."));
     }
-    return { users: (json?.data ?? []) as NearbyUser[], debug: json?.debug ?? null };
-  }, []);
-
-  const setMockNearbyUsers = useCallback((lat: number, lng: number) => {
-    setNearbyUsers(generateMockNearbyUsers(MOCK_NEARBY_USER_COUNT, lat, lng));
-    setDebugInfo(null);
-    setError(null);
+    return { users: ((json?.data ?? []) as NearbyUser[]).slice(0, MAX_VISIBLE_USERS), debug: json?.debug ?? null };
   }, []);
 
   useEffect(() => {
@@ -292,17 +267,22 @@ export default function NearbyMap() {
   useEffect(() => {
     if (phase !== "radar") return;
     queueMicrotask(() => setRippleAnimating(true));
+    queueMicrotask(() => setShowMyAvatar(false));
+    const stopTimer = setTimeout(() => {
+      setRippleAnimating(false);
+    }, 3000);
     playSonarPing();
     const interval = setInterval(playSonarPing, 700);
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      clearTimeout(stopTimer);
+    };
   }, [phase]);
 
   useEffect(() => {
     if (phase !== "result") return;
-    const stopTimer = setTimeout(() => {
-      setRippleAnimating(false);
-    }, 3000);
-    return () => clearTimeout(stopTimer);
+    const t = setTimeout(() => setShowMyAvatar(true), 80);
+    return () => clearTimeout(t);
   }, [phase]);
 
   useEffect(() => {
@@ -311,11 +291,6 @@ export default function NearbyMap() {
       const { lat, lng } = freshSession;
       coordsRef.current = { lat, lng };
       queueMicrotask(() => setMyCoords({ lat, lng }));
-      if (FORCE_MOCK_NEARBY_USERS) {
-        queueMicrotask(() => setMockNearbyUsers(lat, lng));
-        setTimeout(() => setPhase("result"), 2000);
-        return;
-      }
       fetchNearby(lat, lng)
         .then((result) => {
           setNearbyUsers(result.users);
@@ -328,14 +303,6 @@ export default function NearbyMap() {
     }
 
     if (!("geolocation" in navigator)) {
-      if (FORCE_MOCK_NEARBY_USERS) {
-        const fallback = freshSession ?? { ...DEFAULT_TEST_COORDS, savedAt: Date.now() };
-        coordsRef.current = { lat: fallback.lat, lng: fallback.lng };
-        queueMicrotask(() => setMyCoords({ lat: fallback.lat, lng: fallback.lng }));
-        queueMicrotask(() => setMockNearbyUsers(fallback.lat, fallback.lng));
-        setTimeout(() => setPhase("result"), 2000);
-        return;
-      }
       queueMicrotask(() => setError("이 브라우저는 위치 기능을 지원하지 않습니다."));
       return;
     }
@@ -347,11 +314,6 @@ export default function NearbyMap() {
         setMyCoords({ lat, lng });
         try {
           await saveLocationIfSessionExpired(lat, lng);
-          if (FORCE_MOCK_NEARBY_USERS) {
-            setMockNearbyUsers(lat, lng);
-            setTimeout(() => setPhase("result"), 2000);
-            return;
-          }
           const result = await fetchNearby(lat, lng);
           setNearbyUsers(result.users);
           setDebugInfo(result.debug);
@@ -362,27 +324,15 @@ export default function NearbyMap() {
         }
       },
       (geoError) => {
-        if (FORCE_MOCK_NEARBY_USERS) {
-          const fallback = freshSession ?? { ...DEFAULT_TEST_COORDS, savedAt: Date.now() };
-          coordsRef.current = { lat: fallback.lat, lng: fallback.lng };
-          queueMicrotask(() => setMyCoords({ lat: fallback.lat, lng: fallback.lng }));
-          queueMicrotask(() => setMockNearbyUsers(fallback.lat, fallback.lng));
-          setTimeout(() => setPhase("result"), 2000);
-          return;
-        }
         setError(getGeolocationErrorMessage(geoError));
       }
     );
-  }, [fetchNearby, setMockNearbyUsers]);
+  }, [fetchNearby]);
 
   useEffect(() => {
     const interval = setInterval(() => {
       if (!coordsRef.current) return;
       const { lat, lng } = coordsRef.current;
-      if (FORCE_MOCK_NEARBY_USERS) {
-        setMockNearbyUsers(lat, lng);
-        return;
-      }
       saveLocationIfSessionExpired(lat, lng)
         .then(() => fetchNearby(lat, lng))
         .then((result) => {
@@ -393,7 +343,7 @@ export default function NearbyMap() {
         .catch((err) => setError(err instanceof Error ? err.message : "위치 새로고침 중 오류가 발생했습니다."));
     }, REFRESH_INTERVAL);
     return () => clearInterval(interval);
-  }, [fetchNearby, setMockNearbyUsers]);
+  }, [fetchNearby]);
 
   if (error) {
     return (
@@ -420,8 +370,8 @@ export default function NearbyMap() {
           />
         ))}
 
-        {/* 물결 파동 애니메이션 (레이더 중 + 결과 진입 후 3초까지만 표시) */}
-        {(phase === "radar" || rippleAnimating) && [0, 0.5, 1].map((delay, i) => (
+        {/* 물결 파동 애니메이션 (3초만 재생 후 정지) */}
+        {rippleAnimating && [0, 0.5, 1].map((delay, i) => (
           <div
             key={i}
             className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full"
@@ -429,28 +379,33 @@ export default function NearbyMap() {
               width: radarRadius * 2,
               height: radarRadius * 2,
               border: "2px solid #9ca3af",
-              animation: `ripple 2s ease-out ${delay}s infinite`,
+              animation: `ripple 3s ease-out ${delay}s 1 forwards`,
             }}
           />
         ))}
 
         {/* 내 위치: 가장 작은 원의 정중앙 */}
         {phase === "result" && (
-          <div
+          <button
             className="absolute z-10"
             style={{
               left: "50%",
               top: "50%",
-              marginLeft: -20,
-              marginTop: -20,
-              width: 40, height: 40,
-              animation: "none",
+              marginLeft: -25,
+              marginTop: -25,
+              width: 50, height: 50,
+              opacity: showMyAvatar ? 1 : 0,
+              transform: `scale(${showMyAvatar ? 1 : 0.65})`,
+              transition: "opacity 0.9s ease-out, transform 0.9s ease-out",
+            }}
+            onClick={() => {
+              if (debugInfo) setDebugPopupOpen(true);
             }}
           >
             <div className="rounded-full overflow-hidden w-full h-full">
-              <Avatar src={myProfile?.profile_image_url ?? null} nickname={myProfile?.nickname ?? "me"} size={40} />
+              <Avatar src={myProfile?.profile_image_url ?? null} nickname={myProfile?.nickname ?? "me"} size={50} />
             </div>
-          </div>
+          </button>
         )}
         </div>
 
@@ -493,19 +448,6 @@ export default function NearbyMap() {
           : `반경 ${RADIUS_KM}km 내 회원이 없습니다`}
       </div>
 
-      {phase === "result" && debugInfo && (
-        <div
-          className="mb-2 mx-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 leading-5"
-          style={{ width: "min(calc(100% - 32px), 360px)" }}
-        >
-          <p className="font-semibold">진단 정보</p>
-          <p>현재 서버시각: {debugInfo.serverNowKst}</p>
-          <p>조회 기준: {debugInfo.staleMinutes}분 이내, 반경 {debugInfo.radiusKm}km</p>
-          <p>후보 {debugInfo.candidateCount}명 / 최근 {debugInfo.freshCount}명 / 반경 내 {debugInfo.nearbyCount}명</p>
-          <p>{debugInfo.likelyReason}</p>
-        </div>
-      )}
-
       {/* 아바타 클릭 메뉴 */}
       {menuTarget && (
         <>
@@ -525,6 +467,23 @@ export default function NearbyMap() {
             >
               프로필 보기
             </button>
+          </div>
+        </>
+      )}
+
+      {/* 내 아바타 클릭 진단정보 팝업 */}
+      {debugPopupOpen && debugInfo && (
+        <>
+          <div className="fixed inset-0 z-[80]" onClick={() => setDebugPopupOpen(false)} />
+          <div
+            className="fixed z-[90] bg-white rounded-xl shadow-lg border border-amber-200 p-3 text-xs text-amber-900 leading-5"
+            style={{ width: 280, left: "50%", top: "50%", transform: "translate(-50%, -50%)" }}
+          >
+            <p className="font-semibold">진단 정보</p>
+            <p>현재 서버시각: {debugInfo.serverNowKst}</p>
+            <p>조회 기준: {debugInfo.staleMinutes}분 이내, 반경 {debugInfo.radiusKm}km</p>
+            <p>후보 {debugInfo.candidateCount}명 / 최근 {debugInfo.freshCount}명 / 반경 내 {debugInfo.nearbyCount}명</p>
+            <p>{debugInfo.likelyReason}</p>
           </div>
         </>
       )}
