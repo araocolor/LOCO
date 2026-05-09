@@ -13,7 +13,7 @@ export async function POST(req: Request) {
     lat,
     lng,
     updated_at: new Date().toISOString(),
-  });
+  }, { onConflict: "user_id" });
 
   return NextResponse.json({ ok: true });
 }
