@@ -83,11 +83,7 @@ export default function ClassCard({ classData }: ClassCardProps) {
   const [commentOpen, setCommentOpen] = useState(false);
   const [userExpanded, setUserExpanded] = useState(false);
   const [liked, setLiked] = useState(false);
-  const [bookmarked, setBookmarked] = useState(() => {
-    if (typeof window === "undefined") return false;
-    const raw = localStorage.getItem("loco_bookmark_ids_v1");
-    return parseBookmarkEntries(raw).some((b) => b.id === id);
-  });
+  const [bookmarked, setBookmarked] = useState(false);
   const [heartVisible, setHeartVisible] = useState(false);
   const [heartLiked, setHeartLiked] = useState(false);
   const [messageModalOpen, setMessageModalOpen] = useState(false);

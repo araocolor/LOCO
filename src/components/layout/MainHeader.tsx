@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Bookmark } from "lucide-react";
 import SearchNavButton from "@/components/layout/SearchNavButton";
 import { useAuth } from "@/lib/auth-context";
@@ -9,6 +9,8 @@ import { useAuth } from "@/lib/auth-context";
 export default function MainHeader() {
   const { user } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const isBookmarkMode = searchParams.get("bookmark") === "true";
 
   return (
     <header className="sticky top-0 z-50 bg-white border-b border-[#e5e7eb] h-14 px-4 relative flex items-center">
@@ -18,10 +20,15 @@ export default function MainHeader() {
           <button
             type="button"
             aria-label="북마크"
-            onClick={() => router.push("/?bookmark=true")}
-            className="w-10 h-10 flex items-center justify-center text-gray-700"
+            onClick={() => router.push(isBookmarkMode ? "/" : "/?bookmark=true")}
+            className="w-10 h-10 flex items-center justify-center"
           >
-            <Bookmark size={21} strokeWidth={2.5} />
+            <Bookmark
+              size={21}
+              strokeWidth={2.5}
+              fill={isBookmarkMode ? "#FEE500" : "none"}
+              className={isBookmarkMode ? "text-[#FEE500]" : "text-gray-700"}
+            />
           </button>
         )}
       </div>
