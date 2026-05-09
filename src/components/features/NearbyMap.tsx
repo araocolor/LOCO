@@ -50,6 +50,16 @@ const SPARSE_USER_THRESHOLD = 20;
 const TOP_SAFE_GAP = 20;
 const BOTTOM_SAFE_GAP = 20;
 const MAX_VISIBLE_USERS = 50;
+const NEARBY_API_CACHE_KEY = "loco_nearby_api_cache_v1";
+const NEARBY_API_TTL_MS = 5 * 60 * 1000;
+const NEARBY_API_MAX_CALLS = 2;
+
+interface NearbyApiCache {
+  startedAt: number;
+  count: number;
+  users: NearbyUser[];
+  debug: NearbyDebug | null;
+}
 
 function getApiErrorMessage(error: ApiError | undefined, fallback: string) {
   if (!error) return fallback;
@@ -181,6 +191,38 @@ function getGeolocationErrorMessage(error: GeolocationPositionError) {
   return `위치 조회에 실패했습니다. (${error.message})`;
 }
 
+function readNearbyApiCache(): NearbyApiCache | null {
+  try {
+    const raw = sessionStorage.getItem(NEARBY_API_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as NearbyApiCache;
+    if (!Number.isFinite(parsed.startedAt) || !Number.isFinite(parsed.count)) return null;
+    if (Date.now() - parsed.startedAt > NEARBY_API_TTL_MS) return null;
+    return {
+      startedAt: parsed.startedAt,
+      count: parsed.count,
+      users: Array.isArray(parsed.users) ? parsed.users : [],
+      debug: parsed.debug ?? null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function writeNearbyApiCache(next: NearbyApiCache) {
+  try {
+    sessionStorage.setItem(NEARBY_API_CACHE_KEY, JSON.stringify(next));
+  } catch {}
+}
+
+function getNearbyApiCacheState() {
+  const existing = readNearbyApiCache();
+  if (existing) return existing;
+  const fresh: NearbyApiCache = { startedAt: Date.now(), count: 0, users: [], debug: null };
+  writeNearbyApiCache(fresh);
+  return fresh;
+}
+
 export default function NearbyMap() {
   const router = useRouter();
   const radarRef = useRef<HTMLDivElement>(null);
@@ -249,12 +291,25 @@ export default function NearbyMap() {
   }
 
   const fetchNearby = useCallback(async (lat: number, lng: number) => {
+    const gate = getNearbyApiCacheState();
+    if (gate.count >= NEARBY_API_MAX_CALLS) {
+      if (gate.users.length > 0 || gate.debug) {
+        return { users: gate.users.slice(0, MAX_VISIBLE_USERS), debug: gate.debug };
+      }
+      throw new Error("내근처 조회는 5분에 1회만 가능합니다.");
+    }
+
+    writeNearbyApiCache({ ...gate, count: gate.count + 1 });
+
     const res = await fetch(`/api/location/nearby?lat=${lat}&lng=${lng}`);
     const json = await res.json().catch(() => null) as { data?: NearbyUser[]; debug?: NearbyDebug; error?: ApiError } | null;
     if (!res.ok || json?.error) {
       throw new Error(getApiErrorMessage(json?.error, "주변 회원 조회에 실패했습니다."));
     }
-    return { users: ((json?.data ?? []) as NearbyUser[]).slice(0, MAX_VISIBLE_USERS), debug: json?.debug ?? null };
+    const users = ((json?.data ?? []) as NearbyUser[]).slice(0, MAX_VISIBLE_USERS);
+    const debug = json?.debug ?? null;
+    writeNearbyApiCache({ startedAt: gate.startedAt, count: gate.count + 1, users, debug });
+    return { users, debug };
   }, []);
 
   useEffect(() => {
