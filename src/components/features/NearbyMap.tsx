@@ -45,6 +45,8 @@ const REFRESH_INTERVAL = 10 * 60 * 1000;
 const RADIUS_KM = 30;
 const RADAR_RADIUS = 130;
 const AVATAR_SIZE = 40;
+const AVATAR_SIZE_WHEN_SPARSE = 50;
+const SPARSE_USER_THRESHOLD = 20;
 const TOP_SAFE_GAP = 20;
 const BOTTOM_SAFE_GAP = 20;
 const MAX_VISIBLE_USERS = 50;
@@ -75,19 +77,25 @@ function makePrng(seed: number) {
   };
 }
 
-function buildRandomNearbyPositions(count: number, areaWidth: number, areaHeight: number, seedKey: string) {
+function buildRandomNearbyPositions(
+  count: number,
+  areaWidth: number,
+  areaHeight: number,
+  seedKey: string,
+  avatarSize: number
+) {
   const positions: { x: number; y: number }[] = [];
   if (areaWidth <= 0 || areaHeight <= 0) return positions;
 
-  const avatarRadius = AVATAR_SIZE / 2;
-  const minGap = AVATAR_SIZE - 2;
-  const centerClearRadius = AVATAR_SIZE + avatarRadius + 10;
+  const avatarRadius = avatarSize / 2;
+  const minGap = avatarSize - 2;
+  const centerClearRadius = avatarSize + avatarRadius + 10;
   const maxX = Math.max(1, areaWidth / 2 - avatarRadius - 4);
   const maxYUp = Math.max(1, areaHeight / 2 - avatarRadius - 4 - TOP_SAFE_GAP);
   const maxYDown = Math.max(1, areaHeight / 2 - avatarRadius - 4 - BOTTOM_SAFE_GAP);
   const maxYSymmetric = Math.max(1, Math.min(maxYUp, maxYDown));
   const maxRadial = Math.max(1, Math.min(maxX, maxYSymmetric));
-  const ringStep = AVATAR_SIZE + 2;
+  const ringStep = avatarSize + 2;
   const rand = makePrng(hashString(seedKey));
   const yMin = -maxYUp;
   const yMax = maxYDown;
@@ -200,14 +208,17 @@ export default function NearbyMap() {
   const audioCtxRef = useRef<AudioContext | null>(null);
   const [layoutSize, setLayoutSize] = useState({ width: 0, height: 0 });
   const radarRadius = RADAR_RADIUS;
+  const nearbyAvatarSize = nearbyUsers.length < SPARSE_USER_THRESHOLD ? AVATAR_SIZE_WHEN_SPARSE : AVATAR_SIZE;
+  const nearbyAvatarHalf = nearbyAvatarSize / 2;
   const randomPositions = useMemo(
     () => buildRandomNearbyPositions(
       nearbyUsers.length,
       layoutSize.width,
       layoutSize.height,
-      nearbyUsers.map((u) => u.id).join("|")
+      nearbyUsers.map((u) => u.id).join("|"),
+      nearbyAvatarSize
     ),
-    [nearbyUsers, layoutSize.height, layoutSize.width]
+    [nearbyUsers, layoutSize.height, layoutSize.width, nearbyAvatarSize]
   );
 
   function playSonarPing() {
@@ -402,8 +413,21 @@ export default function NearbyMap() {
               if (debugInfo) setDebugPopupOpen(true);
             }}
           >
-            <div className="rounded-full overflow-hidden w-full h-full">
-              <Avatar src={myProfile?.profile_image_url ?? null} nickname={myProfile?.nickname ?? "me"} size={50} />
+            <div
+              style={{
+                animation: "avatarFloatY 3.6s ease-in-out 0.1s infinite",
+                willChange: "transform",
+              }}
+            >
+              <div
+                className="rounded-full overflow-hidden w-full h-full"
+                style={{
+                  animation: "avatarBreath 2.8s ease-in-out 0.1s infinite",
+                  willChange: "transform",
+                }}
+              >
+                <Avatar src={myProfile?.profile_image_url ?? null} nickname={myProfile?.nickname ?? "me"} size={50} />
+              </div>
             </div>
           </button>
         )}
@@ -412,11 +436,13 @@ export default function NearbyMap() {
         {/* 회원 아바타 */}
         {phase === "result" && myCoords && nearbyUsers.map((u, idx) => {
           const pos = randomPositions[idx] ?? { x: 0, y: 0 };
+          const floatDelay = `${(idx % 8) * 0.12}s`;
+          const breathDelay = `${(idx % 6) * 0.1}s`;
           return (
             <button
               key={u.id}
               className="absolute z-20 left-1/2 top-1/2"
-              style={{ transform: `translate(${pos.x - 20}px, ${pos.y - 20}px)` }}
+              style={{ transform: `translate(${pos.x - nearbyAvatarHalf}px, ${pos.y - nearbyAvatarHalf}px)` }}
               onClick={(e) => {
                 const rect = e.currentTarget.getBoundingClientRect();
                 const menuWidth = 180;
@@ -431,8 +457,23 @@ export default function NearbyMap() {
                 setMenuTarget({ user: u, left, top });
               }}
             >
-              <div className="rounded-full border-2 border-[#FEE500] overflow-hidden" style={{ width: 40, height: 40 }}>
-                <Avatar src={u.profile_image_url} nickname={u.nickname} size={40} />
+              <div
+                style={{
+                  animation: `avatarFloatY 3.2s ease-in-out ${floatDelay} infinite`,
+                  willChange: "transform",
+                }}
+              >
+                <div
+                  className="rounded-full border-2 border-[#FEE500] overflow-hidden"
+                  style={{
+                    width: nearbyAvatarSize,
+                    height: nearbyAvatarSize,
+                    animation: `avatarBreath 2.4s ease-in-out ${breathDelay} infinite`,
+                    willChange: "transform",
+                  }}
+                >
+                  <Avatar src={u.profile_image_url} nickname={u.nickname} size={nearbyAvatarSize} />
+                </div>
               </div>
             </button>
           );
@@ -440,7 +481,7 @@ export default function NearbyMap() {
       </div>
 
       {/* 결과 텍스트 */}
-      <div className="pb-2 text-center text-sm text-gray-500">
+      <div className="pb-[78px] text-center text-sm text-gray-500">
         {phase === "radar"
           ? "주변 회원을 탐색 중..."
           : nearbyUsers.length > 0
