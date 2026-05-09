@@ -53,24 +53,42 @@ export default function HomeSearchResultsPage({ initialClasses = [] }: Props) {
   const searchParams = useSearchParams();
   const region = searchParams.get("region") ?? "전체";
   const genres = searchParams.getAll("genre");
+  const isBookmarkMode = searchParams.get("bookmark") === "true";
 
   const [loading, setLoading] = useState(initialClasses.length === 0);
   const [classes, setClasses] = useState<ClassWithHost[]>(initialClasses);
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [bookmarkVersion, setBookmarkVersion] = useState(0);
 
   const warmedImageUrlsRef = useRef<Set<string>>(new Set());
   const bottomRef = useRef<HTMLDivElement>(null);
 
+  useEffect(() => {
+    if (!isBookmarkMode) return;
+    const handler = () => setBookmarkVersion((v) => v + 1);
+    window.addEventListener("bookmarkChanged", handler);
+    return () => window.removeEventListener("bookmarkChanged", handler);
+  }, [isBookmarkMode]);
+
   const filteredClasses = useMemo(() => {
+    if (isBookmarkMode) {
+      try {
+        const raw = localStorage.getItem("loco_bookmark_ids_v1");
+        const bookmarkIds = new Set<string>(raw ? JSON.parse(raw).map((e: { id: string }) => e.id) : []);
+        return classes.filter((item) => bookmarkIds.has(item.id));
+      } catch {
+        return [];
+      }
+    }
     let filtered = region === "전체" ? classes : classes.filter((item) => item.region === region);
     if (genres.length > 0) {
       const genreSet = new Set(genres);
       filtered = filtered.filter((item) => item.genres?.some((g) => genreSet.has(g)));
     }
     return filtered;
-  }, [classes, region, genres]);
+  }, [classes, region, genres, isBookmarkMode, bookmarkVersion]);
 
   function warmImages(items: ClassWithHost[]) {
     items.forEach((item) => {
@@ -184,6 +202,7 @@ export default function HomeSearchResultsPage({ initialClasses = [] }: Props) {
 
     async function fetchBookmarkIds() {
       try {
+        if (localStorage.getItem("loco_bookmark_ids_v1")) return;
         const res = await fetch("/api/bookmarks/ids");
         if (!res.ok) return;
         const json = await res.json();
@@ -195,6 +214,7 @@ export default function HomeSearchResultsPage({ initialClasses = [] }: Props) {
           return;
         }
         const ids: string[] = json.ids ?? [];
+        if (ids.length === 0) return;
         const now = new Date().toISOString();
         localStorage.setItem("loco_bookmark_ids_v1", JSON.stringify(ids.map((id) => ({ id, created_at: now }))));
       } catch {}

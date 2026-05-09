@@ -83,7 +83,11 @@ export default function ClassCard({ classData }: ClassCardProps) {
   const [commentOpen, setCommentOpen] = useState(false);
   const [userExpanded, setUserExpanded] = useState(false);
   const [liked, setLiked] = useState(false);
-  const [bookmarked, setBookmarked] = useState(false);
+  const [bookmarked, setBookmarked] = useState(() => {
+    if (typeof window === "undefined") return false;
+    const raw = localStorage.getItem("loco_bookmark_ids_v1");
+    return parseBookmarkEntries(raw).some((b) => b.id === id);
+  });
   const [heartVisible, setHeartVisible] = useState(false);
   const [heartLiked, setHeartLiked] = useState(false);
   const [messageModalOpen, setMessageModalOpen] = useState(false);
@@ -127,6 +131,12 @@ export default function ClassCard({ classData }: ClassCardProps) {
       localStorage.setItem(BOOKMARKS_CACHE_KEY, JSON.stringify([...bookmarks, { id, created_at: now }]));
       setBookmarked(true);
     }
+    window.dispatchEvent(new CustomEvent("bookmarkChanged"));
+    fetch("/api/bookmarks/toggle", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ class_id: id, bookmarked: !isBookmarked }),
+    }).catch(() => {});
   }
 
   const touchStartX = useRef(0);
