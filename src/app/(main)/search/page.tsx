@@ -266,15 +266,15 @@ export default function SearchPage() {
                     </button>
                     <button
                       onClick={() => handleAddFriend(s.id)}
-                      className={`absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center shadow ${
+                      className={`absolute -top-0.5 -right-0.5 w-5 h-5 rounded-full flex items-center justify-center ${
                         addedIds.has(s.id)
                           ? "bg-gray-400 cursor-default"
-                          : "bg-black"
+                          : "bg-yellow-300"
                       }`}
                     >
                       {addedIds.has(s.id)
                         ? <Check size={11} className="text-white" strokeWidth={3} />
-                        : <Plus size={11} className="text-white" strokeWidth={3} />
+                        : <Plus size={15} className="text-black" strokeWidth={3.5} />
                       }
                     </button>
                   </div>
