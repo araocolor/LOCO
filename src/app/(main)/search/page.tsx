@@ -113,7 +113,10 @@ export default function SearchPage() {
     replaceSearchTab(tab);
   }, []);
 
-  const followingIds = useMemo(() => new Set(following.map((f) => f.id)), [following]);
+  const followingStatusById = useMemo(
+    () => new Map(following.map((f) => [f.id, f.status])),
+    [following]
+  );
   const acceptedFriendCount = useMemo(
     () => following.filter((f) => f.status === "friend").length,
     [following]
@@ -301,15 +304,16 @@ export default function SearchPage() {
   }
 
   async function handleAcceptFollower(follower: Follower) {
-    if (followingIds.has(follower.id) || acceptingFollowerIds.has(follower.id)) return;
+    if (followingStatusById.get(follower.id) === "friend" || acceptingFollowerIds.has(follower.id)) return;
 
     setAcceptingFollowerIds((prev) => new Set(prev).add(follower.id));
     setAcceptedAnimatingIds((prev) => new Set(prev).add(follower.id));
 
     const previousFollowing = following;
     const acceptedFollower = { ...follower, status: "friend" as const };
-    const nextFollowing = following.some((item) => item.id === follower.id)
-      ? following
+    const hasFollowing = following.some((item) => item.id === follower.id);
+    const nextFollowing = hasFollowing
+      ? following.map((item) => item.id === follower.id ? { ...item, status: "friend" as const } : item)
       : [acceptedFollower, ...following];
 
     setFollowing(nextFollowing);
@@ -662,10 +666,17 @@ export default function SearchPage() {
               <p className="text-sm text-gray-400">아직 팔로워가 없어요</p>
             ) : (
               <div className="flex flex-col">
-                {followers.map((f) => {
+                {followers
+                  .slice()
+                  .sort((a, b) => {
+                    const aDone = acceptedFollowerIds.has(a.id) || followingStatusById.get(a.id) === "friend";
+                    const bDone = acceptedFollowerIds.has(b.id) || followingStatusById.get(b.id) === "friend";
+                    return Number(aDone) - Number(bDone);
+                  })
+                  .map((f) => {
                   const isAccepted = acceptedFollowerIds.has(f.id);
                   const isAccepting = acceptingFollowerIds.has(f.id);
-                  const isFriend = isAccepted || (followingIds.has(f.id) && !isAccepting);
+                  const isFriend = isAccepted || (followingStatusById.get(f.id) === "friend" && !isAccepting);
                   const isAnimating = acceptedAnimatingIds.has(f.id);
 
                   return (
