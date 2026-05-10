@@ -114,7 +114,7 @@ export default function SearchPage() {
   const [suggestionsLoading, setSuggestionsLoading] = useState(true);
   const [addedIds, setAddedIds] = useState<Set<string>>(new Set());
   const [showCheck, setShowCheck] = useState(false);
-  const activeTab = useSyncExternalStore(subscribeSearchTab, getSearchTab, () => "friends");
+  const activeTab = useSyncExternalStore(subscribeSearchTab, getSearchTab, (): Tab => "friends");
   const [friendSearch, setFriendSearch] = useState("");
   const [onlineIds, setOnlineIds] = useState<Set<string>>(new Set());
   const [menuTarget, setMenuTarget] = useState<{ id: string; nickname: string; x: number; y: number } | null>(null);
