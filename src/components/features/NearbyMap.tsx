@@ -51,7 +51,6 @@ const TOP_SAFE_GAP = 20;
 const BOTTOM_SAFE_GAP = 20;
 const MAX_VISIBLE_USERS = 50;
 const NEARBY_API_CACHE_KEY = "loco_nearby_api_cache_v1";
-const NEARBY_API_TTL_MS = 5 * 60 * 1000;
 const NEARBY_API_MAX_CALLS = 2;
 
 interface NearbyApiCache {
@@ -197,7 +196,6 @@ function readNearbyApiCache(): NearbyApiCache | null {
     if (!raw) return null;
     const parsed = JSON.parse(raw) as NearbyApiCache;
     if (!Number.isFinite(parsed.startedAt) || !Number.isFinite(parsed.count)) return null;
-    if (Date.now() - parsed.startedAt > NEARBY_API_TTL_MS) return null;
     return {
       startedAt: parsed.startedAt,
       count: parsed.count,
@@ -227,14 +225,16 @@ export default function NearbyMap() {
   const router = useRouter();
   const radarRef = useRef<HTMLDivElement>(null);
   const layoutRef = useRef<HTMLDivElement>(null);
-  const [phase, setPhase] = useState<"radar" | "result">("radar");
+  const initialCache = readNearbyApiCache();
+  const hasCachedUsers = (initialCache?.users.length ?? 0) > 0;
+  const [phase, setPhase] = useState<"radar" | "result">(hasCachedUsers ? "result" : "radar");
   const [error, setError] = useState<string | null>(null);
-  const [nearbyUsers, setNearbyUsers] = useState<NearbyUser[]>([]);
+  const [nearbyUsers, setNearbyUsers] = useState<NearbyUser[]>(initialCache?.users ?? []);
   const [myCoords, setMyCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [menuTarget, setMenuTarget] = useState<MenuTarget | null>(null);
   const [debugPopupOpen, setDebugPopupOpen] = useState(false);
-  const [rippleAnimating, setRippleAnimating] = useState(true);
-  const [showMyAvatar, setShowMyAvatar] = useState(false);
+  const [rippleAnimating, setRippleAnimating] = useState(!hasCachedUsers);
+  const [showMyAvatar, setShowMyAvatar] = useState(hasCachedUsers);
   const [myProfile] = useState<{ nickname: string; profile_image_url: string | null } | null>(() => {
     try {
       const raw = localStorage.getItem("loco_mypage_cache_local_v2");
@@ -292,11 +292,15 @@ export default function NearbyMap() {
 
   const fetchNearby = useCallback(async (lat: number, lng: number) => {
     const gate = getNearbyApiCacheState();
+
+    // 결과 있으면 캐시 반환, 5분 잠금
+    if (gate.users.length > 0) {
+      return { users: gate.users.slice(0, MAX_VISIBLE_USERS), debug: gate.debug };
+    }
+
+    // 0명으로 2번 소진 시 잠금
     if (gate.count >= NEARBY_API_MAX_CALLS) {
-      if (gate.users.length > 0 || gate.debug) {
-        return { users: gate.users.slice(0, MAX_VISIBLE_USERS), debug: gate.debug };
-      }
-      throw new Error("내근처 조회는 5분에 1회만 가능합니다.");
+      return { users: [], debug: gate.debug };
     }
 
     writeNearbyApiCache({ ...gate, count: gate.count + 1 });
@@ -308,7 +312,12 @@ export default function NearbyMap() {
     }
     const users = ((json?.data ?? []) as NearbyUser[]).slice(0, MAX_VISIBLE_USERS);
     const debug = json?.debug ?? null;
-    writeNearbyApiCache({ startedAt: gate.startedAt, count: gate.count + 1, users, debug });
+
+    // 결과 있을 때만 캐시 저장 (0명이면 저장 안 함)
+    if (users.length > 0) {
+      writeNearbyApiCache({ startedAt: gate.startedAt, count: gate.count + 1, users, debug });
+    }
+
     return { users, debug };
   }, []);
 
@@ -352,6 +361,17 @@ export default function NearbyMap() {
   }, [phase]);
 
   useEffect(() => {
+    // 5분 내 캐시에 결과(1명 이상)가 있으면 API 재호출 없이 바로 표시
+    const cached = readNearbyApiCache();
+    if (cached && cached.users.length > 0) {
+      setNearbyUsers(cached.users);
+      setDebugInfo(cached.debug);
+      setError(null);
+      setPhase("result");
+      return;
+    }
+
+
     const freshSession = readFreshLocationSession();
     if (freshSession) {
       const { lat, lng } = freshSession;
@@ -400,16 +420,10 @@ export default function NearbyMap() {
       if (!coordsRef.current) return;
       const { lat, lng } = coordsRef.current;
       saveLocationIfSessionExpired(lat, lng)
-        .then(() => fetchNearby(lat, lng))
-        .then((result) => {
-          setNearbyUsers(result.users);
-          setDebugInfo(result.debug);
-          setError(null);
-        })
-        .catch((err) => setError(err instanceof Error ? err.message : "위치 새로고침 중 오류가 발생했습니다."));
+        .catch(() => {});
     }, REFRESH_INTERVAL);
     return () => clearInterval(interval);
-  }, [fetchNearby]);
+  }, []);
 
   if (error) {
     return (
