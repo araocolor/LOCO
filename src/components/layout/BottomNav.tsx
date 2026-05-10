@@ -69,7 +69,7 @@ export default function BottomNav({ isLoggedIn }: { isLoggedIn: boolean }) {
         const isActive =
           href === "/" ? activeHref === "/" : activeHref.startsWith(href);
         const className = `flex-1 h-full flex flex-col items-center justify-center gap-0.5 transition-colors ${
-          isActive ? "text-[#FEE500]" : "text-gray-400"
+          isActive ? "text-[#FEE500]" : "text-white"
         } ${href === "/" ? "pl-[15px]" : ""} ${href === "/mypage" ? "pr-[15px]" : ""}`;
 
         return (
