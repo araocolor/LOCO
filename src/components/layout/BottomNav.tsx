@@ -2,6 +2,10 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
+
+const CONVERSATIONS_CACHE_KEY = "loco_conversations_cache_v2";
+const MYPAGE_CACHE_KEY = "loco_mypage_cache_local_v2";
 
 const NAV_ITEMS = [
   {
@@ -53,7 +57,31 @@ export default function BottomNav({ isLoggedIn }: { isLoggedIn: boolean }) {
   const [hydrated, setHydrated] = useState(false);
   void isLoggedIn;
 
-  useEffect(() => { setHydrated(true); }, []);
+  useEffect(() => {
+    setHydrated(true);
+
+    async function prefetch() {
+      try {
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+        const [convRes, mypageRes] = await Promise.all([
+          fetch("/api/conversations"),
+          fetch("/api/mypage/summary"),
+        ]);
+        if (convRes.ok) {
+          const json = await convRes.json();
+          if (json.data) localStorage.setItem(CONVERSATIONS_CACHE_KEY, JSON.stringify(json.data.slice(0, 20)));
+        }
+        if (mypageRes.ok) {
+          const json = await mypageRes.json();
+          if (json.profile) localStorage.setItem(MYPAGE_CACHE_KEY, JSON.stringify(json));
+        }
+      } catch {}
+    }
+
+    void prefetch();
+  }, []);
 
   if (pathname.startsWith("/classes/") || pathname.startsWith("/users/")) return null;
   if (!hydrated) return null;
