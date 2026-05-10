@@ -88,7 +88,6 @@ export default function MyPageCacheLoader() {
         const raw = localStorage.getItem(cacheKey);
         if (raw) {
           if (!cancelled) setData(JSON.parse(raw) as MyPageSummaryCache);
-          void fetchAndUpdate();
           return;
         }
 
