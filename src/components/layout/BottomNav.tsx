@@ -6,6 +6,8 @@ import { createClient } from "@/lib/supabase/client";
 
 const CONVERSATIONS_CACHE_KEY = "loco_conversations_cache_v2";
 const MYPAGE_CACHE_KEY = "loco_mypage_cache_local_v2";
+const SEARCH_CACHE_KEY = "search_prefetch_cache";
+const SUGGESTIONS_KEY = "search_suggestions_cache";
 
 const NAV_ITEMS = [
   {
@@ -55,33 +57,75 @@ export default function BottomNav({ isLoggedIn }: { isLoggedIn: boolean }) {
   const pathname = usePathname();
   const [pressedNav, setPressedNav] = useState<{ href: string; basePath: string } | null>(null);
   const [hydrated, setHydrated] = useState(false);
-  void isLoggedIn;
 
   useEffect(() => {
-    setHydrated(true);
+    queueMicrotask(() => setHydrated(true));
 
     async function prefetch() {
       try {
+        const shouldPrefetchConversations = !localStorage.getItem(CONVERSATIONS_CACHE_KEY);
+        const shouldPrefetchMyPage = !localStorage.getItem(MYPAGE_CACHE_KEY);
+        const shouldPrefetchSearch = !localStorage.getItem(SEARCH_CACHE_KEY);
+        const shouldPrefetchSuggestions = !localStorage.getItem(SUGGESTIONS_KEY);
+        if (
+          !isLoggedIn ||
+          (
+            !shouldPrefetchConversations &&
+            !shouldPrefetchMyPage &&
+            !shouldPrefetchSearch &&
+            !shouldPrefetchSuggestions
+          )
+        ) return;
+
         const supabase = createClient();
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
-        const [convRes, mypageRes] = await Promise.all([
-          fetch("/api/conversations"),
-          fetch("/api/mypage/summary"),
-        ]);
-        if (convRes.ok) {
-          const json = await convRes.json();
-          if (json.data) localStorage.setItem(CONVERSATIONS_CACHE_KEY, JSON.stringify(json.data.slice(0, 20)));
+
+        if (shouldPrefetchConversations) {
+          const convRes = await fetch("/api/conversations");
+          if (convRes.ok) {
+            const json = await convRes.json();
+            if (json.data) localStorage.setItem(CONVERSATIONS_CACHE_KEY, JSON.stringify(json.data.slice(0, 20)));
+          }
         }
-        if (mypageRes.ok) {
-          const json = await mypageRes.json();
-          if (json.profile) localStorage.setItem(MYPAGE_CACHE_KEY, JSON.stringify(json));
+
+        if (shouldPrefetchMyPage) {
+          const mypageRes = await fetch("/api/mypage/summary");
+          if (mypageRes.ok) {
+            const json = await mypageRes.json();
+            if (json.profile) localStorage.setItem(MYPAGE_CACHE_KEY, JSON.stringify(json));
+          }
+        }
+
+        if (shouldPrefetchSearch) {
+          const followersRes = await fetch("/api/friends/followers");
+          const followingRes = await fetch("/api/friends/following");
+          if (followersRes.ok && followingRes.ok) {
+            const followers = await followersRes.json();
+            const following = await followingRes.json();
+            localStorage.setItem(
+              SEARCH_CACHE_KEY,
+              JSON.stringify({
+                followers: followers.data ?? [],
+                following: following.data ?? [],
+                ts: Date.now(),
+              })
+            );
+          }
+        }
+
+        if (shouldPrefetchSuggestions) {
+          const suggestionsRes = await fetch("/api/friends/suggestions?limit=30");
+          if (suggestionsRes.ok) {
+            const json = await suggestionsRes.json();
+            if (json.data) localStorage.setItem(SUGGESTIONS_KEY, JSON.stringify({ suggestions: json.data, ts: Date.now() }));
+          }
         }
       } catch {}
     }
 
     void prefetch();
-  }, []);
+  }, [isLoggedIn]);
 
   if (pathname.startsWith("/classes/") || pathname.startsWith("/users/")) return null;
   if (!hydrated) return null;
