@@ -116,6 +116,7 @@ export async function GET(req: Request) {
         lng: l.location.lng,
         nickname: profile?.nickname ?? "",
         profile_image_url: profile?.profile_image_url ?? null,
+        updated_at: l.location.updated_at,
       };
     });
 

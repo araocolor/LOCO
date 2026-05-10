@@ -11,6 +11,7 @@ interface NearbyUser {
   lng: number;
   nickname: string;
   profile_image_url: string | null;
+  updated_at: string | null;
 }
 
 interface MenuTarget {
@@ -51,6 +52,7 @@ const TOP_SAFE_GAP = 20;
 const BOTTOM_SAFE_GAP = 20;
 const MAX_VISIBLE_USERS = 50;
 const NEARBY_API_CACHE_KEY = "loco_nearby_api_cache_v1";
+const NEARBY_API_TTL_MS = 10 * 1000;
 const NEARBY_API_MAX_CALLS = 2;
 
 interface NearbyApiCache {
@@ -196,6 +198,7 @@ function readNearbyApiCache(): NearbyApiCache | null {
     if (!raw) return null;
     const parsed = JSON.parse(raw) as NearbyApiCache;
     if (!Number.isFinite(parsed.startedAt) || !Number.isFinite(parsed.count)) return null;
+    if (Date.now() - parsed.startedAt > NEARBY_API_TTL_MS) return null;
     return {
       startedAt: parsed.startedAt,
       count: parsed.count,
@@ -361,17 +364,6 @@ export default function NearbyMap() {
   }, [phase]);
 
   useEffect(() => {
-    // 5분 내 캐시에 결과(1명 이상)가 있으면 API 재호출 없이 바로 표시
-    const cached = readNearbyApiCache();
-    if (cached && cached.users.length > 0) {
-      setNearbyUsers(cached.users);
-      setDebugInfo(cached.debug);
-      setError(null);
-      setPhase("result");
-      return;
-    }
-
-
     const freshSession = readFreshLocationSession();
     if (freshSession) {
       const { lat, lng } = freshSession;
@@ -577,6 +569,30 @@ export default function NearbyMap() {
             >
               프로필 보기
             </button>
+            {myCoords && (
+              <div className="px-4 py-3 border-t border-gray-100 text-gray-400" style={{ fontSize: 13 }}>
+                {(() => {
+                  const R = 6371;
+                  const dLat = (menuTarget.user.lat - myCoords.lat) * Math.PI / 180;
+                  const dLng = (menuTarget.user.lng - myCoords.lng) * Math.PI / 180;
+                  const a = Math.sin(dLat / 2) ** 2 + Math.cos(myCoords.lat * Math.PI / 180) * Math.cos(menuTarget.user.lat * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+                  const km = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+                  return km < 1 ? `${Math.round(km * 1000)}m 이내` : `${km.toFixed(1)}km 이내`;
+                })()}
+              </div>
+            )}
+            {menuTarget.user.updated_at && (
+              <div className="px-4 py-3 border-t border-gray-100 text-gray-400" style={{ fontSize: 13 }}>
+                접속시간: {(() => {
+                  const diff = Math.floor((Date.now() - new Date(menuTarget.user.updated_at).getTime()) / 60000);
+                  if (diff < 1) return "방금 전";
+                  if (diff < 60) return `${diff}분 전`;
+                  const h = Math.floor(diff / 60);
+                  if (h < 24) return `${h}시간 전`;
+                  return `${Math.floor(h / 24)}일 전`;
+                })()}
+              </div>
+            )}
           </div>
         </>
       )}
