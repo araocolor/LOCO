@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -50,9 +50,13 @@ const NAV_ITEMS = [
 export default function BottomNav({ isLoggedIn }: { isLoggedIn: boolean }) {
   const pathname = usePathname();
   const [pressedNav, setPressedNav] = useState<{ href: string; basePath: string } | null>(null);
+  const [hydrated, setHydrated] = useState(false);
   void isLoggedIn;
 
+  useEffect(() => { setHydrated(true); }, []);
+
   if (pathname.startsWith("/classes/") || pathname.startsWith("/users/")) return null;
+  if (!hydrated) return null;
 
   const activeHref =
     pressedNav && pressedNav.basePath === pathname
@@ -60,7 +64,7 @@ export default function BottomNav({ isLoggedIn }: { isLoggedIn: boolean }) {
       : pathname;
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-[#e5e7eb] h-[70px] flex items-center">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-red-500 border-t border-[#e5e7eb] h-[70px] flex items-center">
       {NAV_ITEMS.map(({ href, label, icon }) => {
         const isActive =
           href === "/" ? activeHref === "/" : activeHref.startsWith(href);
