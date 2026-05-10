@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import { MoreVertical, Plus, Check, UserMinus, MessageCircle, Ban, UserCircle } from "lucide-react";
 import SearchHeader from "@/components/layout/SearchHeader";
 import { PRESENCE_EVENT } from "@/components/features/PresenceTracker";
-import { saveLocationIfSessionExpired } from "@/lib/location-session";
 
 type Tab = "friends" | "follower";
 
@@ -69,32 +68,6 @@ function syncMyPageSocialCounts(followers: Follower[], following: Follower[]) {
   } catch {}
 }
 
-function saveCurrentLocationIfAlreadyAllowed() {
-  if (!("geolocation" in navigator) || !navigator.permissions?.query) return;
-
-  navigator.permissions
-    .query({ name: "geolocation" })
-    .then((permission) => {
-      if (permission.state !== "granted") return;
-
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const { latitude: lat, longitude: lng } = pos.coords;
-          saveLocationIfSessionExpired(lat, lng).catch((error) => {
-            console.warn("Failed to save location on search page.", error);
-          });
-        },
-        (error) => {
-          console.warn("Failed to read location on search page.", error);
-        },
-        { enableHighAccuracy: false, maximumAge: 60_000, timeout: 5_000 }
-      );
-    })
-    .catch((error) => {
-      console.warn("Failed to check geolocation permission on search page.", error);
-    });
-}
-
 
 function CheckModal() {
   return (
@@ -123,9 +96,6 @@ export default function SearchPage() {
     replaceSearchTab(tab);
   }, []);
 
-  useEffect(() => {
-    saveCurrentLocationIfAlreadyAllowed();
-  }, []);
 
   const loadFromCache = useCallback(() => {
     try {
