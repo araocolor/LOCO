@@ -1,5 +1,4 @@
 import BottomNav from "@/components/layout/BottomNav";
-import StaticBottomNav from "@/components/layout/StaticBottomNav";
 import MainContentShell from "@/components/layout/MainContentShell";
 import SearchSheet from "@/components/features/SearchSheet";
 import PresenceTracker from "@/components/features/PresenceTracker";
@@ -17,7 +16,6 @@ export default async function MainLayout({
       <MainContentShell>{children}</MainContentShell>
       <PresenceTracker />
       <SearchSheet />
-      <StaticBottomNav />
       <BottomNav isLoggedIn={!!user} />
     </div>
   );
