@@ -114,6 +114,10 @@ export default function SearchPage() {
   }, []);
 
   const followingIds = useMemo(() => new Set(following.map((f) => f.id)), [following]);
+  const acceptedFriendCount = useMemo(
+    () => following.filter((f) => f.status === "friend").length,
+    [following]
+  );
 
   const loadFromCache = useCallback(() => {
     try {
@@ -573,7 +577,9 @@ export default function SearchPage() {
           {/* 친구들 리스트 */}
           <div className="border-t border-gray-100 pt-3">
             <div className="flex items-center mb-3">
-              <p className="font-bold" style={{ fontSize: 15, color: "#333333" }}>친구목록 <span className="font-normal text-sm">{following.length}</span></p>
+              <p className="font-bold" style={{ fontSize: 15, color: "#333333" }}>
+                친구연결 <span className="font-bold" style={{ fontSize: 15 }}>{acceptedFriendCount}</span><span className="font-normal text-sm">/{following.length}</span>
+              </p>
               <div className="flex-1 flex justify-center">
                 <div className="relative" style={{ width: 200 }}>
                   <input
@@ -599,9 +605,10 @@ export default function SearchPage() {
               <p className="text-sm text-gray-400">아직 친구가 없어요</p>
             ) : (
               <div className="flex flex-col">
-                {following.filter((f) =>
-                  friendSearch === "" || f.nickname.toLowerCase().includes(friendSearch.toLowerCase())
-                ).map((f) => (
+                {following
+                  .filter((f) => friendSearch === "" || f.nickname.toLowerCase().includes(friendSearch.toLowerCase()))
+                  .sort((a, b) => Number(b.status === "friend") - Number(a.status === "friend"))
+                  .map((f) => (
                   <div key={f.id} className="flex items-center gap-3 py-3 border-b border-gray-50">
                     <button onClick={() => router.push(`/users/${f.id}/view`)}>
                       <div className="relative">
@@ -704,10 +711,10 @@ export default function SearchPage() {
         <div className="px-4 pt-4 bg-white">
           <div className="pt-3">
             <div className="flex items-center mb-3">
-              <p className="text-base font-bold text-gray-400">대기중</p>
+              <p className="text-base font-bold text-gray-400">블랙리스트</p>
             </div>
             {pendingMembers.length === 0 ? (
-              <p className="text-sm text-gray-400">대기중 회원이 없어요</p>
+              <p className="text-sm text-gray-400">블랙리스트 회원이 없어요</p>
             ) : (
               <div className="flex flex-col">
                 {pendingMembers.map((m) => (

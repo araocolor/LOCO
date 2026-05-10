@@ -45,7 +45,7 @@ export default function SearchHeader({ activeTab, onTabChange }: SearchHeaderPro
               : "border-transparent text-gray-400"
           }`}
         >
-          대기중
+          블랙리스트
         </button>
       </div>
     </header>
