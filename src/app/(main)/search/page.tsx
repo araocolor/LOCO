@@ -1,19 +1,20 @@
 "use client";
 
-import { useEffect, useState, useCallback, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useState, useCallback, useSyncExternalStore } from "react";
 import Avatar from "@/components/ui/Avatar";
 import { useRouter } from "next/navigation";
 import { MoreVertical, Plus, Check, UserMinus, MessageCircle, Ban, UserCircle } from "lucide-react";
 import SearchHeader from "@/components/layout/SearchHeader";
 import { PRESENCE_EVENT } from "@/components/features/PresenceTracker";
 
-type Tab = "friends" | "follower";
+type Tab = "friends" | "follower" | "pending";
 
 interface Follower {
   id: string;
   nickname: string;
   profile_image_url: string | null;
   region: string | null;
+  status?: "approved" | "friend";
 }
 
 interface Suggestion {
@@ -23,7 +24,17 @@ interface Suggestion {
   region: string | null;
 }
 
+interface PendingMember {
+  id: string;
+  nickname: string;
+  profile_image_url: string | null;
+  region: string | null;
+  state: "hidden" | "blocked" | "black";
+  updated_at: string;
+}
+
 const SEARCH_CACHE_KEY = "search_prefetch_cache";
+const PENDING_CACHE_KEY = "search_pending_members_cache_v2";
 const MYPAGE_CACHE_KEY = "loco_mypage_cache_local_v2";
 const SEARCH_TAB_CHANGE_EVENT = "loco-search-tab-change";
 
@@ -31,6 +42,7 @@ function getSearchTab(): Tab {
   if (typeof window === "undefined") return "friends";
   const tab = new URLSearchParams(window.location.search).get("tab");
   if (tab === "follower") return "follower";
+  if (tab === "pending") return "pending";
   return "friends";
 }
 
@@ -83,19 +95,25 @@ export default function SearchPage() {
   const router = useRouter();
   const [followers, setFollowers] = useState<Follower[]>([]);
   const [following, setFollowing] = useState<Follower[]>([]);
+  const [pendingMembers, setPendingMembers] = useState<PendingMember[]>([]);
+  const [pendingLoaded, setPendingLoaded] = useState(false);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [suggestionsLoading, setSuggestionsLoading] = useState(true);
   const [addedIds, setAddedIds] = useState<Set<string>>(new Set());
+  const [acceptingFollowerIds, setAcceptingFollowerIds] = useState<Set<string>>(new Set());
+  const [acceptedFollowerIds, setAcceptedFollowerIds] = useState<Set<string>>(new Set());
+  const [acceptedAnimatingIds, setAcceptedAnimatingIds] = useState<Set<string>>(new Set());
   const [showCheck, setShowCheck] = useState(false);
   const activeTab = useSyncExternalStore(subscribeSearchTab, getSearchTab, (): Tab => "friends");
   const [friendSearch, setFriendSearch] = useState("");
   const [onlineIds, setOnlineIds] = useState<Set<string>>(new Set());
-  const [menuTarget, setMenuTarget] = useState<{ id: string; nickname: string; x: number; y: number } | null>(null);
+  const [menuTarget, setMenuTarget] = useState<{ id: string; nickname: string; x: number; y: number; source: "friends" | "follower" } | null>(null);
 
   const handleTabChange = useCallback((tab: Tab) => {
     replaceSearchTab(tab);
   }, []);
 
+  const followingIds = useMemo(() => new Set(following.map((f) => f.id)), [following]);
 
   const loadFromCache = useCallback(() => {
     try {
@@ -125,6 +143,24 @@ export default function SearchPage() {
       .catch(() => {});
   }, []);
 
+  const writePendingCache = useCallback((members: PendingMember[]) => {
+    try {
+      sessionStorage.setItem(PENDING_CACHE_KEY, JSON.stringify({ members, ts: Date.now() }));
+    } catch {}
+  }, []);
+
+  const fetchPendingMembers = useCallback(() => {
+    fetch("/api/friends/pending")
+      .then((r) => r.json())
+      .then((json) => {
+        const members = json.data ?? [];
+        setPendingMembers(members);
+        writePendingCache(members);
+      })
+      .catch(() => {})
+      .finally(() => setPendingLoaded(true));
+  }, [writePendingCache]);
+
   useEffect(() => {
     queueMicrotask(() => loadFromCache());
     fetchFollowersAndFollowing();
@@ -148,6 +184,25 @@ export default function SearchPage() {
       .catch(() => {})
       .finally(() => setSuggestionsLoading(false));
   }, [loadFromCache, fetchFollowersAndFollowing]);
+
+  useEffect(() => {
+    if (activeTab !== "pending" || pendingLoaded) return;
+    try {
+      const cached = sessionStorage.getItem(PENDING_CACHE_KEY);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        const members = parsed?.members;
+        if (Array.isArray(members)) {
+          queueMicrotask(() => {
+            setPendingMembers(members);
+            setPendingLoaded(true);
+          });
+          return;
+        }
+      }
+    } catch {}
+    fetchPendingMembers();
+  }, [activeTab, pendingLoaded, fetchPendingMembers]);
 
   // PresenceTracker에서 브로드캐스트하는 이벤트 수신
   useEffect(() => {
@@ -241,6 +296,76 @@ export default function SearchPage() {
     });
   }
 
+  async function handleAcceptFollower(follower: Follower) {
+    if (followingIds.has(follower.id) || acceptingFollowerIds.has(follower.id)) return;
+
+    setAcceptingFollowerIds((prev) => new Set(prev).add(follower.id));
+    setAcceptedAnimatingIds((prev) => new Set(prev).add(follower.id));
+
+    const previousFollowing = following;
+    const acceptedFollower = { ...follower, status: "friend" as const };
+    const nextFollowing = following.some((item) => item.id === follower.id)
+      ? following
+      : [acceptedFollower, ...following];
+
+    setFollowing(nextFollowing);
+    try {
+      const cached = localStorage.getItem(SEARCH_CACHE_KEY);
+      const parsed = cached ? JSON.parse(cached) : {};
+      localStorage.setItem(SEARCH_CACHE_KEY, JSON.stringify({ ...parsed, following: nextFollowing, ts: Date.now() }));
+      syncMyPageSocialCounts(followers, nextFollowing);
+    } catch {}
+
+    let failed = false;
+    const animationTimer = window.setTimeout(() => {
+      if (failed) return;
+      setAcceptedFollowerIds((prev) => new Set(prev).add(follower.id));
+      setAcceptedAnimatingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(follower.id);
+        return next;
+      });
+    }, 1000);
+
+    try {
+      const res = await fetch("/api/friends", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ target_id: follower.id }),
+      });
+
+      if (!res.ok && res.status !== 409) throw new Error();
+      refreshSocialLists();
+    } catch {
+      failed = true;
+      window.clearTimeout(animationTimer);
+      setFollowing(previousFollowing);
+      setAcceptedFollowerIds((prev) => {
+        const next = new Set(prev);
+        next.delete(follower.id);
+        return next;
+      });
+      setAcceptedAnimatingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(follower.id);
+        return next;
+      });
+      try {
+        const cached = localStorage.getItem(SEARCH_CACHE_KEY);
+        const parsed = cached ? JSON.parse(cached) : {};
+        localStorage.setItem(SEARCH_CACHE_KEY, JSON.stringify({ ...parsed, following: previousFollowing, ts: Date.now() }));
+        syncMyPageSocialCounts(followers, previousFollowing);
+      } catch {}
+      alert("신청수락 처리 중 오류가 발생했습니다.");
+    } finally {
+      setAcceptingFollowerIds((prev) => {
+        const next = new Set(prev);
+        next.delete(follower.id);
+        return next;
+      });
+    }
+  }
+
   async function handleUnfriend(targetId: string) {
     setMenuTarget(null);
     await fetch("/api/friends", {
@@ -258,6 +383,148 @@ export default function SearchPage() {
       } catch {}
       return updated;
     });
+  }
+
+  function refreshSocialLists() {
+    fetchFollowersAndFollowing();
+  }
+
+  function invalidatePendingCache() {
+    setPendingLoaded(false);
+    try {
+      sessionStorage.removeItem(PENDING_CACHE_KEY);
+    } catch {}
+  }
+
+  async function handleReportUser(targetId: string) {
+    setMenuTarget(null);
+    try {
+      const res = await fetch("/api/black-reports", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ target_id: targetId }),
+      });
+
+      if (!res.ok) throw new Error();
+      setFollowers((prev) => {
+        const updated = prev.filter((f) => f.id !== targetId);
+        try {
+          const cached = localStorage.getItem(SEARCH_CACHE_KEY);
+          const parsed = cached ? JSON.parse(cached) : {};
+          localStorage.setItem(SEARCH_CACHE_KEY, JSON.stringify({ ...parsed, followers: updated, ts: Date.now() }));
+          syncMyPageSocialCounts(updated, following);
+        } catch {}
+        return updated;
+      });
+      refreshSocialLists();
+      invalidatePendingCache();
+      alert("신고과 완료되었습니다.");
+    } catch {
+      alert("신고 처리 중 오류가 발생했습니다.");
+    }
+  }
+
+  async function handleBlockUser(targetId: string) {
+    setMenuTarget(null);
+    try {
+      const res = await fetch("/api/friends/block", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ target_id: targetId }),
+      });
+
+      if (!res.ok) throw new Error();
+
+      refreshSocialLists();
+      invalidatePendingCache();
+      alert("차단이 완료되었습니다.");
+    } catch {
+      alert("차단 처리 중 오류가 발생했습니다.");
+    }
+  }
+
+  async function handleHideFriend(targetId: string) {
+    setMenuTarget(null);
+    try {
+      const res = await fetch("/api/friends/hide", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ target_id: targetId }),
+      });
+      if (!res.ok) throw new Error();
+      setFollowing((prev) => prev.filter((f) => f.id !== targetId));
+      refreshSocialLists();
+      invalidatePendingCache();
+      alert("친구가 숨김 처리되었습니다.");
+    } catch {
+      alert("숨김 처리 중 오류가 발생했습니다.");
+    }
+  }
+
+  async function handleUnhideFriend(targetId: string) {
+    const prevPending = pendingMembers;
+    const nextPending = pendingMembers.filter((m) => !(m.id === targetId && m.state === "hidden"));
+    setPendingMembers(nextPending);
+    writePendingCache(nextPending);
+
+    try {
+      const res = await fetch("/api/friends/hide", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ target_id: targetId }),
+      });
+      if (!res.ok) throw new Error();
+      refreshSocialLists();
+      alert("숨김이 해제되었습니다.");
+    } catch {
+      setPendingMembers(prevPending);
+      writePendingCache(prevPending);
+      alert("숨김해제 처리 중 오류가 발생했습니다.");
+    }
+  }
+
+  async function handleUnreportUser(targetId: string) {
+    const prevPending = pendingMembers;
+    const nextPending = pendingMembers.filter((m) => !(m.id === targetId && m.state === "black"));
+    setPendingMembers(nextPending);
+    writePendingCache(nextPending);
+
+    try {
+      const res = await fetch("/api/black-reports", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ target_id: targetId }),
+      });
+      if (!res.ok) throw new Error();
+      refreshSocialLists();
+      alert("블랙신고가 해제되었습니다.");
+    } catch {
+      setPendingMembers(prevPending);
+      writePendingCache(prevPending);
+      alert("블랙해제 처리 중 오류가 발생했습니다.");
+    }
+  }
+
+  async function handleUnblockUser(targetId: string) {
+    const prevPending = pendingMembers;
+    const nextPending = pendingMembers.filter((m) => !(m.id === targetId && m.state === "blocked"));
+    setPendingMembers(nextPending);
+    writePendingCache(nextPending);
+
+    try {
+      const res = await fetch("/api/friends/block", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ target_id: targetId }),
+      });
+      if (!res.ok) throw new Error();
+      refreshSocialLists();
+      alert("차단이 해제되었습니다.");
+    } catch {
+      setPendingMembers(prevPending);
+      writePendingCache(prevPending);
+      alert("차단해제 처리 중 오류가 발생했습니다.");
+    }
   }
 
   return (
@@ -338,7 +605,12 @@ export default function SearchPage() {
                   <div key={f.id} className="flex items-center gap-3 py-3 border-b border-gray-50">
                     <button onClick={() => router.push(`/users/${f.id}/view`)}>
                       <div className="relative">
-                        <Avatar src={f.profile_image_url} nickname={f.nickname} size={44} />
+                        <Avatar
+                          src={f.profile_image_url}
+                          nickname={f.nickname}
+                          size={44}
+                          className={f.status === "friend" ? "border-2 border-white shadow-[0_0_0_2px_#ef4444]" : ""}
+                        />
                         {onlineIds.has(f.id) && (
                           <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-400 rounded-full border-2 border-white" />
                         )}
@@ -356,7 +628,7 @@ export default function SearchPage() {
                       onClick={(e) => {
                         e.stopPropagation();
                         const r = e.currentTarget.getBoundingClientRect();
-                        setMenuTarget({ id: f.id, nickname: f.nickname, x: r.right, y: r.bottom });
+                        setMenuTarget({ id: f.id, nickname: f.nickname, x: r.right, y: r.bottom, source: "friends" });
                         fetch(`/api/users/${f.id}/view-summary`)
                           .then((res) => res.json())
                           .then((json) => { sessionStorage.setItem(`user_view_${f.id}`, JSON.stringify(json)); })
@@ -383,7 +655,13 @@ export default function SearchPage() {
               <p className="text-sm text-gray-400">아직 팔로워가 없어요</p>
             ) : (
               <div className="flex flex-col">
-                {followers.map((f) => (
+                {followers.map((f) => {
+                  const isAccepted = acceptedFollowerIds.has(f.id);
+                  const isAccepting = acceptingFollowerIds.has(f.id);
+                  const isFriend = isAccepted || (followingIds.has(f.id) && !isAccepting);
+                  const isAnimating = acceptedAnimatingIds.has(f.id);
+
+                  return (
                   <div key={f.id} className="flex items-center gap-3 py-3 border-b border-gray-50">
                     <button onClick={() => router.push(`/users/${f.id}/view`)}>
                       <Avatar src={f.profile_image_url} nickname={f.nickname} size={44} />
@@ -396,11 +674,81 @@ export default function SearchPage() {
                       <p className="text-xs text-gray-400 truncate">{f.region ?? "지역 미설정"}</p>
                     </button>
                     <button
+                      type="button"
+                      disabled={isFriend || isAccepting}
+                      className={`px-3 py-1.5 rounded-full text-xs font-semibold flex-shrink-0 ${
+                        isFriend
+                          ? "bg-gray-100 text-gray-500"
+                          : "bg-[#FEE500] text-gray-900"
+                      } ${isAnimating ? "animate-friend-accepted" : ""}`}
+                      onClick={() => handleAcceptFollower(f)}
+                    >
+                      {isFriend ? "친구완료" : "신청수락"}
+                    </button>
+                    <button
                       className="p-1 text-gray-400 hover:text-gray-700 flex-shrink-0"
-                      onClick={(e) => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); setMenuTarget({ id: f.id, nickname: f.nickname, x: r.right, y: r.bottom }); }}
+                      onClick={(e) => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); setMenuTarget({ id: f.id, nickname: f.nickname, x: r.right, y: r.bottom, source: "follower" }); }}
                     >
                       <MoreVertical size={18} />
                     </button>
+                  </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {activeTab === "pending" && (
+        <div className="px-4 pt-4 bg-white">
+          <div className="pt-3">
+            <div className="flex items-center mb-3">
+              <p className="text-base font-bold text-gray-400">대기중</p>
+            </div>
+            {pendingMembers.length === 0 ? (
+              <p className="text-sm text-gray-400">대기중 회원이 없어요</p>
+            ) : (
+              <div className="flex flex-col">
+                {pendingMembers.map((m) => (
+                  <div key={m.id} className="flex items-center gap-3 py-3 border-b border-gray-50">
+                    <button onClick={() => router.push(`/users/${m.id}/view`)}>
+                      <Avatar src={m.profile_image_url} nickname={m.nickname} size={44} />
+                    </button>
+                    <button
+                      className="flex-1 text-left min-w-0"
+                      onClick={() => router.push(`/users/${m.id}/view`)}
+                    >
+                      <p className="font-semibold text-gray-900 truncate" style={{ fontSize: 16 }}>{m.nickname}</p>
+                      <p className="text-xs text-gray-400 truncate">{m.region ?? "지역 미설정"}</p>
+                      <p className="text-[11px] text-gray-400 mt-0.5">{new Date(m.updated_at).toLocaleDateString("ko-KR")}</p>
+                    </button>
+                    <div className="flex items-center gap-1">
+                      {m.state === "hidden" && (
+                        <button
+                          className="px-2 py-1 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-600"
+                          onClick={() => handleUnhideFriend(m.id)}
+                        >
+                          숨김해제
+                        </button>
+                      )}
+                      {m.state === "blocked" && (
+                        <button
+                          className="px-2 py-1 rounded-full text-[11px] font-semibold bg-red-50 text-red-500"
+                          onClick={() => handleUnblockUser(m.id)}
+                        >
+                          차단해제
+                        </button>
+                      )}
+                      {m.state === "black" && (
+                        <button
+                          className="px-2 py-1 rounded-full text-[11px] font-semibold bg-gray-100 text-gray-700"
+                          onClick={() => handleUnreportUser(m.id)}
+                        >
+                          블랙해제
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -424,15 +772,28 @@ export default function SearchPage() {
               <UserCircle size={20} className="text-gray-500" />
             </button>
             <div className="border-t border-gray-100 mx-3" />
-            <button
-              className="flex items-center justify-between w-full px-4 py-3 text-gray-700"
-              style={{ fontSize: "16px" }}
-              onClick={() => handleUnfriend(menuTarget.id)}
-            >
-              <span>친구 취소</span>
-              <UserMinus size={20} className="text-gray-500" />
-            </button>
-            <div className="border-t border-gray-100 mx-3" />
+            {menuTarget.source === "friends" && (
+              <>
+                <button
+                  className="flex items-center justify-between w-full px-4 py-3 text-gray-700"
+                  style={{ fontSize: "16px" }}
+                  onClick={() => handleUnfriend(menuTarget.id)}
+                >
+                  <span>친구 취소</span>
+                  <UserMinus size={20} className="text-gray-500" />
+                </button>
+                <div className="border-t border-gray-100 mx-3" />
+                <button
+                  className="flex items-center justify-between w-full px-4 py-3 text-gray-700"
+                  style={{ fontSize: "16px" }}
+                  onClick={() => handleHideFriend(menuTarget.id)}
+                >
+                  <span>친구 숨김</span>
+                  <UserMinus size={20} className="text-gray-500" />
+                </button>
+                <div className="border-t border-gray-100 mx-3" />
+              </>
+            )}
             <button
               className="flex items-center justify-between w-full px-4 py-3 text-gray-700"
               style={{ fontSize: "16px" }}
@@ -445,10 +806,19 @@ export default function SearchPage() {
             <button
               className="flex items-center justify-between w-full px-4 py-3 text-red-500"
               style={{ fontSize: "16px" }}
-              onClick={() => setMenuTarget(null)}
+              onClick={() => handleBlockUser(menuTarget.id)}
             >
               <span>차단하기</span>
               <Ban size={20} className="text-red-400" />
+            </button>
+            <div className="border-t border-gray-100 mx-3" />
+            <button
+              className="flex items-center justify-between w-full px-4 py-3 text-gray-700"
+              style={{ fontSize: "16px" }}
+              onClick={() => handleReportUser(menuTarget.id)}
+            >
+              <span>블랙신고</span>
+              <Ban size={20} className="text-gray-500" />
             </button>
           </div>
         </>

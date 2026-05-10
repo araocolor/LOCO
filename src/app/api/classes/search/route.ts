@@ -10,9 +10,13 @@ export async function GET(request: NextRequest) {
   const genres = searchParams.getAll("genre");
   const keyword = searchParams.get("keyword");
   const sort = searchParams.get("sort") ?? "latest";
-  const page = parseInt(searchParams.get("page") ?? "0");
+  const requestedPage = Number.parseInt(searchParams.get("page") ?? "0", 10);
+  const requestedLimit = Number.parseInt(searchParams.get("limit") ?? "10", 10);
 
-  const limit = 20;
+  const page = Number.isFinite(requestedPage) && requestedPage > 0 ? requestedPage : 0;
+  const limit = Number.isFinite(requestedLimit)
+    ? Math.min(Math.max(requestedLimit, 1), 50)
+    : 10;
   const from = page * limit;
   const to = from + limit - 1;
 
@@ -44,6 +48,14 @@ export async function GET(request: NextRequest) {
   }
 
   const { data, error, count } = await query.range(from, to);
+
+  if (error?.code === "PGRST103" || error?.message === "Requested range not satisfiable") {
+    return NextResponse.json({
+      data: [],
+      count: count ?? 0,
+      hasMore: false,
+    });
+  }
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

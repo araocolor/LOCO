@@ -10,15 +10,22 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // 이미 친구인 사람 id 목록
-    const { data: friends } = await supabase
-      .from("friendships")
-      .select("friend_id")
-      .eq("user_id", user.id)
-      .eq("status", "approved");
+    // 이미 관계가 있거나(신청/친구) 상태처리(숨김/차단/블랙)한 사람은 제외
+    const [{ data: relations }, { data: states }] = await Promise.all([
+      supabase
+        .from("friendships")
+        .select("friend_id")
+        .eq("user_id", user.id)
+        .in("status", ["pending", "approved", "friend"]),
+      supabase
+        .from("friend_member_states")
+        .select("target_id")
+        .eq("owner_id", user.id),
+    ]);
 
-    const friendIds = (friends ?? []).map((f) => f.friend_id);
-    const excludeIds = [...friendIds, user.id];
+    const relationIds = (relations ?? []).map((f) => f.friend_id);
+    const stateIds = (states ?? []).map((s) => s.target_id);
+    const excludeIds = [...new Set([...relationIds, ...stateIds, user.id])];
 
     const { data, error } = await supabase
       .from("profiles")

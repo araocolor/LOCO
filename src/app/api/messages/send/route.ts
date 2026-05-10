@@ -16,6 +16,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
+    const { data: memberState, error: memberStateError } = await supabase
+      .from("friend_member_states")
+      .select("state")
+      .eq("owner_id", receiver_id)
+      .eq("target_id", user.id)
+      .in("state", ["blocked", "black"])
+      .maybeSingle();
+    if (memberStateError) {
+      return NextResponse.json({ error: memberStateError.message }, { status: 500 });
+    }
+    if (memberState) {
+      return NextResponse.json({ error: "Not allowed" }, { status: 403 });
+    }
+
     // 수신자 설정 확인
     const { data: receiverSettings } = await supabase
       .from("user_settings")
@@ -25,13 +39,16 @@ export async function POST(request: NextRequest) {
 
     // message_from이 'friends_only'인 경우 친구 관계 확인
     if (receiverSettings?.message_from === "friends_only") {
-      const { data: friendship } = await supabase
+      const { data: friendshipRows, error: friendshipError } = await supabase
         .from("friendships")
         .select("status")
         .or(`and(user_id.eq.${user.id},friend_id.eq.${receiver_id}),and(user_id.eq.${receiver_id},friend_id.eq.${user.id})`)
-        .single();
+        .in("status", ["approved", "friend"]);
+      if (friendshipError) {
+        return NextResponse.json({ error: friendshipError.message }, { status: 500 });
+      }
 
-      if (!friendship || friendship.status !== "approved") {
+      if (!friendshipRows || friendshipRows.length === 0) {
         return NextResponse.json({ error: "Not friends" }, { status: 403 });
       }
     }
@@ -52,7 +69,7 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({ success: true, message });
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

@@ -1,6 +1,6 @@
 "use client";
 
-type Tab = "friends" | "follower";
+type Tab = "friends" | "follower" | "pending";
 
 interface SearchHeaderProps {
   activeTab: Tab;
@@ -35,6 +35,17 @@ export default function SearchHeader({ activeTab, onTabChange }: SearchHeaderPro
           }`}
         >
           팔로워
+        </button>
+        <button
+          onClick={() => onTabChange("pending")}
+          style={{ fontSize: 17 }}
+          className={`pb-2 font-bold border-b-2 transition-colors ${
+            activeTab === "pending"
+              ? "border-black text-black"
+              : "border-transparent text-gray-400"
+          }`}
+        >
+          대기중
         </button>
       </div>
     </header>

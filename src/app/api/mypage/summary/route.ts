@@ -86,12 +86,12 @@ export async function GET() {
       .from("friendships")
       .select("id", { count: "exact", head: true })
       .eq("user_id", user.id)
-      .eq("status", "approved"),
+      .in("status", ["approved", "friend"]),
     supabase
       .from("friendships")
       .select("id", { count: "exact", head: true })
       .eq("friend_id", user.id)
-      .eq("status", "approved"),
+      .in("status", ["approved", "friend"]),
   ]);
 
   if (!profileResult.data) {

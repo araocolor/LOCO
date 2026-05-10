@@ -285,7 +285,7 @@ CREATE TABLE friendships (
   user_id    UUID        NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   friend_id  UUID        NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   status     TEXT        NOT NULL DEFAULT 'pending'
-             CHECK (status IN ('pending', 'approved', 'blocked')),
+             CHECK (status IN ('pending', 'approved', 'friend')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE (user_id, friend_id),
@@ -317,7 +317,121 @@ CREATE INDEX idx_friendships_status ON friendships (status);
 
 
 -- ============================================================
--- 7. messages (1:1 메시지)
+-- 7. friend_request_cooldowns (신청취소 재신청 제한)
+-- ============================================================
+CREATE TABLE friend_request_cooldowns (
+  id           UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  requester_id UUID        NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  target_id    UUID        NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  cancelled_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (requester_id, target_id),
+  CHECK (requester_id != target_id)
+);
+
+ALTER TABLE friend_request_cooldowns ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "friend_request_cooldowns: 본인만 조회"
+  ON friend_request_cooldowns FOR SELECT USING (auth.uid() = requester_id);
+
+CREATE POLICY "friend_request_cooldowns: 본인만 생성"
+  ON friend_request_cooldowns FOR INSERT WITH CHECK (auth.uid() = requester_id);
+
+CREATE POLICY "friend_request_cooldowns: 본인만 수정"
+  ON friend_request_cooldowns FOR UPDATE USING (auth.uid() = requester_id);
+
+CREATE POLICY "friend_request_cooldowns: 본인만 삭제"
+  ON friend_request_cooldowns FOR DELETE USING (auth.uid() = requester_id);
+
+CREATE TRIGGER friend_request_cooldowns_updated_at
+  BEFORE UPDATE ON friend_request_cooldowns
+  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+CREATE INDEX idx_friend_request_cooldowns_requester_id ON friend_request_cooldowns (requester_id);
+CREATE INDEX idx_friend_request_cooldowns_target_id ON friend_request_cooldowns (target_id);
+
+
+-- ============================================================
+-- 8. friend_member_states (숨김/차단/블랙 단일 상태)
+-- ============================================================
+CREATE TABLE friend_member_states (
+  id              UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  owner_id        UUID        NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  target_id       UUID        NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  state           TEXT        NOT NULL CHECK (state IN ('hidden', 'blocked', 'black')),
+  previous_status TEXT        NOT NULL CHECK (previous_status IN ('none', 'pending', 'approved', 'friend')),
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (owner_id, target_id),
+  CHECK (owner_id != target_id)
+);
+
+ALTER TABLE friend_member_states ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "friend_member_states: 본인 관련만 조회"
+  ON friend_member_states FOR SELECT USING (
+    auth.uid() = owner_id OR auth.uid() = target_id
+  );
+
+CREATE POLICY "friend_member_states: 본인만 생성"
+  ON friend_member_states FOR INSERT WITH CHECK (auth.uid() = owner_id);
+
+CREATE POLICY "friend_member_states: 본인만 수정"
+  ON friend_member_states FOR UPDATE USING (auth.uid() = owner_id);
+
+CREATE POLICY "friend_member_states: 본인만 삭제"
+  ON friend_member_states FOR DELETE USING (auth.uid() = owner_id);
+
+CREATE TRIGGER friend_member_states_updated_at
+  BEFORE UPDATE ON friend_member_states
+  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+CREATE INDEX idx_friend_member_states_owner_id ON friend_member_states (owner_id);
+CREATE INDEX idx_friend_member_states_target_id ON friend_member_states (target_id);
+CREATE INDEX idx_friend_member_states_state ON friend_member_states (state);
+
+
+-- ============================================================
+-- 9. black_reports (사용자 신고 누적)
+-- ============================================================
+CREATE TABLE black_reports (
+  id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  reporter_id UUID        NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  target_id   UUID        NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (reporter_id, target_id),
+  CHECK (reporter_id != target_id)
+);
+
+ALTER TABLE black_reports ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "black_reports: 본인 신고만 조회"
+  ON black_reports FOR SELECT USING (
+    auth.uid() = reporter_id OR auth.uid() = target_id
+  );
+
+CREATE POLICY "black_reports: 본인만 신고"
+  ON black_reports FOR INSERT WITH CHECK (auth.uid() = reporter_id);
+
+CREATE POLICY "black_reports: 본인 신고만 수정"
+  ON black_reports FOR UPDATE USING (auth.uid() = reporter_id);
+
+CREATE POLICY "black_reports: 본인 신고만 삭제"
+  ON black_reports FOR DELETE USING (auth.uid() = reporter_id);
+
+CREATE TRIGGER black_reports_updated_at
+  BEFORE UPDATE ON black_reports
+  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+CREATE INDEX idx_black_reports_reporter_id ON black_reports (reporter_id);
+CREATE INDEX idx_black_reports_target_id ON black_reports (target_id);
+CREATE INDEX idx_black_reports_created_at ON black_reports (created_at);
+
+
+-- ============================================================
+-- 10. messages (1:1 메시지)
 -- ============================================================
 CREATE TABLE messages (
   id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),

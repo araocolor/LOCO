@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { ClassWithHost } from "@/components/class/ClassCard";
 
 export const revalidate = 3600;
+const HOME_PAGE_SIZE = 10;
 
 async function fetchInitialClasses(): Promise<ClassWithHost[]> {
   try {
@@ -13,7 +14,7 @@ async function fetchInitialClasses(): Promise<ClassWithHost[]> {
       .from("classes")
       .select("*, host:profiles!host_id(id, nickname, profile_image_url)")
       .order("created_at", { ascending: false })
-      .range(0, 19);
+      .range(0, HOME_PAGE_SIZE - 1);
     return (data ?? []) as ClassWithHost[];
   } catch {
     return [];

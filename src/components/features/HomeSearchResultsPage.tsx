@@ -5,10 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import ClassCard, { ClassWithHost } from "@/components/class/ClassCard";
 import { createClient } from "@/lib/supabase/client";
 import {
-  DEFAULT_SEARCH_OPTIONS,
   SEARCH_DEFAULTS_STORAGE_KEY,
-  buildSearchQuery,
-  type SearchOptions,
 } from "@/lib/search-defaults";
 import { parseBookmarkEntries } from "@/lib/bookmarks/local";
 
@@ -20,26 +17,8 @@ interface CachedHomeResult {
   count: number;
 }
 
-function normalizeSearchOptions(
-  value: SearchOptions | (Omit<SearchOptions, "genre"> & { genre: string })
-): SearchOptions {
-  return {
-    ...value,
-    genre: Array.isArray(value.genre)
-      ? value.genre
-      : value.genre && value.genre !== "전체"
-      ? [value.genre]
-      : [],
-  };
-}
-
-function isDefaultOptions(opts: SearchOptions) {
-  return (
-    opts.region === DEFAULT_SEARCH_OPTIONS.region &&
-    opts.status === DEFAULT_SEARCH_OPTIONS.status &&
-    opts.venue === DEFAULT_SEARCH_OPTIONS.venue &&
-    opts.genre.length === 0
-  );
+function getLastLoadedPage(itemCount: number) {
+  return Math.max(0, Math.ceil(itemCount / PAGE_SIZE) - 1);
 }
 
 interface Props {
@@ -55,8 +34,8 @@ export default function HomeSearchResultsPage({ initialClasses = [] }: Props) {
 
   const [loading, setLoading] = useState(initialClasses.length === 0);
   const [classes, setClasses] = useState<ClassWithHost[]>(initialClasses);
-  const [page, setPage] = useState(0);
-  const [hasMore, setHasMore] = useState(true);
+  const [page, setPage] = useState(getLastLoadedPage(initialClasses.length));
+  const [hasMore, setHasMore] = useState(initialClasses.length >= PAGE_SIZE);
   const [loadingMore, setLoadingMore] = useState(false);
   const [bookmarkVersion, setBookmarkVersion] = useState(0);
 
@@ -72,6 +51,7 @@ export default function HomeSearchResultsPage({ initialClasses = [] }: Props) {
 
   const filteredClasses = useMemo(() => {
     if (isBookmarkMode) {
+      void bookmarkVersion;
       try {
         const raw = localStorage.getItem("loco_bookmark_ids_v1");
         const bookmarkIds = new Set<string>(raw ? JSON.parse(raw).map((e: { id: string }) => e.id) : []);
@@ -88,7 +68,7 @@ export default function HomeSearchResultsPage({ initialClasses = [] }: Props) {
     return filtered;
   }, [classes, region, genres, isBookmarkMode, bookmarkVersion]);
 
-  function warmImages(items: ClassWithHost[]) {
+  const warmImages = useCallback((items: ClassWithHost[]) => {
     items.forEach((item) => {
       const url = item.images?.[0]?.card_url;
       if (!url || warmedImageUrlsRef.current.has(url)) return;
@@ -97,7 +77,23 @@ export default function HomeSearchResultsPage({ initialClasses = [] }: Props) {
       img.decoding = "async";
       img.src = url;
     });
-  }
+  }, []);
+
+  const writeHomeCache = useCallback((items: ClassWithHost[], count: number) => {
+    try {
+      localStorage.setItem(
+        HOME_RESULTS_LOCAL_KEY,
+        JSON.stringify({ data: items, count } satisfies CachedHomeResult)
+      );
+    } catch {}
+  }, []);
+
+  const warmPageImages = useCallback((pageNumber: number) => {
+    fetch(`/api/classes/search?page=${pageNumber}&limit=${PAGE_SIZE}`)
+      .then((r) => r.json())
+      .then((j) => { if (j.data) warmImages(j.data); })
+      .catch(() => {});
+  }, [warmImages]);
 
   async function handleGoHome() {
     try {
@@ -122,15 +118,25 @@ export default function HomeSearchResultsPage({ initialClasses = [] }: Props) {
       const json = await res.json();
       if (json.error) return;
       const incoming = (json.data ?? []) as ClassWithHost[];
-      setClasses((prev) => [...prev, ...incoming]);
+      if (incoming.length === 0) {
+        setHasMore(false);
+        return;
+      }
+      setClasses((prev) => {
+        const seen = new Set(prev.map((item) => item.id));
+        const merged = [...prev, ...incoming.filter((item) => !seen.has(item.id))];
+        writeHomeCache(merged, json.count ?? merged.length);
+        return merged;
+      });
       setPage(nextPage);
       setHasMore(json.hasMore ?? false);
       warmImages(incoming);
+      if (json.hasMore) warmPageImages(nextPage + 1);
     } catch {}
     finally {
       setLoadingMore(false);
     }
-  }, [loadingMore, hasMore, page]);
+  }, [loadingMore, hasMore, page, warmImages, warmPageImages, writeHomeCache]);
 
   // 스크롤 끝 감지
   useEffect(() => {
@@ -163,7 +169,12 @@ export default function HomeSearchResultsPage({ initialClasses = [] }: Props) {
         try {
           const cached = JSON.parse(localRaw) as CachedHomeResult;
           const cachedList = cached.data ?? [];
-          if (!cancelled) { setClasses(cachedList); setLoading(false); }
+          if (!cancelled) {
+            setClasses(cachedList);
+            setPage(getLastLoadedPage(cachedList.length));
+            setHasMore((cached.count ?? cachedList.length) > cachedList.length);
+            setLoading(false);
+          }
           warmImages(cachedList);
           void fetchAndUpdate(cancelled);
           void fetchBookmarkIds();
@@ -182,16 +193,25 @@ export default function HomeSearchResultsPage({ initialClasses = [] }: Props) {
         const json = await res.json();
         if (json.error) { if (!cancelled) setLoading(false); return; }
         const incoming = (json.data ?? []) as ClassWithHost[];
-        if (!cancelled) { setClasses(incoming); setLoading(false); setPage(0); setHasMore(json.hasMore ?? false); }
-        localStorage.setItem(HOME_RESULTS_LOCAL_KEY, JSON.stringify({ data: incoming, count: json.count ?? 0 } satisfies CachedHomeResult));
+        if (!cancelled) {
+          setClasses((prev) => {
+            const seen = new Set(incoming.map((item) => item.id));
+            const merged = [...incoming, ...prev.filter((item) => !seen.has(item.id))];
+            const count = json.count ?? merged.length;
+            writeHomeCache(merged, count);
+            setPage(getLastLoadedPage(merged.length));
+            setHasMore(count > merged.length);
+            return merged;
+          });
+          setLoading(false);
+        } else {
+          writeHomeCache(incoming, json.count ?? incoming.length);
+        }
         warmImages(incoming);
 
         // 다음 페이지 이미지 미리 다운로드
         if (json.hasMore) {
-          fetch(`/api/classes/search?page=0&limit=${PAGE_SIZE}`)
-            .then((r) => r.json())
-            .then((j) => { if (j.data) warmImages(j.data); })
-            .catch(() => {});
+          warmPageImages(1);
         }
       } catch {
         if (!cancelled) setLoading(false);
@@ -220,7 +240,7 @@ export default function HomeSearchResultsPage({ initialClasses = [] }: Props) {
 
     void load();
     return () => { cancelled = true; };
-  }, []);
+  }, [initialClasses, warmImages, warmPageImages, writeHomeCache]);
 
   return (
     <div className="max-w-xl mx-auto bg-white relative">

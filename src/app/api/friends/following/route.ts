@@ -10,23 +10,40 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { data, error } = await supabase
-      .from("friendships")
-      .select("friend_id, profiles!friendships_friend_id_fkey(id, nickname, profile_image_url, region)")
-      .eq("user_id", user.id)
-      .eq("status", "approved");
+    const [
+      { data, error },
+      { data: stateRows, error: stateError },
+    ] = await Promise.all([
+      supabase
+        .from("friendships")
+        .select("friend_id, status, profiles!friendships_friend_id_fkey(id, nickname, profile_image_url, region)")
+        .eq("user_id", user.id)
+        .in("status", ["approved", "friend"]),
+      supabase
+        .from("friend_member_states")
+        .select("target_id")
+        .eq("owner_id", user.id),
+    ]);
 
     if (error) throw error;
+    if (stateError) throw stateError;
 
-    const following = (data ?? []).map((row) => {
-      const p = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles;
-      return {
-        id: p?.id ?? row.friend_id,
-        nickname: p?.nickname ?? "",
-        profile_image_url: p?.profile_image_url ?? null,
-        region: p?.region ?? null,
-      };
-    });
+    const excludedIds = new Set<string>([
+      ...(stateRows ?? []).map((row) => row.target_id),
+    ]);
+
+    const following = (data ?? [])
+      .map((row) => {
+        const p = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles;
+        return {
+          id: p?.id ?? row.friend_id,
+          nickname: p?.nickname ?? "",
+          profile_image_url: p?.profile_image_url ?? null,
+          region: p?.region ?? null,
+          status: row.status,
+        };
+      })
+      .filter((item) => !excludedIds.has(item.id));
 
     return NextResponse.json({ data: following });
   } catch (e) {

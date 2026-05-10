@@ -49,14 +49,14 @@ export default function UserViewClient({ profile, myClasses, bookmarkClasses }: 
           .from("friendships")
           .select("user_id, profiles!friendships_user_id_fkey(id, nickname, profile_image_url)")
           .eq("friend_id", profile.id)
-          .eq("status", "approved")
-          .order("last_registered_at", { ascending: false })
+          .in("status", ["approved", "friend"])
+          .order("updated_at", { ascending: false })
           .limit(5),
         supabase
           .from("friendships")
           .select("id", { count: "exact", head: true })
           .eq("friend_id", profile.id)
-          .eq("status", "approved"),
+          .in("status", ["approved", "friend"]),
       ]);
       if (data) {
         const rows = data as unknown as Array<{

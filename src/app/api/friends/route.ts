@@ -20,63 +20,97 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "자기 자신은 등록할 수 없습니다" }, { status: 400 });
     }
 
-    // 기존 친구등록 기록 확인
-    const { data: existing } = await supabase
-      .from("friendships")
-      .select("id, status, register_count, last_registered_at")
-      .eq("user_id", user.id)
-      .eq("friend_id", target_id)
-      .maybeSingle();
-
     const now = new Date();
 
-    if (existing) {
-      // 이미 등록된 상태
-      if (existing.status === "approved") {
-        return NextResponse.json({ error: "이미 친구등록된 상태입니다" }, { status: 409 });
+    const [{ data: myRow, error: myRowError }, { data: reverseRow, error: reverseRowError }, { data: cooldown, error: cooldownError }] =
+      await Promise.all([
+        supabase
+          .from("friendships")
+          .select("id, status")
+          .eq("user_id", user.id)
+          .eq("friend_id", target_id)
+          .maybeSingle(),
+        supabase
+          .from("friendships")
+          .select("id, status")
+          .eq("user_id", target_id)
+          .eq("friend_id", user.id)
+          .maybeSingle(),
+        supabase
+          .from("friend_request_cooldowns")
+          .select("cancelled_at")
+          .eq("requester_id", user.id)
+          .eq("target_id", target_id)
+          .maybeSingle(),
+      ]);
+    if (myRowError) throw myRowError;
+    if (reverseRowError) throw reverseRowError;
+    if (cooldownError) throw cooldownError;
+
+    const shouldAutoFriend = !!reverseRow && ["pending", "approved", "friend"].includes(reverseRow.status);
+
+    if (!shouldAutoFriend && cooldown?.cancelled_at) {
+      const diff = now.getTime() - new Date(cooldown.cancelled_at).getTime();
+      if (diff < 24 * 60 * 60 * 1000) {
+        return NextResponse.json({ error: "신청취소 후 1일 뒤 다시 신청할 수 있습니다." }, { status: 429 });
+      }
+    }
+
+    if (shouldAutoFriend) {
+      if (!reverseRow) {
+        return NextResponse.json({ error: "상대 신청 정보를 찾을 수 없습니다." }, { status: 400 });
       }
 
-      const lastRegistered = existing.last_registered_at ? new Date(existing.last_registered_at) : null;
-      const hoursSinceLast = lastRegistered
-        ? (now.getTime() - lastRegistered.getTime()) / (1000 * 60 * 60)
-        : 999;
-
-      // 1일 이내 재등록 차단
-      if (hoursSinceLast < 24) {
-        return NextResponse.json({ error: "1일 후 다시 등록할 수 있습니다" }, { status: 429 });
-      }
-
-      // 3회째 등록 차단 (1일 지난 경우 횟수 초기화)
-      const count = existing.register_count ?? 0;
-      if (count >= 2) {
-        return NextResponse.json({ error: "등록 횟수를 초과했습니다. 1일 후 다시 시도해주세요" }, { status: 429 });
-      }
-
-      // 재등록 (취소 후 재등록)
-      const { error } = await supabase
-        .from("friendships")
-        .update({
-          status: "approved",
-          register_count: count + 1,
-          last_registered_at: now.toISOString(),
-        })
-        .eq("id", existing.id);
-
-      if (error) throw error;
-    } else {
-      // 최초 등록
-      const { error } = await supabase
-        .from("friendships")
-        .insert({
+      if (myRow) {
+        const { error } = await supabase
+          .from("friendships")
+          .update({ status: "friend" })
+          .eq("id", myRow.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("friendships").insert({
           user_id: user.id,
           friend_id: target_id,
-          status: "approved",
-          register_count: 0,
-          last_registered_at: now.toISOString(),
+          status: "friend",
         });
+        if (error) throw error;
+      }
 
-      if (error) throw error;
+      const { error: reverseUpdateError } = await supabase
+        .from("friendships")
+        .update({ status: "friend" })
+        .eq("id", reverseRow.id);
+      if (reverseUpdateError) throw reverseUpdateError;
+    } else {
+      if (myRow?.status === "pending") {
+        return NextResponse.json({ error: "이미 신청 대기중입니다." }, { status: 409 });
+      }
+      if (myRow?.status === "friend" || myRow?.status === "approved") {
+        return NextResponse.json({ error: "이미 친구 상태입니다." }, { status: 409 });
+      }
+
+      if (myRow) {
+        const { error } = await supabase
+          .from("friendships")
+          .update({ status: "pending" })
+          .eq("id", myRow.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("friendships").insert({
+          user_id: user.id,
+          friend_id: target_id,
+          status: "pending",
+        });
+        if (error) throw error;
+      }
     }
+
+    const { error: cooldownDeleteError } = await supabase
+      .from("friend_request_cooldowns")
+      .delete()
+      .eq("requester_id", user.id)
+      .eq("target_id", target_id);
+    if (cooldownDeleteError) throw cooldownDeleteError;
 
     // 대상자에게 알림 전송 (하루에 1번만)
     const todayStart = new Date(now);
@@ -95,7 +129,7 @@ export async function POST(request: NextRequest) {
       await supabase.from("notifications").insert({
         user_id: target_id,
         type: "friend",
-        message: "누군가 회원님을 친구로 등록했습니다.",
+        message: shouldAutoFriend ? "누군가 회원님과 친구가 되었습니다." : "누군가 회원님을 친구로 신청했습니다.",
         related_id: user.id,
         is_read: false,
       });
@@ -108,7 +142,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// 친구등록 취소
+// 친구신청 취소 / 친구관계 해제
 export async function DELETE(request: NextRequest) {
   try {
     const supabase = await createClient();
@@ -124,13 +158,43 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "Missing target_id" }, { status: 400 });
     }
 
-    const { error } = await supabase
+    const { data: row, error: rowError } = await supabase
       .from("friendships")
-      .update({ status: "pending" })
+      .select("id, status")
       .eq("user_id", user.id)
-      .eq("friend_id", target_id);
+      .eq("friend_id", target_id)
+      .maybeSingle();
+    if (rowError) throw rowError;
 
-    if (error) throw error;
+    if (!row) {
+      return NextResponse.json({ success: true, alreadyCancelled: true });
+    }
+
+    if (row.status === "pending") {
+      const { error: deleteError } = await supabase
+        .from("friendships")
+        .delete()
+        .eq("id", row.id);
+      if (deleteError) throw deleteError;
+
+      const { error: cooldownError } = await supabase
+        .from("friend_request_cooldowns")
+        .upsert(
+          {
+            requester_id: user.id,
+            target_id,
+            cancelled_at: new Date().toISOString(),
+          },
+          { onConflict: "requester_id,target_id" }
+        );
+      if (cooldownError) throw cooldownError;
+    } else {
+      const { error: updateError } = await supabase
+        .from("friendships")
+        .update({ status: "pending" })
+        .eq("id", row.id);
+      if (updateError) throw updateError;
+    }
 
     return NextResponse.json({ success: true });
   } catch (e) {
