@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useCallback, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useState, useCallback, useSyncExternalStore, type CSSProperties } from "react";
 import Avatar from "@/components/ui/Avatar";
 import { useRouter } from "next/navigation";
 import { MoreVertical, Plus, Check, UserMinus, MessageCircle, Ban, UserCircle } from "lucide-react";
@@ -15,6 +15,7 @@ interface Follower {
   profile_image_url: string | null;
   region: string | null;
   status?: "approved" | "friend";
+  friend_accepted_at?: string | null;
 }
 
 interface Suggestion {
@@ -44,6 +45,27 @@ function getSearchTab(): Tab {
   if (tab === "follower") return "follower";
   if (tab === "pending") return "pending";
   return "friends";
+}
+
+function formatCompactDate(value?: string | null) {
+  const date = value ? new Date(value) : new Date();
+  if (Number.isNaN(date.getTime())) return "";
+  return `${String(date.getFullYear()).slice(-2)}/${String(date.getMonth() + 1).padStart(2, "0")}/${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function getAvatarFloatStyle(id: string): CSSProperties {
+  let hash = 0;
+  for (let i = 0; i < id.length; i += 1) {
+    hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
+  }
+
+  const duration = 1.6 + (hash % 11) * 0.1;
+  const delay = -((hash >> 3) % 18) * 0.12;
+
+  return {
+    animationDuration: `${duration.toFixed(2)}s`,
+    animationDelay: `${delay.toFixed(2)}s`,
+  };
 }
 
 function subscribeSearchTab(onStoreChange: () => void) {
@@ -107,7 +129,12 @@ export default function SearchPage() {
   const activeTab = useSyncExternalStore(subscribeSearchTab, getSearchTab, (): Tab => "friends");
   const [friendSearch, setFriendSearch] = useState("");
   const [onlineIds, setOnlineIds] = useState<Set<string>>(new Set());
-  const [menuTarget, setMenuTarget] = useState<{ id: string; nickname: string; x: number; y: number; source: "friends" | "follower" } | null>(null);
+  const [menuTarget, setMenuTarget] = useState<{ id: string; nickname: string; x: number; y: number; source: "friends" | "follower"; placement: "top" | "bottom" } | null>(null);
+  const [hasBlacklistPin, setHasBlacklistPin] = useState<boolean | null>(null);
+  const [isBlacklistUnlocked, setIsBlacklistUnlocked] = useState(false);
+  const [blacklistPinInput, setBlacklistPinInput] = useState("");
+  const [blacklistPinSubmitting, setBlacklistPinSubmitting] = useState(false);
+  const [blacklistPinError, setBlacklistPinError] = useState("");
 
   const handleTabChange = useCallback((tab: Tab) => {
     replaceSearchTab(tab);
@@ -193,7 +220,7 @@ export default function SearchPage() {
   }, [loadFromCache, fetchFollowersAndFollowing]);
 
   useEffect(() => {
-    if (activeTab !== "pending" || pendingLoaded) return;
+    if (activeTab !== "pending" || !isBlacklistUnlocked || pendingLoaded) return;
     try {
       const cached = sessionStorage.getItem(PENDING_CACHE_KEY);
       if (cached) {
@@ -209,7 +236,27 @@ export default function SearchPage() {
       }
     } catch {}
     fetchPendingMembers();
-  }, [activeTab, pendingLoaded, fetchPendingMembers]);
+  }, [activeTab, isBlacklistUnlocked, pendingLoaded, fetchPendingMembers]);
+
+  useEffect(() => {
+    if (activeTab !== "pending") {
+      setIsBlacklistUnlocked(false);
+      setBlacklistPinInput("");
+      setBlacklistPinError("");
+      return;
+    }
+
+    if (hasBlacklistPin !== null) return;
+
+    fetch("/api/friends/blacklist-pin")
+      .then((r) => r.json())
+      .then((json) => {
+        setHasBlacklistPin(!!json.hasPin);
+      })
+      .catch(() => {
+        setHasBlacklistPin(true);
+      });
+  }, [activeTab, hasBlacklistPin]);
 
   // PresenceTracker에서 브로드캐스트하는 이벤트 수신
   useEffect(() => {
@@ -310,10 +357,14 @@ export default function SearchPage() {
     setAcceptedAnimatingIds((prev) => new Set(prev).add(follower.id));
 
     const previousFollowing = following;
-    const acceptedFollower = { ...follower, status: "friend" as const };
+    const acceptedFollower = {
+      ...follower,
+      status: "friend" as const,
+      friend_accepted_at: new Date().toISOString(),
+    };
     const hasFollowing = following.some((item) => item.id === follower.id);
     const nextFollowing = hasFollowing
-      ? following.map((item) => item.id === follower.id ? { ...item, status: "friend" as const } : item)
+      ? following.map((item) => item.id === follower.id ? { ...item, status: "friend" as const, friend_accepted_at: acceptedFollower.friend_accepted_at } : item)
       : [acceptedFollower, ...following];
 
     setFollowing(nextFollowing);
@@ -535,52 +586,123 @@ export default function SearchPage() {
     }
   }
 
+  async function handleBlacklistPinSubmit() {
+    if (blacklistPinSubmitting) return;
+    const pin = blacklistPinInput.trim();
+
+    if (!/^\d{4}$/.test(pin)) {
+      setBlacklistPinError("숫자 4자리를 입력해 주세요.");
+      return;
+    }
+
+    setBlacklistPinSubmitting(true);
+    setBlacklistPinError("");
+
+    try {
+      if (hasBlacklistPin === false) {
+        const res = await fetch("/api/friends/blacklist-pin", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ pin }),
+        });
+
+        if (!res.ok) {
+          if (res.status === 409) {
+            setHasBlacklistPin(true);
+            setBlacklistPinError("이미 비밀번호가 설정되어 있어요. 비밀번호를 입력해 주세요.");
+            return;
+          }
+          throw new Error();
+        }
+        setHasBlacklistPin(true);
+        setIsBlacklistUnlocked(true);
+        setBlacklistPinInput("");
+        return;
+      }
+
+      const res = await fetch("/api/friends/blacklist-pin", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pin }),
+      });
+
+      if (!res.ok) {
+        if (res.status === 401) {
+          setBlacklistPinError("비밀번호가 맞지 않습니다.");
+          return;
+        }
+        if (res.status === 404) {
+          setHasBlacklistPin(false);
+          setBlacklistPinError("비밀번호를 먼저 설정해 주세요.");
+          return;
+        }
+        throw new Error();
+      }
+
+      setIsBlacklistUnlocked(true);
+      setBlacklistPinInput("");
+    } catch {
+      setBlacklistPinError("처리 중 오류가 발생했습니다.");
+    } finally {
+      setBlacklistPinSubmitting(false);
+    }
+  }
+
   return (
     <>
       <SearchHeader activeTab={activeTab} onTabChange={handleTabChange} />
 
       {activeTab === "friends" && (
-        <div className="px-4 pt-4 bg-white">
-          {suggestionsLoading ? (
-            <div className="flex gap-7 overflow-x-auto pb-3 pt-2 mb-6 scrollbar-hide">
-              {Array.from({ length: 8 }).map((_, i) => (
-                <div key={i} className="flex flex-col items-center gap-1 flex-shrink-0">
-                  <div className="w-[60px] h-[60px] rounded-full bg-gray-200 animate-pulse" />
-                  <div className="w-10 h-3 rounded bg-gray-200 animate-pulse mt-1" />
-                </div>
-              ))}
-            </div>
-          ) : suggestions.length > 0 && (
-            <div className="flex gap-7 overflow-x-auto pb-3 pt-2 mb-6 scrollbar-hide">
-              {suggestions.map((s) => (
-                <div key={s.id} className="flex flex-col items-center gap-1 flex-shrink-0">
-                  <div className="relative" style={{ width: 60, height: 60 }}>
-                    <button onClick={() => router.push(`/users/${s.id}/view`)}>
-                      <Avatar src={s.profile_image_url} nickname={s.nickname} size={60} />
-                    </button>
-                    <button
-                      onClick={() => handleAddFriend(s.id)}
-                      className={`absolute -top-0.5 -right-0.5 w-5 h-5 rounded-full flex items-center justify-center ${
-                        addedIds.has(s.id)
-                          ? "bg-gray-400 cursor-default"
-                          : "bg-yellow-300"
-                      }`}
-                    >
-                      {addedIds.has(s.id)
-                        ? <Check size={11} className="text-white" strokeWidth={3} />
-                        : <Plus size={15} className="text-black" strokeWidth={3.5} />
-                      }
-                    </button>
+        <div className="px-4 pt-0 bg-white">
+          <div className="mb-0 -mx-4 bg-sky-100/70 py-3">
+            {suggestionsLoading ? (
+              <div className="flex gap-7 overflow-x-auto pb-1 pt-3 scrollbar-hide">
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <div key={i} className="flex flex-col items-center gap-1 flex-shrink-0">
+                    <div className="w-[60px] h-[60px] rounded-full bg-gray-200 animate-pulse" />
+                    <div className="w-10 h-3 rounded bg-gray-200 animate-pulse mt-1" />
                   </div>
-                  <span className="text-gray-700 w-[55px] truncate text-center" style={{ fontSize: 14 }}>{s.nickname}</span>
+                ))}
+              </div>
+            ) : suggestions.length > 0 && (
+              <div
+                className="overflow-x-auto scrollbar-hide pt-3 pb-1"
+                style={{ WebkitOverflowScrolling: "touch", touchAction: "pan-x" }}
+              >
+                <div className="flex gap-7 w-max">
+                  {suggestions.map((s) => (
+                    <div key={s.id} className="flex flex-col items-center gap-1 flex-shrink-0">
+                      <div className="relative" style={{ width: 60, height: 60 }}>
+                        <button onClick={() => router.push(`/users/${s.id}/view`)}>
+                          <div className="animate-blacklist-avatar" style={getAvatarFloatStyle(s.id)}>
+                            <Avatar src={s.profile_image_url} nickname={s.nickname} size={60} />
+                          </div>
+                        </button>
+                        <button
+                          onClick={() => handleAddFriend(s.id)}
+                          className={`absolute -top-0.5 -right-0.5 w-5 h-5 rounded-full flex items-center justify-center ${
+                            addedIds.has(s.id)
+                              ? "bg-gray-400 cursor-default"
+                              : "bg-yellow-300"
+                          }`}
+                        >
+                          {addedIds.has(s.id)
+                            ? <Check size={11} className="text-white" strokeWidth={3} />
+                            : <Plus size={15} className="text-black" strokeWidth={3.5} />
+                          }
+                        </button>
+                      </div>
+                      <span className="text-gray-700 w-[55px] truncate text-center" style={{ fontSize: 14 }}>{s.nickname}</span>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          )}
+              </div>
+            )}
+          </div>
 
           {/* 친구들 리스트 */}
-          <div className="border-t border-gray-100 pt-3">
-            <div className="flex items-center mb-3">
+          <div className="border-t border-gray-100 pt-0">
+            <div className="flex items-center mt-3 mb-3">
               <p className="font-bold" style={{ fontSize: 15, color: "#333333" }}>
                 친구연결 <span className="font-bold" style={{ fontSize: 15 }}>{acceptedFriendCount}</span><span className="font-normal text-sm">/{following.length}</span>
               </p>
@@ -635,11 +757,19 @@ export default function SearchPage() {
                       <p className="text-xs text-gray-400 truncate">{f.region ?? "지역 미설정"}</p>
                     </button>
                     <button
-                      className="p-1 text-gray-400 hover:text-gray-700 flex-shrink-0"
+                      className="p-2 -mr-2 text-gray-400 hover:text-gray-700 flex-shrink-0"
                       onClick={(e) => {
                         e.stopPropagation();
                         const r = e.currentTarget.getBoundingClientRect();
-                        setMenuTarget({ id: f.id, nickname: f.nickname, x: r.right, y: r.bottom, source: "friends" });
+                        const placement = r.top > window.innerHeight / 2 ? "top" : "bottom";
+                        setMenuTarget({
+                          id: f.id,
+                          nickname: f.nickname,
+                          x: r.right,
+                          y: placement === "top" ? r.top : r.bottom,
+                          source: "friends",
+                          placement,
+                        });
                         fetch(`/api/users/${f.id}/view-summary`)
                           .then((res) => res.json())
                           .then((json) => { sessionStorage.setItem(`user_view_${f.id}`, JSON.stringify(json)); })
@@ -678,6 +808,9 @@ export default function SearchPage() {
                   const isAccepting = acceptingFollowerIds.has(f.id);
                   const isFriend = isAccepted || (followingStatusById.get(f.id) === "friend" && !isAccepting);
                   const isAnimating = acceptedAnimatingIds.has(f.id);
+                  const friendDate = formatCompactDate(
+                    f.friend_accepted_at ?? following.find((item) => item.id === f.id)?.friend_accepted_at
+                  );
 
                   return (
                   <div key={f.id} className="flex items-center gap-3 py-3 border-b border-gray-50">
@@ -696,16 +829,28 @@ export default function SearchPage() {
                       disabled={isFriend || isAccepting}
                       className={`px-3 py-1.5 rounded-full text-xs font-semibold flex-shrink-0 ${
                         isFriend
-                          ? "bg-gray-100 text-gray-500"
+                          ? "bg-transparent text-gray-400"
                           : "bg-[#FEE500] text-gray-900"
                       } ${isAnimating ? "animate-friend-accepted" : ""}`}
                       onClick={() => handleAcceptFollower(f)}
                     >
-                      {isFriend ? "친구완료" : "신청수락"}
+                      {isFriend ? friendDate : "신청수락"}
                     </button>
                     <button
-                      className="p-1 text-gray-400 hover:text-gray-700 flex-shrink-0"
-                      onClick={(e) => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); setMenuTarget({ id: f.id, nickname: f.nickname, x: r.right, y: r.bottom, source: "follower" }); }}
+                      className="p-2 -mr-2 text-gray-400 hover:text-gray-700 flex-shrink-0"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const r = e.currentTarget.getBoundingClientRect();
+                        const placement = r.top > window.innerHeight / 2 ? "top" : "bottom";
+                        setMenuTarget({
+                          id: f.id,
+                          nickname: f.nickname,
+                          x: r.right,
+                          y: placement === "top" ? r.top : r.bottom,
+                          source: "follower",
+                          placement,
+                        });
+                      }}
                     >
                       <MoreVertical size={18} />
                     </button>
@@ -720,58 +865,95 @@ export default function SearchPage() {
 
       {activeTab === "pending" && (
         <div className="px-4 pt-4 bg-white">
-          <div className="pt-3">
-            <div className="flex items-center mb-3">
-              <p className="text-base font-bold text-gray-400">블랙리스트</p>
-            </div>
-            {pendingMembers.length === 0 ? (
-              <p className="text-sm text-gray-400">블랙리스트 회원이 없어요</p>
-            ) : (
-              <div className="flex flex-col">
-                {pendingMembers.map((m) => (
-                  <div key={m.id} className="flex items-center gap-3 py-3 border-b border-gray-50">
-                    <button onClick={() => router.push(`/users/${m.id}/view`)}>
-                      <Avatar src={m.profile_image_url} nickname={m.nickname} size={44} />
-                    </button>
-                    <button
-                      className="flex-1 text-left min-w-0"
-                      onClick={() => router.push(`/users/${m.id}/view`)}
-                    >
-                      <p className="font-semibold text-gray-900 truncate" style={{ fontSize: 16 }}>{m.nickname}</p>
-                      <p className="text-xs text-gray-400 truncate">{m.region ?? "지역 미설정"}</p>
-                      <p className="text-[11px] text-gray-400 mt-0.5">{new Date(m.updated_at).toLocaleDateString("ko-KR")}</p>
-                    </button>
-                    <div className="flex items-center gap-1">
-                      {m.state === "hidden" && (
-                        <button
-                          className="px-2 py-1 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-600"
-                          onClick={() => handleUnhideFriend(m.id)}
-                        >
-                          숨김해제
-                        </button>
-                      )}
-                      {m.state === "blocked" && (
-                        <button
-                          className="px-2 py-1 rounded-full text-[11px] font-semibold bg-red-50 text-red-500"
-                          onClick={() => handleUnblockUser(m.id)}
-                        >
-                          차단해제
-                        </button>
-                      )}
-                      {m.state === "black" && (
-                        <button
-                          className="px-2 py-1 rounded-full text-[11px] font-semibold bg-gray-100 text-gray-700"
-                          onClick={() => handleUnreportUser(m.id)}
-                        >
-                          블랙해제
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
+          {!isBlacklistUnlocked ? (
+            <div className="min-h-[60vh] flex items-center justify-center">
+              <div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="password"
+                    inputMode="numeric"
+                    maxLength={4}
+                    value={blacklistPinInput}
+                    onChange={(e) => {
+                      setBlacklistPinInput(e.target.value.replace(/\D/g, "").slice(0, 4));
+                      if (blacklistPinError) setBlacklistPinError("");
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleBlacklistPinSubmit();
+                    }}
+                    placeholder="비밀번호 입력"
+                    className="w-40 h-10 px-4 border border-gray-300 rounded-full bg-white focus:outline-none focus:border-gray-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleBlacklistPinSubmit}
+                    disabled={blacklistPinSubmitting || hasBlacklistPin === null}
+                    className="h-10 px-4 rounded-full bg-gray-900 text-white text-sm font-semibold animate-pill-breathe disabled:opacity-60 disabled:animate-none"
+                  >
+                    {hasBlacklistPin === false ? "설정" : "확인"}
+                  </button>
+                </div>
+                {blacklistPinError && (
+                  <p className="mt-2 text-xs text-red-500">{blacklistPinError}</p>
+                )}
               </div>
-            )}
-          </div>
+            </div>
+          ) : (
+            <div className="pt-3">
+              <div className="flex items-center mb-3">
+                <p className="text-base font-bold text-gray-400">블랙리스트</p>
+              </div>
+              {pendingMembers.length === 0 ? (
+                <p className="text-sm text-gray-400">블랙리스트 회원이 없어요</p>
+              ) : (
+                <div className="flex flex-col">
+                  {pendingMembers.map((m) => (
+                    <div key={m.id} className="flex items-center gap-3 py-3 border-b border-gray-50">
+                      <button onClick={() => router.push(`/users/${m.id}/view`)}>
+                        <div className="animate-blacklist-avatar" style={getAvatarFloatStyle(m.id)}>
+                          <Avatar src={m.profile_image_url} nickname={m.nickname} size={44} />
+                        </div>
+                      </button>
+                      <button
+                        className="flex-1 text-left min-w-0"
+                        onClick={() => router.push(`/users/${m.id}/view`)}
+                      >
+                        <p className="font-semibold text-gray-900 truncate" style={{ fontSize: 16 }}>{m.nickname}</p>
+                        <p className="text-xs text-gray-400 truncate">{m.region ?? "지역 미설정"}</p>
+                        <p className="text-[11px] text-gray-400 mt-0.5">{new Date(m.updated_at).toLocaleDateString("ko-KR")}</p>
+                      </button>
+                      <div className="flex items-center gap-1">
+                        {m.state === "hidden" && (
+                          <button
+                            className="px-2 py-1 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-600"
+                            onClick={() => handleUnhideFriend(m.id)}
+                          >
+                            숨김해제
+                          </button>
+                        )}
+                        {m.state === "blocked" && (
+                          <button
+                            className="px-2 py-1 rounded-full text-[11px] font-semibold bg-red-50 text-red-500"
+                            onClick={() => handleUnblockUser(m.id)}
+                          >
+                            차단해제
+                          </button>
+                        )}
+                        {m.state === "black" && (
+                          <button
+                            className="px-2 py-1 rounded-full text-[11px] font-semibold bg-gray-100 text-gray-700"
+                            onClick={() => handleUnreportUser(m.id)}
+                          >
+                            블랙해제
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -780,7 +962,15 @@ export default function SearchPage() {
       {menuTarget && (
         <>
           <div className="fixed inset-0 z-[70]" onClick={() => setMenuTarget(null)} />
-          <div className="fixed z-[80] bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden" style={{ width: 180, top: menuTarget.y, left: menuTarget.x - 180 }}>
+          <div
+            className="fixed z-[80] bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden"
+            style={{
+              width: 180,
+              top: menuTarget.placement === "bottom" ? menuTarget.y : "auto",
+              bottom: menuTarget.placement === "top" ? window.innerHeight - menuTarget.y + 8 : "auto",
+              left: menuTarget.x - 180,
+            }}
+          >
             <button
               className="flex items-center justify-between w-full px-4 py-3 text-gray-700"
               style={{ fontSize: "16px" }}

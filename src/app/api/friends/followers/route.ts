@@ -17,7 +17,7 @@ export async function GET() {
     ] = await Promise.all([
       supabase
         .from("friendships")
-        .select("user_id, profiles!friendships_user_id_fkey(id, nickname, profile_image_url, region)")
+        .select("user_id, status, updated_at, profiles!friendships_user_id_fkey(id, nickname, profile_image_url, region)")
         .eq("friend_id", user.id)
         .in("status", ["approved", "friend"]),
       supabase
@@ -49,6 +49,8 @@ export async function GET() {
           nickname: p?.nickname ?? "",
           profile_image_url: p?.profile_image_url ?? null,
           region: p?.region ?? null,
+          status: row.status,
+          friend_accepted_at: row.status === "friend" ? row.updated_at : null,
         };
       })
       .filter((item) => !excludedIds.has(item.id));

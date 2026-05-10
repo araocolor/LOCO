@@ -393,6 +393,38 @@ CREATE INDEX idx_friend_member_states_state ON friend_member_states (state);
 
 
 -- ============================================================
+-- 8-1. friend_blacklist_pins (블랙리스트 진입 PIN)
+-- ============================================================
+CREATE TABLE friend_blacklist_pins (
+  id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  owner_id   UUID        NOT NULL REFERENCES profiles(id) ON DELETE CASCADE UNIQUE,
+  pin_hash   TEXT        NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE friend_blacklist_pins ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "friend_blacklist_pins: 본인만 조회"
+  ON friend_blacklist_pins FOR SELECT USING (auth.uid() = owner_id);
+
+CREATE POLICY "friend_blacklist_pins: 본인만 생성"
+  ON friend_blacklist_pins FOR INSERT WITH CHECK (auth.uid() = owner_id);
+
+CREATE POLICY "friend_blacklist_pins: 본인만 수정"
+  ON friend_blacklist_pins FOR UPDATE USING (auth.uid() = owner_id);
+
+CREATE POLICY "friend_blacklist_pins: 본인만 삭제"
+  ON friend_blacklist_pins FOR DELETE USING (auth.uid() = owner_id);
+
+CREATE TRIGGER friend_blacklist_pins_updated_at
+  BEFORE UPDATE ON friend_blacklist_pins
+  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+CREATE INDEX idx_friend_blacklist_pins_owner_id ON friend_blacklist_pins (owner_id);
+
+
+-- ============================================================
 -- 9. black_reports (사용자 신고 누적)
 -- ============================================================
 CREATE TABLE black_reports (
