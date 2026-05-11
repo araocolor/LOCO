@@ -459,7 +459,7 @@ export default function SearchPage() {
 
   async function handleUnfriend(targetId: string, currentStatus?: "pending" | "approved" | "friend") {
     setMenuTarget(null);
-    const nextStatus = currentStatus === "pending" ? "approved" : "pending";
+    const nextStatus: "pending" | "approved" = currentStatus === "pending" ? "approved" : "pending";
     await fetch("/api/friends", {
       method: currentStatus === "pending" ? "POST" : "DELETE",
       headers: { "Content-Type": "application/json" },
