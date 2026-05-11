@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
-import { ensureDefaultFollowing } from "@/lib/friends/default-following";
+import { ensureDefaultFollower } from "@/lib/friends/default-follower";
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
@@ -36,7 +36,7 @@ export async function GET(request: Request) {
       } = await supabase.auth.getUser();
 
       if (user) {
-        await ensureDefaultFollowing(user.id);
+        await ensureDefaultFollower(user.id);
 
         const { data: profile } = await supabase
           .from("profiles")

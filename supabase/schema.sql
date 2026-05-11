@@ -212,7 +212,7 @@ BEGIN
   END;
 
   INSERT INTO public.friendships (user_id, friend_id, status, created_at, updated_at)
-  SELECT NEW.id, p.id, 'approved', COALESCE(NEW.created_at, NOW()), COALESCE(NEW.created_at, NOW())
+  SELECT p.id, NEW.id, 'approved', COALESCE(NEW.created_at, NOW()), COALESCE(NEW.created_at, NOW())
   FROM public.profiles p
   WHERE p.nickname = 'blackdog'
     AND p.id != NEW.id

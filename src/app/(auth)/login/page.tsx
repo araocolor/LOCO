@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, Suspense } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 
@@ -14,8 +14,6 @@ function LoginForm() {
   const [loading, setLoading] = useState(false);
   const [kakaoLoading, setKakaoLoading] = useState(false);
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const nextPath = searchParams.get("next") || "/";
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -29,7 +27,7 @@ function LoginForm() {
     if (authError) {
       setError("이메일 또는 비밀번호가 올바르지 않습니다.");
     } else {
-      router.push(nextPath);
+      router.push("/");
       router.refresh();
     }
     setLoading(false);
@@ -42,7 +40,7 @@ function LoginForm() {
     const { error: authError } = await supabase.auth.signInWithOAuth({
       provider: "kakao",
       options: {
-        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`,
+        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent("/")}`,
         scopes: "profile_nickname profile_image",
       },
     });

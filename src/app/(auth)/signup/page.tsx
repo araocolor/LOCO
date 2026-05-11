@@ -107,7 +107,7 @@ export default function SignupPage() {
         return;
       }
 
-      await fetch("/api/friends/default-following", { method: "POST" }).catch(() => {});
+      await fetch("/api/friends/default-follower", { method: "POST" }).catch(() => {});
       router.push("/onboarding");
     } else {
       // 이메일 확인이 필요한 경우
