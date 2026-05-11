@@ -13,6 +13,7 @@ interface CachedProfile {
   id: string;
   email: string | null;
   nickname: string;
+  social_name: string | null;
   bio: string | null;
   country: string | null;
   region: string | null;

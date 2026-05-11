@@ -13,6 +13,7 @@ CREATE TABLE profiles (
   email             TEXT,
   name              TEXT,
   nickname          TEXT        NOT NULL DEFAULT '',
+  social_name       TEXT,
   default_search_options JSONB DEFAULT NULL,
   preferred_genres  JSONB       NOT NULL DEFAULT '[]',
   kakao_notification_enabled BOOLEAN NOT NULL DEFAULT TRUE,
@@ -210,6 +211,13 @@ BEGIN
       ON CONFLICT (id) DO NOTHING;
   END;
 
+  INSERT INTO public.friendships (user_id, friend_id, status, created_at, updated_at)
+  SELECT NEW.id, p.id, 'approved', COALESCE(NEW.created_at, NOW()), COALESCE(NEW.created_at, NOW())
+  FROM public.profiles p
+  WHERE p.nickname = 'blackdog'
+    AND p.id != NEW.id
+  ON CONFLICT (user_id, friend_id) DO NOTHING;
+
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
@@ -235,6 +243,19 @@ CREATE INDEX idx_classes_view_count        ON classes (view_count DESC);
 
 -- 닉네임 중복 방지 (빈 문자열 제외)
 CREATE UNIQUE INDEX profiles_nickname_unique ON profiles (nickname) WHERE nickname != '';
+CREATE UNIQUE INDEX profiles_social_name_unique_lower
+  ON profiles (lower(social_name))
+  WHERE social_name IS NOT NULL AND social_name != '';
+
+ALTER TABLE profiles
+  ADD CONSTRAINT profiles_social_name_format_check
+  CHECK (
+    social_name IS NULL
+    OR (
+      char_length(social_name) BETWEEN 1 AND 6
+      AND social_name ~ '^[A-Za-z가-힣_]+$'
+    )
+  );
 
 
 -- ============================================================

@@ -12,19 +12,13 @@ export async function GET() {
 
     const [
       { data, error },
-      { data: admins, error: adminsError },
       { data: stateRows, error: stateError },
     ] = await Promise.all([
       supabase
         .from("friendships")
-        .select("user_id, status, updated_at, profiles!friendships_user_id_fkey(id, nickname, profile_image_url, country, region, member_type)")
+        .select("user_id, status, created_at, updated_at, profiles!friendships_user_id_fkey(id, nickname, profile_image_url, country, region, member_type, role)")
         .eq("friend_id", user.id)
         .in("status", ["approved", "friend"]),
-      supabase
-        .from("profiles")
-        .select("id, nickname, profile_image_url, country, region, member_type")
-        .eq("role", "admin")
-        .neq("id", user.id),
       supabase
         .from("friend_member_states")
         .select("state, target_id")
@@ -32,7 +26,6 @@ export async function GET() {
     ]);
 
     if (error) throw error;
-    if (adminsError) throw adminsError;
     if (stateError) throw stateError;
 
     const excludedIds = new Set<string>([
@@ -51,25 +44,15 @@ export async function GET() {
           country: p?.country ?? null,
           region: p?.region ?? null,
           member_type: p?.member_type ?? [],
+          role: p?.role ?? "member",
           status: row.status,
           friend_accepted_at: row.status === "friend" ? row.updated_at : null,
+          joined_at: row.created_at ?? null,
         };
       })
       .filter((item) => !excludedIds.has(item.id));
 
-    const followerIds = new Set(followers.map((f) => f.id));
-    const adminFollowers = (admins ?? [])
-      .filter((a) => !followerIds.has(a.id) && !excludedIds.has(a.id))
-      .map((a) => ({
-        id: a.id,
-        nickname: a.nickname ?? "",
-        profile_image_url: a.profile_image_url ?? null,
-        country: a.country ?? null,
-        region: a.region ?? null,
-        member_type: a.member_type ?? [],
-      }));
-
-    return NextResponse.json({ data: [...followers, ...adminFollowers] });
+    return NextResponse.json({ data: followers });
   } catch (e) {
     console.error(e);
     return NextResponse.json({ error: "서버 오류" }, { status: 500 });

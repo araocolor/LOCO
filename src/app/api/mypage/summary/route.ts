@@ -32,6 +32,7 @@ interface MyPageSummary {
     id: string;
     email: string | null;
     nickname: string;
+    social_name: string | null;
     bio: string | null;
     country: string | null;
     region: string | null;
@@ -63,7 +64,7 @@ export async function GET() {
   const [profileResult, appliedResult, myClassesResult, proRequestResult, followingResult, followersResult] = await Promise.all([
     supabase
       .from("profiles")
-      .select("id, email, nickname, bio, country, region, favorite_genre, member_type, role, profile_image_url, kakao_notification_enabled")
+      .select("id, email, nickname, social_name, bio, country, region, favorite_genre, member_type, role, profile_image_url, kakao_notification_enabled")
       .eq("id", user.id)
       .single(),
     supabase
@@ -128,6 +129,7 @@ export async function GET() {
       id: profile.id,
       email: profile.email,
       nickname: profile.nickname,
+      social_name: profile.social_name ?? null,
       bio: profile.bio,
       country: profile.country,
       region: profile.region,

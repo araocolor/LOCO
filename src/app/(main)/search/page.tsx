@@ -17,8 +17,10 @@ interface Follower {
   country: string | null;
   region: string | null;
   member_type?: string[];
+  role?: "member" | "pro" | "admin";
   status?: "approved" | "friend";
   friend_accepted_at?: string | null;
+  joined_at?: string | null;
 }
 
 interface Suggestion {
@@ -868,7 +870,7 @@ export default function SearchPage() {
                   const isFriend = isAccepted || (followingStatusById.get(f.id) === "friend" && !isAccepting);
                   const isAnimating = acceptedAnimatingIds.has(f.id);
                   const friendDate = formatCompactDate(
-                    f.friend_accepted_at ?? following.find((item) => item.id === f.id)?.friend_accepted_at
+                    f.joined_at ?? f.friend_accepted_at ?? following.find((item) => item.id === f.id)?.friend_accepted_at
                   );
 
                   return (

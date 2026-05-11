@@ -20,10 +20,10 @@ interface Profile {
   email: string | null;
   nickname: string;
   bio: string | null;
-  country?: string | null;
+  country: string | null;
   member_type: string[];
   profile_image_url: string | null;
-  region?: string | null;
+  region: string | null;
 }
 
 interface UserViewData {
@@ -38,9 +38,19 @@ interface SessionUserData {
   profile_image_url: string | null;
   email?: string | null;
   bio?: string | null;
+  country?: string | null;
   member_type?: string[];
+  region?: string | null;
   opened_classes?: GridClass[];
   bookmarked_classes?: GridClass[];
+}
+
+function normalizeProfile(profile: Profile): Profile {
+  return {
+    ...profile,
+    country: profile.country ?? null,
+    region: profile.region ?? null,
+  };
 }
 
 export default function UserViewLoader({ userId }: { userId: string }) {
@@ -57,7 +67,7 @@ export default function UserViewLoader({ userId }: { userId: string }) {
           const json = JSON.parse(prefetched) as UserViewData;
           if (!cancelled) {
             setData({
-              profile: json.profile,
+              profile: normalizeProfile(json.profile),
               myClasses: (json.myClasses ?? []).map((c) => ({ ...c, isBookmark: false })),
               bookmarkClasses: (json.bookmarkClasses ?? []).map((c) => ({ ...c, isBookmark: true })),
             });
@@ -82,8 +92,10 @@ export default function UserViewLoader({ userId }: { userId: string }) {
                   email: sessionUser.email ?? null,
                   nickname: sessionUser.nickname,
                   bio: sessionUser.bio ?? null,
+                  country: sessionUser.country ?? null,
                   member_type: sessionUser.member_type ?? [],
                   profile_image_url: sessionUser.profile_image_url ?? null,
+                  region: sessionUser.region ?? null,
                 },
                 myClasses: (sessionUser.opened_classes ?? []).map((c) => ({ ...c, isBookmark: false })),
                 bookmarkClasses: (sessionUser.bookmarked_classes ?? []).map((c) => ({ ...c, isBookmark: true })),
@@ -103,7 +115,7 @@ export default function UserViewLoader({ userId }: { userId: string }) {
         const json = (await res.json()) as UserViewData;
         if (cancelled) return;
         setData({
-          profile: json.profile,
+          profile: normalizeProfile(json.profile),
           myClasses: (json.myClasses ?? []).map((c) => ({ ...c, isBookmark: false })),
           bookmarkClasses: (json.bookmarkClasses ?? []).map((c) => ({ ...c, isBookmark: true })),
         });
