@@ -103,7 +103,7 @@ function writeFriendToSearchCache(host: ClassHost) {
 }
 
 export default function ClassCard({ classData }: ClassCardProps) {
-  const { id, title, genres, level, datetime, deadline, region, status, images, host, is_modified, description } =
+  const { id, host_id, title, genres, level, datetime, deadline, region, status, images, host, is_modified, description } =
     classData;
   const [expanded, setExpanded] = useState(false);
   const [imgIndex, setImgIndex] = useState(0);
@@ -117,6 +117,7 @@ export default function ClassCard({ classData }: ClassCardProps) {
   const [heartVisible, setHeartVisible] = useState(false);
   const [heartLiked, setHeartLiked] = useState(false);
   const [messageModalOpen, setMessageModalOpen] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -127,6 +128,18 @@ export default function ClassCard({ classData }: ClassCardProps) {
     const bookmarks = parseBookmarkEntries(rawB);
     setBookmarked(bookmarks.some((b) => b.id === id));
   }, [id]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    createClient().auth.getUser().then(({ data: { user } }) => {
+      if (!cancelled) setCurrentUserId(user?.id ?? null);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function handleImageClick() {
     const supabase = createClient();
@@ -213,6 +226,7 @@ export default function ClassCard({ classData }: ClassCardProps) {
   const statusInfo = STATUS_MAP[status] ?? STATUS_MAP.recruiting;
   const chipCls = GENRE_CHIP[primaryGenre] ?? GENRE_CHIP.other;
   const isHostFriend = !!host?.id && readCachedFollowingIds()?.has(host.id) === true;
+  const isOwnClass = currentUserId === host_id;
 
   return (
     <>
@@ -249,95 +263,113 @@ export default function ClassCard({ classData }: ClassCardProps) {
                   className="absolute right-0 top-full z-50 bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden"
                   style={{ width: 180 }}
                 >
-                  {/* 다운로드 */}
-                  <button className="flex items-center justify-between w-full px-4 py-3 text-sm text-gray-700 ">
-                    <span>다운로드</span>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500">
-                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
-                    </svg>
-                  </button>
-                  <div className="border-t border-gray-100 mx-3" />
-                  {/* 북마크저장 */}
-                  <button className="flex items-center justify-between w-full px-4 py-3 text-sm text-gray-700 ">
-                    <span>북마크저장</span>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500">
-                      <polygon points="19 21 12 16 5 21 5 3 19 3"/>
-                    </svg>
-                  </button>
-                  {!isHostFriend && (
+                  {isOwnClass ? (
                     <>
+                      <button type="button" className="flex items-center w-full px-4 py-3 text-sm text-gray-700">
+                        대화방입장
+                      </button>
                       <div className="border-t border-gray-100 mx-3" />
-                      {/* 친구등록 */}
-                      <button
-                        onClick={async () => {
-                          if (!host?.id) return;
-                          setMenuOpen(false);
-                          const res = await fetch("/api/friends", {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ target_id: host.id }),
-                          });
-                          const data = await res.json();
-                          if (res.ok) {
-                            writeFriendToSearchCache(host);
-                          }
-                          setFriendMsg(res.ok ? "친구등록 완료!" : (data.error ?? "오류가 발생했습니다"));
-                          setTimeout(() => setFriendMsg(""), 3000);
-                        }}
-                        className="flex items-center justify-between w-full px-4 py-3 text-sm text-gray-700">
-                        <span>친구등록</span>
-                        <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500">
-                          <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/>
-                        </svg>
+                      <button type="button" className="flex items-center w-full px-4 py-3 text-sm text-gray-700">
+                        클래스 수정
+                      </button>
+                      <div className="border-t border-gray-100 mx-3" />
+                      <button type="button" className="flex items-center w-full px-4 py-3 text-sm text-gray-700">
+                        클래스정보
                       </button>
                     </>
-                  )}
-                  <div className="border-t border-gray-100 mx-3" />
-                  {/* 메세지전송 */}
-                  <button
-                    onClick={() => {
-                      setMenuOpen(false);
-                      setMessageModalOpen(true);
-                    }}
-                    className="flex items-center justify-between w-full px-4 py-3 text-sm text-gray-700"
-                  >
-                    <span>메세지전송</span>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500">
-                      <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
-                    </svg>
-                  </button>
-                  <div className="border-t border-gray-100 mx-3" />
-                  {/* 사용자 펼침 */}
-                  <div>
-                    <button
-                      className="flex items-center justify-between w-full px-4 py-3 text-sm text-gray-700"
-                      onClick={() => setUserExpanded((v) => !v)}
-                    >
-                      <span className="font-bold">{host?.nickname ?? "사용자"}</span>
-                      <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-400" style={{ transform: userExpanded ? "rotate(90deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>
-                        <polyline points="9 18 15 12 9 6"/>
-                      </svg>
-                    </button>
-                    {userExpanded && (
+                  ) : (
+                    <>
+                      {/* 다운로드 */}
+                      <button className="flex items-center justify-between w-full px-4 py-3 text-sm text-gray-700 ">
+                        <span>다운로드</span>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500">
+                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+                        </svg>
+                      </button>
+                      <div className="border-t border-gray-100 mx-3" />
+                      {/* 북마크저장 */}
+                      <button className="flex items-center justify-between w-full px-4 py-3 text-sm text-gray-700 ">
+                        <span>북마크저장</span>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500">
+                          <polygon points="19 21 12 16 5 21 5 3 19 3"/>
+                        </svg>
+                      </button>
+                      {!isHostFriend && (
+                        <>
+                          <div className="border-t border-gray-100 mx-3" />
+                          {/* 친구등록 */}
+                          <button
+                            onClick={async () => {
+                              if (!host?.id) return;
+                              setMenuOpen(false);
+                              const res = await fetch("/api/friends", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ target_id: host.id }),
+                              });
+                              const data = await res.json();
+                              if (res.ok) {
+                                writeFriendToSearchCache(host);
+                              }
+                              setFriendMsg(res.ok ? "친구등록 완료!" : (data.error ?? "오류가 발생했습니다"));
+                              setTimeout(() => setFriendMsg(""), 3000);
+                            }}
+                            className="flex items-center justify-between w-full px-4 py-3 text-sm text-gray-700">
+                            <span>친구등록</span>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500">
+                              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/>
+                            </svg>
+                          </button>
+                        </>
+                      )}
+                      <div className="border-t border-gray-100 mx-3" />
+                      {/* 메세지전송 */}
+                      <button
+                        onClick={() => {
+                          setMenuOpen(false);
+                          setMessageModalOpen(true);
+                        }}
+                        className="flex items-center justify-between w-full px-4 py-3 text-sm text-gray-700"
+                      >
+                        <span>메세지전송</span>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500">
+                          <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                        </svg>
+                      </button>
+                      <div className="border-t border-gray-100 mx-3" />
+                      {/* 사용자 펼침 */}
                       <div>
-                        {[
-                          { icon: "flag", label: "게시물 신고" },
-                          { icon: "slash", label: "블랙등록" },
-                        ].map(({ icon, label }, idx) => (
-                          <div key={label}>
-                            {idx > 0 && <div className="border-t border-gray-200 mx-3" />}
-                            <button className="flex items-center justify-between w-full px-4 py-2.5 text-sm text-gray-700">
-                              <span>{label}</span>
-                              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                {icon === "flag" && <><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></>}
-                                {icon === "slash" && <><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></>}
-                              </svg>
-                            </button>
+                        <button
+                          className="flex items-center justify-between w-full px-4 py-3 text-sm text-gray-700"
+                          onClick={() => setUserExpanded((v) => !v)}
+                        >
+                          <span className="font-bold">{host?.nickname ?? "사용자"}</span>
+                          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-400" style={{ transform: userExpanded ? "rotate(90deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>
+                            <polyline points="9 18 15 12 9 6"/>
+                          </svg>
+                        </button>
+                        {userExpanded && (
+                          <div>
+                            {[
+                              { icon: "flag", label: "게시물 신고" },
+                              { icon: "slash", label: "블랙등록" },
+                            ].map(({ icon, label }, idx) => (
+                              <div key={label}>
+                                {idx > 0 && <div className="border-t border-gray-200 mx-3" />}
+                                <button className="flex items-center justify-between w-full px-4 py-2.5 text-sm text-gray-700">
+                                  <span>{label}</span>
+                                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    {icon === "flag" && <><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></>}
+                                    {icon === "slash" && <><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></>}
+                                  </svg>
+                                </button>
+                              </div>
+                            ))}
                           </div>
-                        ))}
+                        )}
                       </div>
-                    )}
-                  </div>
+                    </>
+                  )}
                 </div>
               </>
             )}

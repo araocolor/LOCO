@@ -18,9 +18,10 @@ interface Follower {
   region: string | null;
   member_type?: string[];
   role?: "member" | "pro" | "admin";
-  status?: "approved" | "friend";
+  status?: "pending" | "approved" | "friend";
   friend_accepted_at?: string | null;
   joined_at?: string | null;
+  relation_updated_at?: string | null;
 }
 
 interface Suggestion {
@@ -106,7 +107,7 @@ function syncMyPageSocialCounts(followers: Follower[], following: Follower[]) {
         ...parsed,
         socialCounts: {
           following: following.length,
-          followers: followers.length,
+          followers: followers.filter((f) => f.status !== "pending").length,
         },
       })
     );
@@ -117,7 +118,11 @@ function sortFollowersOnce(followers: Follower[], following: Follower[]) {
   const followingStatusById = new Map(following.map((f) => [f.id, f.status]));
   return followers
     .slice()
-    .sort((a, b) => Number(followingStatusById.get(a.id) === "friend") - Number(followingStatusById.get(b.id) === "friend"));
+    .sort((a, b) => {
+      const pendingDiff = Number(b.status === "pending") - Number(a.status === "pending");
+      if (pendingDiff !== 0) return pendingDiff;
+      return Number(followingStatusById.get(a.id) === "friend") - Number(followingStatusById.get(b.id) === "friend");
+    });
 }
 
 
@@ -147,7 +152,7 @@ export default function SearchPage() {
   const activeTab = useSyncExternalStore(subscribeSearchTab, getSearchTab, (): Tab => "friends");
   const [friendSearch, setFriendSearch] = useState("");
   const [onlineIds, setOnlineIds] = useState<Set<string>>(new Set());
-  const [menuTarget, setMenuTarget] = useState<{ id: string; nickname: string; x: number; y: number; source: "friends" | "follower"; placement: "top" | "bottom" } | null>(null);
+  const [menuTarget, setMenuTarget] = useState<{ id: string; nickname: string; status?: "pending" | "approved" | "friend"; x: number; y: number; source: "friends" | "follower"; placement: "top" | "bottom" } | null>(null);
   const [hasBlacklistPin, setHasBlacklistPin] = useState<boolean | null>(null);
   const [isBlacklistUnlocked, setIsBlacklistUnlocked] = useState(false);
   const [blacklistPinInput, setBlacklistPinInput] = useState("");
@@ -388,6 +393,13 @@ export default function SearchPage() {
       ? following.map((item) => item.id === follower.id ? { ...item, status: "friend" as const, friend_accepted_at: acceptedFollower.friend_accepted_at } : item)
       : [acceptedFollower, ...following];
 
+    setFollowers((prev) =>
+      prev.map((item) =>
+        item.id === follower.id
+          ? { ...item, status: "friend" as const, friend_accepted_at: acceptedFollower.friend_accepted_at }
+          : item
+      )
+    );
     setFollowing(nextFollowing);
     try {
       const cached = localStorage.getItem(SEARCH_CACHE_KEY);
@@ -445,15 +457,21 @@ export default function SearchPage() {
     }
   }
 
-  async function handleUnfriend(targetId: string) {
+  async function handleUnfriend(targetId: string, currentStatus?: "pending" | "approved" | "friend") {
     setMenuTarget(null);
+    const nextStatus = currentStatus === "pending" ? "approved" : "pending";
     await fetch("/api/friends", {
-      method: "DELETE",
+      method: currentStatus === "pending" ? "POST" : "DELETE",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ target_id: targetId }),
     });
     setFollowing((prev) => {
-      const updated = prev.filter((f) => f.id !== targetId);
+      const now = new Date().toISOString();
+      const updated = prev.map((f) =>
+        f.id === targetId
+          ? { ...f, status: nextStatus, relation_updated_at: now }
+          : f
+      );
       try {
         const cached = localStorage.getItem(SEARCH_CACHE_KEY);
         const parsed = cached ? JSON.parse(cached) : {};
@@ -674,7 +692,7 @@ export default function SearchPage() {
 
       {activeTab === "friends" && (
         <div className="px-4 pt-0 bg-white">
-          <div className="mb-0 -mx-4 bg-sky-100/70 py-3">
+          <div className={`mb-0 -mx-4 py-3 ${!suggestionsLoading && suggestions.length === 0 ? "bg-white" : "bg-sky-100/70"}`}>
             {suggestionsLoading ? (
               <div className="flex gap-7 overflow-x-auto pb-1 pt-3 scrollbar-hide">
                 {Array.from({ length: 8 }).map((_, i) => (
@@ -684,7 +702,11 @@ export default function SearchPage() {
                   </div>
                 ))}
               </div>
-            ) : suggestions.length > 0 && (
+            ) : suggestions.length === 0 ? (
+              <div className="flex items-center justify-center py-3">
+                <p className="text-gray-400 animate-blacklist-avatar" style={{ fontSize: 16 }}>친구추천 목록 없음</p>
+              </div>
+            ) : (
               <div
                 className="overflow-x-auto scrollbar-hide pt-3 pb-1"
                 style={{ WebkitOverflowScrolling: "touch", touchAction: "pan-x" }}
@@ -762,6 +784,7 @@ export default function SearchPage() {
                   .sort((a, b) => Number(b.status === "friend") - Number(a.status === "friend"))
                   .map((f) => {
                   const memberTypeLabel = f.member_type?.[0] ? getMemberTypeLabel(f.member_type[0]) : "";
+                  const isFriendRequesting = f.status === "pending";
 
                   return (
                   <div key={f.id} className="flex items-center gap-3 py-3 border-b border-gray-50">
@@ -784,12 +807,19 @@ export default function SearchPage() {
                       }
                     }}>
                       <div className="relative">
-                        <Avatar
-                          src={f.profile_image_url}
-                          nickname={f.nickname}
-                          size={44}
-                          className={f.status === "friend" ? "border-2 border-white shadow-[0_0_0_2px_#ef4444]" : ""}
-                        />
+                        <div className={isFriendRequesting ? "animate-blacklist-avatar" : ""} style={isFriendRequesting ? getAvatarFloatStyle(f.id) : undefined}>
+                          <Avatar
+                            src={f.profile_image_url}
+                            nickname={f.nickname}
+                            size={44}
+                            className={f.status === "friend" ? "border-2 border-white shadow-[0_0_0_2px_#ef4444]" : ""}
+                          />
+                        </div>
+                        {isFriendRequesting && (
+                          <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs font-bold leading-none text-white shadow-sm">
+                            !
+                          </span>
+                        )}
                         {onlineIds.has(f.id) && (
                           <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-400 rounded-full border-2 border-white" />
                         )}
@@ -839,6 +869,7 @@ export default function SearchPage() {
                         setMenuTarget({
                           id: f.id,
                           nickname: f.nickname,
+                          status: f.status,
                           x: r.right,
                           y: placement === "top" ? r.top : r.bottom,
                           source: "friends",
@@ -874,6 +905,7 @@ export default function SearchPage() {
                   const isAccepted = acceptedFollowerIds.has(f.id);
                   const isAccepting = acceptingFollowerIds.has(f.id);
                   const isFriend = isAccepted || (followingStatusById.get(f.id) === "friend" && !isAccepting);
+                  const isFriendRequest = f.status === "pending";
                   const isAnimating = acceptedAnimatingIds.has(f.id);
                   const friendDate = formatCompactDate(
                     f.joined_at ?? f.friend_accepted_at ?? following.find((item) => item.id === f.id)?.friend_accepted_at
@@ -882,7 +914,16 @@ export default function SearchPage() {
                   return (
                   <div key={f.id} className="flex items-center gap-3 py-3 border-b border-gray-50">
                     <button onClick={() => router.push(`/users/${f.id}/view`)}>
-                      <Avatar src={f.profile_image_url} nickname={f.nickname} size={44} />
+                      <div className="relative">
+                        <div className={isFriendRequest ? "animate-blacklist-avatar" : ""} style={isFriendRequest ? getAvatarFloatStyle(f.id) : undefined}>
+                          <Avatar src={f.profile_image_url} nickname={f.nickname} size={44} />
+                        </div>
+                        {isFriendRequest && (
+                          <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs font-bold leading-none text-white shadow-sm">
+                            !
+                          </span>
+                        )}
+                      </div>
                     </button>
                     <button
                       className="flex-1 text-left min-w-0"
@@ -891,18 +932,20 @@ export default function SearchPage() {
                       <p className="font-semibold text-gray-900 truncate" style={{ fontSize: 16 }}>{f.nickname}</p>
                       {(f.country || f.region) && <p className="text-xs text-gray-400 truncate">{[f.country, f.region].filter(Boolean).join(", ")}</p>}
                     </button>
-                    <button
-                      type="button"
-                      disabled={isFriend || isAccepting}
-                      className={`px-3 py-1.5 rounded-full text-xs font-semibold flex-shrink-0 ${
-                        isFriend
-                          ? "bg-transparent text-gray-400"
-                          : "bg-[#FEE500] text-gray-900"
-                      } ${isAnimating ? "animate-friend-accepted" : ""}`}
-                      onClick={() => handleAcceptFollower(f)}
-                    >
-                      {isFriend ? friendDate : "신청수락"}
-                    </button>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <button
+                        type="button"
+                        disabled={isFriend || isAccepting}
+                        className={`px-3 py-1.5 rounded-full text-xs font-semibold flex-shrink-0 ${
+                          isFriend
+                            ? "bg-transparent text-gray-400"
+                            : "bg-[#FEE500] text-gray-900"
+                        } ${isAnimating ? "animate-friend-accepted" : ""}`}
+                        onClick={() => handleAcceptFollower(f)}
+                      >
+                        {isFriend ? friendDate : "친구연결"}
+                      </button>
+                    </div>
                     <button
                       className="p-2 -mr-2 text-gray-400 hover:text-gray-700 flex-shrink-0"
                       onClick={(e) => {
@@ -1052,10 +1095,10 @@ export default function SearchPage() {
                 <button
                   className="flex items-center justify-between w-full px-4 py-3 text-gray-700"
                   style={{ fontSize: "16px" }}
-                  onClick={() => handleUnfriend(menuTarget.id)}
+                  onClick={() => handleUnfriend(menuTarget.id, menuTarget.status)}
                 >
-                  <span>친구 취소</span>
-                  <UserMinus size={20} className="text-gray-500" />
+                  <span>{menuTarget.status === "pending" ? "친구연결끄기" : "친구요청"}</span>
+                  <Plus size={20} className="text-gray-500" />
                 </button>
                 <div className="border-t border-gray-100 mx-3" />
                 <button

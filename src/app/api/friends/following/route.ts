@@ -10,6 +10,7 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const pendingCutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
     const [
       { data, error },
       { data: stateRows, error: stateError },
@@ -18,7 +19,7 @@ export async function GET() {
         .from("friendships")
         .select("friend_id, status, created_at, updated_at, profiles!friendships_friend_id_fkey(id, nickname, profile_image_url, country, region, member_type, role)")
         .eq("user_id", user.id)
-        .in("status", ["approved", "friend"]),
+        .in("status", ["pending", "approved", "friend"]),
       supabase
         .from("friend_member_states")
         .select("target_id")
@@ -46,9 +47,11 @@ export async function GET() {
           status: row.status,
           friend_accepted_at: row.status === "friend" ? row.updated_at : null,
           joined_at: row.created_at ?? null,
+          relation_updated_at: row.updated_at ?? null,
         };
       })
-      .filter((item) => !excludedIds.has(item.id));
+      .filter((item) => !excludedIds.has(item.id))
+      .filter((item) => item.status !== "pending" || (item.relation_updated_at ?? "") >= pendingCutoff);
 
     return NextResponse.json({ data: following });
   } catch (e) {

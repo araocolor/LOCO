@@ -82,9 +82,6 @@ export async function POST(request: NextRequest) {
         .eq("id", reverseRow.id);
       if (reverseUpdateError) throw reverseUpdateError;
     } else {
-      if (myRow?.status === "pending") {
-        return NextResponse.json({ error: "이미 신청 대기중입니다." }, { status: 409 });
-      }
       if (myRow?.status === "friend" || myRow?.status === "approved") {
         return NextResponse.json({ error: "이미 친구 상태입니다." }, { status: 409 });
       }
