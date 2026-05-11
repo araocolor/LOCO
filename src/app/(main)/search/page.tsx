@@ -113,6 +113,13 @@ function syncMyPageSocialCounts(followers: Follower[], following: Follower[]) {
   } catch {}
 }
 
+function sortFollowersOnce(followers: Follower[], following: Follower[]) {
+  const followingStatusById = new Map(following.map((f) => [f.id, f.status]));
+  return followers
+    .slice()
+    .sort((a, b) => Number(followingStatusById.get(a.id) === "friend") - Number(followingStatusById.get(b.id) === "friend"));
+}
+
 
 function CheckModal() {
   return (
@@ -167,7 +174,7 @@ export default function SearchPage() {
       const cached = localStorage.getItem(SEARCH_CACHE_KEY);
       if (cached) {
         const { followers, following } = JSON.parse(cached);
-        if (followers) setFollowers(followers);
+        if (followers) setFollowers(Array.isArray(following) ? sortFollowersOnce(followers, following) : followers);
         if (following) setFollowing(following);
       }
     } catch {}
@@ -181,10 +188,11 @@ export default function SearchPage() {
       .then(([f, fw]) => {
         const followers = f.data ?? [];
         const following = fw.data ?? [];
-        setFollowers(followers);
+        const sortedFollowers = sortFollowersOnce(followers, following);
+        setFollowers(sortedFollowers);
         setFollowing(following);
         try {
-          localStorage.setItem(SEARCH_CACHE_KEY, JSON.stringify({ followers, following, ts: Date.now() }));
+          localStorage.setItem(SEARCH_CACHE_KEY, JSON.stringify({ followers: sortedFollowers, following, ts: Date.now() }));
         } catch {}
       })
       .catch(() => {});
@@ -407,7 +415,6 @@ export default function SearchPage() {
       });
 
       if (!res.ok && res.status !== 409) throw new Error();
-      refreshSocialLists();
     } catch {
       failed = true;
       window.clearTimeout(animationTimer);
@@ -686,7 +693,7 @@ export default function SearchPage() {
                   {suggestions.map((s) => (
                     <div key={s.id} className="flex flex-col items-center gap-1 flex-shrink-0">
                       <div className="relative" style={{ width: 60, height: 60 }}>
-                        <button onClick={() => router.push(`/users/${s.id}/view`)}>
+                        <button onClick={() => handleAddFriend(s.id)}>
                           <div className="animate-blacklist-avatar" style={getAvatarFloatStyle(s.id)}>
                             <Avatar src={s.profile_image_url} nickname={s.nickname} size={60} />
                           </div>
@@ -705,7 +712,13 @@ export default function SearchPage() {
                           }
                         </button>
                       </div>
-                      <span className="text-gray-700 w-[55px] truncate text-center" style={{ fontSize: 14 }}>{s.nickname}</span>
+                      <button
+                        type="button"
+                        onClick={() => router.push(`/users/${s.id}/view`)}
+                        className="max-w-[62px] rounded-full bg-gray-400 px-2 py-0.5 text-center text-xs text-gray-100 truncate"
+                      >
+                        {s.nickname}
+                      </button>
                     </div>
                   ))}
                 </div>
@@ -857,14 +870,7 @@ export default function SearchPage() {
               <p className="text-sm text-gray-400">아직 팔로워가 없어요</p>
             ) : (
               <div className="flex flex-col">
-                {followers
-                  .slice()
-                  .sort((a, b) => {
-                    const aDone = acceptedFollowerIds.has(a.id) || followingStatusById.get(a.id) === "friend";
-                    const bDone = acceptedFollowerIds.has(b.id) || followingStatusById.get(b.id) === "friend";
-                    return Number(aDone) - Number(bDone);
-                  })
-                  .map((f) => {
+                {followers.map((f) => {
                   const isAccepted = acceptedFollowerIds.has(f.id);
                   const isAccepting = acceptingFollowerIds.has(f.id);
                   const isFriend = isAccepted || (followingStatusById.get(f.id) === "friend" && !isAccepting);

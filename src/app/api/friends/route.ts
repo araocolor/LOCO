@@ -92,14 +92,14 @@ export async function POST(request: NextRequest) {
       if (myRow) {
         const { error } = await supabase
           .from("friendships")
-          .update({ status: "pending" })
+          .update({ status: "approved" })
           .eq("id", myRow.id);
         if (error) throw error;
       } else {
         const { error } = await supabase.from("friendships").insert({
           user_id: user.id,
           friend_id: target_id,
-          status: "pending",
+          status: "approved",
         });
         if (error) throw error;
       }
@@ -129,7 +129,7 @@ export async function POST(request: NextRequest) {
       await supabase.from("notifications").insert({
         user_id: target_id,
         type: "friend",
-        message: shouldAutoFriend ? "누군가 회원님과 친구가 되었습니다." : "누군가 회원님을 친구로 신청했습니다.",
+        message: shouldAutoFriend ? "누군가 회원님과 친구가 되었습니다." : "누군가 회원님을 친구로 등록했습니다.",
         related_id: user.id,
         is_read: false,
       });

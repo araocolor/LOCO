@@ -12,6 +12,7 @@ import SendMessageModal from "@/components/modal/SendMessageModal";
 
 const LIKES_CACHE_KEY = "loco_liked_posts";
 const BOOKMARKS_CACHE_KEY = "loco_bookmark_ids_v1";
+const SEARCH_CACHE_KEY = "search_prefetch_cache";
 
 interface ClassHost {
   id: string;
@@ -70,6 +71,35 @@ function calcDaysLeft(deadline: string) {
   const d = new Date(deadline);
   d.setHours(0, 0, 0, 0);
   return Math.ceil((d.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+function readCachedFollowingIds() {
+  try {
+    const raw = localStorage.getItem(SEARCH_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed.following)) return null;
+    return new Set<string>(parsed.following.map((item: { id: string }) => item.id));
+  } catch {
+    return null;
+  }
+}
+
+function writeFriendToSearchCache(host: ClassHost) {
+  try {
+    const raw = localStorage.getItem(SEARCH_CACHE_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    const following = Array.isArray(parsed.following) ? parsed.following : [];
+    if (following.some((item: { id: string }) => item.id === host.id)) return;
+    localStorage.setItem(
+      SEARCH_CACHE_KEY,
+      JSON.stringify({
+        ...parsed,
+        following: [{ ...host, status: "approved" }, ...following],
+        ts: Date.now(),
+      })
+    );
+  } catch {}
 }
 
 export default function ClassCard({ classData }: ClassCardProps) {
@@ -182,6 +212,7 @@ export default function ClassCard({ classData }: ClassCardProps) {
   const levelLabel = CLASS_LEVEL_LABELS[level] ?? level;
   const statusInfo = STATUS_MAP[status] ?? STATUS_MAP.recruiting;
   const chipCls = GENRE_CHIP[primaryGenre] ?? GENRE_CHIP.other;
+  const isHostFriend = !!host?.id && readCachedFollowingIds()?.has(host.id) === true;
 
   return (
     <>
@@ -233,27 +264,34 @@ export default function ClassCard({ classData }: ClassCardProps) {
                       <polygon points="19 21 12 16 5 21 5 3 19 3"/>
                     </svg>
                   </button>
-                  <div className="border-t border-gray-100 mx-3" />
-                  {/* 친구등록 */}
-                  <button
-                    onClick={async () => {
-                      if (!host?.id) return;
-                      setMenuOpen(false);
-                      const res = await fetch("/api/friends", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ target_id: host.id }),
-                      });
-                      const data = await res.json();
-                      setFriendMsg(res.ok ? "친구등록 완료!" : (data.error ?? "오류가 발생했습니다"));
-                      setTimeout(() => setFriendMsg(""), 3000);
-                    }}
-                    className="flex items-center justify-between w-full px-4 py-3 text-sm text-gray-700">
-                    <span>친구등록</span>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500">
-                      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/>
-                    </svg>
-                  </button>
+                  {!isHostFriend && (
+                    <>
+                      <div className="border-t border-gray-100 mx-3" />
+                      {/* 친구등록 */}
+                      <button
+                        onClick={async () => {
+                          if (!host?.id) return;
+                          setMenuOpen(false);
+                          const res = await fetch("/api/friends", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ target_id: host.id }),
+                          });
+                          const data = await res.json();
+                          if (res.ok) {
+                            writeFriendToSearchCache(host);
+                          }
+                          setFriendMsg(res.ok ? "친구등록 완료!" : (data.error ?? "오류가 발생했습니다"));
+                          setTimeout(() => setFriendMsg(""), 3000);
+                        }}
+                        className="flex items-center justify-between w-full px-4 py-3 text-sm text-gray-700">
+                        <span>친구등록</span>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500">
+                          <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/>
+                        </svg>
+                      </button>
+                    </>
+                  )}
                   <div className="border-t border-gray-100 mx-3" />
                   {/* 메세지전송 */}
                   <button
