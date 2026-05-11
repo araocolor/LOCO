@@ -20,8 +20,10 @@ interface Profile {
   email: string | null;
   nickname: string;
   bio: string | null;
+  country?: string | null;
   member_type: string[];
   profile_image_url: string | null;
+  region?: string | null;
 }
 
 interface UserViewData {

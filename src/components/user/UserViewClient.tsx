@@ -23,8 +23,10 @@ interface Profile {
   email: string | null;
   nickname: string;
   bio: string | null;
+  country: string | null;
   member_type: string[];
   profile_image_url: string | null;
+  region: string | null;
 }
 
 interface Props {
@@ -128,11 +130,16 @@ export default function UserViewClient({ profile, myClasses, bookmarkClasses }: 
           </div>
 
           <span className="text-[17px] font-bold text-[#333333]">{profile.nickname}</span>
-          {profile.member_type?.[0] && (
-            <span className="px-2.5 py-0 rounded-full bg-gray-800 text-white text-[13px] self-start">
-              {profile.member_type[0]}
-            </span>
-          )}
+          <div className="flex items-center gap-2 flex-wrap">
+            {profile.member_type?.[0] && (
+              <span className="px-2.5 py-0 rounded-full bg-gray-800 text-white text-[13px]">
+                {profile.member_type[0]}
+              </span>
+            )}
+            {(profile.country || profile.region) && (
+              <span className="text-[13px] text-gray-400">{[profile.country, profile.region].filter(Boolean).join(", ")}</span>
+            )}
+          </div>
           <span className="text-[14px] text-gray-400 -mt-1">{profile.email ?? ""}</span>
           {profile.bio && (
             <span className="text-[16px] w-[80%] mt-2" style={{ color: "#000000cc" }}>

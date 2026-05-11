@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, useCallback, useSyncExternalStore, type C
 import Avatar from "@/components/ui/Avatar";
 import { useRouter } from "next/navigation";
 import { MoreVertical, Plus, Check, UserMinus, MessageCircle, Ban, UserCircle } from "lucide-react";
+import { RiVerifiedBadgeFill } from "react-icons/ri";
 import SearchHeader from "@/components/layout/SearchHeader";
 import { PRESENCE_EVENT } from "@/components/features/PresenceTracker";
 
@@ -13,7 +14,9 @@ interface Follower {
   id: string;
   nickname: string;
   profile_image_url: string | null;
+  country: string | null;
   region: string | null;
+  member_type?: string[];
   status?: "approved" | "friend";
   friend_accepted_at?: string | null;
 }
@@ -22,6 +25,7 @@ interface Suggestion {
   id: string;
   nickname: string;
   profile_image_url: string | null;
+  country: string | null;
   region: string | null;
 }
 
@@ -29,6 +33,7 @@ interface PendingMember {
   id: string;
   nickname: string;
   profile_image_url: string | null;
+  country: string | null;
   region: string | null;
   state: "hidden" | "blocked" | "black";
   updated_at: string;
@@ -51,6 +56,10 @@ function formatCompactDate(value?: string | null) {
   const date = value ? new Date(value) : new Date();
   if (Number.isNaN(date.getTime())) return "";
   return `${String(date.getFullYear()).slice(-2)}/${String(date.getMonth() + 1).padStart(2, "0")}/${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function getMemberTypeLabel(type: string) {
+  return type === "인스트럭터" ? "강사" : type;
 }
 
 function getAvatarFloatStyle(id: string): CSSProperties {
@@ -135,6 +144,8 @@ export default function SearchPage() {
   const [blacklistPinInput, setBlacklistPinInput] = useState("");
   const [blacklistPinSubmitting, setBlacklistPinSubmitting] = useState(false);
   const [blacklistPinError, setBlacklistPinError] = useState("");
+  const [profileModal, setProfileModal] = useState<Follower | null>(null);
+  const [profileModalData, setProfileModalData] = useState<{ bio: string | null; member_type: string[] } | null>(null);
 
   const handleTabChange = useCallback((tab: Tab) => {
     replaceSearchTab(tab);
@@ -734,9 +745,29 @@ export default function SearchPage() {
                 {following
                   .filter((f) => friendSearch === "" || f.nickname.toLowerCase().includes(friendSearch.toLowerCase()))
                   .sort((a, b) => Number(b.status === "friend") - Number(a.status === "friend"))
-                  .map((f) => (
+                  .map((f) => {
+                  const memberTypeLabel = f.member_type?.[0] ? getMemberTypeLabel(f.member_type[0]) : "";
+
+                  return (
                   <div key={f.id} className="flex items-center gap-3 py-3 border-b border-gray-50">
-                    <button onClick={() => router.push(`/users/${f.id}/view`)}>
+                    <button onClick={() => {
+                      setProfileModal(f);
+                      const cached = sessionStorage.getItem(`user_view_${f.id}`);
+                      if (cached) {
+                        try {
+                          const json = JSON.parse(cached);
+                          setProfileModalData({ bio: json.profile?.bio ?? null, member_type: json.profile?.member_type ?? [] });
+                        } catch {}
+                      } else {
+                        fetch(`/api/users/${f.id}/view-summary`)
+                          .then((res) => res.json())
+                          .then((json) => {
+                            sessionStorage.setItem(`user_view_${f.id}`, JSON.stringify(json));
+                            setProfileModalData({ bio: json.profile?.bio ?? null, member_type: json.profile?.member_type ?? [] });
+                          })
+                          .catch(() => {});
+                      }
+                    }}>
                       <div className="relative">
                         <Avatar
                           src={f.profile_image_url}
@@ -751,11 +782,39 @@ export default function SearchPage() {
                     </button>
                     <button
                       className="flex-1 text-left min-w-0"
-                      onClick={() => router.push(`/users/${f.id}/view`)}
+                      onClick={() => {
+                        setProfileModal(f);
+                        const cached = sessionStorage.getItem(`user_view_${f.id}`);
+                        if (cached) {
+                          try {
+                            const json = JSON.parse(cached);
+                            setProfileModalData({ bio: json.profile?.bio ?? null, member_type: json.profile?.member_type ?? [] });
+                          } catch {}
+                        } else {
+                          fetch(`/api/users/${f.id}/view-summary`)
+                            .then((res) => res.json())
+                            .then((json) => {
+                              sessionStorage.setItem(`user_view_${f.id}`, JSON.stringify(json));
+                              setProfileModalData({ bio: json.profile?.bio ?? null, member_type: json.profile?.member_type ?? [] });
+                            })
+                            .catch(() => {});
+                        }
+                      }}
                     >
                       <p className="font-semibold text-gray-900 truncate" style={{ fontSize: 16 }}>{f.nickname}</p>
-                      <p className="text-xs text-gray-400 truncate">{f.region ?? "지역 미설정"}</p>
+                      {(f.country || f.region) && <p className="text-xs text-gray-400 truncate">{[f.country, f.region].filter(Boolean).join(", ")}</p>}
                     </button>
+                    {f.member_type?.[0] && (
+                      <span className="text-[16px] flex-shrink-0 inline-flex items-center gap-1" style={{ color: "#000000B3" }}>
+                        {memberTypeLabel === "강사" && (
+                          <RiVerifiedBadgeFill size={18} color="#FEE500" />
+                        )}
+                        {memberTypeLabel === "운영진" && (
+                          <RiVerifiedBadgeFill size={18} color="#1D9BF0" />
+                        )}
+                        {memberTypeLabel}
+                      </span>
+                    )}
                     <button
                       className="p-2 -mr-2 text-gray-400 hover:text-gray-700 flex-shrink-0"
                       onClick={(e) => {
@@ -779,7 +838,7 @@ export default function SearchPage() {
                       <MoreVertical size={18} />
                     </button>
                   </div>
-                ))}
+                )})}
               </div>
             )}
           </div>
@@ -822,7 +881,7 @@ export default function SearchPage() {
                       onClick={() => router.push(`/users/${f.id}/view`)}
                     >
                       <p className="font-semibold text-gray-900 truncate" style={{ fontSize: 16 }}>{f.nickname}</p>
-                      <p className="text-xs text-gray-400 truncate">{f.region ?? "지역 미설정"}</p>
+                      {(f.country || f.region) && <p className="text-xs text-gray-400 truncate">{[f.country, f.region].filter(Boolean).join(", ")}</p>}
                     </button>
                     <button
                       type="button"
@@ -919,7 +978,7 @@ export default function SearchPage() {
                         onClick={() => router.push(`/users/${m.id}/view`)}
                       >
                         <p className="font-semibold text-gray-900 truncate" style={{ fontSize: 16 }}>{m.nickname}</p>
-                        <p className="text-xs text-gray-400 truncate">{m.region ?? "지역 미설정"}</p>
+                        {(m.country || m.region) && <p className="text-xs text-gray-400 truncate">{[m.country, m.region].filter(Boolean).join(", ")}</p>}
                         <p className="text-[11px] text-gray-400 mt-0.5">{new Date(m.updated_at).toLocaleDateString("ko-KR")}</p>
                       </button>
                       <div className="flex items-center gap-1">
@@ -1028,6 +1087,33 @@ export default function SearchPage() {
               <span>블랙신고</span>
               <Ban size={20} className="text-gray-500" />
             </button>
+          </div>
+        </>
+      )}
+
+      {profileModal && (
+        <>
+          <div className="fixed inset-0 z-[70] bg-black/50" onClick={() => { setProfileModal(null); setProfileModalData(null); }} />
+          <div className="fixed inset-0 z-[80] flex items-center justify-center pointer-events-none">
+            <div className="w-[250px] bg-white rounded-2xl shadow-lg p-6 pointer-events-auto flex flex-col items-center gap-2">
+              <Avatar src={profileModal.profile_image_url} nickname={profileModal.nickname} size={60} />
+              <div className="text-center w-full space-y-2">
+                <p className="font-semibold text-gray-900 truncate text-sm">{profileModal.nickname}</p>
+                <div className="flex items-center justify-center gap-2 flex-wrap">
+                  {profileModalData?.member_type?.[0] && (
+                    <span className="px-2.5 py-1 rounded-full bg-gray-800 text-white text-[12px] font-medium">
+                      {profileModalData.member_type[0]}
+                    </span>
+                  )}
+                  {(profileModal.country || profileModal.region) && (
+                    <p className="text-xs text-gray-400">{[profileModal.country, profileModal.region].filter(Boolean).join(", ")}</p>
+                  )}
+                </div>
+                {profileModalData?.bio && (
+                  <p className="text-[17px] text-gray-600 line-clamp-4 mt-1 whitespace-pre-wrap">{profileModalData.bio}</p>
+                )}
+              </div>
+            </div>
           </div>
         </>
       )}

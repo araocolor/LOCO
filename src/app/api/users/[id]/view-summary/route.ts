@@ -41,7 +41,7 @@ export async function GET(
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("id, email, nickname, profile_image_url, bio, member_type")
+    .select("id, email, nickname, profile_image_url, bio, member_type, country, region")
     .eq("id", id)
     .single();
 
@@ -89,8 +89,10 @@ export async function GET(
       email: profile.email ?? (user?.id === id ? user.email ?? null : null),
       nickname: profile.nickname,
       bio: profile.bio,
+      country: profile.country ?? null,
       member_type: profile.member_type ?? [],
       profile_image_url: profile.profile_image_url,
+      region: profile.region ?? null,
     },
     myClasses,
     bookmarkClasses,

@@ -7,6 +7,7 @@ interface PendingMember {
   id: string;
   nickname: string;
   profile_image_url: string | null;
+  country: string | null;
   region: string | null;
   state: PendingState;
   updated_at: string;
@@ -30,12 +31,12 @@ export async function GET() {
     if (stateError) throw stateError;
 
     const targetIds = (stateRows ?? []).map((row) => row.target_id);
-    let profileMap = new Map<string, { nickname: string; profile_image_url: string | null; region: string | null }>();
+    let profileMap = new Map<string, { nickname: string; profile_image_url: string | null; country: string | null; region: string | null }>();
 
     if (targetIds.length > 0) {
       const { data: profiles, error: profileError } = await supabase
         .from("profiles")
-        .select("id, nickname, profile_image_url, region")
+        .select("id, nickname, profile_image_url, country, region")
         .in("id", targetIds);
       if (profileError) throw profileError;
 
@@ -45,6 +46,7 @@ export async function GET() {
           {
             nickname: p.nickname ?? "",
             profile_image_url: p.profile_image_url ?? null,
+            country: p.country ?? null,
             region: p.region ?? null,
           },
         ])
@@ -64,6 +66,7 @@ export async function GET() {
           id: row.target_id,
           nickname: p?.nickname ?? "",
           profile_image_url: p?.profile_image_url ?? null,
+          country: p?.country ?? null,
           region: p?.region ?? null,
           state: row.state as PendingState,
           updated_at: row.updated_at ?? new Date(0).toISOString(),

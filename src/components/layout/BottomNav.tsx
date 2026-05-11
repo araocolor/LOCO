@@ -9,6 +9,20 @@ const MYPAGE_CACHE_KEY = "loco_mypage_cache_local_v2";
 const SEARCH_CACHE_KEY = "search_prefetch_cache";
 const SUGGESTIONS_KEY = "search_suggestions_cache";
 
+function shouldRefreshSearchCache(raw: string | null) {
+  if (!raw) return true;
+
+  try {
+    const parsed = JSON.parse(raw);
+    const lists = [parsed.followers, parsed.following].filter(Array.isArray);
+    return lists.some((items) =>
+      items.some((item: { member_type?: unknown }) => !("member_type" in item))
+    );
+  } catch {
+    return true;
+  }
+}
+
 const NAV_ITEMS = [
   {
     href: "/",
@@ -65,7 +79,7 @@ export default function BottomNav({ isLoggedIn }: { isLoggedIn: boolean }) {
       try {
         const shouldPrefetchConversations = !localStorage.getItem(CONVERSATIONS_CACHE_KEY);
         const shouldPrefetchMyPage = !localStorage.getItem(MYPAGE_CACHE_KEY);
-        const shouldPrefetchSearch = !localStorage.getItem(SEARCH_CACHE_KEY);
+        const shouldPrefetchSearch = shouldRefreshSearchCache(localStorage.getItem(SEARCH_CACHE_KEY));
         const shouldPrefetchSuggestions = !localStorage.getItem(SUGGESTIONS_KEY);
         if (
           !isLoggedIn ||
@@ -136,7 +150,10 @@ export default function BottomNav({ isLoggedIn }: { isLoggedIn: boolean }) {
       : pathname;
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-red-500 border-t border-[#e5e7eb] h-[70px] flex items-center">
+    <nav
+      className="fixed bottom-0 left-0 right-0 z-50 bg-red-500 border-t border-[#e5e7eb] h-[70px] flex items-center touch-none overscroll-contain select-none"
+      onTouchMove={(event) => event.preventDefault()}
+    >
       {NAV_ITEMS.map(({ href, label, icon }) => {
         const isActive =
           href === "/" ? activeHref === "/" : activeHref.startsWith(href);

@@ -17,12 +17,12 @@ export async function GET() {
     ] = await Promise.all([
       supabase
         .from("friendships")
-        .select("user_id, status, updated_at, profiles!friendships_user_id_fkey(id, nickname, profile_image_url, region)")
+        .select("user_id, status, updated_at, profiles!friendships_user_id_fkey(id, nickname, profile_image_url, country, region, member_type)")
         .eq("friend_id", user.id)
         .in("status", ["approved", "friend"]),
       supabase
         .from("profiles")
-        .select("id, nickname, profile_image_url, region")
+        .select("id, nickname, profile_image_url, country, region, member_type")
         .eq("role", "admin")
         .neq("id", user.id),
       supabase
@@ -48,7 +48,9 @@ export async function GET() {
           id: p?.id ?? row.user_id,
           nickname: p?.nickname ?? "",
           profile_image_url: p?.profile_image_url ?? null,
+          country: p?.country ?? null,
           region: p?.region ?? null,
+          member_type: p?.member_type ?? [],
           status: row.status,
           friend_accepted_at: row.status === "friend" ? row.updated_at : null,
         };
@@ -62,7 +64,9 @@ export async function GET() {
         id: a.id,
         nickname: a.nickname ?? "",
         profile_image_url: a.profile_image_url ?? null,
+        country: a.country ?? null,
         region: a.region ?? null,
+        member_type: a.member_type ?? [],
       }));
 
     return NextResponse.json({ data: [...followers, ...adminFollowers] });

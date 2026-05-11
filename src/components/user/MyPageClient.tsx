@@ -13,6 +13,10 @@ import { ClassImage } from "@/types/class";
 
 type TabType = "all" | "my" | "bookmark";
 
+function getMemberTypeLabel(type: string) {
+  return type === "인스트럭터" ? "강사" : type;
+}
+
 interface GridClass {
   id: string;
   images: ClassImage[] | null;
@@ -487,7 +491,7 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses, soc
             <span className="text-base font-semibold text-gray-900">{profile.nickname}</span>
             {memberTypes[0] && (
               <span className="px-2.5 py-0 rounded-full bg-gray-800 text-[13px]" style={{ color: "rgba(255,255,255,0.9)" }}>
-                {memberTypes[0]}
+                {getMemberTypeLabel(memberTypes[0])}
               </span>
             )}
             <span className="text-[14px] text-gray-500">{profile.email ?? ""}</span>
@@ -513,7 +517,10 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses, soc
               <div className="grid grid-cols-2 gap-2">
                 <select
                   value={country}
-                  onChange={(e) => setCountry(e.target.value)}
+                  onChange={(e) => {
+                    setCountry(e.target.value);
+                    if (e.target.value !== "대한민국") setRegion("");
+                  }}
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400 bg-white"
                 >
                   <option value="">국가 선택</option>
@@ -597,7 +604,7 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses, soc
                           : "bg-white border-gray-300 text-gray-700"
                       } ${limitReached ? "opacity-40 cursor-not-allowed" : "hover:border-gray-400"}`}
                     >
-                      {type}
+                      {getMemberTypeLabel(type)}
                     </button>
                   );
                 })}
