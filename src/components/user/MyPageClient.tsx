@@ -388,7 +388,7 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses, soc
                   <span className="text-[18px] font-bold text-gray-900 leading-tight">{friendsCount}</span>
                 </Link>
                 <Link
-                  href="/search?tab=follower"
+                  href="/search?tab=subscription"
                   className="flex flex-col items-center gap-0.5"
                 >
                   <span className="text-[13px] font-medium text-gray-500 leading-none">구독/팔로워</span>

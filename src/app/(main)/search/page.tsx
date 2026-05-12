@@ -134,8 +134,8 @@ function sortFollowersOnce(followers: Follower[], following: Follower[]) {
 function CheckModal() {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
-      <div className="bg-black/70 rounded-2xl w-20 h-20 flex items-center justify-center animate-fade-in-out">
-        <Check size={36} className="text-white" strokeWidth={3} />
+      <div className="bg-yellow-400 rounded-full w-20 h-20 flex items-center justify-center animate-fade-in-out">
+        <Check size={36} className="text-black" strokeWidth={3} />
       </div>
     </div>
   );
@@ -164,6 +164,7 @@ export default function SearchPage() {
   const [blacklistPinSubmitting, setBlacklistPinSubmitting] = useState(false);
   const [blacklistPinError, setBlacklistPinError] = useState("");
   const [blacklistPinFailCount, setBlacklistPinFailCount] = useState(0);
+  const [unsubscribeConfirm, setUnsubscribeConfirm] = useState<{ id: string; nickname: string; profile_image_url: string | null } | null>(null);
   const [profileModal, setProfileModal] = useState<Follower | null>(null);
   const [profileModalData, setProfileModalData] = useState<{ bio: string | null; member_type: string[] } | null>(null);
 
@@ -983,6 +984,7 @@ export default function SearchPage() {
                           y: placement === "top" ? r.top : r.bottom,
                           source: "subscription",
                           placement,
+                          follower: f,
                         });
                         fetch(`/api/users/${f.id}/view-summary`)
                           .then((res) => res.json())
@@ -1287,23 +1289,13 @@ export default function SearchPage() {
                   className="flex items-center justify-between w-full px-4 py-3 text-red-500"
                   style={{ fontSize: "16px" }}
                   onClick={() => {
+                    const target = menuTarget;
                     setMenuTarget(null);
-                    fetch("/api/friends", {
-                      method: "DELETE",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ target_id: menuTarget.id }),
-                    }).then(() => {
-                      setFollowing((prev) => {
-                        const updated = prev.filter((f) => f.id !== menuTarget.id);
-                        try {
-                          const cached = localStorage.getItem(SEARCH_CACHE_KEY);
-                          const parsed = cached ? JSON.parse(cached) : {};
-                          localStorage.setItem(SEARCH_CACHE_KEY, JSON.stringify({ ...parsed, following: updated, ts: Date.now() }));
-                          syncMyPageSocialCounts(followers, updated);
-                        } catch {}
-                        return updated;
-                      });
-                    }).catch(() => alert("구독취소 처리 중 오류가 발생했습니다."));
+                    setUnsubscribeConfirm({
+                      id: target.id,
+                      nickname: target.nickname,
+                      profile_image_url: target.follower?.profile_image_url ?? null,
+                    });
                   }}
                 >
                   <span>구독취소</span>
@@ -1361,6 +1353,66 @@ export default function SearchPage() {
             </div>
           </div>
         </>
+      )}
+
+      {unsubscribeConfirm && (
+        <div
+          className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center"
+          onClick={() => setUnsubscribeConfirm(null)}
+        >
+          <div
+            className="bg-white rounded-2xl px-6 py-6 w-[260px] flex flex-col items-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ animation: "floatY 1.8s ease-in-out infinite" }}>
+              <Avatar src={unsubscribeConfirm.profile_image_url} nickname={unsubscribeConfirm.nickname} size={50} />
+            </div>
+            <p className="mt-3 text-[15px] font-semibold text-gray-900">{unsubscribeConfirm.nickname}</p>
+            <div className="mt-5 flex gap-2 w-full">
+              <button
+                type="button"
+                className="flex-1 h-10 rounded-full bg-gray-100 text-gray-700 text-sm font-semibold"
+                onClick={() => setUnsubscribeConfirm(null)}
+              >
+                닫기
+              </button>
+              <button
+                type="button"
+                className="flex-1 h-10 rounded-full bg-red-500 text-white text-sm font-semibold"
+                onClick={() => {
+                  const target = unsubscribeConfirm;
+                  setUnsubscribeConfirm(null);
+                  setShowCheck(true);
+                  setTimeout(() => setShowCheck(false), 1200);
+                  fetch("/api/friends", {
+                    method: "DELETE",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ target_id: target.id }),
+                  }).then(() => {
+                    setFollowing((prev) => {
+                      const updated = prev.filter((f) => f.id !== target.id);
+                      try {
+                        const cached = localStorage.getItem(SEARCH_CACHE_KEY);
+                        const parsed = cached ? JSON.parse(cached) : {};
+                        localStorage.setItem(SEARCH_CACHE_KEY, JSON.stringify({ ...parsed, following: updated, ts: Date.now() }));
+                        syncMyPageSocialCounts(followers, updated);
+                      } catch {}
+                      return updated;
+                    });
+                  }).catch(() => alert("구독취소 처리 중 오류가 발생했습니다."));
+                }}
+              >
+                구독취소
+              </button>
+            </div>
+          </div>
+          <style jsx>{`
+            @keyframes floatY {
+              0%, 100% { transform: translateY(0); }
+              50% { transform: translateY(-6px); }
+            }
+          `}</style>
+        </div>
       )}
     </>
   );
