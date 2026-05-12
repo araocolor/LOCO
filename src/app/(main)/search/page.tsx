@@ -165,6 +165,8 @@ export default function SearchPage() {
   const [blacklistPinError, setBlacklistPinError] = useState("");
   const [blacklistPinFailCount, setBlacklistPinFailCount] = useState(0);
   const [unsubscribeConfirm, setUnsubscribeConfirm] = useState<{ id: string; nickname: string; profile_image_url: string | null } | null>(null);
+  const [showBlackReportToast, setShowBlackReportToast] = useState(false);
+  const [removingPendingIds, setRemovingPendingIds] = useState<Set<string>>(new Set());
   const [profileModal, setProfileModal] = useState<Follower | null>(null);
   const [profileModalData, setProfileModalData] = useState<{ bio: string | null; member_type: string[] } | null>(null);
 
@@ -533,7 +535,8 @@ export default function SearchPage() {
       });
       refreshSocialLists();
       invalidatePendingCache();
-      alert("신고과 완료되었습니다.");
+      setShowBlackReportToast(true);
+      setTimeout(() => setShowBlackReportToast(false), 1500);
     } catch {
       alert("신고 처리 중 오류가 발생했습니다.");
     }
@@ -576,11 +579,26 @@ export default function SearchPage() {
     }
   }
 
+  async function playPendingRemoveAnimation(targetId: string) {
+    setRemovingPendingIds((prev) => {
+      const next = new Set(prev);
+      next.add(targetId);
+      return next;
+    });
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+  }
+
   async function handleUnhideFriend(targetId: string) {
+    await playPendingRemoveAnimation(targetId);
     const prevPending = pendingMembers;
     const nextPending = pendingMembers.filter((m) => !(m.id === targetId && m.state === "hidden"));
     setPendingMembers(nextPending);
     writePendingCache(nextPending);
+    setRemovingPendingIds((prev) => {
+      const next = new Set(prev);
+      next.delete(targetId);
+      return next;
+    });
 
     try {
       const res = await fetch("/api/friends/hide", {
@@ -590,7 +608,6 @@ export default function SearchPage() {
       });
       if (!res.ok) throw new Error();
       refreshSocialLists();
-      alert("숨김이 해제되었습니다.");
     } catch {
       setPendingMembers(prevPending);
       writePendingCache(prevPending);
@@ -599,10 +616,16 @@ export default function SearchPage() {
   }
 
   async function handleUnreportUser(targetId: string) {
+    await playPendingRemoveAnimation(targetId);
     const prevPending = pendingMembers;
     const nextPending = pendingMembers.filter((m) => !(m.id === targetId && m.state === "black"));
     setPendingMembers(nextPending);
     writePendingCache(nextPending);
+    setRemovingPendingIds((prev) => {
+      const next = new Set(prev);
+      next.delete(targetId);
+      return next;
+    });
 
     try {
       const res = await fetch("/api/black-reports", {
@@ -612,7 +635,6 @@ export default function SearchPage() {
       });
       if (!res.ok) throw new Error();
       refreshSocialLists();
-      alert("블랙신고가 해제되었습니다.");
     } catch {
       setPendingMembers(prevPending);
       writePendingCache(prevPending);
@@ -621,10 +643,16 @@ export default function SearchPage() {
   }
 
   async function handleUnblockUser(targetId: string) {
+    await playPendingRemoveAnimation(targetId);
     const prevPending = pendingMembers;
     const nextPending = pendingMembers.filter((m) => !(m.id === targetId && m.state === "blocked"));
     setPendingMembers(nextPending);
     writePendingCache(nextPending);
+    setRemovingPendingIds((prev) => {
+      const next = new Set(prev);
+      next.delete(targetId);
+      return next;
+    });
 
     try {
       const res = await fetch("/api/friends/block", {
@@ -634,7 +662,6 @@ export default function SearchPage() {
       });
       if (!res.ok) throw new Error();
       refreshSocialLists();
-      alert("차단이 해제되었습니다.");
     } catch {
       setPendingMembers(prevPending);
       writePendingCache(prevPending);
@@ -1145,13 +1172,49 @@ export default function SearchPage() {
               <div className="flex items-center mb-3">
                 <p className="text-base font-bold text-gray-400">블랙리스트</p>
               </div>
-              {pendingMembers.length === 0 ? (
-                <p className="text-sm text-gray-400">블랙리스트 회원이 없어요</p>
-              ) : (
+              {pendingMembers.length === 0 ? null : (
                 <div className="flex flex-col">
-                  {pendingMembers.map((m) => (
-                    <div key={m.id} className="flex items-center gap-3 py-3 border-b border-gray-50">
-                      <button onClick={() => router.push(`/users/${m.id}/view`)}>
+                  {pendingMembers.map((m) => {
+                    const isRemoving = removingPendingIds.has(m.id);
+                    return (
+                    <div
+                      key={m.id}
+                      className="flex items-center gap-3 py-3 border-b border-gray-50 relative"
+                    >
+                      {isRemoving && (
+                        <span
+                          className="absolute left-[10px] top-0 text-red-500 text-[40px] pointer-events-none z-10 leading-none"
+                          style={{ animation: "heartFloatUp 1.4s ease-out forwards" }}
+                        >
+                          ❤
+                        </span>
+                      )}
+                      <button
+                        onClick={() => {
+                          setProfileModal({
+                            id: m.id,
+                            nickname: m.nickname,
+                            profile_image_url: m.profile_image_url,
+                            country: m.country,
+                            region: m.region,
+                          });
+                          const cached = sessionStorage.getItem(`user_view_${m.id}`);
+                          if (cached) {
+                            try {
+                              const json = JSON.parse(cached);
+                              setProfileModalData({ bio: json.profile?.bio ?? null, member_type: json.profile?.member_type ?? [] });
+                            } catch {}
+                          } else {
+                            fetch(`/api/users/${m.id}/view-summary`)
+                              .then((res) => res.json())
+                              .then((json) => {
+                                sessionStorage.setItem(`user_view_${m.id}`, JSON.stringify(json));
+                                setProfileModalData({ bio: json.profile?.bio ?? null, member_type: json.profile?.member_type ?? [] });
+                              })
+                              .catch(() => {});
+                          }
+                        }}
+                      >
                         <div className="animate-blacklist-avatar" style={getAvatarFloatStyle(m.id)}>
                           <Avatar src={m.profile_image_url} nickname={m.nickname} size={44} />
                         </div>
@@ -1191,7 +1254,8 @@ export default function SearchPage() {
                         )}
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -1199,7 +1263,25 @@ export default function SearchPage() {
         </div>
       )}
 
+      <style jsx global>{`
+        @keyframes heartFloatUp {
+          0% { transform: translateY(0) scale(0.6); opacity: 0; }
+          20% { opacity: 1; }
+          100% { transform: translateY(-120px) scale(1.2); opacity: 0; }
+        }
+        @keyframes floatY {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-6px); }
+        }
+      `}</style>
       {showCheck && <CheckModal />}
+      {showBlackReportToast && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
+          <div className="bg-black/70 text-white rounded-full px-5 py-3 text-[15px] font-semibold animate-fade-in-out">
+            블랙신고완료
+          </div>
+        </div>
+      )}
 
       {menuTarget && (
         <>
@@ -1406,12 +1488,6 @@ export default function SearchPage() {
               </button>
             </div>
           </div>
-          <style jsx>{`
-            @keyframes floatY {
-              0%, 100% { transform: translateY(0); }
-              50% { transform: translateY(-6px); }
-            }
-          `}</style>
         </div>
       )}
     </>

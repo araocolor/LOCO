@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
-import { UserCircle, X, Settings } from "lucide-react";
+import { UserCircle, X, Settings, Check } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { parseBookmarkEntries } from "@/lib/bookmarks/local";
 import { REGIONS, MEMBER_TYPES, MAX_MEMBER_TYPE } from "@/lib/constants";
@@ -17,8 +17,6 @@ function getMemberTypeLabel(type: string) {
   return type === "인스트럭터" ? "강사" : type;
 }
 
-const SOCIAL_NAME_PATTERN = /^[A-Za-z가-힣_]*$/;
-const MAX_SOCIAL_NAME_LENGTH = 6;
 
 interface GridClass {
   id: string;
@@ -73,7 +71,6 @@ interface Profile {
   id: string;
   email: string | null;
   nickname: string;
-  social_name: string | null;
   bio: string | null;
   country: string | null;
   region: string | null;
@@ -92,7 +89,7 @@ interface Props {
   };
 }
 
-type CacheProfilePatch = Partial<Pick<Profile, "social_name" | "bio" | "country" | "region" | "favorite_genre" | "member_type" | "profile_image_url">>;
+type CacheProfilePatch = Partial<Pick<Profile, "bio" | "country" | "region" | "favorite_genre" | "member_type" | "profile_image_url">>;
 
 export default function MyPageClient({ profile, myClasses: initialMyClasses, socialCounts }: Props) {
   const MY_PAGE_CACHE_KEY = "loco_mypage_cache_local_v2";
@@ -108,8 +105,7 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses, soc
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(profile.profile_image_url);
   const [uploading, setUploading] = useState(false);
-  const [profileMeta, setProfileMeta] = useState<Pick<Profile, "social_name" | "bio" | "country" | "region" | "favorite_genre" | "member_type">>({
-    social_name: profile.social_name,
+  const [profileMeta, setProfileMeta] = useState<Pick<Profile, "bio" | "country" | "region" | "favorite_genre" | "member_type">>({
     bio: profile.bio,
     country: profile.country,
     region: profile.region,
@@ -117,7 +113,6 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses, soc
     member_type: profile.member_type ?? [],
   });
   const [saving, setSaving] = useState(false);
-  const [socialName, setSocialName] = useState(profileMeta.social_name ?? "");
   const [bio, setBio] = useState(profileMeta.bio ?? "");
   const [country, setCountry] = useState(profileMeta.country ?? "대한민국");
   const [region, setRegion] = useState(profileMeta.region ?? "");
@@ -127,6 +122,13 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses, soc
   const [activeTab, setActiveTab] = useState<TabType>("all");
   const [myClasses] = useState<GridClass[]>(initialMyClasses);
   const [bookmarkClasses, setBookmarkClasses] = useState<GridClass[]>([]);
+  const [nicknameModalOpen, setNicknameModalOpen] = useState(false);
+  const [nicknameModalView, setNicknameModalView] = useState<"home" | "edit-nickname" | "edit-social">("home");
+  const [draftNickname, setDraftNickname] = useState("");
+  const [draftSocial, setDraftSocial] = useState("");
+  const [socialName, setSocialName] = useState<string | null>(null);
+  const [displayMode, setDisplayMode] = useState<"nickname" | "social">("nickname");
+  const [showSavedToast, setShowSavedToast] = useState(false);
   const [friendsCount, setFriendsCount] = useState<number>(socialCounts?.friends ?? 0);
   const [subscriberCount, setSubscriberCount] = useState<number>(
     (socialCounts?.following ?? 0) + (socialCounts?.followers ?? 0)
@@ -287,19 +289,12 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses, soc
   }
 
   async function handleSaveProfile() {
-    const normalizedSocialName = socialName.trim();
-    if (normalizedSocialName && !SOCIAL_NAME_PATTERN.test(normalizedSocialName)) {
-      alert("소셜명은 한글, 영어, _ 만 사용할 수 있어요.");
-      return;
-    }
-
     setSaving(true);
     try {
       const supabase = createClient();
       const { error } = await supabase
         .from("profiles")
         .update({
-          social_name: normalizedSocialName || null,
           bio: bio.trim() || null,
           country: country || null,
           region: region || null,
@@ -311,7 +306,6 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses, soc
       if (error) throw error;
 
       const nextProfileMeta = {
-        social_name: normalizedSocialName || null,
         bio: bio.trim() || null,
         country: country || null,
         region: region || null,
@@ -324,10 +318,6 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses, soc
       router.refresh();
     } catch (err) {
       console.error("프로필 저장 실패:", err);
-      if (typeof err === "object" && err !== null && "code" in err && err.code === "23505") {
-        alert("이미 사용 중인 소셜명이에요.");
-        return;
-      }
       alert("저장에 실패했어요. 다시 시도해주세요.");
     } finally {
       setSaving(false);
@@ -335,7 +325,6 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses, soc
   }
 
   function handleOpenEditModal() {
-    setSocialName(profileMeta.social_name ?? "");
     setBio(profileMeta.bio ?? "");
     setCountry(profileMeta.country ?? "대한민국");
     setRegion(profileMeta.region ?? "");
@@ -523,7 +512,21 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses, soc
                 </span>
               )}
             </button>
-            <span className="text-base font-semibold text-gray-900">{profile.nickname}</span>
+            <button
+              type="button"
+              className="flex items-center gap-2"
+              onClick={() => {
+                setDraftNickname(profile.nickname);
+                setDraftSocial(socialName ?? "");
+                setNicknameModalView("home");
+                setNicknameModalOpen(true);
+              }}
+            >
+              <span className="text-base font-semibold text-gray-900">{profile.nickname}</span>
+              <span className="rounded-full bg-black text-white px-3 h-6 text-[13px] flex items-center">
+                수정
+              </span>
+            </button>
             {memberTypes[0] && (
               <span className="px-2.5 py-0 rounded-full bg-gray-800 text-[13px]" style={{ color: "rgba(255,255,255,0.9)" }}>
                 {getMemberTypeLabel(memberTypes[0])}
@@ -533,32 +536,6 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses, soc
           </div>
 
           <div className="flex-1 overflow-y-auto pr-1 space-y-3 mb-4">
-            <section className="rounded-xl px-3 pt-1 pb-1">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-semibold text-gray-900 whitespace-nowrap">소셜명등록</span>
-                <input
-                  type="text"
-                  value={socialName}
-                  maxLength={MAX_SOCIAL_NAME_LENGTH}
-                  onChange={(e) => {
-                    const next = e.target.value.replace(/[^A-Za-z가-힣_]/g, "").slice(0, MAX_SOCIAL_NAME_LENGTH);
-                    setSocialName(next);
-                  }}
-                  placeholder="소셜명"
-                  className="h-8 w-[100px] appearance-none rounded-lg border border-gray-200 bg-white px-2 text-sm shadow-none outline-none ring-0 focus:border-yellow-400 focus:outline-none focus:ring-0 focus:shadow-none"
-                  style={{ color: "#000000cc", boxShadow: "none" }}
-                />
-                <button
-                  type="button"
-                  onClick={handleSaveProfile}
-                  disabled={saving}
-                  className="h-8 rounded-lg bg-yellow-400 px-3 text-sm font-medium text-gray-900 hover:bg-yellow-500 disabled:opacity-60"
-                >
-                  {saving ? "저장 중" : "확인"}
-                </button>
-              </div>
-            </section>
-
             <section className="rounded-xl px-3 pt-0 pb-3">
               <h3 className="text-sm font-semibold text-gray-900 mb-2">프로필 수정</h3>
               <textarea
@@ -684,7 +661,6 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses, soc
             {(() => {
               const hasChange =
                 bio.trim() !== (profileMeta.bio ?? "") ||
-                socialName.trim() !== (profileMeta.social_name ?? "") ||
                 country !== (profileMeta.country ?? "대한민국") ||
                 region !== (profileMeta.region ?? "") ||
                 JSON.stringify(favoriteGenres) !== JSON.stringify(profileMeta.favorite_genre ?? []) ||
@@ -709,6 +685,142 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses, soc
           onCancel={() => setSelectedImage(null)}
           onConfirm={handleCropConfirm}
         />
+      )}
+
+      {nicknameModalOpen && (
+        <div
+          className="fixed inset-0 z-[80] bg-black/60 flex items-center justify-center"
+          onClick={() => setNicknameModalOpen(false)}
+        >
+          <div
+            className="bg-white rounded-2xl w-[250px] h-[300px] p-5 flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {nicknameModalView === "home" && (
+              <>
+                <div className="flex flex-col gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setNicknameModalView("edit-nickname")}
+                    className="w-full h-10 rounded-full bg-gray-900 text-white text-sm font-semibold"
+                  >
+                    아이디 수정
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNicknameModalView("edit-social")}
+                    className="w-full h-10 rounded-full bg-gray-900 text-white text-sm font-semibold"
+                  >
+                    소셜명 추가
+                  </button>
+                </div>
+
+                <div className="mt-auto flex flex-col gap-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-700 truncate">아이디 : {profile.nickname}</span>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={displayMode === "nickname"}
+                      onClick={() => setDisplayMode("nickname")}
+                      className={`relative w-10 h-6 rounded-full transition-colors ${displayMode === "nickname" ? "bg-green-500" : "bg-gray-300"}`}
+                    >
+                      <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${displayMode === "nickname" ? "left-[18px]" : "left-0.5"}`} />
+                    </button>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-700 truncate">소셜명 : {socialName ?? "-"}</span>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={displayMode === "social"}
+                      onClick={() => { if (socialName) setDisplayMode("social"); }}
+                      disabled={!socialName}
+                      className={`relative w-10 h-6 rounded-full transition-colors ${displayMode === "social" ? "bg-green-500" : "bg-gray-300"} ${!socialName ? "opacity-50" : ""}`}
+                    >
+                      <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${displayMode === "social" ? "left-[18px]" : "left-0.5"}`} />
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {nicknameModalView === "edit-nickname" && (
+              <>
+                <p className="text-sm font-semibold text-gray-900 mb-3">아이디 수정</p>
+                <input
+                  type="text"
+                  value={draftNickname}
+                  onChange={(e) => setDraftNickname(e.target.value)}
+                  placeholder="2자 이상"
+                  className="w-full h-10 px-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-yellow-400"
+                />
+                <div className="mt-auto flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setNicknameModalView("home")}
+                    className="flex-1 h-10 rounded-full bg-gray-100 text-gray-700 text-sm font-semibold"
+                  >
+                    취소
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNicknameModalOpen(false);
+                      setShowSavedToast(true);
+                      setTimeout(() => setShowSavedToast(false), 1200);
+                    }}
+                    className="flex-1 h-10 rounded-full bg-yellow-400 text-gray-900 text-sm font-semibold"
+                  >
+                    확인
+                  </button>
+                </div>
+              </>
+            )}
+
+            {nicknameModalView === "edit-social" && (
+              <>
+                <p className="text-sm font-semibold text-gray-900 mb-3">소셜명 등록</p>
+                <input
+                  type="text"
+                  value={draftSocial}
+                  onChange={(e) => setDraftSocial(e.target.value)}
+                  placeholder="소셜명"
+                  className="w-full h-10 px-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-yellow-400"
+                />
+                <div className="mt-auto flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setNicknameModalView("home")}
+                    className="flex-1 h-10 rounded-full bg-gray-100 text-gray-700 text-sm font-semibold"
+                  >
+                    취소
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSocialName(draftSocial.trim() || null);
+                      setNicknameModalOpen(false);
+                      setShowSavedToast(true);
+                      setTimeout(() => setShowSavedToast(false), 1200);
+                    }}
+                    className="flex-1 h-10 rounded-full bg-yellow-400 text-gray-900 text-sm font-semibold"
+                  >
+                    확인
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {showSavedToast && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center pointer-events-none">
+          <div className="bg-yellow-400 rounded-full w-20 h-20 flex items-center justify-center animate-fade-in-out">
+            <Check size={36} className="text-black" strokeWidth={3} />
+          </div>
+        </div>
       )}
     </div>
   );
