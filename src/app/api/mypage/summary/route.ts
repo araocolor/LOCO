@@ -87,7 +87,7 @@ export async function GET() {
       .from("friendships")
       .select("id", { count: "exact", head: true })
       .eq("user_id", user.id)
-      .in("status", ["approved", "friend"]),
+      .eq("status", "friend"),
     supabase
       .from("friendships")
       .select("id", { count: "exact", head: true })
@@ -144,7 +144,7 @@ export async function GET() {
     hasPendingProRequest: !!proRequestResult.data,
     socialCounts: {
       following: followingResult.count ?? 0,
-      followers: followersResult.count ?? 0,
+      followers: (followingResult.count ?? 0) + (followersResult.count ?? 0),
     },
   };
 

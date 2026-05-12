@@ -145,6 +145,13 @@ const SECTIONS: SectionDef[] = [
     title: "국가 및 언어",
     items: [
       {
+        id: "logout",
+        icon: <LogOut size={18} />,
+        label: "로그아웃",
+        subItems: [],
+        noAccordion: true,
+      },
+      {
         id: "language",
         icon: <Languages size={18} />,
         label: "표시언어",
@@ -175,13 +182,6 @@ const SECTIONS: SectionDef[] = [
             values: ["미국", "캐나다", "멕시코", "쿠바", "도미니카공화국", "푸에르토리코", "콜롬비아", "페루", "브라질", "아르헨티나"],
           },
         ],
-      },
-      {
-        id: "logout",
-        icon: <LogOut size={18} />,
-        label: "로그아웃",
-        subItems: [],
-        noAccordion: true,
       },
     ],
   },
@@ -292,7 +292,7 @@ export default function MyPageHeader() {
         {SECTIONS.map((section) => (
           <div key={section.title ?? "default"} className="border-t border-gray-100">
             {section.title && (
-              <p className="px-5 pt-4 pb-1 text-xs font-semibold text-white">
+              <p className="h-2 overflow-hidden px-5 text-[0px] leading-none text-white">
                 {section.title}
               </p>
             )}
@@ -302,7 +302,9 @@ export default function MyPageHeader() {
                 <div key={item.id}>
                   <button
                     type="button"
-                    className={`flex items-center gap-3 w-full px-5 py-2.5 text-left transition-colors duration-200 active:bg-gray-100 ${isOpen ? "bg-gray-50" : "hover:bg-gray-50"}`}
+                    className={`flex items-center gap-3 w-full px-5 text-left transition-colors duration-200 active:bg-gray-100 ${
+                      item.id === "logout" ? "py-4" : "py-2.5"
+                    } ${isOpen ? "bg-gray-50" : "hover:bg-gray-50"}`}
                     onClick={() => {
                       if (item.id === "logout") {
                         handleLogout();
