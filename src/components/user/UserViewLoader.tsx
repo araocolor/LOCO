@@ -30,6 +30,7 @@ interface UserViewData {
   profile: Profile;
   myClasses: GridClass[];
   bookmarkClasses: GridClass[];
+  followerCount?: number;
 }
 
 interface SessionUserData {
@@ -65,14 +66,29 @@ export default function UserViewLoader({ userId }: { userId: string }) {
         const prefetched = sessionStorage.getItem(`user_view_${userId}`);
         if (prefetched) {
           const json = JSON.parse(prefetched) as UserViewData;
+          const hasFollowerCount = typeof json.followerCount === "number";
           if (!cancelled) {
             setData({
               profile: normalizeProfile(json.profile),
               myClasses: (json.myClasses ?? []).map((c) => ({ ...c, isBookmark: false })),
               bookmarkClasses: (json.bookmarkClasses ?? []).map((c) => ({ ...c, isBookmark: true })),
+              followerCount: json.followerCount ?? 0,
             });
             setLoading(false);
           }
+          if (hasFollowerCount) return;
+          // 구버전 캐시: followerCount가 없으면 API로 보강 후 캐시 업데이트
+          const res = await fetch(`/api/users/${userId}/view-summary`, { method: "GET" });
+          if (!res.ok) return;
+          const fresh = (await res.json()) as UserViewData;
+          if (cancelled) return;
+          sessionStorage.setItem(`user_view_${userId}`, JSON.stringify(fresh));
+          setData({
+            profile: normalizeProfile(fresh.profile),
+            myClasses: (fresh.myClasses ?? []).map((c) => ({ ...c, isBookmark: false })),
+            bookmarkClasses: (fresh.bookmarkClasses ?? []).map((c) => ({ ...c, isBookmark: true })),
+            followerCount: fresh.followerCount ?? 0,
+          });
           return;
         }
 
@@ -99,6 +115,7 @@ export default function UserViewLoader({ userId }: { userId: string }) {
                 },
                 myClasses: (sessionUser.opened_classes ?? []).map((c) => ({ ...c, isBookmark: false })),
                 bookmarkClasses: (sessionUser.bookmarked_classes ?? []).map((c) => ({ ...c, isBookmark: true })),
+                followerCount: 0,
               });
               setLoading(false);
             }
@@ -118,6 +135,7 @@ export default function UserViewLoader({ userId }: { userId: string }) {
           profile: normalizeProfile(json.profile),
           myClasses: (json.myClasses ?? []).map((c) => ({ ...c, isBookmark: false })),
           bookmarkClasses: (json.bookmarkClasses ?? []).map((c) => ({ ...c, isBookmark: true })),
+          followerCount: json.followerCount ?? 0,
         });
         setLoading(false);
       } catch {
@@ -144,6 +162,7 @@ export default function UserViewLoader({ userId }: { userId: string }) {
       profile={data.profile}
       myClasses={data.myClasses}
       bookmarkClasses={data.bookmarkClasses}
+      followerCount={data.followerCount ?? 0}
     />
   );
 }

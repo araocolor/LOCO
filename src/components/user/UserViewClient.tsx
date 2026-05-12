@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { UserCircle } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
 import { ClassImage } from "@/types/class";
 
 type TabType = "all" | "my" | "bookmark";
@@ -33,49 +32,12 @@ interface Props {
   profile: Profile;
   myClasses: GridClass[];
   bookmarkClasses: GridClass[];
+  followerCount: number;
 }
 
-export default function UserViewClient({ profile, myClasses, bookmarkClasses }: Props) {
+export default function UserViewClient({ profile, myClasses, bookmarkClasses, followerCount }: Props) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabType>("all");
-  const [friendAvatars, setFriendAvatars] = useState<
-    { id: string; profile_image_url: string | null; nickname: string }[]
-  >([]);
-  const [friendCount, setFriendCount] = useState(0);
-
-  useEffect(() => {
-    async function fetchFriends() {
-      const supabase = createClient();
-      const [{ data }, { count }] = await Promise.all([
-        supabase
-          .from("friendships")
-          .select("user_id, profiles!friendships_user_id_fkey(id, nickname, profile_image_url)")
-          .eq("friend_id", profile.id)
-          .in("status", ["approved", "friend"])
-          .order("updated_at", { ascending: false })
-          .limit(5),
-        supabase
-          .from("friendships")
-          .select("id", { count: "exact", head: true })
-          .eq("friend_id", profile.id)
-          .in("status", ["approved", "friend"]),
-      ]);
-      if (data) {
-        const rows = data as unknown as Array<{
-          profiles: { id: string; nickname: string; profile_image_url: string | null } | null;
-        }>;
-        setFriendAvatars(
-          rows.map((row) => ({
-            id: row.profiles?.id ?? "",
-            nickname: row.profiles?.nickname ?? "",
-            profile_image_url: row.profiles?.profile_image_url ?? null,
-          }))
-        );
-      }
-      setFriendCount(count ?? 0);
-    }
-    fetchFriends();
-  }, [profile.id]);
 
   return (
     <div className="flex flex-col h-full">
@@ -99,33 +61,8 @@ export default function UserViewClient({ profile, myClasses, bookmarkClasses }: 
               </div>
             </div>
             <div className="w-1/2 flex flex-col gap-1 items-center">
-              {friendAvatars.length > 0 ? (
-                <div className="flex items-center">
-                  {friendAvatars.slice(0, 5).map((f, i) => (
-                    <div
-                      key={f.id}
-                      className="rounded-full border-2 border-white"
-                      style={{ marginLeft: i === 0 ? 0 : -10, zIndex: i }}
-                    >
-                      {f.profile_image_url ? (
-                        <Image
-                          src={f.profile_image_url}
-                          alt={f.nickname}
-                          width={30}
-                          height={30}
-                          className="rounded-full object-cover w-[30px] h-[30px]"
-                          unoptimized
-                        />
-                      ) : (
-                        <UserCircle size={30} className="text-gray-300" />
-                      )}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <span className="text-[12px] text-gray-300">친구없음</span>
-              )}
-              {friendCount > 0 && <span className="text-[16px] font-bold text-gray-700">{friendCount}</span>}
+              <span className="text-[13px] text-gray-500">팔로워</span>
+              <span className="text-[16px] font-bold text-gray-700">{followerCount}</span>
             </div>
           </div>
 

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { ClassImage } from "@/types/class";
 
 interface GridClass {
@@ -63,6 +64,13 @@ export async function GET(
     .order("created_at", { ascending: false })
     .limit(300);
 
+  const admin = createAdminClient();
+  const { count: followerCount } = await admin
+    .from("friendships")
+    .select("id", { count: "exact", head: true })
+    .eq("friend_id", id)
+    .in("status", ["approved", "friend"]);
+
   const myClasses = ((myClassesRaw ?? []) as GridClass[]).map((c) => ({
     ...c,
     isBookmark: false,
@@ -96,5 +104,6 @@ export async function GET(
     },
     myClasses,
     bookmarkClasses,
+    followerCount: followerCount ?? 0,
   });
 }
