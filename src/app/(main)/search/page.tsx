@@ -843,7 +843,7 @@ export default function SearchPage() {
           <div className="border-t border-gray-100 pt-0">
             <div className="flex items-center mt-3 mb-3">
               <p className="font-bold" style={{ fontSize: 15, color: "#333333" }}>
-                구독 <span className="font-bold" style={{ fontSize: 15 }}>{subscriptions.length}</span><span className="font-normal text-sm">/{following.length}</span>
+                구독 <span className="font-bold" style={{ fontSize: 15 }}>{subscriptions.length}</span>
               </p>
               <div className="flex-1 flex justify-center">
                 <div className="relative" style={{ width: 200 }}>
@@ -1262,15 +1262,49 @@ export default function SearchPage() {
               <MessageCircle size={20} className="text-gray-500" />
             </button>
             <div className="border-t border-gray-100 mx-3" />
-            <button
-              className="flex items-center justify-between w-full px-4 py-3 text-red-500"
-              style={{ fontSize: "16px" }}
-              onClick={() => handleBlockUser(menuTarget.id)}
-            >
-              <span>차단하기</span>
-              <Ban size={20} className="text-red-400" />
-            </button>
-            <div className="border-t border-gray-100 mx-3" />
+            {menuTarget.source === "subscription" ? (
+              <>
+                <button
+                  className="flex items-center justify-between w-full px-4 py-3 text-red-500"
+                  style={{ fontSize: "16px" }}
+                  onClick={() => {
+                    setMenuTarget(null);
+                    fetch("/api/friends", {
+                      method: "DELETE",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ target_id: menuTarget.id }),
+                    }).then(() => {
+                      setFollowing((prev) => {
+                        const updated = prev.filter((f) => f.id !== menuTarget.id);
+                        try {
+                          const cached = localStorage.getItem(SEARCH_CACHE_KEY);
+                          const parsed = cached ? JSON.parse(cached) : {};
+                          localStorage.setItem(SEARCH_CACHE_KEY, JSON.stringify({ ...parsed, following: updated, ts: Date.now() }));
+                          syncMyPageSocialCounts(followers, updated);
+                        } catch {}
+                        return updated;
+                      });
+                    }).catch(() => alert("구독취소 처리 중 오류가 발생했습니다."));
+                  }}
+                >
+                  <span>구독취소</span>
+                  <UserMinus size={20} className="text-red-400" />
+                </button>
+                <div className="border-t border-gray-100 mx-3" />
+              </>
+            ) : (
+              <>
+                <button
+                  className="flex items-center justify-between w-full px-4 py-3 text-red-500"
+                  style={{ fontSize: "16px" }}
+                  onClick={() => handleBlockUser(menuTarget.id)}
+                >
+                  <span>차단하기</span>
+                  <Ban size={20} className="text-red-400" />
+                </button>
+                <div className="border-t border-gray-100 mx-3" />
+              </>
+            )}
             <button
               className="flex items-center justify-between w-full px-4 py-3 text-gray-700"
               style={{ fontSize: "16px" }}
