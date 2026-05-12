@@ -55,6 +55,7 @@ interface MyPageSummaryCache {
   socialCounts?: {
     following: number;
     followers: number;
+    friends: number;
   };
 }
 

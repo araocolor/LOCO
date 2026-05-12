@@ -48,6 +48,7 @@ interface MyPageSummary {
   socialCounts: {
     following: number;
     followers: number;
+    friends: number;
   };
 }
 
@@ -61,7 +62,7 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const [profileResult, appliedResult, myClassesResult, proRequestResult, followingResult, followersResult] = await Promise.all([
+  const [profileResult, appliedResult, myClassesResult, proRequestResult, followingResult, followersResult, friendsResult] = await Promise.all([
     supabase
       .from("profiles")
       .select("id, email, nickname, social_name, bio, country, region, favorite_genre, member_type, role, profile_image_url, kakao_notification_enabled")
@@ -87,12 +88,17 @@ export async function GET() {
       .from("friendships")
       .select("id", { count: "exact", head: true })
       .eq("user_id", user.id)
-      .eq("status", "friend"),
+      .in("status", ["pending", "approved"]),
     supabase
       .from("friendships")
       .select("id", { count: "exact", head: true })
       .eq("friend_id", user.id)
-      .in("status", ["approved", "friend"]),
+      .eq("status", "approved"),
+    supabase
+      .from("friendships")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .eq("status", "friend"),
   ]);
 
   if (!profileResult.data) {
@@ -144,7 +150,8 @@ export async function GET() {
     hasPendingProRequest: !!proRequestResult.data,
     socialCounts: {
       following: followingResult.count ?? 0,
-      followers: (followingResult.count ?? 0) + (followersResult.count ?? 0),
+      followers: followersResult.count ?? 0,
+      friends: friendsResult.count ?? 0,
     },
   };
 

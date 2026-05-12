@@ -102,13 +102,17 @@ function syncMyPageSocialCounts(followers: Follower[], following: Follower[]) {
     const raw = localStorage.getItem(MYPAGE_CACHE_KEY);
     if (!raw) return;
     const parsed = JSON.parse(raw);
+    const followingCount = following.filter((f) => f.status === "pending" || f.status === "approved").length;
+    const followersCount = followers.filter((f) => f.status === "approved").length;
+    const friendsCount = following.filter((f) => f.status === "friend").length;
     localStorage.setItem(
       MYPAGE_CACHE_KEY,
       JSON.stringify({
         ...parsed,
         socialCounts: {
-          following: following.filter((f) => f.status === "friend").length,
-          followers: following.length + followers.length,
+          following: followingCount,
+          followers: followersCount,
+          friends: friendsCount,
         },
       })
     );
@@ -159,6 +163,7 @@ export default function SearchPage() {
   const [blacklistPinInput, setBlacklistPinInput] = useState("");
   const [blacklistPinSubmitting, setBlacklistPinSubmitting] = useState(false);
   const [blacklistPinError, setBlacklistPinError] = useState("");
+  const [blacklistPinFailCount, setBlacklistPinFailCount] = useState(0);
   const [profileModal, setProfileModal] = useState<Follower | null>(null);
   const [profileModalData, setProfileModalData] = useState<{ bio: string | null; member_type: string[] } | null>(null);
 
@@ -347,8 +352,9 @@ export default function SearchPage() {
       refillSuggestionsCache(nextAddedIds, 10);
     }
     if (added) {
+      const addedWithStatus: Follower = { ...added, status: "approved" };
       setFollowing((prev) => {
-        const updated = [added, ...prev];
+        const updated = [addedWithStatus, ...prev];
         try {
           const cached = localStorage.getItem(SEARCH_CACHE_KEY);
           const parsed = cached ? JSON.parse(cached) : {};
@@ -677,7 +683,19 @@ export default function SearchPage() {
 
       if (!res.ok) {
         if (res.status === 401) {
-          setBlacklistPinError("비밀번호가 맞지 않습니다.");
+          const nextFail = blacklistPinFailCount + 1;
+          if (nextFail >= 5) {
+            try {
+              await fetch("/api/friends/blacklist-pin", { method: "DELETE" });
+            } catch {}
+            setHasBlacklistPin(false);
+            setBlacklistPinFailCount(0);
+            setBlacklistPinInput("");
+            setBlacklistPinError("새 비밀번호 입력하세요 ㅋ");
+            return;
+          }
+          setBlacklistPinFailCount(nextFail);
+          setBlacklistPinError(`비밀번호가 맞지 않습니다. (${nextFail}/5)`);
           return;
         }
         if (res.status === 404) {
@@ -690,6 +708,7 @@ export default function SearchPage() {
 
       setIsBlacklistUnlocked(true);
       setBlacklistPinInput("");
+      setBlacklistPinFailCount(0);
     } catch {
       setBlacklistPinError("처리 중 오류가 발생했습니다.");
     } finally {
@@ -1103,7 +1122,7 @@ export default function SearchPage() {
                       if (e.key === "Enter") handleBlacklistPinSubmit();
                     }}
                     placeholder="비밀번호 입력"
-                    className="w-40 h-10 px-4 border border-gray-300 rounded-full bg-white focus:outline-none focus:border-gray-500"
+                    className="w-40 h-10 px-4 border border-gray-300 rounded-full bg-white focus:outline-none focus:border-gray-500 text-center text-[15px] placeholder:text-center placeholder:text-[15px]"
                   />
                   <button
                     type="button"
@@ -1115,7 +1134,7 @@ export default function SearchPage() {
                   </button>
                 </div>
                 {blacklistPinError && (
-                  <p className="mt-2 text-xs text-red-500">{blacklistPinError}</p>
+                  <p className="mt-2 text-[15px] text-red-500 text-center">{blacklistPinError}</p>
                 )}
               </div>
             </div>

@@ -88,6 +88,7 @@ interface Props {
   socialCounts?: {
     following: number;
     followers: number;
+    friends: number;
   };
 }
 
@@ -126,8 +127,23 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses, soc
   const [activeTab, setActiveTab] = useState<TabType>("all");
   const [myClasses] = useState<GridClass[]>(initialMyClasses);
   const [bookmarkClasses, setBookmarkClasses] = useState<GridClass[]>([]);
-  const followingCount = socialCounts?.following ?? 0;
-  const followersCount = socialCounts?.followers ?? 0;
+  const [friendsCount, setFriendsCount] = useState<number>(socialCounts?.friends ?? 0);
+  const [subscriberCount, setSubscriberCount] = useState<number>(
+    (socialCounts?.following ?? 0) + (socialCounts?.followers ?? 0)
+  );
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(MY_PAGE_CACHE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      const sc = parsed?.socialCounts;
+      if (sc?.friends != null) setFriendsCount(sc.friends);
+      if (sc?.following != null || sc?.followers != null) {
+        setSubscriberCount((sc?.following ?? 0) + (sc?.followers ?? 0));
+      }
+    } catch {}
+  }, []);
 
   function patchMyPageProfileCache(patch: CacheProfilePatch) {
     try {
@@ -369,14 +385,14 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses, soc
                   className="flex flex-col items-center gap-0.5"
                 >
                   <span className="text-[13px] font-medium text-gray-500 leading-none">친구들</span>
-                  <span className="text-[18px] font-bold text-gray-900 leading-tight">{followingCount}</span>
+                  <span className="text-[18px] font-bold text-gray-900 leading-tight">{friendsCount}</span>
                 </Link>
                 <Link
                   href="/search?tab=follower"
                   className="flex flex-col items-center gap-0.5"
                 >
                   <span className="text-[13px] font-medium text-gray-500 leading-none">구독/팔로워</span>
-                  <span className="text-[18px] font-bold text-gray-900 leading-tight">{followersCount}</span>
+                  <span className="text-[18px] font-bold text-gray-900 leading-tight">{subscriberCount}</span>
                 </Link>
               </div>
             </div>
