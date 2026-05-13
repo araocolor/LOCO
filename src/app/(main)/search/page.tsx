@@ -8,7 +8,7 @@ import { RiVerifiedBadgeFill } from "react-icons/ri";
 import SearchHeader from "@/components/layout/SearchHeader";
 import { PRESENCE_EVENT } from "@/components/features/PresenceTracker";
 
-type Tab = "friends" | "subscription" | "follower" | "pending";
+type Tab = "friends" | "my-region" | "follower" | "pending";
 
 interface Follower {
   id: string;
@@ -50,7 +50,8 @@ const SEARCH_TAB_CHANGE_EVENT = "loco-search-tab-change";
 function getSearchTab(): Tab {
   if (typeof window === "undefined") return "friends";
   const tab = new URLSearchParams(window.location.search).get("tab");
-  if (tab === "subscription") return "subscription";
+  if (tab === "subscription") return "friends";
+  if (tab === "my-region") return "my-region";
   if (tab === "follower") return "follower";
   if (tab === "pending") return "pending";
   return "friends";
@@ -157,18 +158,22 @@ export default function SearchPage() {
   const activeTab = useSyncExternalStore(subscribeSearchTab, getSearchTab, (): Tab => "friends");
   const [friendSearch, setFriendSearch] = useState("");
   const [onlineIds, setOnlineIds] = useState<Set<string>>(new Set());
-  const [menuTarget, setMenuTarget] = useState<{ id: string; nickname: string; status?: "pending" | "approved" | "friend"; x: number; y: number; source: "friends" | "subscription" | "follower"; placement: "top" | "bottom"; follower?: Follower } | null>(null);
+  const [menuTarget, setMenuTarget] = useState<{ id: string; nickname: string; status?: "pending" | "approved" | "friend"; x: number; y: number; source: "friends" | "follower"; placement: "top" | "bottom"; follower?: Follower } | null>(null);
   const [hasBlacklistPin, setHasBlacklistPin] = useState<boolean | null>(null);
   const [isBlacklistUnlocked, setIsBlacklistUnlocked] = useState(false);
   const [blacklistPinInput, setBlacklistPinInput] = useState("");
   const [blacklistPinSubmitting, setBlacklistPinSubmitting] = useState(false);
   const [blacklistPinError, setBlacklistPinError] = useState("");
   const [blacklistPinFailCount, setBlacklistPinFailCount] = useState(0);
-  const [unsubscribeConfirm, setUnsubscribeConfirm] = useState<{ id: string; nickname: string; profile_image_url: string | null } | null>(null);
   const [showBlackReportToast, setShowBlackReportToast] = useState(false);
   const [removingPendingIds, setRemovingPendingIds] = useState<Set<string>>(new Set());
   const [profileModal, setProfileModal] = useState<Follower | null>(null);
   const [profileModalData, setProfileModalData] = useState<{ bio: string | null; member_type: string[] } | null>(null);
+  const [myRegionMembers, setMyRegionMembers] = useState<Follower[]>([]);
+  const [myRegionName, setMyRegionName] = useState<string | null>(null);
+  const [myRegionCountry, setMyRegionCountry] = useState<string | null>(null);
+  const [myRegionLoaded, setMyRegionLoaded] = useState(false);
+  const [myRegionLoading, setMyRegionLoading] = useState(false);
 
   const handleTabChange = useCallback((tab: Tab) => {
     replaceSearchTab(tab);
@@ -178,18 +183,15 @@ export default function SearchPage() {
     () => new Map(following.map((f) => [f.id, f.status])),
     [following]
   );
-  const friends = useMemo(
-    () => following.filter((f) => f.status === "friend"),
-    [following]
-  );
-  const subscriptions = useMemo(
-    () => following.filter((f) => f.status !== "friend"),
-    [following]
-  );
   const followerOnly = useMemo(
-    () => followers.filter((f) => f.status !== "friend" && followingStatusById.get(f.id) !== "friend"),
-    [followers, followingStatusById]
+    () => followers,
+    [followers]
   );
+  const myRegionTabLabel = useMemo(() => {
+    if (!myRegionName) return "내지역";
+    if (myRegionCountry === "대한민국") return myRegionName;
+    return myRegionCountry ? `${myRegionCountry} ${myRegionName}` : myRegionName;
+  }, [myRegionCountry, myRegionName]);
 
   const loadFromCache = useCallback(() => {
     try {
@@ -238,9 +240,43 @@ export default function SearchPage() {
       .finally(() => setPendingLoaded(true));
   }, [writePendingCache]);
 
+  const fetchMyRegionMembers = useCallback(() => {
+    setMyRegionLoading(true);
+    fetch("/api/users/my-region")
+      .then((r) => r.json())
+      .then((json) => {
+        setMyRegionMembers(json.data ?? []);
+        setMyRegionName(json.region ?? null);
+        setMyRegionCountry(json.country ?? null);
+      })
+      .catch(() => {
+        setMyRegionMembers([]);
+        setMyRegionName(null);
+        setMyRegionCountry(null);
+      })
+      .finally(() => {
+        setMyRegionLoaded(true);
+        setMyRegionLoading(false);
+      });
+  }, []);
+
+  const fetchMyRegionMeta = useCallback(() => {
+    fetch("/api/users/my-region?metaOnly=1")
+      .then((r) => r.json())
+      .then((json) => {
+        setMyRegionName(json.region ?? null);
+        setMyRegionCountry(json.country ?? null);
+      })
+      .catch(() => {
+        setMyRegionName(null);
+        setMyRegionCountry(null);
+      });
+  }, []);
+
   useEffect(() => {
     queueMicrotask(() => loadFromCache());
     fetchFollowersAndFollowing();
+    fetchMyRegionMeta();
     const cached = localStorage.getItem("search_suggestions_cache");
     if (cached) {
       try {
@@ -260,7 +296,7 @@ export default function SearchPage() {
       .then((json) => { if (json.data) setSuggestions(json.data); })
       .catch(() => {})
       .finally(() => setSuggestionsLoading(false));
-  }, [loadFromCache, fetchFollowersAndFollowing]);
+  }, [loadFromCache, fetchFollowersAndFollowing, fetchMyRegionMeta]);
 
   useEffect(() => {
     if (activeTab !== "pending" || !isBlacklistUnlocked || pendingLoaded) return;
@@ -302,6 +338,11 @@ export default function SearchPage() {
         setHasBlacklistPin(true);
       });
   }, [activeTab, hasBlacklistPin]);
+
+  useEffect(() => {
+    if (activeTab !== "my-region" || myRegionLoaded || myRegionLoading) return;
+    queueMicrotask(() => fetchMyRegionMembers());
+  }, [activeTab, myRegionLoaded, myRegionLoading, fetchMyRegionMembers]);
 
   // PresenceTracker에서 브로드캐스트하는 이벤트 수신
   useEffect(() => {
@@ -475,31 +516,6 @@ export default function SearchPage() {
         return next;
       });
     }
-  }
-
-  async function handleUnfriend(targetId: string, currentStatus?: "pending" | "approved" | "friend") {
-    setMenuTarget(null);
-    const nextStatus: "pending" | "approved" = currentStatus === "pending" ? "approved" : "pending";
-    await fetch("/api/friends", {
-      method: currentStatus === "pending" ? "POST" : "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ target_id: targetId }),
-    });
-    setFollowing((prev) => {
-      const now = new Date().toISOString();
-      const updated = prev.map((f) =>
-        f.id === targetId
-          ? { ...f, status: nextStatus, relation_updated_at: now }
-          : f
-      );
-      try {
-        const cached = localStorage.getItem(SEARCH_CACHE_KEY);
-        const parsed = cached ? JSON.parse(cached) : {};
-        localStorage.setItem(SEARCH_CACHE_KEY, JSON.stringify({ ...parsed, following: updated, ts: Date.now() }));
-        syncMyPageSocialCounts(followers, updated);
-      } catch {}
-      return updated;
-    });
   }
 
   function refreshSocialLists() {
@@ -746,89 +762,9 @@ export default function SearchPage() {
 
   return (
     <>
-      <SearchHeader activeTab={activeTab} onTabChange={handleTabChange} />
+      <SearchHeader activeTab={activeTab} onTabChange={handleTabChange} myRegionLabel={myRegionTabLabel} />
 
       {activeTab === "friends" && (
-        <div className="px-4 pt-4 bg-white">
-          <div className="pt-3">
-            <div className="flex items-center mb-3">
-              <p className="text-base font-bold text-gray-400">
-                친구들 <span className="text-gray-900">{friends.length}</span>
-              </p>
-            </div>
-            {friends.length === 0 ? (
-              <p className="text-sm text-gray-400">아직 친구가 없어요</p>
-            ) : (
-              <div className="flex flex-col">
-                {friends.map((f) => {
-                  const memberTypeLabel = f.member_type?.[0] ? getMemberTypeLabel(f.member_type[0]) : "";
-
-                  return (
-                    <div key={f.id} className="flex items-center gap-3 py-3 border-b border-gray-50">
-                      <button onClick={() => router.push(`/users/${f.id}/view`)}>
-                        <div className="relative">
-                          <Avatar
-                            src={f.profile_image_url}
-                            nickname={f.nickname}
-                            size={44}
-                            className="border-2 border-white shadow-[0_0_0_2px_#ef4444]"
-                          />
-                          {onlineIds.has(f.id) && (
-                            <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-400 rounded-full border-2 border-white" />
-                          )}
-                        </div>
-                      </button>
-                      <button
-                        className="flex-1 text-left min-w-0"
-                        onClick={() => router.push(`/users/${f.id}/view`)}
-                      >
-                        <p className="font-semibold text-gray-900 truncate" style={{ fontSize: 16 }}>{f.nickname}</p>
-                        {(f.country || f.region) && <p className="text-xs text-gray-400 truncate">{[f.country, f.region].filter(Boolean).join(", ")}</p>}
-                      </button>
-                      {f.member_type?.[0] && (
-                        <span className="text-[16px] flex-shrink-0 inline-flex items-center gap-1" style={{ color: "#000000B3" }}>
-                          {memberTypeLabel === "강사" && (
-                            <RiVerifiedBadgeFill size={18} color="#FEE500" />
-                          )}
-                          {memberTypeLabel === "운영진" && (
-                            <RiVerifiedBadgeFill size={18} color="#1D9BF0" />
-                          )}
-                          {memberTypeLabel}
-                        </span>
-                      )}
-                      <button
-                        className="p-2 -mr-2 text-gray-400 hover:text-gray-700 flex-shrink-0"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          const r = e.currentTarget.getBoundingClientRect();
-                          const placement = r.top > window.innerHeight / 2 ? "top" : "bottom";
-                          setMenuTarget({
-                            id: f.id,
-                            nickname: f.nickname,
-                            status: f.status,
-                            x: r.right,
-                            y: placement === "top" ? r.top : r.bottom,
-                            source: "friends",
-                            placement,
-                          });
-                          fetch(`/api/users/${f.id}/view-summary`)
-                            .then((res) => res.json())
-                            .then((json) => { sessionStorage.setItem(`user_view_${f.id}`, JSON.stringify(json)); })
-                            .catch(() => {});
-                        }}
-                      >
-                        <MoreVertical size={18} />
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {activeTab === "subscription" && (
         <div className="px-4 pt-0 bg-white">
           <div className={`mb-0 -mx-4 py-3 ${!suggestionsLoading && suggestions.length === 0 ? "bg-white" : "bg-sky-100/70"}`}>
             {suggestionsLoading ? (
@@ -886,11 +822,11 @@ export default function SearchPage() {
             )}
           </div>
 
-          {/* 구독 리스트 */}
+          {/* 친구목록 리스트 */}
           <div className="border-t border-gray-100 pt-0">
             <div className="flex items-center mt-3 mb-3">
               <p className="font-bold" style={{ fontSize: 15, color: "#333333" }}>
-                구독 <span className="font-bold" style={{ fontSize: 15 }}>{subscriptions.length}</span>
+                구독 <span className="font-bold" style={{ fontSize: 15 }}>{following.length}</span>
               </p>
               <div className="flex-1 flex justify-center">
                 <div className="relative" style={{ width: 200 }}>
@@ -913,11 +849,11 @@ export default function SearchPage() {
                 </div>
               </div>
             </div>
-            {subscriptions.length === 0 ? (
-              <p className="text-sm text-gray-400">아직 구독한 사람이 없어요</p>
+            {following.length === 0 ? (
+              <p className="text-sm text-gray-400">아직 친구목록이 없어요</p>
             ) : (
               <div className="flex flex-col">
-                {subscriptions
+                {following
                   .filter((f) => friendSearch === "" || f.nickname.toLowerCase().includes(friendSearch.toLowerCase()))
                   .map((f) => {
                   const memberTypeLabel = f.member_type?.[0] ? getMemberTypeLabel(f.member_type[0]) : "";
@@ -1009,7 +945,7 @@ export default function SearchPage() {
                           status: f.status,
                           x: r.right,
                           y: placement === "top" ? r.top : r.bottom,
-                          source: "subscription",
+                          source: "friends",
                           placement,
                           follower: f,
                         });
@@ -1023,6 +959,120 @@ export default function SearchPage() {
                     </button>
                   </div>
                 )})}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {activeTab === "my-region" && (
+        <div className="px-4 pt-0 bg-white">
+          <div className={`mb-0 -mx-4 py-3 ${!suggestionsLoading && suggestions.length === 0 ? "bg-white" : "bg-sky-100/70"}`}>
+            {suggestionsLoading ? (
+              <div className="flex gap-7 overflow-x-auto pb-1 pt-3 scrollbar-hide">
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <div key={i} className="flex flex-col items-center gap-1 flex-shrink-0">
+                    <div className="w-[60px] h-[60px] rounded-full bg-gray-200 animate-pulse" />
+                    <div className="w-10 h-3 rounded bg-gray-200 animate-pulse mt-1" />
+                  </div>
+                ))}
+              </div>
+            ) : suggestions.length === 0 ? (
+              <div className="flex items-center justify-center py-3">
+                <p className="text-gray-400 animate-blacklist-avatar" style={{ fontSize: 16 }}>친구추천 목록 없음</p>
+              </div>
+            ) : (
+              <div
+                className="overflow-x-auto scrollbar-hide pt-3 pb-1"
+                style={{ WebkitOverflowScrolling: "touch", touchAction: "pan-x" }}
+              >
+                <div className="flex gap-7 w-max">
+                  {suggestions.map((s) => (
+                    <div key={s.id} className="flex flex-col items-center gap-1 flex-shrink-0">
+                      <div className="relative" style={{ width: 60, height: 60 }}>
+                        <button onClick={() => handleAddFriend(s.id)}>
+                          <div className="animate-blacklist-avatar" style={getAvatarFloatStyle(s.id)}>
+                            <Avatar src={s.profile_image_url} nickname={s.nickname} size={60} />
+                          </div>
+                        </button>
+                        <button
+                          onClick={() => handleAddFriend(s.id)}
+                          className={`absolute -top-0.5 -right-0.5 w-5 h-5 rounded-full flex items-center justify-center ${
+                            addedIds.has(s.id)
+                              ? "bg-gray-400 cursor-default"
+                              : "bg-yellow-300"
+                          }`}
+                        >
+                          {addedIds.has(s.id)
+                            ? <Check size={11} className="text-white" strokeWidth={3} />
+                            : <Plus size={15} className="text-black" strokeWidth={3.5} />
+                          }
+                        </button>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => router.push(`/users/${s.id}/view`)}
+                        className="max-w-[62px] rounded-full bg-gray-400 px-2 py-0.5 text-center text-xs text-gray-100 truncate"
+                      >
+                        {s.nickname}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="pt-3">
+            <div className="flex items-center mb-3">
+              <p className="text-base font-bold text-gray-400">
+                {myRegionTabLabel}
+                <span className="text-gray-900 ml-1">{myRegionMembers.length}</span>
+              </p>
+            </div>
+
+            {myRegionLoading ? (
+              <p className="text-sm text-gray-400">불러오는 중...</p>
+            ) : !myRegionName ? (
+              <p className="text-sm text-gray-400">내 지역 정보가 없어요. 마이페이지에서 지역을 설정해 주세요.</p>
+            ) : myRegionMembers.length === 0 ? (
+              <p className="text-sm text-gray-400">같은 지역 회원이 아직 없어요</p>
+            ) : (
+              <div className="flex flex-col">
+                {myRegionMembers.map((m) => {
+                  const memberTypeLabel = m.member_type?.[0] ? getMemberTypeLabel(m.member_type[0]) : "";
+
+                  return (
+                    <div key={m.id} className="flex items-center gap-3 py-3 border-b border-gray-50">
+                      <button onClick={() => router.push(`/users/${m.id}/view`)}>
+                        <div className="relative">
+                          <Avatar src={m.profile_image_url} nickname={m.nickname} size={44} />
+                          {onlineIds.has(m.id) && (
+                            <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-400 rounded-full border-2 border-white" />
+                          )}
+                        </div>
+                      </button>
+                      <button
+                        className="flex-1 text-left min-w-0"
+                        onClick={() => router.push(`/users/${m.id}/view`)}
+                      >
+                        <p className="font-semibold text-gray-900 truncate" style={{ fontSize: 16 }}>{m.nickname}</p>
+                        {(m.country || m.region) && <p className="text-xs text-gray-400 truncate">{[m.country, m.region].filter(Boolean).join(", ")}</p>}
+                      </button>
+                      {m.member_type?.[0] && (
+                        <span className="text-[16px] flex-shrink-0 inline-flex items-center gap-1" style={{ color: "#000000B3" }}>
+                          {memberTypeLabel === "강사" && (
+                            <RiVerifiedBadgeFill size={18} color="#FEE500" />
+                          )}
+                          {memberTypeLabel === "운영진" && (
+                            <RiVerifiedBadgeFill size={18} color="#1D9BF0" />
+                          )}
+                          {memberTypeLabel}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -1343,19 +1393,6 @@ export default function SearchPage() {
                 <div className="border-t border-gray-100 mx-3" />
               </>
             )}
-            {menuTarget.source === "subscription" && (
-              <>
-                <button
-                  className="flex items-center justify-between w-full px-4 py-3 text-gray-700"
-                  style={{ fontSize: "16px" }}
-                  onClick={() => handleUnfriend(menuTarget.id, menuTarget.status)}
-                >
-                  <span>{menuTarget.status === "pending" ? "친구요청취소" : "친구요청"}</span>
-                  <Plus size={20} className="text-gray-500" />
-                </button>
-                <div className="border-t border-gray-100 mx-3" />
-              </>
-            )}
             <button
               className="flex items-center justify-between w-full px-4 py-3 text-gray-700"
               style={{ fontSize: "16px" }}
@@ -1365,39 +1402,17 @@ export default function SearchPage() {
               <MessageCircle size={20} className="text-gray-500" />
             </button>
             <div className="border-t border-gray-100 mx-3" />
-            {menuTarget.source === "subscription" ? (
-              <>
-                <button
-                  className="flex items-center justify-between w-full px-4 py-3 text-red-500"
-                  style={{ fontSize: "16px" }}
-                  onClick={() => {
-                    const target = menuTarget;
-                    setMenuTarget(null);
-                    setUnsubscribeConfirm({
-                      id: target.id,
-                      nickname: target.nickname,
-                      profile_image_url: target.follower?.profile_image_url ?? null,
-                    });
-                  }}
-                >
-                  <span>구독취소</span>
-                  <UserMinus size={20} className="text-red-400" />
-                </button>
-                <div className="border-t border-gray-100 mx-3" />
-              </>
-            ) : (
-              <>
-                <button
-                  className="flex items-center justify-between w-full px-4 py-3 text-red-500"
-                  style={{ fontSize: "16px" }}
-                  onClick={() => handleBlockUser(menuTarget.id)}
-                >
-                  <span>차단하기</span>
-                  <Ban size={20} className="text-red-400" />
-                </button>
-                <div className="border-t border-gray-100 mx-3" />
-              </>
-            )}
+            <>
+              <button
+                className="flex items-center justify-between w-full px-4 py-3 text-red-500"
+                style={{ fontSize: "16px" }}
+                onClick={() => handleBlockUser(menuTarget.id)}
+              >
+                <span>차단하기</span>
+                <Ban size={20} className="text-red-400" />
+              </button>
+              <div className="border-t border-gray-100 mx-3" />
+            </>
             <button
               className="flex items-center justify-between w-full px-4 py-3 text-gray-700"
               style={{ fontSize: "16px" }}
@@ -1437,59 +1452,6 @@ export default function SearchPage() {
         </>
       )}
 
-      {unsubscribeConfirm && (
-        <div
-          className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center"
-          onClick={() => setUnsubscribeConfirm(null)}
-        >
-          <div
-            className="bg-white rounded-2xl px-6 py-6 w-[260px] flex flex-col items-center"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div style={{ animation: "floatY 1.8s ease-in-out infinite" }}>
-              <Avatar src={unsubscribeConfirm.profile_image_url} nickname={unsubscribeConfirm.nickname} size={50} />
-            </div>
-            <p className="mt-3 text-[15px] font-semibold text-gray-900">{unsubscribeConfirm.nickname}</p>
-            <div className="mt-5 flex gap-2 w-full">
-              <button
-                type="button"
-                className="flex-1 h-10 rounded-full bg-gray-100 text-gray-700 text-sm font-semibold"
-                onClick={() => setUnsubscribeConfirm(null)}
-              >
-                닫기
-              </button>
-              <button
-                type="button"
-                className="flex-1 h-10 rounded-full bg-red-500 text-white text-sm font-semibold"
-                onClick={() => {
-                  const target = unsubscribeConfirm;
-                  setUnsubscribeConfirm(null);
-                  setShowCheck(true);
-                  setTimeout(() => setShowCheck(false), 1200);
-                  fetch("/api/friends", {
-                    method: "DELETE",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ target_id: target.id }),
-                  }).then(() => {
-                    setFollowing((prev) => {
-                      const updated = prev.filter((f) => f.id !== target.id);
-                      try {
-                        const cached = localStorage.getItem(SEARCH_CACHE_KEY);
-                        const parsed = cached ? JSON.parse(cached) : {};
-                        localStorage.setItem(SEARCH_CACHE_KEY, JSON.stringify({ ...parsed, following: updated, ts: Date.now() }));
-                        syncMyPageSocialCounts(followers, updated);
-                      } catch {}
-                      return updated;
-                    });
-                  }).catch(() => alert("구독취소 처리 중 오류가 발생했습니다."));
-                }}
-              >
-                구독취소
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </>
   );
 }

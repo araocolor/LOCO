@@ -10,7 +10,6 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const pendingCutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
     const [
       { data, error },
       { data: stateRows, error: stateError },
@@ -19,7 +18,7 @@ export async function GET() {
         .from("friendships")
         .select("user_id, status, created_at, updated_at, profiles!friendships_user_id_fkey(id, nickname, profile_image_url, country, region, member_type, role)")
         .eq("friend_id", user.id)
-        .in("status", ["pending", "approved", "friend"]),
+        .in("status", ["approved", "friend"]),
       supabase
         .from("friend_member_states")
         .select("state, target_id")
@@ -53,8 +52,7 @@ export async function GET() {
         };
       })
       .filter((item) => !excludedIds.has(item.id))
-      .filter((item) => item.status !== "pending" || (item.relation_updated_at ?? "") >= pendingCutoff)
-      .sort((a, b) => Number(b.status === "pending") - Number(a.status === "pending"));
+      .sort((a, b) => (a.nickname ?? "").localeCompare(b.nickname ?? "", "ko"));
 
     return NextResponse.json({ data: followers });
   } catch (e) {
