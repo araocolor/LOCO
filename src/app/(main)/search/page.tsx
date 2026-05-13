@@ -3,10 +3,11 @@
 import { useEffect, useMemo, useState, useCallback, useSyncExternalStore, type CSSProperties } from "react";
 import Avatar from "@/components/ui/Avatar";
 import { useRouter } from "next/navigation";
-import { MoreVertical, Plus, Check, UserMinus, MessageCircle, Ban, UserCircle } from "lucide-react";
+import { MoreVertical, Plus, Check, UserMinus, MessageCircle, Ban, UserCircle, Users, Rss } from "lucide-react";
 import { RiVerifiedBadgeFill } from "react-icons/ri";
 import SearchHeader from "@/components/layout/SearchHeader";
 import { PRESENCE_EVENT } from "@/components/features/PresenceTracker";
+import { REGIONS } from "@/lib/constants";
 
 type Tab = "friends" | "my-region" | "follower" | "pending";
 
@@ -157,6 +158,7 @@ export default function SearchPage() {
   const [showCheck, setShowCheck] = useState(false);
   const activeTab = useSyncExternalStore(subscribeSearchTab, getSearchTab, (): Tab => "friends");
   const [friendSearch, setFriendSearch] = useState("");
+  const [showMutualOnly, setShowMutualOnly] = useState(false);
   const [onlineIds, setOnlineIds] = useState<Set<string>>(new Set());
   const [menuTarget, setMenuTarget] = useState<{ id: string; nickname: string; status?: "pending" | "approved" | "friend"; x: number; y: number; source: "friends" | "follower"; placement: "top" | "bottom"; follower?: Follower } | null>(null);
   const [hasBlacklistPin, setHasBlacklistPin] = useState<boolean | null>(null);
@@ -166,12 +168,15 @@ export default function SearchPage() {
   const [blacklistPinError, setBlacklistPinError] = useState("");
   const [blacklistPinFailCount, setBlacklistPinFailCount] = useState(0);
   const [showBlackReportToast, setShowBlackReportToast] = useState(false);
+  const [showHideFriendToast, setShowHideFriendToast] = useState(false);
   const [removingPendingIds, setRemovingPendingIds] = useState<Set<string>>(new Set());
   const [profileModal, setProfileModal] = useState<Follower | null>(null);
   const [profileModalData, setProfileModalData] = useState<{ bio: string | null; member_type: string[] } | null>(null);
   const [myRegionMembers, setMyRegionMembers] = useState<Follower[]>([]);
   const [myRegionName, setMyRegionName] = useState<string | null>(null);
-  const [myRegionCountry, setMyRegionCountry] = useState<string | null>(null);
+  const [myRegionOptions, setMyRegionOptions] = useState<string[]>([]);
+  const [selectedRegion, setSelectedRegion] = useState("");
+  const [showAllRegionOptions, setShowAllRegionOptions] = useState(false);
   const [myRegionLoaded, setMyRegionLoaded] = useState(false);
   const [myRegionLoading, setMyRegionLoading] = useState(false);
 
@@ -183,15 +188,35 @@ export default function SearchPage() {
     () => new Map(following.map((f) => [f.id, f.status])),
     [following]
   );
+  const mutualFollowingCount = useMemo(
+    () => following.filter((f) => f.status === "friend").length,
+    [following]
+  );
+  const visibleFollowing = useMemo(
+    () =>
+      following.filter((f) => {
+        if (showMutualOnly && f.status !== "friend") return false;
+        if (friendSearch === "") return true;
+        return f.nickname.toLowerCase().includes(friendSearch.toLowerCase());
+      }),
+    [following, friendSearch, showMutualOnly]
+  );
   const followerOnly = useMemo(
     () => followers,
     [followers]
   );
-  const myRegionTabLabel = useMemo(() => {
-    if (!myRegionName) return "내지역";
-    if (myRegionCountry === "대한민국") return myRegionName;
-    return myRegionCountry ? `${myRegionCountry} ${myRegionName}` : myRegionName;
-  }, [myRegionCountry, myRegionName]);
+  const myRegionOptionsForSelect = useMemo(() => {
+    if (!showAllRegionOptions) return myRegionOptions;
+    const merged = [...myRegionOptions];
+    for (const region of REGIONS) {
+      if (!merged.includes(region)) merged.push(region);
+    }
+    return merged;
+  }, [myRegionOptions, showAllRegionOptions]);
+  const currentRegionLabel = useMemo(
+    () => selectedRegion || myRegionName || "지역회원",
+    [selectedRegion, myRegionName]
+  );
 
   const loadFromCache = useCallback(() => {
     try {
@@ -240,19 +265,23 @@ export default function SearchPage() {
       .finally(() => setPendingLoaded(true));
   }, [writePendingCache]);
 
-  const fetchMyRegionMembers = useCallback(() => {
+  const fetchMyRegionMembers = useCallback((region?: string) => {
     setMyRegionLoading(true);
-    fetch("/api/users/my-region")
+    const params = new URLSearchParams();
+    if (region?.trim()) params.set("region", region.trim());
+    const query = params.toString();
+    fetch(`/api/users/my-region${query ? `?${query}` : ""}`)
       .then((r) => r.json())
       .then((json) => {
         setMyRegionMembers(json.data ?? []);
         setMyRegionName(json.region ?? null);
-        setMyRegionCountry(json.country ?? null);
+        setMyRegionOptions(json.availableRegions ?? []);
+        setSelectedRegion((prev) => prev || (json.region ?? ""));
       })
       .catch(() => {
         setMyRegionMembers([]);
         setMyRegionName(null);
-        setMyRegionCountry(null);
+        setMyRegionOptions([]);
       })
       .finally(() => {
         setMyRegionLoaded(true);
@@ -265,11 +294,12 @@ export default function SearchPage() {
       .then((r) => r.json())
       .then((json) => {
         setMyRegionName(json.region ?? null);
-        setMyRegionCountry(json.country ?? null);
+        setMyRegionOptions(json.availableRegions ?? []);
+        setSelectedRegion((prev) => prev || (json.region ?? ""));
       })
       .catch(() => {
         setMyRegionName(null);
-        setMyRegionCountry(null);
+        setMyRegionOptions([]);
       });
   }, []);
 
@@ -589,9 +619,26 @@ export default function SearchPage() {
       setFollowing((prev) => prev.filter((f) => f.id !== targetId));
       refreshSocialLists();
       invalidatePendingCache();
-      alert("친구가 숨김 처리되었습니다.");
+      setShowHideFriendToast(true);
+      setTimeout(() => setShowHideFriendToast(false), 1500);
     } catch {
       alert("숨김 처리 중 오류가 발생했습니다.");
+    }
+  }
+
+  async function handleUnsubscribeFromFollower(targetId: string) {
+    setMenuTarget(null);
+    try {
+      const res = await fetch("/api/friends", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ target_id: targetId }),
+      });
+      if (!res.ok) throw new Error();
+      refreshSocialLists();
+      alert("구독이 취소되었습니다.");
+    } catch {
+      alert("구독취소 처리 중 오류가 발생했습니다.");
     }
   }
 
@@ -762,7 +809,7 @@ export default function SearchPage() {
 
   return (
     <>
-      <SearchHeader activeTab={activeTab} onTabChange={handleTabChange} myRegionLabel={myRegionTabLabel} />
+      <SearchHeader activeTab={activeTab} onTabChange={handleTabChange} myRegionLabel="지역회원" />
 
       {activeTab === "friends" && (
         <div className="px-4 pt-0 bg-white">
@@ -824,12 +871,36 @@ export default function SearchPage() {
 
           {/* 친구목록 리스트 */}
           <div className="border-t border-gray-100 pt-0">
-            <div className="flex items-center mt-3 mb-3">
-              <p className="font-bold" style={{ fontSize: 15, color: "#333333" }}>
-                구독 <span className="font-bold" style={{ fontSize: 15 }}>{following.length}</span>
-              </p>
-              <div className="flex-1 flex justify-center">
-                <div className="relative" style={{ width: 200 }}>
+            <div className="relative flex items-center mt-3 mb-3">
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setShowMutualOnly(false)}
+                  className={`p-1 flex items-center justify-center transition-colors ${
+                    showMutualOnly ? "text-gray-400" : "text-gray-900"
+                  }`}
+                  aria-label="전체 구독 보기"
+                  title="전체 구독 보기"
+                >
+                  <Rss size={17} strokeWidth={2.5} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowMutualOnly(true)}
+                  className={`p-1 flex items-center justify-center transition-colors ${
+                    showMutualOnly ? "text-gray-900" : "text-gray-400"
+                  }`}
+                  aria-label="맞팔만 보기"
+                  title="맞팔만 보기"
+                >
+                  <Users size={20} strokeWidth={2.5} />
+                </button>
+                <span className="font-bold text-[#333333]" style={{ fontSize: 15 }}>
+                  {showMutualOnly ? mutualFollowingCount : following.length}
+                </span>
+              </div>
+              <div className="absolute left-1/2" style={{ transform: "translateX(calc(-50% + 30px))" }}>
+                <div className="relative" style={{ width: 150 }}>
                   <input
                     type="text"
                     placeholder="아이디로 검색"
@@ -849,13 +920,11 @@ export default function SearchPage() {
                 </div>
               </div>
             </div>
-            {following.length === 0 ? (
-              <p className="text-sm text-gray-400">아직 친구목록이 없어요</p>
+            {visibleFollowing.length === 0 ? (
+              <p className="text-sm text-gray-400">{showMutualOnly ? "맞팔 회원이 없어요" : "아직 친구목록이 없어요"}</p>
             ) : (
               <div className="flex flex-col">
-                {following
-                  .filter((f) => friendSearch === "" || f.nickname.toLowerCase().includes(friendSearch.toLowerCase()))
-                  .map((f) => {
+                {visibleFollowing.map((f) => {
                   const memberTypeLabel = f.member_type?.[0] ? getMemberTypeLabel(f.member_type[0]) : "";
                   const isFriendRequesting = f.status === "pending";
 
@@ -1026,9 +1095,28 @@ export default function SearchPage() {
           <div className="pt-3">
             <div className="flex items-center mb-3">
               <p className="text-base font-bold text-gray-400">
-                {myRegionTabLabel}
+                {currentRegionLabel}
                 <span className="text-gray-900 ml-1">{myRegionMembers.length}</span>
               </p>
+              <div className="ml-auto">
+                <select
+                  value={selectedRegion}
+                  onFocus={() => setShowAllRegionOptions(true)}
+                  onChange={(e) => {
+                    const nextRegion = e.target.value;
+                    setSelectedRegion(nextRegion);
+                    fetchMyRegionMembers(nextRegion);
+                  }}
+                  className="h-8 px-2 border border-gray-200 rounded-lg bg-white text-sm text-gray-700 focus:outline-none focus:border-gray-400"
+                >
+                  <option value="" disabled>도시 선택</option>
+                  {myRegionOptionsForSelect.map((region) => (
+                    <option key={region} value={region}>
+                      {region}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             {myRegionLoading ? (
@@ -1083,7 +1171,9 @@ export default function SearchPage() {
         <div className="px-4 pt-4 bg-white">
           <div className="pt-3">
             <div className="flex items-center mb-3">
-              <p className="text-base font-bold text-gray-400">팔로워</p>
+              <p className="text-base font-bold text-gray-400">
+                구독회원 <span className="text-gray-900">{followerOnly.length}</span>
+              </p>
             </div>
             {followerOnly.length === 0 ? (
               <p className="text-sm text-gray-400">아직 팔로워가 없어요</p>
@@ -1332,6 +1422,13 @@ export default function SearchPage() {
           </div>
         </div>
       )}
+      {showHideFriendToast && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
+          <div className="bg-black/70 text-white rounded-full px-5 py-3 text-[15px] font-semibold animate-fade-in-out">
+            친구숨김완료
+          </div>
+        </div>
+      )}
 
       {menuTarget && (
         <>
@@ -1372,10 +1469,18 @@ export default function SearchPage() {
                 <button
                   className="flex items-center justify-between w-full px-4 py-3 text-gray-700"
                   style={{ fontSize: "16px" }}
-                  onClick={() => { setMenuTarget(null); handleAcceptFollower(menuTarget.follower!); }}
+                  onClick={() =>
+                    menuTarget.status === "friend"
+                      ? handleUnsubscribeFromFollower(menuTarget.id)
+                      : (setMenuTarget(null), handleAcceptFollower(menuTarget.follower!))
+                  }
                 >
-                  <span>친구전환</span>
-                  <Check size={20} className="text-gray-500" />
+                  <span>{menuTarget.status === "friend" ? "구독취소" : "친구추가"}</span>
+                  {menuTarget.status === "friend" ? (
+                    <UserMinus size={20} className="text-gray-500" />
+                  ) : (
+                    <Check size={20} className="text-gray-500" />
+                  )}
                 </button>
                 <div className="border-t border-gray-100 mx-3" />
               </>

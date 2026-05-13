@@ -14,6 +14,7 @@ export async function GET(req: Request) {
 
     const { searchParams } = new URL(req.url);
     const metaOnly = searchParams.get("metaOnly") === "1";
+    const requestedRegion = (searchParams.get("region") ?? "").trim();
 
     const { data: me, error: meError } = await supabase
       .from("profiles")
@@ -25,25 +26,41 @@ export async function GET(req: Request) {
 
     const myRegion = (me?.region ?? "").trim();
     const myCountry = (me?.country ?? "").trim() || null;
-    if (!myRegion) {
-      return NextResponse.json({ data: [], region: null, country: myCountry });
+    const targetRegion = requestedRegion || myRegion;
+
+    const { data: regionRows, error: regionRowsError } = await supabase
+      .from("profiles")
+      .select("region")
+      .not("region", "is", null);
+    if (regionRowsError) throw regionRowsError;
+
+    const availableRegions = Array.from(
+      new Set(
+        (regionRows ?? [])
+          .map((row) => (row.region ?? "").trim())
+          .filter(Boolean)
+      )
+    ).sort((a, b) => a.localeCompare(b, "ko"));
+
+    if (!targetRegion) {
+      return NextResponse.json({ data: [], region: null, country: myCountry, availableRegions });
     }
 
     if (metaOnly) {
-      return NextResponse.json({ data: [], region: myRegion, country: myCountry });
+      return NextResponse.json({ data: [], region: targetRegion, country: myCountry, availableRegions });
     }
 
     const { data, error } = await supabase
       .from("profiles")
       .select("id, nickname, profile_image_url, country, region, member_type, role")
-      .eq("region", myRegion)
+      .eq("region", targetRegion)
       .neq("id", user.id)
       .order("nickname", { ascending: true })
       .limit(300);
 
     if (error) throw error;
 
-    return NextResponse.json({ data: data ?? [], region: myRegion, country: myCountry });
+    return NextResponse.json({ data: data ?? [], region: targetRegion, country: myCountry, availableRegions });
   } catch (e) {
     console.error(e);
     return NextResponse.json({ error: "서버 오류" }, { status: 500 });

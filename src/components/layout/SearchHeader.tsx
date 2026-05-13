@@ -35,7 +35,7 @@ export default function SearchHeader({ activeTab, onTabChange, myRegionLabel = "
               : "border-transparent text-gray-400"
           }`}
         >
-          구독중
+          친구추가
         </button>
         <button
           onClick={() => onTabChange("follower")}
@@ -46,7 +46,7 @@ export default function SearchHeader({ activeTab, onTabChange, myRegionLabel = "
               : "border-transparent text-gray-400"
           }`}
         >
-          구독멤버
+          구독
         </button>
         <button
           onClick={() => onTabChange("pending")}
