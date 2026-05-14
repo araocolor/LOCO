@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
     if (reverseRowError) throw reverseRowError;
     if (cooldownError) throw cooldownError;
 
-    const shouldAutoFriend = !!reverseRow && ["pending", "approved", "friend"].includes(reverseRow.status);
+    const shouldAutoFriend = !!reverseRow && ["approved", "friend"].includes(reverseRow.status);
 
     if (!shouldAutoFriend && cooldown?.cancelled_at) {
       const diff = now.getTime() - new Date(cooldown.cancelled_at).getTime();
@@ -167,31 +167,23 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ success: true, alreadyCancelled: true });
     }
 
-    if (row.status === "pending") {
-      const { error: deleteError } = await supabase
-        .from("friendships")
-        .delete()
-        .eq("id", row.id);
-      if (deleteError) throw deleteError;
+    const { error: deleteError } = await supabase
+      .from("friendships")
+      .delete()
+      .eq("id", row.id);
+    if (deleteError) throw deleteError;
 
-      const { error: cooldownError } = await supabase
-        .from("friend_request_cooldowns")
-        .upsert(
-          {
-            requester_id: user.id,
-            target_id,
-            cancelled_at: new Date().toISOString(),
-          },
-          { onConflict: "requester_id,target_id" }
-        );
-      if (cooldownError) throw cooldownError;
-    } else {
-      const { error: updateError } = await supabase
-        .from("friendships")
-        .update({ status: "pending" })
-        .eq("id", row.id);
-      if (updateError) throw updateError;
-    }
+    const { error: cooldownError } = await supabase
+      .from("friend_request_cooldowns")
+      .upsert(
+        {
+          requester_id: user.id,
+          target_id,
+          cancelled_at: new Date().toISOString(),
+        },
+        { onConflict: "requester_id,target_id" }
+      );
+    if (cooldownError) throw cooldownError;
 
     return NextResponse.json({ success: true });
   } catch (e) {

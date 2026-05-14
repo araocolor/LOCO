@@ -380,7 +380,7 @@ CREATE TABLE friend_member_states (
   id              UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
   owner_id        UUID        NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   target_id       UUID        NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
-  state           TEXT        NOT NULL CHECK (state IN ('hidden', 'blocked', 'black')),
+  state           TEXT        NOT NULL CHECK (state IN ('hidden', 'blocked', 'black', 'grey')),
   previous_status TEXT        NOT NULL CHECK (previous_status IN ('none', 'pending', 'approved', 'friend')),
   created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),

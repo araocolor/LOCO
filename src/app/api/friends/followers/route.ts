@@ -30,7 +30,7 @@ export async function GET() {
 
     const excludedIds = new Set<string>([
       ...(stateRows ?? [])
-        .filter((row) => row.state === "blocked" || row.state === "black")
+        .filter((row) => row.state === "hidden" || row.state === "blocked" || row.state === "black")
         .map((row) => row.target_id),
     ]);
 

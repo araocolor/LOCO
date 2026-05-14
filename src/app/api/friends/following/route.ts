@@ -10,7 +10,6 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const pendingCutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
     const [
       { data, error },
       { data: stateRows, error: stateError },
@@ -19,19 +18,26 @@ export async function GET() {
         .from("friendships")
         .select("friend_id, status, created_at, updated_at, profiles!friendships_friend_id_fkey(id, nickname, profile_image_url, country, region, member_type, role)")
         .eq("user_id", user.id)
-        .in("status", ["pending", "approved", "friend"]),
+        .in("status", ["approved", "friend"]),
       supabase
         .from("friend_member_states")
-        .select("target_id")
+        .select("target_id, state")
         .eq("owner_id", user.id),
     ]);
 
     if (error) throw error;
     if (stateError) throw stateError;
 
-    const excludedIds = new Set<string>([
-      ...(stateRows ?? []).map((row) => row.target_id),
-    ]);
+    const excludedIds = new Set<string>(
+      (stateRows ?? [])
+        .filter((row) => row.state === "hidden" || row.state === "blocked" || row.state === "black")
+        .map((row) => row.target_id)
+    );
+    const greyedIds = new Set<string>(
+      (stateRows ?? [])
+        .filter((row) => row.state === "grey")
+        .map((row) => row.target_id)
+    );
 
     const following = (data ?? [])
       .map((row) => {
@@ -45,13 +51,13 @@ export async function GET() {
           member_type: p?.member_type ?? [],
           role: p?.role ?? "member",
           status: row.status,
+          is_greyed: greyedIds.has(p?.id ?? row.friend_id),
           friend_accepted_at: row.status === "friend" ? row.updated_at : null,
           joined_at: row.created_at ?? null,
           relation_updated_at: row.updated_at ?? null,
         };
       })
-      .filter((item) => !excludedIds.has(item.id))
-      .filter((item) => item.status !== "pending" || (item.relation_updated_at ?? "") >= pendingCutoff);
+      .filter((item) => !excludedIds.has(item.id));
 
     return NextResponse.json({ data: following });
   } catch (e) {

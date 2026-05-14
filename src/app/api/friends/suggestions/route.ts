@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
@@ -26,16 +26,23 @@ export async function GET() {
     const relationIds = (relations ?? []).map((f) => f.friend_id);
     const stateIds = (states ?? []).map((s) => s.target_id);
     const excludeIds = [...new Set([...relationIds, ...stateIds, user.id])];
+    const { searchParams } = new URL(request.url);
+    const region = (searchParams.get("region") ?? "").trim();
+    const requestedLimit = Number.parseInt(searchParams.get("limit") ?? "30", 10);
+    const limit = Number.isFinite(requestedLimit) ? Math.min(Math.max(requestedLimit, 1), 100) : 30;
 
-    const { data, error } = await supabase
+    let query = supabase
       .from("profiles")
       .select("id, nickname, profile_image_url, region")
       .not("id", "in", `(${excludeIds.join(",")})`)
       .limit(100);
+    if (region) query = query.eq("region", region);
+
+    const { data, error } = await query;
 
     if (error) throw error;
 
-    const shuffled = (data ?? []).sort(() => Math.random() - 0.5).slice(0, 30);
+    const shuffled = (data ?? []).sort(() => Math.random() - 0.5).slice(0, limit);
 
     return NextResponse.json({ data: shuffled });
   } catch (e) {

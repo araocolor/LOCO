@@ -55,7 +55,7 @@ export const CLASS_TYPES = [
 export const MEMBER_TYPES = [
   "일반회원", "운영진", "인스트럭터", "인플루언서",
   "프로댄서", "오거나이저", "아카데미대표", "독립군",
-  "왕초보", "고인물", "블랙", "화이트",
+  "왕초보", "Artist", "클럽공식채널",
 ] as const;
 
 export const MAX_MEMBER_TYPE = 3;

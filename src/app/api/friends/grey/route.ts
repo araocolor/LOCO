@@ -1,6 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 
+type FriendStatus = "none" | "pending" | "approved" | "friend";
+
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient();
@@ -13,12 +15,11 @@ export async function POST(request: NextRequest) {
     }
 
     const { target_id } = await request.json();
-
     if (!target_id) {
       return NextResponse.json({ error: "Missing target_id" }, { status: 400 });
     }
 
-    const [{ data: friendship, error: friendshipError }, { data: reverseFriendship, error: reverseFriendshipError }, { data: currentState, error: currentStateError }] =
+    const [{ data: friendship, error: friendshipError }, { data: currentState, error: currentStateError }] =
       await Promise.all([
         supabase
           .from("friendships")
@@ -27,41 +28,51 @@ export async function POST(request: NextRequest) {
           .eq("friend_id", target_id)
           .maybeSingle(),
         supabase
-          .from("friendships")
-          .select("status")
-          .eq("user_id", target_id)
-          .eq("friend_id", user.id)
-          .in("status", ["approved", "friend"])
-          .maybeSingle(),
-        supabase
           .from("friend_member_states")
           .select("state, previous_status")
           .eq("owner_id", user.id)
           .eq("target_id", target_id)
           .maybeSingle(),
       ]);
+
     if (friendshipError) throw friendshipError;
-    if (reverseFriendshipError) throw reverseFriendshipError;
     if (currentStateError) throw currentStateError;
 
-    if ((!friendship || !["approved", "friend"].includes(friendship.status)) && !reverseFriendship) {
-      return NextResponse.json({ error: "관계가 있는 회원만 숨김할 수 있습니다." }, { status: 400 });
+    if (!friendship || !["pending", "approved", "friend"].includes(friendship.status)) {
+      return NextResponse.json({ error: "관계가 있는 회원만 설정할 수 있습니다." }, { status: 400 });
     }
 
-    if (currentState?.state === "hidden") {
-      return NextResponse.json({ success: true, alreadyHidden: true });
+    if (currentState?.state === "grey" || currentState?.state === "hidden") {
+      return NextResponse.json({ success: true, alreadyGreyed: true });
     }
 
-    const { error } = await supabase.from("friend_member_states").upsert(
-      {
-        owner_id: user.id,
-        target_id,
-        state: "hidden",
-        previous_status: currentState?.previous_status ?? friendship?.status ?? "none",
-      },
-      { onConflict: "owner_id,target_id" }
-    );
-    if (error) throw error;
+    if (currentState?.state === "blocked" || currentState?.state === "black") {
+      return NextResponse.json({ error: "차단/블랙 상태에서는 알림끄기를 설정할 수 없습니다." }, { status: 400 });
+    }
+
+    const previousStatus = (currentState?.previous_status ??
+      (friendship.status as FriendStatus)) as FriendStatus;
+
+    const payload = {
+      owner_id: user.id,
+      target_id,
+      previous_status: previousStatus,
+    };
+
+    // Prefer the new "grey" state. If DB constraint is not migrated yet,
+    // gracefully fallback to legacy "hidden" to avoid user-facing errors.
+    const { error } = await supabase
+      .from("friend_member_states")
+      .upsert({ ...payload, state: "grey" }, { onConflict: "owner_id,target_id" });
+    if (error) {
+      const isStateConstraintError = (error as { code?: string }).code === "23514";
+      if (!isStateConstraintError) throw error;
+
+      const { error: fallbackError } = await supabase
+        .from("friend_member_states")
+        .upsert({ ...payload, state: "hidden" }, { onConflict: "owner_id,target_id" });
+      if (fallbackError) throw fallbackError;
+    }
 
     return NextResponse.json({ success: true });
   } catch (e) {
@@ -82,47 +93,20 @@ export async function DELETE(request: NextRequest) {
     }
 
     const { target_id } = await request.json();
-
     if (!target_id) {
       return NextResponse.json({ error: "Missing target_id" }, { status: 400 });
     }
 
     const { data: currentState, error: currentStateError } = await supabase
       .from("friend_member_states")
-      .select("state, previous_status")
+      .select("state")
       .eq("owner_id", user.id)
       .eq("target_id", target_id)
       .maybeSingle();
     if (currentStateError) throw currentStateError;
 
-    if (!currentState || currentState.state !== "hidden") {
-      return NextResponse.json({ success: true, alreadyVisible: true });
-    }
-
-    const previousStatus = currentState.previous_status as "none" | "pending" | "approved" | "friend";
-    if (previousStatus !== "none") {
-      const { data: friendship, error: friendshipError } = await supabase
-        .from("friendships")
-        .select("id")
-        .eq("user_id", user.id)
-        .eq("friend_id", target_id)
-        .maybeSingle();
-      if (friendshipError) throw friendshipError;
-
-      if (friendship) {
-        const { error: updateError } = await supabase
-          .from("friendships")
-          .update({ status: previousStatus })
-          .eq("id", friendship.id);
-        if (updateError) throw updateError;
-      } else {
-        const { error: insertError } = await supabase.from("friendships").insert({
-          user_id: user.id,
-          friend_id: target_id,
-          status: previousStatus,
-        });
-        if (insertError) throw insertError;
-      }
+    if (!currentState || (currentState.state !== "grey" && currentState.state !== "hidden")) {
+      return NextResponse.json({ success: true, alreadyActive: true });
     }
 
     const { error: deleteStateError } = await supabase

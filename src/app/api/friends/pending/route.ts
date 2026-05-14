@@ -27,6 +27,7 @@ export async function GET() {
     const { data: stateRows, error: stateError } = await supabase
       .from("friend_member_states")
       .select("state, updated_at, target_id")
+      .in("state", ["hidden", "blocked", "black"])
       .eq("owner_id", user.id);
     if (stateError) throw stateError;
 

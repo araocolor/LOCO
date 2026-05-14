@@ -10,6 +10,7 @@ import { PRESENCE_EVENT } from "@/components/features/PresenceTracker";
 import { REGIONS } from "@/lib/constants";
 
 type Tab = "friends" | "my-region" | "follower" | "pending";
+type MenuRelation = "mutual" | "following" | "follower" | "none";
 
 interface Follower {
   id: string;
@@ -20,9 +21,24 @@ interface Follower {
   member_type?: string[];
   role?: "member" | "pro" | "admin";
   status?: "pending" | "approved" | "friend";
+  is_greyed?: boolean;
+  is_hidden?: boolean;
+  is_blocked?: boolean;
   friend_accepted_at?: string | null;
   joined_at?: string | null;
   relation_updated_at?: string | null;
+}
+
+interface MenuTarget {
+  id: string;
+  nickname: string;
+  status?: "pending" | "approved" | "friend";
+  relation: MenuRelation;
+  x: number;
+  y: number;
+  placement: "top" | "bottom";
+  member: Follower;
+  isHidden?: boolean;
 }
 
 interface Suggestion {
@@ -104,7 +120,7 @@ function syncMyPageSocialCounts(followers: Follower[], following: Follower[]) {
     const raw = localStorage.getItem(MYPAGE_CACHE_KEY);
     if (!raw) return;
     const parsed = JSON.parse(raw);
-    const followingCount = following.filter((f) => f.status === "pending" || f.status === "approved").length;
+    const followingCount = following.filter((f) => f.status === "approved").length;
     const followersCount = followers.filter((f) => f.status === "approved").length;
     const friendsCount = following.filter((f) => f.status === "friend").length;
     localStorage.setItem(
@@ -125,13 +141,10 @@ function sortFollowersOnce(followers: Follower[], following: Follower[]) {
   const followingStatusById = new Map(following.map((f) => [f.id, f.status]));
   return followers
     .slice()
-    .sort((a, b) => {
-      const pendingDiff = Number(b.status === "pending") - Number(a.status === "pending");
-      if (pendingDiff !== 0) return pendingDiff;
-      return Number(followingStatusById.get(a.id) === "friend") - Number(followingStatusById.get(b.id) === "friend");
-    });
+    .sort((a, b) =>
+      Number(followingStatusById.get(a.id) === "friend") - Number(followingStatusById.get(b.id) === "friend")
+    );
 }
-
 
 function CheckModal() {
   return (
@@ -151,6 +164,8 @@ export default function SearchPage() {
   const [pendingLoaded, setPendingLoaded] = useState(false);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [suggestionsLoading, setSuggestionsLoading] = useState(true);
+  const [myRegionSuggestions, setMyRegionSuggestions] = useState<Suggestion[]>([]);
+  const [myRegionSuggestionsLoading, setMyRegionSuggestionsLoading] = useState(false);
   const [addedIds, setAddedIds] = useState<Set<string>>(new Set());
   const [acceptingFollowerIds, setAcceptingFollowerIds] = useState<Set<string>>(new Set());
   const [acceptedFollowerIds, setAcceptedFollowerIds] = useState<Set<string>>(new Set());
@@ -159,8 +174,9 @@ export default function SearchPage() {
   const activeTab = useSyncExternalStore(subscribeSearchTab, getSearchTab, (): Tab => "friends");
   const [friendSearch, setFriendSearch] = useState("");
   const [showMutualOnly, setShowMutualOnly] = useState(false);
+  const [showMyRegionMutualOnly, setShowMyRegionMutualOnly] = useState(false);
   const [onlineIds, setOnlineIds] = useState<Set<string>>(new Set());
-  const [menuTarget, setMenuTarget] = useState<{ id: string; nickname: string; status?: "pending" | "approved" | "friend"; x: number; y: number; source: "friends" | "follower"; placement: "top" | "bottom"; follower?: Follower } | null>(null);
+  const [menuTarget, setMenuTarget] = useState<MenuTarget | null>(null);
   const [hasBlacklistPin, setHasBlacklistPin] = useState<boolean | null>(null);
   const [isBlacklistUnlocked, setIsBlacklistUnlocked] = useState(false);
   const [blacklistPinInput, setBlacklistPinInput] = useState("");
@@ -168,7 +184,7 @@ export default function SearchPage() {
   const [blacklistPinError, setBlacklistPinError] = useState("");
   const [blacklistPinFailCount, setBlacklistPinFailCount] = useState(0);
   const [showBlackReportToast, setShowBlackReportToast] = useState(false);
-  const [showHideFriendToast, setShowHideFriendToast] = useState(false);
+  const [friendLinkedNickname, setFriendLinkedNickname] = useState<string | null>(null);
   const [removingPendingIds, setRemovingPendingIds] = useState<Set<string>>(new Set());
   const [profileModal, setProfileModal] = useState<Follower | null>(null);
   const [profileModalData, setProfileModalData] = useState<{ bio: string | null; member_type: string[] } | null>(null);
@@ -193,18 +209,63 @@ export default function SearchPage() {
     [following]
   );
   const visibleFollowing = useMemo(
-    () =>
-      following.filter((f) => {
+    () => {
+      const filtered = following.filter((f) => {
         if (showMutualOnly && f.status !== "friend") return false;
         if (friendSearch === "") return true;
         return f.nickname.toLowerCase().includes(friendSearch.toLowerCase());
-      }),
+      });
+
+      const normal = filtered.filter((f) => !f.is_greyed);
+      const greyed = filtered.filter((f) => !!f.is_greyed);
+      return [...normal, ...greyed];
+    },
     [following, friendSearch, showMutualOnly]
   );
   const followerOnly = useMemo(
     () => followers,
     [followers]
   );
+  const friendRelationIds = useMemo(() => {
+    const ids = new Set<string>();
+    following.forEach((item) => {
+      if (item.status === "friend") ids.add(item.id);
+    });
+    return ids;
+  }, [following]);
+  const followerById = useMemo(
+    () => new Map(followers.map((item) => [item.id, item])),
+    [followers]
+  );
+  const getRelationStatusValue = useCallback((id: string) => {
+    return followingStatusById.get(id) === "friend" ? "맞팔" : "아님";
+  }, [followingStatusById]);
+  const getMenuRelation = useCallback((id: string): MenuRelation => {
+    const myStatus = followingStatusById.get(id);
+    if (myStatus === "friend") return "mutual";
+    if (myStatus === "approved") return "following";
+    if (followerById.has(id)) return "follower";
+    return "none";
+  }, [followingStatusById, followerById]);
+  const myRegionMutualCount = useMemo(
+    () => myRegionMembers.filter((member) => followingStatusById.get(member.id) === "friend").length,
+    [myRegionMembers, followingStatusById]
+  );
+  const visibleMyRegionMembers = useMemo(() => {
+    return myRegionMembers
+      .filter((member) => !showMyRegionMutualOnly || followingStatusById.get(member.id) === "friend")
+      .slice()
+      .sort((a, b) => {
+        const getSortGroup = (id: string) => {
+          if (followingStatusById.get(id) === "friend") return 0;
+          if (followerById.has(id)) return 1;
+          return 2;
+        };
+        const groupDiff = getSortGroup(a.id) - getSortGroup(b.id);
+        if (groupDiff !== 0) return groupDiff;
+        return (a.nickname ?? "").localeCompare(b.nickname ?? "", "ko");
+      });
+  }, [myRegionMembers, showMyRegionMutualOnly, followingStatusById, followerById]);
   const myRegionOptionsForSelect = useMemo(() => {
     if (!showAllRegionOptions) return myRegionOptions;
     const merged = [...myRegionOptions];
@@ -213,18 +274,13 @@ export default function SearchPage() {
     }
     return merged;
   }, [myRegionOptions, showAllRegionOptions]);
-  const currentRegionLabel = useMemo(
-    () => selectedRegion || myRegionName || "지역회원",
-    [selectedRegion, myRegionName]
-  );
-
   const loadFromCache = useCallback(() => {
     try {
       const cached = localStorage.getItem(SEARCH_CACHE_KEY);
       if (cached) {
         const { followers, following } = JSON.parse(cached);
         if (followers) setFollowers(Array.isArray(following) ? sortFollowersOnce(followers, following) : followers);
-        if (following) setFollowing(following);
+        if (Array.isArray(following)) setFollowing(following);
       }
     } catch {}
   }, []);
@@ -254,7 +310,7 @@ export default function SearchPage() {
   }, []);
 
   const fetchPendingMembers = useCallback(() => {
-    fetch("/api/friends/pending")
+      fetch("/api/friends/pending")
       .then((r) => r.json())
       .then((json) => {
         const members = json.data ?? [];
@@ -374,6 +430,26 @@ export default function SearchPage() {
     queueMicrotask(() => fetchMyRegionMembers());
   }, [activeTab, myRegionLoaded, myRegionLoading, fetchMyRegionMembers]);
 
+  useEffect(() => {
+    if (activeTab !== "my-region") return;
+    const region = selectedRegion.trim();
+    if (!region) {
+      setMyRegionSuggestions([]);
+      setMyRegionSuggestionsLoading(false);
+      return;
+    }
+    setMyRegionSuggestionsLoading(true);
+    fetch(`/api/friends/suggestions?region=${encodeURIComponent(region)}&limit=30`)
+      .then((r) => r.json())
+      .then((json) => {
+        setMyRegionSuggestions(json.data ?? []);
+      })
+      .catch(() => {
+        setMyRegionSuggestions([]);
+      })
+      .finally(() => setMyRegionSuggestionsLoading(false));
+  }, [activeTab, selectedRegion]);
+
   // PresenceTracker에서 브로드캐스트하는 이벤트 수신
   useEffect(() => {
     queueMicrotask(() => {
@@ -467,7 +543,101 @@ export default function SearchPage() {
     });
   }
 
-  async function handleAcceptFollower(follower: Follower) {
+  function handleAddMyRegionFriend(id: string) {
+    if (addedIds.has(id)) return;
+    const added = myRegionSuggestions.find((s) => s.id === id);
+
+    const nextAddedIds = new Set(addedIds).add(id);
+    setAddedIds(nextAddedIds);
+    setMyRegionSuggestions((prev) => prev.filter((s) => s.id !== id));
+
+    if (added) {
+      const addedWithStatus: Follower = { ...added, status: "approved" };
+      setFollowing((prev) => {
+        const updated = [addedWithStatus, ...prev];
+        try {
+          const cached = localStorage.getItem(SEARCH_CACHE_KEY);
+          const parsed = cached ? JSON.parse(cached) : {};
+          localStorage.setItem(SEARCH_CACHE_KEY, JSON.stringify({ ...parsed, following: updated, ts: Date.now() }));
+          syncMyPageSocialCounts(followers, updated);
+        } catch {}
+        return updated;
+      });
+    }
+    setShowCheck(true);
+    setTimeout(() => setShowCheck(false), 1200);
+
+    fetch("/api/friends", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ target_id: id }),
+    }).then((res) => {
+      if (!res.ok) throw new Error();
+    }).catch(() => {
+      setAddedIds((prev) => { const next = new Set(prev); next.delete(id); return next; });
+      if (added) {
+        setMyRegionSuggestions((prev) => [added, ...prev]);
+        setFollowing((prev) => {
+          const updated = prev.filter((f) => f.id !== id);
+          try {
+            const cached = localStorage.getItem(SEARCH_CACHE_KEY);
+            const parsed = cached ? JSON.parse(cached) : {};
+            localStorage.setItem(SEARCH_CACHE_KEY, JSON.stringify({ ...parsed, following: updated, ts: Date.now() }));
+            syncMyPageSocialCounts(followers, updated);
+          } catch {}
+          return updated;
+        });
+      }
+    });
+  }
+
+  function handleFollowFromMenu(member: Follower) {
+    setMenuTarget(null);
+    if (followingStatusById.has(member.id) || addedIds.has(member.id)) return;
+
+    const nextAddedIds = new Set(addedIds).add(member.id);
+    const addedWithStatus: Follower = { ...member, status: "approved" };
+    setAddedIds(nextAddedIds);
+    setFollowing((prev) => {
+      const updated = [addedWithStatus, ...prev.filter((item) => item.id !== member.id)];
+      try {
+        const cached = localStorage.getItem(SEARCH_CACHE_KEY);
+        const parsed = cached ? JSON.parse(cached) : {};
+        localStorage.setItem(SEARCH_CACHE_KEY, JSON.stringify({ ...parsed, following: updated, ts: Date.now() }));
+        syncMyPageSocialCounts(followers, updated);
+      } catch {}
+      return updated;
+    });
+    setShowCheck(true);
+    setTimeout(() => setShowCheck(false), 1200);
+
+    fetch("/api/friends", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ target_id: member.id }),
+    }).then((res) => {
+      if (!res.ok) throw new Error();
+    }).catch(() => {
+      setAddedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(member.id);
+        return next;
+      });
+      setFollowing((prev) => {
+        const updated = prev.filter((item) => item.id !== member.id);
+        try {
+          const cached = localStorage.getItem(SEARCH_CACHE_KEY);
+          const parsed = cached ? JSON.parse(cached) : {};
+          localStorage.setItem(SEARCH_CACHE_KEY, JSON.stringify({ ...parsed, following: updated, ts: Date.now() }));
+          syncMyPageSocialCounts(followers, updated);
+        } catch {}
+        return updated;
+      });
+      alert("팔로잉 처리 중 오류가 발생했습니다.");
+    });
+  }
+
+  async function handleAcceptFollower(follower: Follower, showFriendLinkedToast = false) {
     if (followingStatusById.get(follower.id) === "friend" || acceptingFollowerIds.has(follower.id)) return;
 
     setAcceptingFollowerIds((prev) => new Set(prev).add(follower.id));
@@ -517,6 +687,10 @@ export default function SearchPage() {
       });
 
       if (!res.ok && res.status !== 409) throw new Error();
+      if (showFriendLinkedToast) {
+        setFriendLinkedNickname(follower.nickname);
+        setTimeout(() => setFriendLinkedNickname(null), 1500);
+      }
     } catch {
       failed = true;
       window.clearTimeout(animationTimer);
@@ -588,25 +762,6 @@ export default function SearchPage() {
     }
   }
 
-  async function handleBlockUser(targetId: string) {
-    setMenuTarget(null);
-    try {
-      const res = await fetch("/api/friends/block", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ target_id: targetId }),
-      });
-
-      if (!res.ok) throw new Error();
-
-      refreshSocialLists();
-      invalidatePendingCache();
-      alert("차단이 완료되었습니다.");
-    } catch {
-      alert("차단 처리 중 오류가 발생했습니다.");
-    }
-  }
-
   async function handleHideFriend(targetId: string) {
     setMenuTarget(null);
     try {
@@ -615,30 +770,120 @@ export default function SearchPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ target_id: targetId }),
       });
+
       if (!res.ok) throw new Error();
-      setFollowing((prev) => prev.filter((f) => f.id !== targetId));
+
+      const nextFollowers = followers.filter((member) => member.id !== targetId);
+      const nextFollowing = following.filter((member) => member.id !== targetId);
+      setFollowers(nextFollowers);
+      setFollowing(nextFollowing);
+      setMyRegionMembers((prev) =>
+        prev.filter((member) => member.id !== targetId)
+      );
+      try {
+        const cached = localStorage.getItem(SEARCH_CACHE_KEY);
+        const parsed = cached ? JSON.parse(cached) : {};
+        localStorage.setItem(SEARCH_CACHE_KEY, JSON.stringify({ ...parsed, followers: nextFollowers, following: nextFollowing, ts: Date.now() }));
+        syncMyPageSocialCounts(nextFollowers, nextFollowing);
+      } catch {}
       refreshSocialLists();
       invalidatePendingCache();
-      setShowHideFriendToast(true);
-      setTimeout(() => setShowHideFriendToast(false), 1500);
+      alert("친구숨김이 완료되었습니다.");
     } catch {
-      alert("숨김 처리 중 오류가 발생했습니다.");
+      alert("친구숨김 처리 중 오류가 발생했습니다.");
     }
   }
 
-  async function handleUnsubscribeFromFollower(targetId: string) {
+  async function handleUnhideFriendFromMenu(targetId: string) {
     setMenuTarget(null);
     try {
-      const res = await fetch("/api/friends", {
+      const res = await fetch("/api/friends/hide", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ target_id: targetId }),
+      });
+
+      if (!res.ok) throw new Error();
+
+      setMyRegionMembers((prev) =>
+        prev.map((member) => member.id === targetId ? { ...member, is_hidden: false } : member)
+      );
+      setPendingMembers((prev) => {
+        const next = prev.filter((member) => !(member.id === targetId && member.state === "hidden"));
+        writePendingCache(next);
+        return next;
+      });
+      refreshSocialLists();
+      invalidatePendingCache();
+      alert("숨김해제가 완료되었습니다.");
+    } catch {
+      alert("숨김해제 처리 중 오류가 발생했습니다.");
+    }
+  }
+
+  async function handleSetFollowingGrey(targetId: string) {
+    setMenuTarget(null);
+    const prevFollowing = following;
+    const nextFollowing = following.map((item) =>
+      item.id === targetId ? { ...item, is_greyed: true } : item
+    );
+    setFollowing(nextFollowing);
+    try {
+      const cached = localStorage.getItem(SEARCH_CACHE_KEY);
+      const parsed = cached ? JSON.parse(cached) : {};
+      localStorage.setItem(SEARCH_CACHE_KEY, JSON.stringify({ ...parsed, following: nextFollowing, ts: Date.now() }));
+      syncMyPageSocialCounts(followers, nextFollowing);
+    } catch {}
+
+    try {
+      const res = await fetch("/api/friends/grey", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ target_id: targetId }),
+      });
+      if (!res.ok) throw new Error();
+    } catch {
+      setFollowing(prevFollowing);
+      try {
+        const cached = localStorage.getItem(SEARCH_CACHE_KEY);
+        const parsed = cached ? JSON.parse(cached) : {};
+        localStorage.setItem(SEARCH_CACHE_KEY, JSON.stringify({ ...parsed, following: prevFollowing, ts: Date.now() }));
+        syncMyPageSocialCounts(followers, prevFollowing);
+      } catch {}
+      alert("알림끄기 처리 중 오류가 발생했습니다.");
+    }
+  }
+
+  async function handleUnsetFollowingGrey(targetId: string) {
+    setMenuTarget(null);
+    const prevFollowing = following;
+    const nextFollowing = following.map((item) =>
+      item.id === targetId ? { ...item, is_greyed: false } : item
+    );
+    setFollowing(nextFollowing);
+    try {
+      const cached = localStorage.getItem(SEARCH_CACHE_KEY);
+      const parsed = cached ? JSON.parse(cached) : {};
+      localStorage.setItem(SEARCH_CACHE_KEY, JSON.stringify({ ...parsed, following: nextFollowing, ts: Date.now() }));
+      syncMyPageSocialCounts(followers, nextFollowing);
+    } catch {}
+
+    try {
+      const res = await fetch("/api/friends/grey", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ target_id: targetId }),
       });
       if (!res.ok) throw new Error();
-      refreshSocialLists();
-      alert("구독이 취소되었습니다.");
     } catch {
-      alert("구독취소 처리 중 오류가 발생했습니다.");
+      setFollowing(prevFollowing);
+      try {
+        const cached = localStorage.getItem(SEARCH_CACHE_KEY);
+        const parsed = cached ? JSON.parse(cached) : {};
+        localStorage.setItem(SEARCH_CACHE_KEY, JSON.stringify({ ...parsed, following: prevFollowing, ts: Date.now() }));
+        syncMyPageSocialCounts(followers, prevFollowing);
+      } catch {}
+      alert("알림켜기 처리 중 오류가 발생했습니다.");
     }
   }
 
@@ -649,33 +894,6 @@ export default function SearchPage() {
       return next;
     });
     await new Promise((resolve) => setTimeout(resolve, 1000));
-  }
-
-  async function handleUnhideFriend(targetId: string) {
-    await playPendingRemoveAnimation(targetId);
-    const prevPending = pendingMembers;
-    const nextPending = pendingMembers.filter((m) => !(m.id === targetId && m.state === "hidden"));
-    setPendingMembers(nextPending);
-    writePendingCache(nextPending);
-    setRemovingPendingIds((prev) => {
-      const next = new Set(prev);
-      next.delete(targetId);
-      return next;
-    });
-
-    try {
-      const res = await fetch("/api/friends/hide", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ target_id: targetId }),
-      });
-      if (!res.ok) throw new Error();
-      refreshSocialLists();
-    } catch {
-      setPendingMembers(prevPending);
-      writePendingCache(prevPending);
-      alert("숨김해제 처리 중 오류가 발생했습니다.");
-    }
   }
 
   async function handleUnreportUser(targetId: string) {
@@ -836,24 +1054,24 @@ export default function SearchPage() {
                   {suggestions.map((s) => (
                     <div key={s.id} className="flex flex-col items-center gap-1 flex-shrink-0">
                       <div className="relative" style={{ width: 60, height: 60 }}>
-                        <button onClick={() => handleAddFriend(s.id)}>
-                          <div className="animate-blacklist-avatar" style={getAvatarFloatStyle(s.id)}>
+                        <div className="relative animate-blacklist-avatar" style={getAvatarFloatStyle(s.id)}>
+                          <button onClick={() => handleAddFriend(s.id)}>
                             <Avatar src={s.profile_image_url} nickname={s.nickname} size={60} />
-                          </div>
-                        </button>
-                        <button
-                          onClick={() => handleAddFriend(s.id)}
-                          className={`absolute -top-0.5 -right-0.5 w-5 h-5 rounded-full flex items-center justify-center ${
-                            addedIds.has(s.id)
-                              ? "bg-gray-400 cursor-default"
-                              : "bg-yellow-300"
-                          }`}
-                        >
-                          {addedIds.has(s.id)
-                            ? <Check size={11} className="text-white" strokeWidth={3} />
-                            : <Plus size={15} className="text-black" strokeWidth={3.5} />
-                          }
-                        </button>
+                          </button>
+                          <button
+                            onClick={() => handleAddFriend(s.id)}
+                            className={`absolute -top-0.5 -right-0.5 w-6 h-6 rounded-full flex items-center justify-center ${
+                              addedIds.has(s.id)
+                                ? "bg-gray-400 cursor-default"
+                                : "bg-yellow-300"
+                            }`}
+                          >
+                            {addedIds.has(s.id)
+                              ? <Check size={11} className="text-white" strokeWidth={3} />
+                              : <Plus size={15} className="text-black" strokeWidth={3.5} />
+                            }
+                          </button>
+                        </div>
                       </div>
                       <button
                         type="button"
@@ -876,28 +1094,17 @@ export default function SearchPage() {
                 <button
                   type="button"
                   onClick={() => setShowMutualOnly(false)}
-                  className={`p-1 flex items-center justify-center transition-colors ${
+                  className={`p-1 flex items-center gap-1 justify-center transition-colors ${
                     showMutualOnly ? "text-gray-400" : "text-gray-900"
                   }`}
                   aria-label="전체 구독 보기"
                   title="전체 구독 보기"
                 >
                   <Rss size={17} strokeWidth={2.5} />
+                  <span className="font-bold" style={{ fontSize: 15 }}>
+                    {following.length}
+                  </span>
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setShowMutualOnly(true)}
-                  className={`p-1 flex items-center justify-center transition-colors ${
-                    showMutualOnly ? "text-gray-900" : "text-gray-400"
-                  }`}
-                  aria-label="맞팔만 보기"
-                  title="맞팔만 보기"
-                >
-                  <Users size={20} strokeWidth={2.5} />
-                </button>
-                <span className="font-bold text-[#333333]" style={{ fontSize: 15 }}>
-                  {showMutualOnly ? mutualFollowingCount : following.length}
-                </span>
               </div>
               <div className="absolute left-1/2" style={{ transform: "translateX(calc(-50% + 30px))" }}>
                 <div className="relative" style={{ width: 150 }}>
@@ -919,6 +1126,20 @@ export default function SearchPage() {
                   )}
                 </div>
               </div>
+              <button
+                type="button"
+                onClick={() => setShowMutualOnly(true)}
+                className={`ml-auto p-1 flex items-center gap-1 justify-center transition-colors ${
+                  showMutualOnly ? "text-gray-900" : "text-gray-400"
+                }`}
+                aria-label="맞팔만 보기"
+                title="맞팔만 보기"
+              >
+                <Users size={20} strokeWidth={2.5} />
+                <span className="font-bold" style={{ fontSize: 15 }}>
+                  {mutualFollowingCount}
+                </span>
+              </button>
             </div>
             {visibleFollowing.length === 0 ? (
               <p className="text-sm text-gray-400">{showMutualOnly ? "맞팔 회원이 없어요" : "아직 친구목록이 없어요"}</p>
@@ -926,10 +1147,11 @@ export default function SearchPage() {
               <div className="flex flex-col">
                 {visibleFollowing.map((f) => {
                   const memberTypeLabel = f.member_type?.[0] ? getMemberTypeLabel(f.member_type[0]) : "";
-                  const isFriendRequesting = f.status === "pending";
+                  const isNotificationOff = !!f.is_greyed;
+                  const isFriendFollowing = f.status === "friend" || f.status === "approved";
 
                   return (
-                  <div key={f.id} className="flex items-center gap-3 py-3 border-b border-gray-50">
+                  <div key={f.id} className={`flex items-center gap-3 py-3 border-b border-gray-50 ${isNotificationOff ? "grayscale" : ""}`}>
                     <button onClick={() => {
                       setProfileModal(f);
                       const cached = sessionStorage.getItem(`user_view_${f.id}`);
@@ -949,18 +1171,16 @@ export default function SearchPage() {
                       }
                     }}>
                       <div className="relative">
-                        <div className={`relative${isFriendRequesting ? " animate-blacklist-avatar" : ""}`} style={isFriendRequesting ? getAvatarFloatStyle(f.id) : undefined}>
+                        <div
+                          className={`relative ${isFriendFollowing ? "animate-blacklist-avatar" : ""} ${isNotificationOff ? "opacity-50" : ""}`}
+                          style={isFriendFollowing ? getAvatarFloatStyle(f.id) : undefined}
+                        >
                           <Avatar
                             src={f.profile_image_url}
                             nickname={f.nickname}
                             size={44}
-                            className={f.status === "friend" ? "border-2 border-white shadow-[0_0_0_2px_#ef4444]" : ""}
+                            className="border-2 border-white shadow-[0_0_0_2px_#ef4444]"
                           />
-                          {isFriendRequesting && (
-                            <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-white text-sm leading-none shadow-sm">
-                              🖐️
-                            </span>
-                          )}
                         </div>
                         {onlineIds.has(f.id) && (
                           <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-400 rounded-full border-2 border-white" />
@@ -988,11 +1208,11 @@ export default function SearchPage() {
                         }
                       }}
                     >
-                      <p className="font-semibold text-gray-900 truncate" style={{ fontSize: 16 }}>{f.nickname}</p>
+                      <p className={`font-semibold text-gray-900 truncate ${isNotificationOff ? "opacity-50" : ""}`} style={{ fontSize: 16 }}>{f.nickname}</p>
                       {(f.country || f.region) && <p className="text-xs text-gray-400 truncate">{[f.country, f.region].filter(Boolean).join(", ")}</p>}
                     </button>
                     {f.member_type?.[0] && (
-                      <span className="text-[16px] flex-shrink-0 inline-flex items-center gap-1" style={{ color: "#000000B3" }}>
+                      <span className={`text-[16px] flex-shrink-0 inline-flex items-center gap-1 ${isNotificationOff ? "opacity-50" : ""}`} style={{ color: "#000000B3" }}>
                         {memberTypeLabel === "강사" && (
                           <RiVerifiedBadgeFill size={18} color="#FEE500" />
                         )}
@@ -1012,11 +1232,12 @@ export default function SearchPage() {
                           id: f.id,
                           nickname: f.nickname,
                           status: f.status,
+                          relation: getMenuRelation(f.id),
                           x: r.right,
                           y: placement === "top" ? r.top : r.bottom,
-                          source: "friends",
                           placement,
-                          follower: f,
+                          member: f,
+                          isHidden: !!f.is_hidden,
                         });
                         fetch(`/api/users/${f.id}/view-summary`)
                           .then((res) => res.json())
@@ -1036,8 +1257,8 @@ export default function SearchPage() {
 
       {activeTab === "my-region" && (
         <div className="px-4 pt-0 bg-white">
-          <div className={`mb-0 -mx-4 py-3 ${!suggestionsLoading && suggestions.length === 0 ? "bg-white" : "bg-sky-100/70"}`}>
-            {suggestionsLoading ? (
+          <div className={`mb-0 -mx-4 py-3 ${!myRegionSuggestionsLoading && myRegionSuggestions.length === 0 ? "bg-white" : "bg-sky-100/70"}`}>
+            {myRegionSuggestionsLoading ? (
               <div className="flex gap-7 overflow-x-auto pb-1 pt-3 scrollbar-hide">
                 {Array.from({ length: 8 }).map((_, i) => (
                   <div key={i} className="flex flex-col items-center gap-1 flex-shrink-0">
@@ -1046,7 +1267,7 @@ export default function SearchPage() {
                   </div>
                 ))}
               </div>
-            ) : suggestions.length === 0 ? (
+            ) : myRegionSuggestions.length === 0 ? (
               <div className="flex items-center justify-center py-3">
                 <p className="text-gray-400 animate-blacklist-avatar" style={{ fontSize: 16 }}>친구추천 목록 없음</p>
               </div>
@@ -1056,27 +1277,14 @@ export default function SearchPage() {
                 style={{ WebkitOverflowScrolling: "touch", touchAction: "pan-x" }}
               >
                 <div className="flex gap-7 w-max">
-                  {suggestions.map((s) => (
+                  {myRegionSuggestions.map((s) => (
                     <div key={s.id} className="flex flex-col items-center gap-1 flex-shrink-0">
                       <div className="relative" style={{ width: 60, height: 60 }}>
-                        <button onClick={() => handleAddFriend(s.id)}>
-                          <div className="animate-blacklist-avatar" style={getAvatarFloatStyle(s.id)}>
+                        <div className="relative animate-blacklist-avatar" style={getAvatarFloatStyle(s.id)}>
+                          <button onClick={() => handleAddMyRegionFriend(s.id)}>
                             <Avatar src={s.profile_image_url} nickname={s.nickname} size={60} />
-                          </div>
-                        </button>
-                        <button
-                          onClick={() => handleAddFriend(s.id)}
-                          className={`absolute -top-0.5 -right-0.5 w-5 h-5 rounded-full flex items-center justify-center ${
-                            addedIds.has(s.id)
-                              ? "bg-gray-400 cursor-default"
-                              : "bg-yellow-300"
-                          }`}
-                        >
-                          {addedIds.has(s.id)
-                            ? <Check size={11} className="text-white" strokeWidth={3} />
-                            : <Plus size={15} className="text-black" strokeWidth={3.5} />
-                          }
-                        </button>
+                          </button>
+                        </div>
                       </div>
                       <button
                         type="button"
@@ -1094,11 +1302,7 @@ export default function SearchPage() {
 
           <div className="pt-3">
             <div className="flex items-center mb-3">
-              <p className="text-base font-bold text-gray-400">
-                {currentRegionLabel}
-                <span className="text-gray-900 ml-1">{myRegionMembers.length}</span>
-              </p>
-              <div className="ml-auto">
+              <div className="flex items-center gap-2">
                 <select
                   value={selectedRegion}
                   onFocus={() => setShowAllRegionOptions(true)}
@@ -1107,16 +1311,30 @@ export default function SearchPage() {
                     setSelectedRegion(nextRegion);
                     fetchMyRegionMembers(nextRegion);
                   }}
-                  className="h-8 px-2 border border-gray-200 rounded-lg bg-white text-sm text-gray-700 focus:outline-none focus:border-gray-400"
+                  className="w-auto min-w-[88px] h-8 px-3 border border-gray-200 rounded-full bg-white text-[15px] font-semibold text-gray-700 focus:outline-none focus:border-gray-400"
                 >
-                  <option value="" disabled>도시 선택</option>
                   {myRegionOptionsForSelect.map((region) => (
                     <option key={region} value={region}>
                       {region}
                     </option>
                   ))}
                 </select>
+                <span className="text-base font-bold text-gray-900">{myRegionMembers.length}</span>
               </div>
+              <button
+                type="button"
+                onClick={() => setShowMyRegionMutualOnly((prev) => !prev)}
+                className={`ml-auto p-1 flex items-center gap-1 justify-center transition-colors ${
+                  showMyRegionMutualOnly ? "text-gray-900" : "text-gray-400"
+                }`}
+                aria-label="지역 맞팔만 보기"
+                title="지역 맞팔만 보기"
+              >
+                <Users size={20} strokeWidth={2.5} />
+                <span className="font-bold" style={{ fontSize: 15 }}>
+                  {myRegionMutualCount}
+                </span>
+              </button>
             </div>
 
             {myRegionLoading ? (
@@ -1125,15 +1343,39 @@ export default function SearchPage() {
               <p className="text-sm text-gray-400">내 지역 정보가 없어요. 마이페이지에서 지역을 설정해 주세요.</p>
             ) : myRegionMembers.length === 0 ? (
               <p className="text-sm text-gray-400">같은 지역 회원이 아직 없어요</p>
+            ) : visibleMyRegionMembers.length === 0 ? (
+              <p className="text-sm text-gray-400">맞팔 회원이 없어요</p>
             ) : (
               <div className="flex flex-col">
-                {myRegionMembers.map((m) => {
-                  const memberTypeLabel = m.member_type?.[0] ? getMemberTypeLabel(m.member_type[0]) : "";
+                {visibleMyRegionMembers.map((m) => {
+                  const hasFriendRelation = friendRelationIds.has(m.id);
+                  const follower = followerById.get(m.id);
+                  const followingRelation = following.find((item) => item.id === m.id);
+                  const isNotificationOff = !!followingRelation?.is_greyed;
+                  const canShowMutualFollow = !hasFriendRelation && !!follower;
+                  const isMutualFollowProcessing = !!follower && acceptingFollowerIds.has(follower.id);
 
                   return (
-                    <div key={m.id} className="flex items-center gap-3 py-3 border-b border-gray-50">
-                      <button onClick={() => router.push(`/users/${m.id}/view`)}>
-                        <div className="relative">
+                    <div key={m.id} className={`flex items-center gap-3 py-3 border-b border-gray-50 ${isNotificationOff ? "grayscale" : ""}`}>
+                      <button onClick={() => {
+                        setProfileModal(m);
+                        const cached = sessionStorage.getItem(`user_view_${m.id}`);
+                        if (cached) {
+                          try {
+                            const json = JSON.parse(cached);
+                            setProfileModalData({ bio: json.profile?.bio ?? null, member_type: json.profile?.member_type ?? [] });
+                          } catch {}
+                        } else {
+                          fetch(`/api/users/${m.id}/view-summary`)
+                            .then((res) => res.json())
+                            .then((json) => {
+                              sessionStorage.setItem(`user_view_${m.id}`, JSON.stringify(json));
+                              setProfileModalData({ bio: json.profile?.bio ?? null, member_type: json.profile?.member_type ?? [] });
+                            })
+                            .catch(() => {});
+                        }
+                      }}>
+                        <div className={`relative ${isNotificationOff ? "opacity-50" : ""}`}>
                           <Avatar src={m.profile_image_url} nickname={m.nickname} size={44} />
                           {onlineIds.has(m.id) && (
                             <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-400 rounded-full border-2 border-white" />
@@ -1144,20 +1386,58 @@ export default function SearchPage() {
                         className="flex-1 text-left min-w-0"
                         onClick={() => router.push(`/users/${m.id}/view`)}
                       >
-                        <p className="font-semibold text-gray-900 truncate" style={{ fontSize: 16 }}>{m.nickname}</p>
+                        <p className={`font-semibold text-gray-900 truncate ${isNotificationOff ? "opacity-50" : ""}`} style={{ fontSize: 16 }}>{m.nickname}</p>
                         {(m.country || m.region) && <p className="text-xs text-gray-400 truncate">{[m.country, m.region].filter(Boolean).join(", ")}</p>}
                       </button>
-                      {m.member_type?.[0] && (
-                        <span className="text-[16px] flex-shrink-0 inline-flex items-center gap-1" style={{ color: "#000000B3" }}>
-                          {memberTypeLabel === "강사" && (
-                            <RiVerifiedBadgeFill size={18} color="#FEE500" />
-                          )}
-                          {memberTypeLabel === "운영진" && (
-                            <RiVerifiedBadgeFill size={18} color="#1D9BF0" />
-                          )}
-                          {memberTypeLabel}
-                        </span>
-                      )}
+                      <div className="ml-auto flex items-center gap-2">
+                        {canShowMutualFollow ? (
+                          <button
+                            type="button"
+                            disabled={isMutualFollowProcessing}
+                            onClick={() => {
+                              if (!follower) return;
+                              handleAcceptFollower(follower, true);
+                            }}
+                            className="px-3 py-1.5 rounded-full text-xs font-semibold bg-[#000000CC] text-white disabled:opacity-60"
+                          >
+                            맞팔로우
+                          </button>
+                        ) : !hasFriendRelation && (
+                          <button
+                            type="button"
+                            className="px-3 py-1.5 rounded-full text-xs font-semibold bg-[#FEE500] text-gray-900"
+                          >
+                            팔로잉
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          className="p-2 -mr-2 text-gray-400 flex-shrink-0"
+                          aria-label="더보기"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const r = e.currentTarget.getBoundingClientRect();
+                            const placement = r.top > window.innerHeight / 2 ? "top" : "bottom";
+                            setMenuTarget({
+                              id: m.id,
+                              nickname: m.nickname,
+                              status: followingRelation?.status,
+                              relation: getMenuRelation(m.id),
+                              x: r.right,
+                              y: placement === "top" ? r.top : r.bottom,
+                              placement,
+                              member: followingRelation ?? follower ?? m,
+                              isHidden: !!m.is_hidden,
+                            });
+                            fetch(`/api/users/${m.id}/view-summary`)
+                              .then((res) => res.json())
+                              .then((json) => { sessionStorage.setItem(`user_view_${m.id}`, JSON.stringify(json)); })
+                              .catch(() => {});
+                          }}
+                        >
+                          <MoreVertical size={18} />
+                        </button>
+                      </div>
                     </div>
                   );
                 })}
@@ -1184,14 +1464,36 @@ export default function SearchPage() {
                   const isAccepting = acceptingFollowerIds.has(f.id);
                   const isFriend = isAccepted || (followingStatusById.get(f.id) === "friend" && !isAccepting);
                   const isFriendRequest = f.status === "pending";
+                  const canShowMutualFollow = !isFriend;
                   const isAnimating = acceptedAnimatingIds.has(f.id);
+                  const myFollowingRelation = following.find((item) => item.id === f.id);
                   const friendDate = formatCompactDate(
-                    f.joined_at ?? f.friend_accepted_at ?? following.find((item) => item.id === f.id)?.friend_accepted_at
+                    myFollowingRelation?.friend_accepted_at ??
+                    myFollowingRelation?.relation_updated_at ??
+                    myFollowingRelation?.joined_at ??
+                    f.friend_accepted_at
                   );
 
                   return (
                   <div key={f.id} className="flex items-center gap-3 py-3 border-b border-gray-50">
-                    <button onClick={() => router.push(`/users/${f.id}/view`)}>
+                    <button onClick={() => {
+                      setProfileModal(f);
+                      const cached = sessionStorage.getItem(`user_view_${f.id}`);
+                      if (cached) {
+                        try {
+                          const json = JSON.parse(cached);
+                          setProfileModalData({ bio: json.profile?.bio ?? null, member_type: json.profile?.member_type ?? [] });
+                        } catch {}
+                      } else {
+                        fetch(`/api/users/${f.id}/view-summary`)
+                          .then((res) => res.json())
+                          .then((json) => {
+                            sessionStorage.setItem(`user_view_${f.id}`, JSON.stringify(json));
+                            setProfileModalData({ bio: json.profile?.bio ?? null, member_type: json.profile?.member_type ?? [] });
+                          })
+                          .catch(() => {});
+                      }
+                    }}>
                       <div className="relative">
                         <div className={`relative${isFriendRequest ? " animate-blacklist-avatar" : ""}`} style={isFriendRequest ? getAvatarFloatStyle(f.id) : undefined}>
                           <Avatar src={f.profile_image_url} nickname={f.nickname} size={44} />
@@ -1221,26 +1523,12 @@ export default function SearchPage() {
                             ? "bg-transparent text-gray-400"
                             : isFriendRequest ? "bg-[#FEE500] text-gray-900" : "bg-[#000000CC] text-white"
                         } ${isAnimating ? "animate-friend-accepted" : ""}`}
-                        onClick={(e) => {
-                          if (isFriendRequest || !isFriend) {
-                            const r = e.currentTarget.getBoundingClientRect();
-                            const placement = r.top > window.innerHeight / 2 ? "top" : "bottom";
-                            setMenuTarget({
-                              id: f.id,
-                              nickname: f.nickname,
-                              status: f.status,
-                              x: r.right,
-                              y: placement === "top" ? r.top : r.bottom,
-                              source: "follower",
-                              placement,
-                              follower: f,
-                            });
-                          } else {
-                            handleAcceptFollower(f);
-                          }
+                        onClick={() => {
+                          if (!canShowMutualFollow) return;
+                          handleAcceptFollower(f, true);
                         }}
                       >
-                        {isFriend ? friendDate : isFriendRequest ? "친구요청" : "구독중"}
+                        {isFriend ? friendDate : "맞팔로우"}
                       </button>
                     </div>
                     <button
@@ -1253,11 +1541,12 @@ export default function SearchPage() {
                           id: f.id,
                           nickname: f.nickname,
                           status: f.status,
+                          relation: getMenuRelation(f.id),
                           x: r.right,
                           y: placement === "top" ? r.top : r.bottom,
-                          source: "follower",
                           placement,
-                          follower: f,
+                          member: f,
+                          isHidden: !!f.is_hidden,
                         });
                       }}
                     >
@@ -1310,7 +1599,7 @@ export default function SearchPage() {
           ) : (
             <div className="pt-3">
               <div className="flex items-center mb-3">
-                <p className="text-base font-bold text-gray-400">블랙리스트</p>
+                <p className="text-base font-bold text-gray-400">회원관리</p>
               </div>
               {pendingMembers.length === 0 ? null : (
                 <div className="flex flex-col">
@@ -1371,7 +1660,7 @@ export default function SearchPage() {
                         {m.state === "hidden" && (
                           <button
                             className="px-2 py-1 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-600"
-                            onClick={() => handleUnhideFriend(m.id)}
+                            onClick={() => handleUnhideFriendFromMenu(m.id)}
                           >
                             숨김해제
                           </button>
@@ -1422,10 +1711,10 @@ export default function SearchPage() {
           </div>
         </div>
       )}
-      {showHideFriendToast && (
+      {friendLinkedNickname && (
         <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
           <div className="bg-black/70 text-white rounded-full px-5 py-3 text-[15px] font-semibold animate-fade-in-out">
-            친구숨김완료
+            {friendLinkedNickname}님과 이제 친구가 되었습니다.
           </div>
         </div>
       )}
@@ -1447,83 +1736,85 @@ export default function SearchPage() {
               style={{ fontSize: "16px" }}
               onClick={() => { setMenuTarget(null); router.push(`/users/${menuTarget.id}/view`); }}
             >
-              <span>친구 프로필</span>
+              <span>프로필 보기</span>
               <UserCircle size={20} className="text-gray-500" />
             </button>
             <div className="border-t border-gray-100 mx-3" />
-            {menuTarget.source === "follower" && menuTarget.status === "pending" && menuTarget.follower && (
-              <>
-                <button
-                  className="flex items-center justify-between w-full px-4 py-3 text-gray-700"
-                  style={{ fontSize: "16px" }}
-                  onClick={() => { setMenuTarget(null); handleAcceptFollower(menuTarget.follower!); }}
-                >
-                  <span>친구승인</span>
-                  <Check size={20} className="text-gray-500" />
-                </button>
-                <div className="border-t border-gray-100 mx-3" />
-              </>
-            )}
-            {menuTarget.source === "follower" && menuTarget.status !== "pending" && menuTarget.follower && (
+            {(menuTarget.relation === "mutual" || menuTarget.relation === "following") && (
               <>
                 <button
                   className="flex items-center justify-between w-full px-4 py-3 text-gray-700"
                   style={{ fontSize: "16px" }}
                   onClick={() =>
-                    menuTarget.status === "friend"
-                      ? handleUnsubscribeFromFollower(menuTarget.id)
-                      : (setMenuTarget(null), handleAcceptFollower(menuTarget.follower!))
+                    menuTarget.member.is_greyed
+                      ? handleUnsetFollowingGrey(menuTarget.id)
+                      : handleSetFollowingGrey(menuTarget.id)
                   }
                 >
-                  <span>{menuTarget.status === "friend" ? "구독취소" : "친구추가"}</span>
-                  {menuTarget.status === "friend" ? (
-                    <UserMinus size={20} className="text-gray-500" />
-                  ) : (
-                    <Check size={20} className="text-gray-500" />
-                  )}
-                </button>
-                <div className="border-t border-gray-100 mx-3" />
-              </>
-            )}
-            {menuTarget.source === "friends" && (
-              <>
-                <button
-                  className="flex items-center justify-between w-full px-4 py-3 text-gray-700"
-                  style={{ fontSize: "16px" }}
-                  onClick={() => handleHideFriend(menuTarget.id)}
-                >
-                  <span>친구 숨김</span>
+                  <span>{menuTarget.member.is_greyed ? "알림켜기" : "알림끄기"}</span>
                   <UserMinus size={20} className="text-gray-500" />
                 </button>
                 <div className="border-t border-gray-100 mx-3" />
               </>
             )}
-            <button
-              className="flex items-center justify-between w-full px-4 py-3 text-gray-700"
-              style={{ fontSize: "16px" }}
-              onClick={() => { setMenuTarget(null); router.push(`/messages?userId=${menuTarget.id}`); }}
-            >
-              <span>메시지 보내기</span>
-              <MessageCircle size={20} className="text-gray-500" />
-            </button>
-            <div className="border-t border-gray-100 mx-3" />
-            <>
-              <button
-                className="flex items-center justify-between w-full px-4 py-3 text-red-500"
-                style={{ fontSize: "16px" }}
-                onClick={() => handleBlockUser(menuTarget.id)}
-              >
-                <span>차단하기</span>
-                <Ban size={20} className="text-red-400" />
-              </button>
-              <div className="border-t border-gray-100 mx-3" />
-            </>
+            {menuTarget.relation === "follower" && (
+              <>
+                <button
+                  className="flex items-center justify-between w-full px-4 py-3 text-gray-700"
+                  style={{ fontSize: "16px" }}
+                  onClick={() => handleAcceptFollower(menuTarget.member, true)}
+                >
+                  <span>맞팔로우</span>
+                  <Check size={20} className="text-gray-500" />
+                </button>
+                <div className="border-t border-gray-100 mx-3" />
+              </>
+            )}
+            {menuTarget.relation === "none" && (
+              <>
+                <button
+                  className="flex items-center justify-between w-full px-4 py-3 text-gray-700"
+                  style={{ fontSize: "16px" }}
+                  onClick={() => handleFollowFromMenu(menuTarget.member)}
+                >
+                  <span>팔로잉</span>
+                  <Check size={20} className="text-gray-500" />
+                </button>
+                <div className="border-t border-gray-100 mx-3" />
+              </>
+            )}
+            {menuTarget.relation !== "none" && (
+              <>
+                <button
+                  className="flex items-center justify-between w-full px-4 py-3 text-gray-700"
+                  style={{ fontSize: "16px" }}
+                  onClick={() => { setMenuTarget(null); router.push(`/messages?userId=${menuTarget.id}`); }}
+                >
+                  <span>메시지 보내기</span>
+                  <MessageCircle size={20} className="text-gray-500" />
+                </button>
+                <div className="border-t border-gray-100 mx-3" />
+                <button
+                  className="flex items-center justify-between w-full px-4 py-3 text-red-500"
+                  style={{ fontSize: "16px" }}
+                  onClick={() =>
+                    menuTarget.isHidden
+                      ? handleUnhideFriendFromMenu(menuTarget.id)
+                      : handleHideFriend(menuTarget.id)
+                  }
+                >
+                  <span>{menuTarget.isHidden ? "숨김해제" : "친구숨김"}</span>
+                  <Ban size={20} className="text-red-400" />
+                </button>
+                <div className="border-t border-gray-100 mx-3" />
+              </>
+            )}
             <button
               className="flex items-center justify-between w-full px-4 py-3 text-gray-700"
               style={{ fontSize: "16px" }}
               onClick={() => handleReportUser(menuTarget.id)}
             >
-              <span>블랙신고</span>
+              <span>신고하기</span>
               <Ban size={20} className="text-gray-500" />
             </button>
           </div>
@@ -1535,22 +1826,23 @@ export default function SearchPage() {
           <div className="fixed inset-0 z-[70] bg-black/50" onClick={() => { setProfileModal(null); setProfileModalData(null); }} />
           <div className="fixed inset-0 z-[80] flex items-center justify-center pointer-events-none">
             <div className="w-[250px] bg-white rounded-2xl shadow-lg p-6 pointer-events-auto flex flex-col items-center gap-2">
-              <Avatar src={profileModal.profile_image_url} nickname={profileModal.nickname} size={60} />
-              <div className="text-center w-full space-y-2">
-                <p className="font-semibold text-gray-900 truncate text-sm">{profileModal.nickname}</p>
-                <div className="flex items-center justify-center gap-2 flex-wrap">
-                  {profileModalData?.member_type?.[0] && (
+              <Avatar src={profileModal.profile_image_url} nickname={profileModal.nickname} size={80} />
+              <div className="text-center w-full">
+                <p className="font-bold text-gray-900 truncate" style={{ fontSize: 16 }}>{profileModal.nickname}</p>
+                {(profileModal.country || profileModal.region) && (
+                  <p className="text-xs text-gray-400 mt-0.5">{[profileModal.country, profileModal.region].filter(Boolean).join(", ")}</p>
+                )}
+                {profileModalData?.member_type?.[0] && (
+                  <div className="flex items-center justify-center mt-2">
                     <span className="px-2.5 py-1 rounded-full bg-gray-800 text-white text-[12px] font-medium">
                       {profileModalData.member_type[0]}
                     </span>
-                  )}
-                  {(profileModal.country || profileModal.region) && (
-                    <p className="text-xs text-gray-400">{[profileModal.country, profileModal.region].filter(Boolean).join(", ")}</p>
-                  )}
-                </div>
+                  </div>
+                )}
                 {profileModalData?.bio && (
                   <p className="text-[17px] text-gray-600 line-clamp-4 mt-1 whitespace-pre-wrap">{profileModalData.bio}</p>
                 )}
+                <p className="text-xs text-gray-500 mt-2">친구상태: {getRelationStatusValue(profileModal.id)}</p>
               </div>
             </div>
           </div>

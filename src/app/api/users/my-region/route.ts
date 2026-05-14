@@ -50,17 +50,43 @@ export async function GET(req: Request) {
       return NextResponse.json({ data: [], region: targetRegion, country: myCountry, availableRegions });
     }
 
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("id, nickname, profile_image_url, country, region, member_type, role")
-      .eq("region", targetRegion)
-      .neq("id", user.id)
-      .order("nickname", { ascending: true })
-      .limit(300);
+    const [{ data, error }, { data: stateRows, error: stateError }] = await Promise.all([
+      supabase
+        .from("profiles")
+        .select("id, nickname, profile_image_url, country, region, member_type, role")
+        .eq("region", targetRegion)
+        .neq("id", user.id)
+        .order("nickname", { ascending: true })
+        .limit(300),
+      supabase
+        .from("friend_member_states")
+        .select("target_id, state")
+        .eq("owner_id", user.id),
+    ]);
 
     if (error) throw error;
+    if (stateError) throw stateError;
 
-    return NextResponse.json({ data: data ?? [], region: targetRegion, country: myCountry, availableRegions });
+    const hiddenIds = new Set(
+      (stateRows ?? [])
+        .filter((row) => row.state === "hidden")
+        .map((row) => row.target_id)
+    );
+    const blockedIds = new Set(
+      (stateRows ?? [])
+        .filter((row) => row.state === "blocked")
+        .map((row) => row.target_id)
+    );
+
+    const members = (data ?? [])
+      .filter((member) => !hiddenIds.has(member.id))
+      .map((member) => ({
+        ...member,
+        is_hidden: false,
+        is_blocked: blockedIds.has(member.id),
+      }));
+
+    return NextResponse.json({ data: members, region: targetRegion, country: myCountry, availableRegions });
   } catch (e) {
     console.error(e);
     return NextResponse.json({ error: "서버 오류" }, { status: 500 });
