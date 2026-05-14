@@ -14,6 +14,8 @@ function shouldRefreshSearchCache(raw: string | null) {
 
   try {
     const parsed = JSON.parse(raw);
+    if (typeof parsed.subscriptionCount !== "number") return true;
+    if (!Array.isArray(parsed.followers) || !Array.isArray(parsed.following)) return true;
     const lists = [parsed.followers, parsed.following].filter(Array.isArray);
     return lists.some((items) =>
       items.some((item: { member_type?: unknown }) => !("member_type" in item))
@@ -112,19 +114,37 @@ export default function BottomNav({ isLoggedIn }: { isLoggedIn: boolean }) {
         }
 
         if (shouldPrefetchSearch) {
-          const followersRes = await fetch("/api/friends/followers");
-          const followingRes = await fetch("/api/friends/following");
-          if (followersRes.ok && followingRes.ok) {
-            const followers = await followersRes.json();
-            const following = await followingRes.json();
+          const socialRes = await fetch("/api/friends/social");
+          if (socialRes.ok) {
+            const social = await socialRes.json();
+            const followers = social.data?.followers ?? [];
+            const following = social.data?.following ?? [];
+            const subscriptionCount = social.data?.subscriptionCount ?? 0;
             localStorage.setItem(
               SEARCH_CACHE_KEY,
               JSON.stringify({
-                followers: followers.data ?? [],
-                following: following.data ?? [],
+                followers,
+                following,
+                subscriptionCount,
                 ts: Date.now(),
               })
             );
+            const mypageRaw = localStorage.getItem(MYPAGE_CACHE_KEY);
+            if (mypageRaw) {
+              const mypage = JSON.parse(mypageRaw);
+              localStorage.setItem(
+                MYPAGE_CACHE_KEY,
+                JSON.stringify({
+                  ...mypage,
+                  socialCounts: {
+                    following: following.filter((item: { status?: string }) => item.status === "approved").length,
+                    followers: followers.filter((item: { status?: string }) => item.status === "approved").length,
+                    friends: following.filter((item: { status?: string }) => item.status === "friend").length,
+                    subscriptionCount,
+                  },
+                })
+              );
+            }
           }
         }
 

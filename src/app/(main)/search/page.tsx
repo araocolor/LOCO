@@ -3,12 +3,13 @@
 import { useEffect, useMemo, useState, useCallback, useSyncExternalStore, type CSSProperties } from "react";
 import Avatar from "@/components/ui/Avatar";
 import { useRouter } from "next/navigation";
-import { MoreVertical, Plus, Check, UserMinus, MessageCircle, Ban, UserCircle, Bookmark } from "lucide-react";
+import { MoreVertical, Plus, Check, UserMinus, Send, Ban, UserCircle, Bookmark, HeartHandshake, SmilePlus, Hand, Coffee } from "lucide-react";
 import { RiVerifiedBadgeFill } from "react-icons/ri";
 import SearchHeader from "@/components/layout/SearchHeader";
+import SendMessageModal from "@/components/modal/SendMessageModal";
 import { PRESENCE_EVENT } from "@/components/features/PresenceTracker";
 
-type Tab = "friends" | "followings" | "subscribe" | "pending";
+type Tab = "friends" | "followings" | "pending";
 type MenuRelation = "mutual" | "following" | "follower" | "none";
 
 interface Follower {
@@ -69,15 +70,8 @@ function getSearchTab(): Tab {
   const tab = new URLSearchParams(window.location.search).get("tab");
   if (tab === "friends") return "friends";
   if (tab === "followings") return "followings";
-  if (tab === "subscribe") return "subscribe";
   if (tab === "pending") return "pending";
   return "friends";
-}
-
-function formatCompactDate(value?: string | null) {
-  const date = value ? new Date(value) : new Date();
-  if (Number.isNaN(date.getTime())) return "";
-  return `${String(date.getFullYear()).slice(-2)}/${String(date.getMonth() + 1).padStart(2, "0")}/${String(date.getDate()).padStart(2, "0")}`;
 }
 
 function getMemberTypeLabel(type: string) {
@@ -124,27 +118,64 @@ function subscribeSearchTab(onStoreChange: () => void) {
 function replaceSearchTab(tab: Tab) {
   const url = new URL(window.location.href);
   url.searchParams.set("tab", tab);
+  url.searchParams.delete("mode");
   window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
   window.dispatchEvent(new Event(SEARCH_TAB_CHANGE_EVENT));
 }
 
-function syncMyPageSocialCounts(followers: Follower[], following: Follower[]) {
+function getInitialFriendListMode(): "friends" | "subscriptions" {
+  if (typeof window === "undefined") return "friends";
+  return new URLSearchParams(window.location.search).get("mode") === "subscriptions"
+    ? "subscriptions"
+    : "friends";
+}
+
+function getSocialCounts(followers: Follower[], following: Follower[], subscriptionCount: number) {
+  return {
+    following: following.filter((f) => f.status === "approved").length,
+    followers: followers.filter((f) => f.status === "approved").length,
+    friends: following.filter((f) => f.status === "friend").length,
+    subscriptionCount,
+  };
+}
+
+function writeSearchSocialCache(followers: Follower[], following: Follower[], subscriptionCount?: number, ts: number | string = Date.now()) {
+  const raw = localStorage.getItem(SEARCH_CACHE_KEY);
+  const parsed = raw ? JSON.parse(raw) : {};
+  const nextSubscriptionCount =
+    typeof subscriptionCount === "number"
+      ? subscriptionCount
+      : typeof parsed.subscriptionCount === "number"
+      ? parsed.subscriptionCount
+      : 0;
+  localStorage.setItem(
+    SEARCH_CACHE_KEY,
+    JSON.stringify({
+      ...parsed,
+      followers,
+      following,
+      subscriptionCount: nextSubscriptionCount,
+      ts,
+    })
+  );
+}
+
+function syncMyPageSocialCounts(followers: Follower[], following: Follower[], subscriptionCount?: number) {
   try {
     const raw = localStorage.getItem(MYPAGE_CACHE_KEY);
     if (!raw) return;
     const parsed = JSON.parse(raw);
-    const followingCount = following.filter((f) => f.status === "approved").length;
-    const followersCount = followers.filter((f) => f.status === "approved").length;
-    const friendsCount = following.filter((f) => f.status === "friend").length;
+    const nextSubscriptionCount =
+      typeof subscriptionCount === "number"
+        ? subscriptionCount
+        : typeof parsed?.socialCounts?.subscriptionCount === "number"
+        ? parsed.socialCounts.subscriptionCount
+        : 0;
     localStorage.setItem(
       MYPAGE_CACHE_KEY,
       JSON.stringify({
         ...parsed,
-        socialCounts: {
-          following: followingCount,
-          followers: followersCount,
-          friends: friendsCount,
-        },
+        socialCounts: getSocialCounts(followers, following, nextSubscriptionCount),
       })
     );
   } catch {}
@@ -171,8 +202,8 @@ function CheckModal() {
 
 function SubscriptionBadge() {
   return (
-    <span className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center">
-      <Bookmark size={17} fill="#FEE500" strokeWidth={2.5} className="text-red-500" />
+    <span className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center bg-white rounded-full">
+      <Bookmark size={17} strokeWidth={2.5} className="text-red-500" />
     </span>
   );
 }
@@ -189,14 +220,15 @@ export default function SearchPage() {
   const [suggestionsLoading, setSuggestionsLoading] = useState(true);
   const [addedIds, setAddedIds] = useState<Set<string>>(new Set());
   const [acceptingFollowerIds, setAcceptingFollowerIds] = useState<Set<string>>(new Set());
-  const [acceptedFollowerIds, setAcceptedFollowerIds] = useState<Set<string>>(new Set());
-  const [acceptedAnimatingIds, setAcceptedAnimatingIds] = useState<Set<string>>(new Set());
   const [showCheck, setShowCheck] = useState(false);
   const activeTab = useSyncExternalStore(subscribeSearchTab, getSearchTab, (): Tab => "friends");
+  const [acceptedFollowerIds, setAcceptedFollowerIds] = useState<Set<string>>(new Set());
+  const [acceptedAnimatingIds, setAcceptedAnimatingIds] = useState<Set<string>>(new Set());
   const [friendSearch, setFriendSearch] = useState("");
   const [showMutualOnly, setShowMutualOnly] = useState(false);
   const [onlineIds, setOnlineIds] = useState<Set<string>>(new Set());
   const [menuTarget, setMenuTarget] = useState<MenuTarget | null>(null);
+  const [messageModalTarget, setMessageModalTarget] = useState<{ id: string; nickname: string; profile_image_url: string | null } | null>(null);
   const [hasBlacklistPin, setHasBlacklistPin] = useState<boolean | null>(null);
   const [isBlacklistUnlocked, setIsBlacklistUnlocked] = useState(false);
   const [blacklistPinInput, setBlacklistPinInput] = useState("");
@@ -210,7 +242,8 @@ export default function SearchPage() {
   const [profileModal, setProfileModal] = useState<Follower | null>(null);
   const [profileModalData, setProfileModalData] = useState<{ bio: string | null; member_type: string[] } | null>(null);
   const [friendOrderIds, setFriendOrderIds] = useState<string[]>([]);
-  const [friendListMode, setFriendListMode] = useState<"friends" | "subscriptions">("friends");
+  const [friendListMode, setFriendListMode] = useState<"friends" | "subscriptions">(getInitialFriendListMode);
+  const [subscriptionCount, setSubscriptionCount] = useState(0);
 
   const handleTabChange = useCallback((tab: Tab) => {
     replaceSearchTab(tab);
@@ -226,16 +259,11 @@ export default function SearchPage() {
     () => following.filter((f) => f.status === "friend").length,
     [following]
   );
-  const subscribedMemberCount = useMemo(() => {
-    const ids = new Set<string>();
-    following.forEach((member) => {
-      if (member.is_subscribed) ids.add(member.id);
-    });
-    followers.forEach((member) => {
-      if (member.is_subscribed) ids.add(member.id);
-    });
-    return ids.size;
-  }, [following, followers]);
+  const followingOnlyCount = useMemo(
+    () => following.filter((f) => f.status !== "friend").length,
+    [following]
+  );
+  const subscribedMemberCount = subscriptionCount;
   const followerOnlyCount = useMemo(
     () => followers.filter((f) => followingStatusById.get(f.id) !== "friend").length,
     [followers, followingStatusById]
@@ -340,9 +368,11 @@ export default function SearchPage() {
     try {
       const cached = localStorage.getItem(SEARCH_CACHE_KEY);
       if (cached) {
-        const { followers, following } = JSON.parse(cached);
+        const { followers, following, subscriptionCount } = JSON.parse(cached);
+        if (typeof subscriptionCount === "number") setSubscriptionCount(subscriptionCount);
         if (Array.isArray(following)) setFollowing(following);
         if (Array.isArray(followers)) {
+          setFollowers(followers);
           const followingStatusById = new Map(
             (Array.isArray(following) ? following : []).map((f: Follower) => [f.id, f.status])
           );
@@ -360,12 +390,15 @@ export default function SearchPage() {
       .then((json) => {
         const followers = json.data?.followers ?? [];
         const following = json.data?.following ?? [];
+        const subscriptionCount = json.data?.subscriptionCount ?? 0;
         const sortedFollowers = sortFollowersOnce(followers, following);
         setFollowers(sortedFollowers);
         setFollowing(following);
+        setSubscriptionCount(subscriptionCount);
         setFollowersLoaded(true);
         try {
-          localStorage.setItem(SEARCH_CACHE_KEY, JSON.stringify({ followers: sortedFollowers, following, ts: Date.now() }));
+          writeSearchSocialCache(sortedFollowers, following, subscriptionCount);
+          syncMyPageSocialCounts(sortedFollowers, following, subscriptionCount);
         } catch {}
       })
       .catch(() => {});
@@ -510,9 +543,7 @@ export default function SearchPage() {
       setFollowing((prev) => {
         const updated = [addedWithStatus, ...prev];
         try {
-          const cached = localStorage.getItem(SEARCH_CACHE_KEY);
-          const parsed = cached ? JSON.parse(cached) : {};
-          localStorage.setItem(SEARCH_CACHE_KEY, JSON.stringify({ ...parsed, following: updated, ts: Date.now() }));
+          writeSearchSocialCache(followers, updated);
           syncMyPageSocialCounts(followers, updated);
         } catch {}
         return updated;
@@ -536,9 +567,7 @@ export default function SearchPage() {
         setFollowing((prev) => {
           const updated = prev.filter((f) => f.id !== id);
           try {
-            const cached = localStorage.getItem(SEARCH_CACHE_KEY);
-            const parsed = cached ? JSON.parse(cached) : {};
-            localStorage.setItem(SEARCH_CACHE_KEY, JSON.stringify({ ...parsed, following: updated, ts: Date.now() }));
+            writeSearchSocialCache(followers, updated);
             syncMyPageSocialCounts(followers, updated);
           } catch {}
           return updated;
@@ -557,9 +586,7 @@ export default function SearchPage() {
     setFollowing((prev) => {
       const updated = [addedWithStatus, ...prev.filter((item) => item.id !== member.id)];
       try {
-        const cached = localStorage.getItem(SEARCH_CACHE_KEY);
-        const parsed = cached ? JSON.parse(cached) : {};
-        localStorage.setItem(SEARCH_CACHE_KEY, JSON.stringify({ ...parsed, following: updated, ts: Date.now() }));
+        writeSearchSocialCache(followers, updated);
         syncMyPageSocialCounts(followers, updated);
       } catch {}
       return updated;
@@ -582,9 +609,7 @@ export default function SearchPage() {
       setFollowing((prev) => {
         const updated = prev.filter((item) => item.id !== member.id);
         try {
-          const cached = localStorage.getItem(SEARCH_CACHE_KEY);
-          const parsed = cached ? JSON.parse(cached) : {};
-          localStorage.setItem(SEARCH_CACHE_KEY, JSON.stringify({ ...parsed, following: updated, ts: Date.now() }));
+          writeSearchSocialCache(followers, updated);
           syncMyPageSocialCounts(followers, updated);
         } catch {}
         return updated;
@@ -618,9 +643,7 @@ export default function SearchPage() {
     setFollowers(nextFollowers);
     setFollowing(nextFollowing);
     try {
-      const cached = localStorage.getItem(SEARCH_CACHE_KEY);
-      const parsed = cached ? JSON.parse(cached) : {};
-      localStorage.setItem(SEARCH_CACHE_KEY, JSON.stringify({ ...parsed, followers: nextFollowers, following: nextFollowing, ts: acceptedFollower.friend_accepted_at }));
+      writeSearchSocialCache(nextFollowers, nextFollowing, undefined, acceptedFollower.friend_accepted_at);
       syncMyPageSocialCounts(nextFollowers, nextFollowing);
     } catch {}
 
@@ -663,9 +686,7 @@ export default function SearchPage() {
         return next;
       });
       try {
-        const cached = localStorage.getItem(SEARCH_CACHE_KEY);
-        const parsed = cached ? JSON.parse(cached) : {};
-        localStorage.setItem(SEARCH_CACHE_KEY, JSON.stringify({ ...parsed, followers, following: previousFollowing, ts: acceptedFollower.friend_accepted_at }));
+        writeSearchSocialCache(followers, previousFollowing, undefined, acceptedFollower.friend_accepted_at);
         syncMyPageSocialCounts(followers, previousFollowing);
       } catch {}
       alert("신청수락 처리 중 오류가 발생했습니다.");
@@ -682,34 +703,27 @@ export default function SearchPage() {
     fetchFollowersAndFollowing();
   }
 
-  function updateSubscriptionState(targetId: string, isSubscribed: boolean) {
-    setFollowers((prev) =>
-      prev.map((member) => member.id === targetId ? { ...member, is_subscribed: isSubscribed } : member)
+  function updateSubscriptionState(targetId: string, isSubscribed: boolean, nextSubscriptionCount: number) {
+    const nextFollowers = followers.map((member) =>
+      member.id === targetId ? { ...member, is_subscribed: isSubscribed } : member
     );
-    setFollowing((prev) => {
-      const updated = prev.map((member) =>
-        member.id === targetId ? { ...member, is_subscribed: isSubscribed } : member
-      );
-      try {
-        const cached = localStorage.getItem(SEARCH_CACHE_KEY);
-        const parsed = cached ? JSON.parse(cached) : {};
-        const cachedFollowers = Array.isArray(parsed.followers)
-          ? parsed.followers.map((member: Follower) =>
-              member.id === targetId ? { ...member, is_subscribed: isSubscribed } : member
-            )
-          : parsed.followers;
-        localStorage.setItem(
-          SEARCH_CACHE_KEY,
-          JSON.stringify({ ...parsed, followers: cachedFollowers, following: updated, ts: Date.now() })
-        );
-      } catch {}
-      return updated;
-    });
+    const nextFollowing = following.map((member) =>
+      member.id === targetId ? { ...member, is_subscribed: isSubscribed } : member
+    );
+    setFollowers(nextFollowers);
+    setFollowing(nextFollowing);
+    setSubscriptionCount(nextSubscriptionCount);
+    try {
+      writeSearchSocialCache(nextFollowers, nextFollowing, nextSubscriptionCount);
+      syncMyPageSocialCounts(nextFollowers, nextFollowing, nextSubscriptionCount);
+    } catch {}
   }
 
   async function handleToggleSubscription(targetId: string, nextSubscribed: boolean) {
     setMenuTarget(null);
-    updateSubscriptionState(targetId, nextSubscribed);
+    const previousSubscriptionCount = subscriptionCount;
+    const nextSubscriptionCount = Math.max(0, subscriptionCount + (nextSubscribed ? 1 : -1));
+    updateSubscriptionState(targetId, nextSubscribed, nextSubscriptionCount);
 
     try {
       const res = await fetch("/api/user-subscriptions", {
@@ -720,7 +734,7 @@ export default function SearchPage() {
 
       if (!res.ok) throw new Error();
     } catch {
-      updateSubscriptionState(targetId, !nextSubscribed);
+      updateSubscriptionState(targetId, !nextSubscribed, previousSubscriptionCount);
       alert(nextSubscribed ? "구독 처리 중 오류가 발생했습니다." : "구독취소 처리 중 오류가 발생했습니다.");
     }
   }
@@ -745,9 +759,7 @@ export default function SearchPage() {
       setFollowers((prev) => {
         const updated = prev.filter((f) => f.id !== targetId);
         try {
-          const cached = localStorage.getItem(SEARCH_CACHE_KEY);
-          const parsed = cached ? JSON.parse(cached) : {};
-          localStorage.setItem(SEARCH_CACHE_KEY, JSON.stringify({ ...parsed, followers: updated, ts: Date.now() }));
+          writeSearchSocialCache(updated, following);
           syncMyPageSocialCounts(updated, following);
         } catch {}
         return updated;
@@ -777,9 +789,7 @@ export default function SearchPage() {
       setFollowers(nextFollowers);
       setFollowing(nextFollowing);
       try {
-        const cached = localStorage.getItem(SEARCH_CACHE_KEY);
-        const parsed = cached ? JSON.parse(cached) : {};
-        localStorage.setItem(SEARCH_CACHE_KEY, JSON.stringify({ ...parsed, followers: nextFollowers, following: nextFollowing, ts: Date.now() }));
+        writeSearchSocialCache(nextFollowers, nextFollowing);
         syncMyPageSocialCounts(nextFollowers, nextFollowing);
       } catch {}
       refreshSocialLists();
@@ -823,9 +833,7 @@ export default function SearchPage() {
     );
     setFollowing(nextFollowing);
     try {
-      const cached = localStorage.getItem(SEARCH_CACHE_KEY);
-      const parsed = cached ? JSON.parse(cached) : {};
-      localStorage.setItem(SEARCH_CACHE_KEY, JSON.stringify({ ...parsed, following: nextFollowing, ts: Date.now() }));
+      writeSearchSocialCache(followers, nextFollowing);
       syncMyPageSocialCounts(followers, nextFollowing);
     } catch {}
 
@@ -839,9 +847,7 @@ export default function SearchPage() {
     } catch {
       setFollowing(prevFollowing);
       try {
-        const cached = localStorage.getItem(SEARCH_CACHE_KEY);
-        const parsed = cached ? JSON.parse(cached) : {};
-        localStorage.setItem(SEARCH_CACHE_KEY, JSON.stringify({ ...parsed, following: prevFollowing, ts: Date.now() }));
+        writeSearchSocialCache(followers, prevFollowing);
         syncMyPageSocialCounts(followers, prevFollowing);
       } catch {}
       alert("알림끄기 처리 중 오류가 발생했습니다.");
@@ -857,9 +863,7 @@ export default function SearchPage() {
     );
     setFollowing(nextFollowing);
     try {
-      const cached = localStorage.getItem(SEARCH_CACHE_KEY);
-      const parsed = cached ? JSON.parse(cached) : {};
-      localStorage.setItem(SEARCH_CACHE_KEY, JSON.stringify({ ...parsed, following: nextFollowing, ts: Date.now() }));
+      writeSearchSocialCache(followers, nextFollowing);
       syncMyPageSocialCounts(followers, nextFollowing);
     } catch {}
 
@@ -873,9 +877,7 @@ export default function SearchPage() {
     } catch {
       setFollowing(prevFollowing);
       try {
-        const cached = localStorage.getItem(SEARCH_CACHE_KEY);
-        const parsed = cached ? JSON.parse(cached) : {};
-        localStorage.setItem(SEARCH_CACHE_KEY, JSON.stringify({ ...parsed, following: prevFollowing, ts: Date.now() }));
+        writeSearchSocialCache(followers, prevFollowing);
         syncMyPageSocialCounts(followers, prevFollowing);
       } catch {}
       alert("알림켜기 처리 중 오류가 발생했습니다.");
@@ -893,9 +895,7 @@ export default function SearchPage() {
       return next;
     });
     try {
-      const cached = localStorage.getItem(SEARCH_CACHE_KEY);
-      const parsed = cached ? JSON.parse(cached) : {};
-      localStorage.setItem(SEARCH_CACHE_KEY, JSON.stringify({ ...parsed, following: nextFollowing, ts: Date.now() }));
+      writeSearchSocialCache(followers, nextFollowing);
       syncMyPageSocialCounts(followers, nextFollowing);
     } catch {}
 
@@ -912,9 +912,7 @@ export default function SearchPage() {
     } catch {
       setFollowing(prevFollowing);
       try {
-        const cached = localStorage.getItem(SEARCH_CACHE_KEY);
-        const parsed = cached ? JSON.parse(cached) : {};
-        localStorage.setItem(SEARCH_CACHE_KEY, JSON.stringify({ ...parsed, following: prevFollowing, ts: Date.now() }));
+        writeSearchSocialCache(followers, prevFollowing);
         syncMyPageSocialCounts(followers, prevFollowing);
       } catch {}
       alert("팔로잉취소 처리 중 오류가 발생했습니다.");
@@ -1130,20 +1128,22 @@ export default function SearchPage() {
           <div className="border-t border-gray-100 pt-0">
             <div className="flex items-center mt-3 mb-3 gap-3">
               <div className="flex items-center gap-4 min-w-0">
-                <p
-                  className="font-bold cursor-pointer"
+                <button
+                  className="font-bold cursor-pointer flex items-center gap-1"
                   style={{ fontSize: 15, color: showMutualOnly ? "#aaaaaa" : "#333333" }}
                   onClick={() => setShowMutualOnly(false)}
                 >
-                  팔로잉 <span className="font-bold" style={{ fontSize: 15 }}>{following.length}</span>
-                </p>
-                <p
-                  className="font-bold cursor-pointer"
+                  <SmilePlus size={25} />
+                  <span className="font-bold" style={{ fontSize: 15 }}>{followingOnlyCount}</span>
+                </button>
+                <button
+                  className="font-bold cursor-pointer flex items-center gap-1"
                   style={{ fontSize: 15, color: showMutualOnly ? "#333333" : "#aaaaaa" }}
                   onClick={() => setShowMutualOnly(true)}
                 >
-                  팔로워 <span className="font-bold" style={{ fontSize: 15 }}>{displayFollowerOnlyCount}</span>
-                </p>
+                  <Hand size={20} />
+                  <span className="font-bold" style={{ fontSize: 15 }}>{displayFollowerOnlyCount}</span>
+                </button>
               </div>
               <div className="ml-auto relative" style={{ width: 150 }}>
                 <input
@@ -1223,30 +1223,10 @@ export default function SearchPage() {
                         {f.is_subscribed && <SubscriptionBadge />}
                       </div>
                     </button>
-                    <button
-                      className="flex-1 text-left min-w-0"
-                      onClick={() => {
-                        setProfileModal(f);
-                        const cached = sessionStorage.getItem(`user_view_${f.id}`);
-                        if (cached) {
-                          try {
-                            const json = JSON.parse(cached);
-                            setProfileModalData({ bio: json.profile?.bio ?? null, member_type: json.profile?.member_type ?? [] });
-                          } catch {}
-                        } else {
-                          fetch(`/api/users/${f.id}/view-summary`)
-                            .then((res) => res.json())
-                            .then((json) => {
-                              sessionStorage.setItem(`user_view_${f.id}`, JSON.stringify(json));
-                              setProfileModalData({ bio: json.profile?.bio ?? null, member_type: json.profile?.member_type ?? [] });
-                            })
-                            .catch(() => {});
-                        }
-                      }}
-                    >
+                    <div className="flex-1 min-w-0">
                       <p className={`font-semibold text-gray-900 truncate ${isNotificationOff ? "opacity-50" : ""}`} style={{ fontSize: 16 }}>{f.nickname}</p>
                       {(f.country || f.region) && <p className="text-xs text-gray-400 truncate">{[f.country, f.region].filter(Boolean).join(", ")}</p>}
-                    </button>
+                    </div>
                     {!showMutualOnly && f.member_type?.[0] && (
                       <span className={`text-[16px] flex-shrink-0 inline-flex items-center gap-1 ${isNotificationOff ? "opacity-50" : ""}`} style={{ color: "#000000B3" }}>
                         {memberTypeLabel === "강사" && (
@@ -1303,7 +1283,7 @@ export default function SearchPage() {
 
       {activeTab === "friends" && (
         <div className="px-4 pt-0 bg-white">
-          <div className="pt-3">
+          <div className="pt-5">
             <div className="relative flex items-center mb-3">
               <button
                 type="button"
@@ -1317,15 +1297,13 @@ export default function SearchPage() {
                 aria-label="친구 목록 보기"
                 title="친구 목록 보기"
               >
-                <span className="font-bold" style={{ fontSize: 15 }}>
-                  친구
-                </span>
+                <HeartHandshake size={25} />
                 <span className="font-bold" style={{ fontSize: 15 }}>
                   {mutualFollowingCount}
                 </span>
               </button>
-              <span className="mx-1 font-bold text-gray-300" style={{ fontSize: 15 }}>
-                /
+              <span className="mx-3 font-bold text-gray-300" style={{ fontSize: 15 }}>
+
               </span>
               <button
                 type="button"
@@ -1336,9 +1314,11 @@ export default function SearchPage() {
                 aria-label="구독 목록 보기"
                 title="구독 목록 보기"
               >
-                <span className="font-bold" style={{ fontSize: 15 }}>
-                  구독
-                </span>
+                <Bookmark
+                  size={20}
+                  fill={friendListMode === "subscriptions" ? "#FEE500" : "none"}
+                  className={friendListMode === "subscriptions" ? "text-yellow-400" : ""}
+                />
                 <span className="font-bold" style={{ fontSize: 15 }}>
                   {subscribedMemberCount}
                 </span>
@@ -1454,135 +1434,13 @@ export default function SearchPage() {
         </div>
       )}
 
-      {activeTab === "subscribe" && (
-        <div className="px-4 pt-4 bg-white">
-          <div className="pt-3">
-            <div className="flex items-center mb-3">
-              <p className="text-base font-bold text-gray-400">
-                구독회원 <span className="text-gray-900">{followerOnly.length}</span>
-              </p>
-            </div>
-            {followerOnly.length === 0 ? (
-              <p className="text-sm text-gray-400">아직 팔로워가 없어요</p>
-            ) : (
-              <div className="flex flex-col">
-                {followerOnly.map((f) => {
-                  const isAccepted = acceptedFollowerIds.has(f.id);
-                  const isAccepting = acceptingFollowerIds.has(f.id);
-                  const isFriend = isAccepted || (followingStatusById.get(f.id) === "friend" && !isAccepting);
-                  const isFriendRequest = f.status === "pending";
-                  const canShowMutualFollow = !isFriend;
-                  const isAnimating = acceptedAnimatingIds.has(f.id);
-                  const myFollowingRelation = following.find((item) => item.id === f.id);
-                  const friendDate = formatCompactDate(
-                    myFollowingRelation?.friend_accepted_at ??
-                    myFollowingRelation?.relation_updated_at ??
-                    myFollowingRelation?.joined_at ??
-                    f.friend_accepted_at
-                  );
-
-                  return (
-                  <div key={f.id} className="flex items-center gap-3 py-3 border-b border-gray-50">
-                    <button onClick={() => {
-                      setProfileModal(f);
-                      const cached = sessionStorage.getItem(`user_view_${f.id}`);
-                      if (cached) {
-                        try {
-                          const json = JSON.parse(cached);
-                          setProfileModalData({ bio: json.profile?.bio ?? null, member_type: json.profile?.member_type ?? [] });
-                        } catch {}
-                      } else {
-                        fetch(`/api/users/${f.id}/view-summary`)
-                          .then((res) => res.json())
-                          .then((json) => {
-                            sessionStorage.setItem(`user_view_${f.id}`, JSON.stringify(json));
-                            setProfileModalData({ bio: json.profile?.bio ?? null, member_type: json.profile?.member_type ?? [] });
-                          })
-                          .catch(() => {});
-                      }
-                    }}>
-                      <div className="relative">
-                        <div className={`relative${isFriendRequest ? " animate-blacklist-avatar" : ""}`} style={isFriendRequest ? getAvatarFloatStyle(f.id) : undefined}>
-                          <div
-                            className="rounded-full p-[2px]"
-                            style={{
-                              background:
-                                "conic-gradient(#ef4444 0deg, #ef4444 180deg, transparent 180deg, transparent 360deg)",
-                            }}
-                          >
-                            <Avatar src={f.profile_image_url} nickname={f.nickname} size={44} className="border-2 border-white" />
-                          </div>
-                          {isFriendRequest && (
-                            <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-white text-sm leading-none shadow-sm">
-                              🖐️
-                            </span>
-                          )}
-                          {f.is_subscribed && <SubscriptionBadge />}
-                        </div>
-                      </div>
-                    </button>
-                    <button
-                      className="flex-1 text-left min-w-0"
-                      onClick={() => router.push(`/users/${f.id}/view`)}
-                    >
-                      <p className="font-semibold text-gray-900 truncate" style={{ fontSize: 16 }}>
-                        {f.nickname}
-                      </p>
-                      {(f.country || f.region) && <p className="text-xs text-gray-400 truncate">{[f.country, f.region].filter(Boolean).join(", ")}</p>}
-                    </button>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <button
-                        type="button"
-                        disabled={isFriend || isAccepting}
-                        className={`px-3 py-1.5 rounded-full text-xs font-semibold flex-shrink-0 ${
-                          isFriend
-                            ? "bg-transparent text-gray-400"
-                            : isFriendRequest ? "bg-[#FEE500] text-gray-900" : "bg-[#000000CC] text-white"
-                        } ${isAnimating ? "animate-friend-accepted" : ""}`}
-                        onClick={() => {
-                          if (!canShowMutualFollow) return;
-                          handleAcceptFollower(f, true);
-                        }}
-                      >
-                        {isFriend ? friendDate : "맞팔로우"}
-                      </button>
-                    </div>
-                    <button
-                      className="p-2 -mr-2 text-gray-400 hover:text-gray-700 flex-shrink-0"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        const r = e.currentTarget.getBoundingClientRect();
-                        const placement = r.top > window.innerHeight / 2 ? "top" : "bottom";
-                        setMenuTarget({
-                          id: f.id,
-                          nickname: f.nickname,
-                          status: f.status,
-                          relation: getMenuRelation(f.id),
-                          x: r.right,
-                          y: placement === "top" ? r.top : r.bottom,
-                          placement,
-                          member: f,
-                          isHidden: !!f.is_hidden,
-                        });
-                      }}
-                    >
-                      <MoreVertical size={18} />
-                    </button>
-                  </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
 
       {activeTab === "pending" && (
         <div className="px-4 pt-4 bg-white">
           {!isBlacklistUnlocked ? (
             <div className="min-h-[60vh] flex items-center justify-center">
               <div>
-                <div className="flex items-center gap-2">
+                <div className="relative" style={{ width: 200 }}>
                   <input
                     type="password"
                     inputMode="numeric"
@@ -1596,15 +1454,15 @@ export default function SearchPage() {
                       if (e.key === "Enter") handleBlacklistPinSubmit();
                     }}
                     placeholder="비밀번호 입력"
-                    className="w-40 h-10 px-4 border border-gray-300 rounded-full bg-white focus:outline-none focus:border-gray-500 text-center text-[15px] placeholder:text-center placeholder:text-[15px]"
+                    className="w-full h-10 pl-4 pr-10 border border-gray-300 rounded-full bg-white focus:outline-none focus:border-gray-500 text-center text-[15px] placeholder:text-center placeholder:text-[15px]"
                   />
                   <button
                     type="button"
                     onClick={handleBlacklistPinSubmit}
                     disabled={blacklistPinSubmitting || hasBlacklistPin === null}
-                    className="h-10 px-4 rounded-full bg-gray-900 text-white text-sm font-semibold animate-pill-breathe disabled:opacity-60 disabled:animate-none"
+                    className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 rounded-full bg-gray-900 text-white text-sm font-semibold flex items-center justify-center animate-pill-breathe disabled:opacity-60 disabled:animate-none"
                   >
-                    {hasBlacklistPin === false ? "설정" : "확인"}
+                    ✓
                   </button>
                 </div>
                 {blacklistPinError && (
@@ -1617,7 +1475,12 @@ export default function SearchPage() {
               <div className="flex items-center mb-3">
                 <p className="text-base font-bold text-gray-400">회원관리</p>
               </div>
-              {pendingMembers.length === 0 ? null : (
+              {pendingMembers.length === 0 ? (
+                <div className="min-h-[60vh] flex flex-col items-center justify-center gap-3">
+                  <Coffee size={40} className="text-gray-400" />
+                  <p className="text-gray-400 text-base">현재 관리회원이 없습니다.</p>
+                </div>
+              ) : (
                 <div className="flex flex-col">
                   {pendingMembers.map((m) => {
                     const isRemoving = removingPendingIds.has(m.id);
@@ -1837,10 +1700,10 @@ export default function SearchPage() {
                 <button
                   className="flex items-center justify-between w-full px-4 py-3 text-gray-700"
                   style={{ fontSize: "16px" }}
-                  onClick={() => { setMenuTarget(null); router.push(`/messages?userId=${menuTarget.id}`); }}
+                  onClick={() => { setMessageModalTarget({ id: menuTarget.id, nickname: menuTarget.nickname, profile_image_url: menuTarget.member?.profile_image_url ?? null }); setMenuTarget(null); }}
                 >
-                  <span>메시지 보내기</span>
-                  <MessageCircle size={20} className="text-gray-500" />
+                  <span>메시지 전송</span>
+                  <Send size={20} className="text-gray-500" />
                 </button>
                 <div className="border-t border-gray-100 mx-3" />
                 <button
@@ -1898,6 +1761,13 @@ export default function SearchPage() {
         </>
       )}
 
+      {messageModalTarget && (
+        <SendMessageModal
+          isOpen={!!messageModalTarget}
+          onClose={() => setMessageModalTarget(null)}
+          receiver={messageModalTarget}
+        />
+      )}
     </>
   );
 }

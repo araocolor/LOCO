@@ -48,6 +48,7 @@ interface MyPageSummary {
     following: number;
     followers: number;
     friends: number;
+    subscriptionCount: number;
   };
 }
 
@@ -61,7 +62,7 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const [profileResult, appliedResult, myClassesResult, proRequestResult, followingResult, followersResult, friendsResult] = await Promise.all([
+  const [profileResult, appliedResult, myClassesResult, proRequestResult, followingResult, followersResult, friendsResult, subscriptionResult] = await Promise.all([
     supabase
       .from("profiles")
       .select("id, email, nickname, bio, country, region, favorite_genre, member_type, role, profile_image_url, kakao_notification_enabled")
@@ -98,6 +99,10 @@ export async function GET() {
       .select("id", { count: "exact", head: true })
       .eq("user_id", user.id)
       .eq("status", "friend"),
+    supabase
+      .from("user_subscriptions")
+      .select("target_id", { count: "exact", head: true })
+      .eq("owner_id", user.id),
   ]);
 
   if (!profileResult.data) {
@@ -150,6 +155,7 @@ export async function GET() {
       following: followingResult.count ?? 0,
       followers: followersResult.count ?? 0,
       friends: friendsResult.count ?? 0,
+      subscriptionCount: subscriptionResult.count ?? 0,
     },
   };
 

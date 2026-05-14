@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
-import { UserCircle, X, Settings, Check } from "lucide-react";
+import { UserCircle, X, Settings, Check, HeartHandshake, Bookmark, SmilePlus } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { parseBookmarkEntries } from "@/lib/bookmarks/local";
 import { REGIONS, MEMBER_TYPES, MAX_MEMBER_TYPE } from "@/lib/constants";
@@ -86,6 +86,7 @@ interface Props {
     following: number;
     followers: number;
     friends: number;
+    subscriptionCount?: number;
   };
 }
 
@@ -130,20 +131,64 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses, soc
   const [displayMode, setDisplayMode] = useState<"nickname" | "social">("nickname");
   const [showSavedToast, setShowSavedToast] = useState(false);
   const [friendsCount, setFriendsCount] = useState<number>(socialCounts?.friends ?? 0);
-  const [subscriberCount, setSubscriberCount] = useState<number>(
-    (socialCounts?.following ?? 0) + (socialCounts?.followers ?? 0)
-  );
+  const [followingCount, setFollowingCount] = useState<number>(socialCounts?.following ?? 0);
+  const [subscriberCount, setSubscriberCount] = useState<number>(socialCounts?.subscriptionCount ?? 0);
 
   useEffect(() => {
     try {
       const raw = localStorage.getItem(MY_PAGE_CACHE_KEY);
-      if (!raw) return;
-      const parsed = JSON.parse(raw);
-      const sc = parsed?.socialCounts;
-      if (sc?.friends != null) setFriendsCount(sc.friends);
-      if (sc?.following != null || sc?.followers != null) {
-        setSubscriberCount((sc?.following ?? 0) + (sc?.followers ?? 0));
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        const sc = parsed?.socialCounts;
+        queueMicrotask(() => {
+          if (sc?.friends != null) setFriendsCount(sc.friends);
+          if (sc?.following != null) setFollowingCount(sc.following);
+          if (sc?.subscriptionCount != null) setSubscriberCount(sc.subscriptionCount);
+        });
       }
+      const searchRaw = localStorage.getItem("search_prefetch_cache");
+      if (searchRaw) {
+        const searchParsed = JSON.parse(searchRaw);
+        if (searchParsed?.subscriptionCount != null) {
+          setSubscriberCount(searchParsed.subscriptionCount);
+          return;
+        }
+      }
+      fetch("/api/friends/social").then((res) => {
+        if (!res.ok) return;
+        res.json().then((social) => {
+          const count = social.data?.subscriptionCount ?? 0;
+          const followingCount = (social.data?.following ?? []).filter((item: { status?: string }) => item.status === "approved").length;
+          setSubscriberCount(count);
+          setFollowingCount(followingCount);
+          try {
+            const raw = localStorage.getItem(MY_PAGE_CACHE_KEY);
+            if (raw) {
+              const parsed = JSON.parse(raw);
+              localStorage.setItem(
+                MY_PAGE_CACHE_KEY,
+                JSON.stringify({
+                  ...parsed,
+                  socialCounts: {
+                    ...parsed.socialCounts,
+                    following: followingCount,
+                    subscriptionCount: count,
+                  },
+                })
+              );
+            }
+            localStorage.setItem(
+              "search_prefetch_cache",
+              JSON.stringify({
+                followers: social.data?.followers ?? [],
+                following: social.data?.following ?? [],
+                subscriptionCount: count,
+                ts: Date.now(),
+              })
+            );
+          } catch {}
+        });
+      });
     } catch {}
   }, []);
 
@@ -368,20 +413,27 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses, soc
               </button>
             </div>
             <div className="w-1/2 flex justify-end">
-              <div className="grid grid-cols-2 w-full max-w-[170px] text-center">
+              <div className="grid grid-cols-3 w-full max-w-[250px] text-center">
                 <Link
                   href="/search?tab=friends"
                   className="flex flex-col items-center gap-0.5"
                 >
-                  <span className="text-[13px] font-medium text-gray-500 leading-none">친구들</span>
+                  <HeartHandshake size={25} className="text-gray-500" />
                   <span className="text-[18px] font-bold text-gray-900 leading-tight">{friendsCount}</span>
                 </Link>
                 <Link
-                  href="/search?tab=subscription"
+                  href="/search?tab=friends&mode=subscriptions"
                   className="flex flex-col items-center gap-0.5"
                 >
-                  <span className="text-[13px] font-medium text-gray-500 leading-none">구독/팔로워</span>
+                  <Bookmark size={25} className="text-gray-500" />
                   <span className="text-[18px] font-bold text-gray-900 leading-tight">{subscriberCount}</span>
+                </Link>
+                <Link
+                  href="/search?tab=followings"
+                  className="flex flex-col items-center gap-0.5"
+                >
+                  <SmilePlus size={25} className="text-gray-500" />
+                  <span className="text-[18px] font-bold text-gray-900 leading-tight">{followingCount}</span>
                 </Link>
               </div>
             </div>

@@ -55,6 +55,7 @@ interface MyPageSummaryCache {
     following: number;
     followers: number;
     friends: number;
+    subscriptionCount?: number;
   };
 }
 
