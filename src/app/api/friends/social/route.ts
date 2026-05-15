@@ -1,5 +1,4 @@
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
 
 export async function GET() {
@@ -11,13 +10,6 @@ export async function GET() {
 
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    let subscriptionClient = supabase;
-    try {
-      subscriptionClient = createAdminClient();
-    } catch (error) {
-      console.error("[friends-social] admin client unavailable", error);
     }
 
     const [
@@ -45,11 +37,11 @@ export async function GET() {
         .from("friend_member_states")
         .select("target_id, state")
         .eq("owner_id", user.id),
-      subscriptionClient
+      supabase
         .from("user_subscriptions")
         .select("target_id")
         .eq("owner_id", user.id),
-      subscriptionClient
+      supabase
         .from("user_subscriptions")
         .select("owner_id, profiles!user_subscriptions_owner_id_fkey(id, nickname, profile_image_url, country, region, member_type, role)")
         .eq("target_id", user.id),

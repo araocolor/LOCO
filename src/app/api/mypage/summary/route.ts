@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 import type { ClassStatus } from "@/types/class";
 import type { ApplicationStatus } from "@/types/application";
 import type { UserRole } from "@/types/user";
@@ -64,13 +63,6 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    let subscriptionClient = supabase;
-    try {
-      subscriptionClient = createAdminClient();
-    } catch (error) {
-      console.error("[mypage-summary] admin client unavailable", error);
-    }
-
     const [profileResult, appliedResult, myClassesResult, proRequestResult, followingResult, followersResult, friendsResult, subscriptionResult] = await Promise.all([
       supabase
         .from("profiles")
@@ -108,7 +100,7 @@ export async function GET() {
         .select("id", { count: "exact", head: true })
         .eq("user_id", user.id)
         .eq("status", "friend"),
-      subscriptionClient
+      supabase
         .from("user_subscriptions")
         .select("owner_id", { count: "exact", head: true })
         .eq("target_id", user.id),
