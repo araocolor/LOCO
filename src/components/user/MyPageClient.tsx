@@ -149,8 +149,8 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses, soc
       const searchRaw = localStorage.getItem("search_prefetch_cache");
       if (searchRaw) {
         const searchParsed = JSON.parse(searchRaw);
-        if (searchParsed?.subscriptionCount != null) {
-          setSubscriberCount(searchParsed.subscriptionCount);
+        if (searchParsed?.subscriptionCount != null && Array.isArray(searchParsed?.mySubscribers)) {
+          queueMicrotask(() => setSubscriberCount(searchParsed.subscriptionCount));
           return;
         }
       }
@@ -182,13 +182,14 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses, soc
               JSON.stringify({
                 followers: social.data?.followers ?? [],
                 following: social.data?.following ?? [],
+                mySubscribers: social.data?.mySubscribers ?? [],
                 subscriptionCount: count,
                 ts: Date.now(),
               })
             );
           } catch {}
         });
-      });
+      }).catch(() => {});
     } catch {}
   }, []);
 
@@ -422,7 +423,7 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses, soc
                   <span className="text-[18px] font-bold text-gray-900 leading-tight">{friendsCount}</span>
                 </Link>
                 <Link
-                  href="/search?tab=friends&mode=subscriptions"
+                  href="/search?tab=followings"
                   className="flex flex-col items-center gap-0.5"
                 >
                   <Bookmark size={25} className="text-gray-500" />

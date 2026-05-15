@@ -15,8 +15,8 @@ function shouldRefreshSearchCache(raw: string | null) {
   try {
     const parsed = JSON.parse(raw);
     if (typeof parsed.subscriptionCount !== "number") return true;
-    if (!Array.isArray(parsed.followers) || !Array.isArray(parsed.following)) return true;
-    const lists = [parsed.followers, parsed.following].filter(Array.isArray);
+    if (!Array.isArray(parsed.followers) || !Array.isArray(parsed.following) || !Array.isArray(parsed.mySubscribers)) return true;
+    const lists = [parsed.followers, parsed.following, parsed.mySubscribers].filter(Array.isArray);
     return lists.some((items) =>
       items.some((item: { member_type?: unknown }) => !("member_type" in item))
     );
@@ -119,12 +119,14 @@ export default function BottomNav({ isLoggedIn }: { isLoggedIn: boolean }) {
             const social = await socialRes.json();
             const followers = social.data?.followers ?? [];
             const following = social.data?.following ?? [];
+            const mySubscribers = social.data?.mySubscribers ?? [];
             const subscriptionCount = social.data?.subscriptionCount ?? 0;
             localStorage.setItem(
               SEARCH_CACHE_KEY,
               JSON.stringify({
                 followers,
                 following,
+                mySubscribers,
                 subscriptionCount,
                 ts: Date.now(),
               })

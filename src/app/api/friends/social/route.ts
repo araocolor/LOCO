@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
 
 export async function GET() {
@@ -11,6 +12,8 @@ export async function GET() {
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    const admin = createAdminClient();
 
     const [
       { data: followingRows, error: followingError },
@@ -37,13 +40,13 @@ export async function GET() {
         .from("friend_member_states")
         .select("target_id, state")
         .eq("owner_id", user.id),
-      supabase
+      admin
         .from("user_subscriptions")
         .select("target_id")
         .eq("owner_id", user.id),
-      supabase
+      admin
         .from("user_subscriptions")
-        .select("owner_id, profiles!user_subscriptions_owner_id_fkey(id, nickname, profile_image_url, country, region)")
+        .select("owner_id, profiles!user_subscriptions_owner_id_fkey(id, nickname, profile_image_url, country, region, member_type, role)")
         .eq("target_id", user.id),
     ]);
 
@@ -110,18 +113,24 @@ export async function GET() {
       .filter((item) => !excludedIds.has(item.id))
       .sort((a, b) => (a.nickname ?? "").localeCompare(b.nickname ?? "", "ko"));
 
-    const mySubscribers = (mySubscriberRows ?? []).map((row) => {
-      const p = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles;
-      return {
-        id: p?.id ?? row.owner_id,
-        nickname: p?.nickname ?? "",
-        profile_image_url: p?.profile_image_url ?? null,
-        country: p?.country ?? null,
-        region: p?.region ?? null,
-      };
-    });
+    const mySubscribers = (mySubscriberRows ?? [])
+      .map((row) => {
+        const p = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles;
+        return {
+          id: p?.id ?? row.owner_id,
+          nickname: p?.nickname ?? "",
+          profile_image_url: p?.profile_image_url ?? null,
+          country: p?.country ?? null,
+          region: p?.region ?? null,
+          member_type: p?.member_type ?? [],
+          role: p?.role ?? "member",
+          is_subscribed: subscribedIds.has(p?.id ?? row.owner_id),
+        };
+      })
+      .filter((item) => !excludedIds.has(item.id))
+      .sort((a, b) => (a.nickname ?? "").localeCompare(b.nickname ?? "", "ko"));
 
-    return NextResponse.json({ data: { following, followers, subscriptionCount: subscribedIds.size, mySubscribers } });
+    return NextResponse.json({ data: { following, followers, subscriptionCount: mySubscribers.length, mySubscribers } });
   } catch (e) {
     console.error(e);
     return NextResponse.json({ error: "서버 오류" }, { status: 500 });
