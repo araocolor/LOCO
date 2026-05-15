@@ -13,7 +13,12 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const admin = createAdminClient();
+    let subscriptionClient = supabase;
+    try {
+      subscriptionClient = createAdminClient();
+    } catch (error) {
+      console.error("[friends-social] admin client unavailable", error);
+    }
 
     const [
       { data: followingRows, error: followingError },
@@ -40,11 +45,11 @@ export async function GET() {
         .from("friend_member_states")
         .select("target_id, state")
         .eq("owner_id", user.id),
-      admin
+      subscriptionClient
         .from("user_subscriptions")
         .select("target_id")
         .eq("owner_id", user.id),
-      admin
+      subscriptionClient
         .from("user_subscriptions")
         .select("owner_id, profiles!user_subscriptions_owner_id_fkey(id, nickname, profile_image_url, country, region, member_type, role)")
         .eq("target_id", user.id),
@@ -53,8 +58,8 @@ export async function GET() {
     if (followingError) throw followingError;
     if (followerError) throw followerError;
     if (stateError) throw stateError;
-    if (subscriptionError) throw subscriptionError;
-    if (mySubscriberError) throw mySubscriberError;
+    if (subscriptionError) console.error("[friends-social] subscriptions failed", subscriptionError);
+    if (mySubscriberError) console.error("[friends-social] my subscribers failed", mySubscriberError);
 
     const excludedIds = new Set<string>(
       (stateRows ?? [])
@@ -68,7 +73,7 @@ export async function GET() {
         .map((row) => row.target_id)
     );
     const subscribedIds = new Set<string>(
-      (subscriptionRows ?? []).map((row) => row.target_id)
+      (subscriptionError ? [] : subscriptionRows ?? []).map((row) => row.target_id)
     );
 
     const following = (followingRows ?? [])
@@ -113,7 +118,7 @@ export async function GET() {
       .filter((item) => !excludedIds.has(item.id))
       .sort((a, b) => (a.nickname ?? "").localeCompare(b.nickname ?? "", "ko"));
 
-    const mySubscribers = (mySubscriberRows ?? [])
+    const mySubscribers = (mySubscriberError ? [] : mySubscriberRows ?? [])
       .map((row) => {
         const p = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles;
         return {
