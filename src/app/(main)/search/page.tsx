@@ -1456,18 +1456,17 @@ export default function SearchPage() {
               <div className="flex items-center justify-center gap-2 w-full overflow-x-auto scrollbar-hide">
                 {MEMBER_GENRE_OPTIONS.map((genre) => {
                   const active = memberGenres.includes(genre.value);
-                  const disabled = !active && (memberGenres.length >= 2 || memberGenres.some((g) => SOLO_MEMBER_GENRES.includes(g)));
+                  const faded = !active && (memberGenres.length >= 2 || memberGenres.some((g) => SOLO_MEMBER_GENRES.includes(g)));
                   return (
                     <button
                       key={genre.value}
                       type="button"
                       onClick={() => toggleMemberGenre(genre.value)}
-                      disabled={disabled}
                       className={`h-8 flex-shrink-0 rounded-full px-3 text-[14px] font-semibold transition-colors ${
                         active
                           ? "bg-yellow-300 text-gray-950"
                           : "bg-gray-100 text-gray-500"
-                      } ${disabled ? "opacity-40" : ""}`}
+                      } ${faded ? "opacity-40" : ""}`}
                     >
                       {genre.label}
                     </button>
