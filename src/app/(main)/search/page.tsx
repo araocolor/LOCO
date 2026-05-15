@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, useCallback, useSyncExternalStore, type CSSProperties } from "react";
 import Avatar from "@/components/ui/Avatar";
 import { useRouter } from "next/navigation";
-import { MoreVertical, Plus, Check, UserMinus, Send, Ban, UserCircle, Bookmark, HeartHandshake, Hand, Coffee, Binoculars, UsersRound } from "lucide-react";
+import { MoreVertical, Plus, Check, UserMinus, Send, Ban, UserCircle, Bookmark, HeartHandshake, Hand, Coffee, Binoculars, UsersRound, LayoutGrid, LayoutList } from "lucide-react";
 import { RiVerifiedBadgeFill } from "react-icons/ri";
 import SearchHeader from "@/components/layout/SearchHeader";
 import SendMessageModal from "@/components/modal/SendMessageModal";
@@ -272,6 +272,7 @@ export default function SearchPage() {
   const [memberRegion, setMemberRegion] = useState("전체");
   const [memberGenres, setMemberGenres] = useState<string[]>([]);
   const [memberGender, setMemberGender] = useState<"" | "로" | "라">("");
+  const [memberViewMode, setMemberViewMode] = useState<"list" | "grid">("list");
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [suggestionsLoading, setSuggestionsLoading] = useState(true);
   const [addedIds, setAddedIds] = useState<Set<string>>(new Set());
@@ -314,6 +315,10 @@ export default function SearchPage() {
     () => following.filter((f) => f.status === "friend").length,
     [following]
   );
+  const visibleFollowers = useMemo(
+    () => followers.filter((member) => member.status !== "friend"),
+    [followers]
+  );
   const visibleSocialAudience = useMemo(
     () => {
       const getTime = (f: Follower) => {
@@ -322,7 +327,7 @@ export default function SearchPage() {
       };
       const byId = new Map<string, SocialAudienceMember>();
 
-      followers.forEach((member) => {
+      visibleFollowers.forEach((member) => {
         byId.set(member.id, {
           ...member,
           is_my_follower: true,
@@ -346,7 +351,7 @@ export default function SearchPage() {
       const greyed = audience.filter((f) => !!f.is_greyed).sort((a, b) => getTime(b) - getTime(a));
       return [...normal, ...greyed];
     },
-    [followers, mySubscribers]
+    [visibleFollowers, mySubscribers]
   );
   const followerById = useMemo(
     () => new Map(followers.map((item) => [item.id, item])),
@@ -1297,6 +1302,27 @@ export default function SearchPage() {
     });
   }
 
+  function openMemberProfile(member: Follower) {
+    setProfileModal(member);
+    setProfileModalData(null);
+    const cached = sessionStorage.getItem(`user_view_${member.id}`);
+    if (cached) {
+      try {
+        const json = JSON.parse(cached);
+        setProfileModalData({ bio: json.profile?.bio ?? null, member_type: json.profile?.member_type ?? [] });
+      } catch {}
+      return;
+    }
+
+    fetch(`/api/users/${member.id}/view-summary`)
+      .then((res) => res.json())
+      .then((json) => {
+        sessionStorage.setItem(`user_view_${member.id}`, JSON.stringify(json));
+        setProfileModalData({ bio: json.profile?.bio ?? null, member_type: json.profile?.member_type ?? [] });
+      })
+      .catch(() => {});
+  }
+
   return (
     <>
       <SearchHeader activeTab={activeTab} onTabChange={handleTabChange} myRegionLabel="친구들" />
@@ -1308,7 +1334,7 @@ export default function SearchPage() {
               <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-gray-100">
                 <Hand size={14} className="text-gray-600" />
                 <span className="text-[13px] font-semibold text-gray-700">팔로워</span>
-                <span className="text-[13px] font-bold text-gray-900">{followers.length}</span>
+                <span className="text-[13px] font-bold text-gray-900">{visibleFollowers.length}</span>
               </div>
               <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-gray-100">
                 <Bookmark size={14} className="text-gray-600" />
@@ -1326,13 +1352,6 @@ export default function SearchPage() {
                 {visibleSocialAudience.map((f) => {
                   const memberTypeLabel = f.member_type?.[0] ? getMemberTypeLabel(f.member_type[0]) : "";
                   const isNotificationOff = !!f.is_greyed;
-                  const isMutualFollowProcessing = acceptingFollowerIds.has(f.id);
-                  const relationLabels = [
-                    f.is_my_follower ? "팔로워" : null,
-                    f.is_my_subscriber ? "구독자" : null,
-                  ].filter(Boolean);
-                  const canAcceptFollower = f.is_my_follower && followingStatusById.get(f.id) !== "friend";
-
                   return (
                   <div key={f.id} className={`flex items-center gap-3 py-3 border-b border-gray-50 ${isNotificationOff ? "grayscale" : ""}`}>
                     <button onClick={() => {
@@ -1388,20 +1407,19 @@ export default function SearchPage() {
                         {memberTypeLabel}
                       </span>
                     )}
-                    {relationLabels.length > 0 && (
-                      <span className="text-gray-500 border border-gray-300 rounded-full px-2 py-0.5 whitespace-nowrap" style={{ fontSize: 13 }}>
-                        {relationLabels.join(" · ")}
-                      </span>
-                    )}
-                    {canAcceptFollower && (
-                      <button
-                        type="button"
-                        disabled={isMutualFollowProcessing}
-                        onClick={() => handleAcceptFollower(f, true)}
-                        className="px-3 py-1.5 rounded-full text-xs font-semibold bg-[#000000CC] text-white disabled:opacity-60"
-                      >
-                        친구연결
-                      </button>
+                    {(f.is_my_follower || f.is_my_subscriber) && (
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        {f.is_my_follower && (
+                          <span className="text-gray-900 bg-yellow-300 rounded-full px-2 py-0.5 whitespace-nowrap font-semibold" style={{ fontSize: 13 }}>
+                            팔로워
+                          </span>
+                        )}
+                        {f.is_my_subscriber && (
+                          <span className="text-gray-500 border border-gray-300 rounded-full px-2 py-0.5 whitespace-nowrap" style={{ fontSize: 13 }}>
+                            구독자
+                          </span>
+                        )}
+                      </div>
                     )}
                     <button
                       className="p-2 -mr-2 text-gray-400 hover:text-gray-700 flex-shrink-0"
@@ -1509,6 +1527,15 @@ export default function SearchPage() {
                   {memberResultCount}
                 </span>
               </div>
+              <button
+                type="button"
+                onClick={() => setMemberViewMode((mode) => mode === "list" ? "grid" : "list")}
+                className="ml-auto h-9 w-9 flex items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors"
+                aria-label={memberViewMode === "list" ? "그리드 보기" : "리스트 보기"}
+                title={memberViewMode === "list" ? "그리드 보기" : "리스트 보기"}
+              >
+                {memberViewMode === "list" ? <LayoutGrid size={21} /> : <LayoutList size={21} />}
+              </button>
             </div>
 
             {!membersLoaded && membersLoading ? (
@@ -1525,6 +1552,31 @@ export default function SearchPage() {
               </div>
             ) : visibleMembers.length === 0 ? (
               <p className="text-sm text-gray-400">조건에 맞는 회원이 없어요</p>
+            ) : memberViewMode === "grid" ? (
+              <div className="grid grid-cols-5 gap-x-3 gap-y-4 pb-4">
+                {visibleMembers.map((member) => (
+                  <button
+                    key={member.id}
+                    type="button"
+                    onClick={() => openMemberProfile(member)}
+                    className="relative aspect-square min-w-0 flex items-center justify-center"
+                    aria-label={`${member.nickname} 프로필`}
+                  >
+                    <div className="relative">
+                      <Avatar
+                        src={member.profile_image_url}
+                        nickname={member.nickname}
+                        size={48}
+                        className="bg-gradient-to-br from-gray-100 to-sky-100"
+                      />
+                      {onlineIds.has(member.id) && (
+                        <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-400 rounded-full border-2 border-white" />
+                      )}
+                      {member.is_subscribed && <SubscriptionBadge />}
+                    </div>
+                  </button>
+                ))}
+              </div>
             ) : (
               <div className="flex flex-col">
                 {visibleMembers.map((member) => {
@@ -1535,25 +1587,7 @@ export default function SearchPage() {
                   return (
                     <div key={member.id} className="flex items-center gap-3 py-3 border-b border-gray-50">
                       <button
-                        onClick={() => {
-                          setProfileModal(member);
-                          setProfileModalData(null);
-                          const cached = sessionStorage.getItem(`user_view_${member.id}`);
-                          if (cached) {
-                            try {
-                              const json = JSON.parse(cached);
-                              setProfileModalData({ bio: json.profile?.bio ?? null, member_type: json.profile?.member_type ?? [] });
-                            } catch {}
-                          } else {
-                            fetch(`/api/users/${member.id}/view-summary`)
-                              .then((res) => res.json())
-                              .then((json) => {
-                                sessionStorage.setItem(`user_view_${member.id}`, JSON.stringify(json));
-                                setProfileModalData({ bio: json.profile?.bio ?? null, member_type: json.profile?.member_type ?? [] });
-                              })
-                              .catch(() => {});
-                          }
-                        }}
+                        onClick={() => openMemberProfile(member)}
                       >
                         <div className="relative">
                           <Avatar
