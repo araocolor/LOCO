@@ -296,6 +296,7 @@ export default function SearchPage() {
   const [removingPendingIds, setRemovingPendingIds] = useState<Set<string>>(new Set());
   const [profileModal, setProfileModal] = useState<Follower | null>(null);
   const [profileModalData, setProfileModalData] = useState<{ bio: string | null; member_type: string[] } | null>(null);
+  const [closingProfileMemberId, setClosingProfileMemberId] = useState<string | null>(null);
   const [friendOrderIds, setFriendOrderIds] = useState<string[]>([]);
   const [friendListMode, setFriendListMode] = useState<"following" | "friends">(getInitialFriendListMode);
   const [subscriptionCount, setSubscriptionCount] = useState(0);
@@ -1323,6 +1324,15 @@ export default function SearchPage() {
       .catch(() => {});
   }
 
+  function closeProfileModal() {
+    if (profileModal) {
+      setClosingProfileMemberId(profileModal.id);
+      window.setTimeout(() => setClosingProfileMemberId(null), 500);
+    }
+    setProfileModal(null);
+    setProfileModalData(null);
+  }
+
   return (
     <>
       <SearchHeader activeTab={activeTab} onTabChange={handleTabChange} myRegionLabel="친구들" />
@@ -1372,7 +1382,7 @@ export default function SearchPage() {
                           .catch(() => {});
                       }
                     }}>
-                      <div className="relative">
+                      <div className={`relative ${closingProfileMemberId === f.id ? "profile-close-pop" : ""}`}>
                         <div className={`relative ${isNotificationOff ? "opacity-50" : ""}`}>
                           <div
                             className="rounded-full p-[2px]"
@@ -1562,7 +1572,7 @@ export default function SearchPage() {
                     className="relative aspect-square min-w-0 flex items-center justify-center"
                     aria-label={`${member.nickname} 프로필`}
                   >
-                    <div className="relative">
+                    <div className={`relative ${closingProfileMemberId === member.id ? "profile-close-pop" : ""}`}>
                       <Avatar
                         src={member.profile_image_url}
                         nickname={member.nickname}
@@ -1589,7 +1599,7 @@ export default function SearchPage() {
                       <button
                         onClick={() => openMemberProfile(member)}
                       >
-                        <div className="relative">
+                        <div className={`relative ${closingProfileMemberId === member.id ? "profile-close-pop" : ""}`}>
                           <Avatar
                             src={member.profile_image_url}
                             nickname={member.nickname}
@@ -2001,6 +2011,15 @@ export default function SearchPage() {
           0%, 100% { transform: translateY(0); }
           50% { transform: translateY(-6px); }
         }
+        @keyframes profileClosePop {
+          0% { transform: scale(1); }
+          45% { transform: scale(1.22); }
+          100% { transform: scale(1); }
+        }
+        .profile-close-pop {
+          animation: profileClosePop 0.5s ease-out both;
+          transform-origin: center;
+        }
       `}</style>
       {showCheck && <CheckModal />}
       {showBlackReportToast && (
@@ -2162,7 +2181,7 @@ export default function SearchPage() {
 
       {profileModal && (
         <>
-          <div className="fixed inset-0 z-[70] bg-black/50" onClick={() => { setProfileModal(null); setProfileModalData(null); }} />
+          <div className="fixed inset-0 z-[70] bg-black/50" onClick={closeProfileModal} />
           <div className="fixed inset-0 z-[80] flex items-center justify-center pointer-events-none">
             <div className="w-[250px] bg-white rounded-2xl shadow-lg p-6 pointer-events-auto flex flex-col items-center gap-2">
               <Avatar src={profileModal.profile_image_url} nickname={profileModal.nickname} size={80} />
@@ -2187,21 +2206,21 @@ export default function SearchPage() {
                 {getRelationStatusValue(profileModal.id) === "맞팔" ? (
                   <button
                     className="flex-1 h-9 rounded-full bg-[#FEE500] text-gray-900 font-semibold text-[14px]"
-                    onClick={() => { setMessageModalTarget({ id: profileModal.id, nickname: profileModal.nickname, profile_image_url: profileModal.profile_image_url ?? null }); setProfileModal(null); setProfileModalData(null); }}
+                    onClick={() => { setMessageModalTarget({ id: profileModal.id, nickname: profileModal.nickname, profile_image_url: profileModal.profile_image_url ?? null }); closeProfileModal(); }}
                   >
                     메시지 전송
                   </button>
                 ) : (
                   <button
                     className="flex-1 h-9 rounded-full bg-[#FEE500] text-gray-900 font-semibold text-[14px]"
-                    onClick={() => { handleFollowFromMenu(profileModal); setProfileModal(null); setProfileModalData(null); }}
+                    onClick={() => { handleFollowFromMenu(profileModal); closeProfileModal(); }}
                   >
                     {getRelationStatusValue(profileModal.id) === "팔로잉" ? "구독하기" : "친구추가"}
                   </button>
                 )}
                 <button
                   className="flex-1 h-9 rounded-full bg-[#FEE500] text-gray-900 font-semibold text-[14px]"
-                  onClick={() => { router.push(`/users/${profileModal.id}/view`); setProfileModal(null); setProfileModalData(null); }}
+                  onClick={() => { router.push(`/users/${profileModal.id}/view`); closeProfileModal(); }}
                 >
                   프로필보기
                 </button>
