@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Bookmark } from "lucide-react";
+import { Bookmark, Shell } from "lucide-react";
 import SearchNavButton from "@/components/layout/SearchNavButton";
 import { useAuth } from "@/lib/auth-context";
 
@@ -32,8 +32,8 @@ export default function MainHeader() {
           </button>
         )}
       </div>
-      <div className="absolute left-1/2 -translate-x-1/2 font-bold text-lg text-[#808080] leading-none">
-        LOCO
+      <div className="absolute left-1/2 -translate-x-1/2">
+        <Shell size={31} className="text-[#808080]" />
       </div>
       <div className="ml-auto w-10 flex items-center justify-end">
         <Link

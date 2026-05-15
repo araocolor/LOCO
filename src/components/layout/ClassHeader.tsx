@@ -1,4 +1,5 @@
 import HeaderBackCircleButton from "@/components/layout/HeaderBackCircleButton";
+import { Shell } from "lucide-react";
 
 interface ClassHeaderProps {
   backExitAnimationClass?: string;
@@ -17,8 +18,8 @@ export default function ClassHeader({
           exitDelayMs={backExitDelayMs}
         />
       </div>
-      <div className="absolute left-1/2 -translate-x-1/2 font-bold text-xl text-[#FEE500] leading-none">
-        LOCO
+      <div className="absolute left-1/2 -translate-x-1/2">
+        <Shell size={31} className="text-[#FEE500]" />
       </div>
       <div className="ml-auto w-10" />
     </header>

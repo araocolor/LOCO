@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import ClassNewButton from "@/components/layout/ClassNewButton";
+import { Shell } from "lucide-react";
 
 export default async function Header() {
   const supabase = await createClient();
@@ -25,11 +26,8 @@ export default async function Header() {
       <div className="w-10 flex items-center justify-start">
         <ClassNewButton isLoggedIn={!!user} />
       </div>
-      <Link
-        href="/"
-        className="absolute left-1/2 -translate-x-1/2 font-bold text-xl text-[#666666] leading-none"
-      >
-        LOCO
+      <Link href="/" className="absolute left-1/2 -translate-x-1/2">
+        <Shell size={31} className="text-[#666666]" />
       </Link>
       <div className="ml-auto flex items-center gap-4">
         <Link href="/notifications" aria-label="알림" className="relative text-gray-500">
