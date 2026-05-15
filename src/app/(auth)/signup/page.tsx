@@ -73,36 +73,9 @@ export default function SignupPage() {
       return;
     }
 
-    const { data, error: signUpError } = await supabase.auth.signUp({
-      email,
-      password: DEFAULT_PW,
-      options: {
-        data: {
-          nickname: trimmedNickname,
-        },
-      },
-    });
-
-    if (signUpError) {
-      if (signUpError.message.includes("Database error saving new user")) {
-        setError(
-          "회원가입 처리 중 오류가 발생했습니다. 닉네임/이메일을 다시 확인하고 재시도해주세요."
-        );
-      } else {
-        setError(signUpError.message);
-      }
-      setLoading(false);
-      return;
-    }
-
-    if (data.user) {
-      router.push("/onboarding");
-    } else {
-      // 이메일 확인이 필요한 경우
-      setError(
-        "가입 이메일을 확인해주세요. (Supabase 대시보드에서 이메일 확인을 비활성화하면 바로 입장 가능)"
-      );
-    }
+    sessionStorage.setItem("signup_email", email);
+    sessionStorage.setItem("signup_nickname", trimmedNickname);
+    router.push("/onboarding");
     setLoading(false);
   }
 

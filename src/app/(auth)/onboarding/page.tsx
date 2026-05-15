@@ -43,45 +43,75 @@ export default function OnboardingPage() {
 
     setLoading(true);
     const supabase = createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
 
-    if (!user) {
-      setLoading(false);
-      router.push("/login");
-      return;
-    }
+    const signupEmail = sessionStorage.getItem("signup_email");
+    const signupNickname = sessionStorage.getItem("signup_nickname");
 
-    const nicknameFromMeta =
-      typeof user.user_metadata?.nickname === "string"
-        ? user.user_metadata.nickname.trim()
-        : "";
+    if (signupEmail && signupNickname) {
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email: signupEmail,
+        password: "loco1234",
+        options: { data: { nickname: signupNickname } },
+      });
 
-    const profilePatch: {
-      region: string;
-      preferred_genres: string[];
-      nickname?: string;
-      gender?: string;
-    } = {
-      region,
-      preferred_genres: selectedGenres,
-      ...(gender ? { gender } : {}),
-    };
+      if (signUpError) {
+        setError("회원가입 처리 중 오류가 발생했습니다. 다시 시도해주세요.");
+        setLoading(false);
+        return;
+      }
 
-    if (nicknameFromMeta.length >= 2) {
-      profilePatch.nickname = nicknameFromMeta;
-    }
+      if (!data.user) {
+        setError("가입 이메일을 확인해주세요.");
+        setLoading(false);
+        return;
+      }
 
-    const { error: updateError } = await supabase
-      .from("profiles")
-      .update(profilePatch)
-      .eq("id", user.id);
+      sessionStorage.removeItem("signup_email");
+      sessionStorage.removeItem("signup_nickname");
 
-    if (updateError) {
-      setError("저장 중 오류가 발생했습니다. 다시 시도해주세요.");
-      setLoading(false);
-      return;
+      const { error: updateError } = await supabase
+        .from("profiles")
+        .update({ region, preferred_genres: selectedGenres, gender, nickname: signupNickname })
+        .eq("id", data.user.id);
+
+      if (updateError) {
+        setError("저장 중 오류가 발생했습니다. 다시 시도해주세요.");
+        setLoading(false);
+        return;
+      }
+    } else {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        setLoading(false);
+        router.push("/login");
+        return;
+      }
+
+      const profilePatch: { region: string; preferred_genres: string[]; gender: string; nickname?: string } = {
+        region,
+        preferred_genres: selectedGenres,
+        gender,
+      };
+
+      const nicknameFromMeta =
+        typeof user.user_metadata?.nickname === "string"
+          ? user.user_metadata.nickname.trim()
+          : "";
+      if (nicknameFromMeta.length >= 2) profilePatch.nickname = nicknameFromMeta;
+
+      const { error: updateError } = await supabase
+        .from("profiles")
+        .update(profilePatch)
+        .eq("id", user.id);
+
+      if (updateError) {
+        setError("저장 중 오류가 발생했습니다. 다시 시도해주세요.");
+        setLoading(false);
+        return;
+      }
     }
 
     const defaultFollowerRes = await fetch("/api/friends/default-follower", {
