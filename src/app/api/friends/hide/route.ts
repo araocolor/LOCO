@@ -18,20 +18,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Missing target_id" }, { status: 400 });
     }
 
-    const [{ data: friendship, error: friendshipError }, { data: reverseFriendship, error: reverseFriendshipError }, { data: currentState, error: currentStateError }] =
+    const [{ data: friendship, error: friendshipError }, { data: currentState, error: currentStateError }] =
       await Promise.all([
         supabase
           .from("friendships")
           .select("status")
           .eq("user_id", user.id)
           .eq("friend_id", target_id)
-          .maybeSingle(),
-        supabase
-          .from("friendships")
-          .select("status")
-          .eq("user_id", target_id)
-          .eq("friend_id", user.id)
-          .in("status", ["approved", "friend"])
           .maybeSingle(),
         supabase
           .from("friend_member_states")
@@ -41,12 +34,7 @@ export async function POST(request: NextRequest) {
           .maybeSingle(),
       ]);
     if (friendshipError) throw friendshipError;
-    if (reverseFriendshipError) throw reverseFriendshipError;
     if (currentStateError) throw currentStateError;
-
-    if ((!friendship || !["approved", "friend"].includes(friendship.status)) && !reverseFriendship) {
-      return NextResponse.json({ error: "관계가 있는 회원만 숨김할 수 있습니다." }, { status: 400 });
-    }
 
     if (currentState?.state === "hidden") {
       return NextResponse.json({ success: true, alreadyHidden: true });

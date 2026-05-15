@@ -1,6 +1,6 @@
 "use client";
 
-type Tab = "friends" | "followings" | "pending";
+type Tab = "friends" | "members" | "followings" | "pending";
 
 interface SearchHeaderProps {
   activeTab: Tab;
@@ -14,7 +14,7 @@ export default function SearchHeader({ activeTab, onTabChange, myRegionLabel = "
       <div className="h-14 px-4 flex items-center justify-center">
         <span className="font-bold text-xl text-[#FEE500] leading-none">LOCO</span>
       </div>
-      <div className="flex px-4 gap-6 pb-0">
+      <div className="flex px-4 gap-5 pb-0 overflow-x-auto scrollbar-hide whitespace-nowrap">
         <button
           onClick={() => onTabChange("friends")}
           style={{ fontSize: 17 }}
@@ -27,6 +27,17 @@ export default function SearchHeader({ activeTab, onTabChange, myRegionLabel = "
           {myRegionLabel}
         </button>
         <button
+          onClick={() => onTabChange("members")}
+          style={{ fontSize: 17 }}
+          className={`pb-2 font-bold border-b-2 transition-colors ${
+            activeTab === "members"
+              ? "border-black text-black"
+              : "border-transparent text-gray-400"
+          }`}
+        >
+          댄서찾기
+        </button>
+        <button
           onClick={() => onTabChange("followings")}
           style={{ fontSize: 17 }}
           className={`pb-2 font-bold border-b-2 transition-colors ${
@@ -37,7 +48,7 @@ export default function SearchHeader({ activeTab, onTabChange, myRegionLabel = "
         >
           팔로잉
         </button>
-<button
+        <button
           onClick={() => onTabChange("pending")}
           style={{ fontSize: 17 }}
           className={`pb-2 font-bold border-b-2 transition-colors ${
