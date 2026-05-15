@@ -96,18 +96,6 @@ export default function SignupPage() {
     }
 
     if (data.user) {
-      const { error: profileUpdateError } = await supabase
-        .from("profiles")
-        .update({ nickname: trimmedNickname })
-        .eq("id", data.user.id);
-
-      if (profileUpdateError) {
-        setError("가입은 완료되었지만 프로필 저장에 실패했습니다. 다시 로그인해주세요.");
-        setLoading(false);
-        return;
-      }
-
-      await fetch("/api/friends/default-follower", { method: "POST" }).catch(() => {});
       router.push("/onboarding");
     } else {
       // 이메일 확인이 필요한 경우

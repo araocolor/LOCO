@@ -1,15 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useState, useCallback, useSyncExternalStore, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback, useSyncExternalStore, type CSSProperties } from "react";
 import Avatar from "@/components/ui/Avatar";
 import { useRouter } from "next/navigation";
-import { MoreVertical, Plus, Check, UserMinus, Send, Ban, UserCircle, Bookmark, HeartHandshake, SmilePlus, Hand, Coffee } from "lucide-react";
+import { MoreVertical, Plus, Check, UserMinus, Send, Ban, UserCircle, Bookmark, HeartHandshake, SmilePlus, Hand, Coffee, Users } from "lucide-react";
 import { RiVerifiedBadgeFill } from "react-icons/ri";
 import SearchHeader from "@/components/layout/SearchHeader";
 import SendMessageModal from "@/components/modal/SendMessageModal";
 import { PRESENCE_EVENT } from "@/components/features/PresenceTracker";
+import { REGIONS_WITH_ALL } from "@/lib/constants";
 
-type Tab = "friends" | "followings" | "pending";
+type Tab = "friends" | "members" | "followings" | "pending";
 type MenuRelation = "mutual" | "following" | "follower" | "none";
 
 interface Follower {
@@ -18,6 +19,7 @@ interface Follower {
   profile_image_url: string | null;
   country: string | null;
   region: string | null;
+  gender?: "로" | "라" | null;
   member_type?: string[];
   role?: "member" | "pro" | "admin";
   status?: "pending" | "approved" | "friend";
@@ -28,6 +30,13 @@ interface Follower {
   friend_accepted_at?: string | null;
   joined_at?: string | null;
   relation_updated_at?: string | null;
+  favorite_genre?: string[];
+  created_at?: string | null;
+}
+
+interface DancerMember extends Follower {
+  favorite_genre: string[];
+  created_at: string | null;
 }
 
 interface MenuTarget {
@@ -40,6 +49,7 @@ interface MenuTarget {
   placement: "top" | "bottom";
   member: Follower;
   isHidden?: boolean;
+  source?: "social" | "members";
 }
 
 interface Suggestion {
@@ -61,14 +71,22 @@ interface PendingMember {
 }
 
 const SEARCH_CACHE_KEY = "search_prefetch_cache";
+const MEMBERS_CACHE_KEY = "search_members_cache_v2";
 const PENDING_CACHE_KEY = "search_pending_members_cache_v2";
 const MYPAGE_CACHE_KEY = "loco_mypage_cache_local_v2";
 const SEARCH_TAB_CHANGE_EVENT = "loco-search-tab-change";
+const MEMBERS_PAGE_SIZE = 30;
+const MEMBER_GENRE_OPTIONS = [
+  { value: "salsa", label: "살사" },
+  { value: "bachata", label: "바차타" },
+  { value: "kizomba", label: "키좀바" },
+] as const;
 
 function getSearchTab(): Tab {
   if (typeof window === "undefined") return "friends";
   const tab = new URLSearchParams(window.location.search).get("tab");
   if (tab === "friends") return "friends";
+  if (tab === "members") return "members";
   if (tab === "followings") return "followings";
   if (tab === "pending") return "pending";
   return "friends";
@@ -190,6 +208,21 @@ function sortFollowersOnce(followers: Follower[], following: Follower[]) {
     );
 }
 
+function mergeMembersById(current: DancerMember[], incoming: DancerMember[]) {
+  const seen = new Set<string>();
+  const merged: DancerMember[] = [];
+  [...current, ...incoming].forEach((member) => {
+    if (seen.has(member.id)) return;
+    seen.add(member.id);
+    merged.push(member);
+  });
+  return merged;
+}
+
+function getGenreLabel(value: string) {
+  return MEMBER_GENRE_OPTIONS.find((genre) => genre.value === value)?.label ?? value;
+}
+
 function CheckModal() {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
@@ -210,12 +243,23 @@ function SubscriptionBadge() {
 
 export default function SearchPage() {
   const router = useRouter();
+  const membersBootstrappedRef = useRef(false);
   const [followers, setFollowers] = useState<Follower[]>([]);
   const [following, setFollowing] = useState<Follower[]>([]);
   const [followersLoaded, setFollowersLoaded] = useState(false);
   const [cachedFollowerOnlyCount, setCachedFollowerOnlyCount] = useState(0);
   const [pendingMembers, setPendingMembers] = useState<PendingMember[]>([]);
   const [pendingLoaded, setPendingLoaded] = useState(false);
+  const [members, setMembers] = useState<DancerMember[]>([]);
+  const [membersLoaded, setMembersLoaded] = useState(false);
+  const [membersLoading, setMembersLoading] = useState(false);
+  const [membersFullyLoaded, setMembersFullyLoaded] = useState(false);
+  const [memberTotalCount, setMemberTotalCount] = useState(0);
+  const [memberRegions, setMemberRegions] = useState<string[]>([]);
+  const [memberSearch, setMemberSearch] = useState("");
+  const [memberRegion, setMemberRegion] = useState("전체");
+  const [memberGenres, setMemberGenres] = useState<string[]>([]);
+  const [memberGender, setMemberGender] = useState<"" | "로" | "라">("");
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [suggestionsLoading, setSuggestionsLoading] = useState(true);
   const [addedIds, setAddedIds] = useState<Set<string>>(new Set());
@@ -343,6 +387,39 @@ export default function SearchPage() {
         return compareFriendsByNotification(a, b);
       });
   }, [following, friendSearch, friendOrderIds, friendListMode]);
+  const availableMemberRegions = useMemo(() => {
+    const regionSet = new Set<string>();
+    REGIONS_WITH_ALL.forEach((region) => {
+      if (region !== "전체") regionSet.add(region);
+    });
+    memberRegions.forEach((region) => {
+      if (region) regionSet.add(region);
+    });
+    return ["전체", ...Array.from(regionSet)];
+  }, [memberRegions]);
+  const visibleMembers = useMemo(() => {
+    const search = memberSearch.trim().toLowerCase();
+
+    return members.filter((member) => {
+      const matchesSearch = search === "" || member.nickname.toLowerCase().includes(search);
+      const matchesRegion = memberRegion === "전체" || member.region === memberRegion;
+      const matchesGenre =
+        memberGenres.length === 0 ||
+        memberGenres.some((genre) => member.favorite_genre?.includes(genre));
+      const matchesGender = memberGender === "" || member.gender === memberGender;
+
+      return matchesSearch && matchesRegion && matchesGenre && matchesGender;
+    });
+  }, [members, memberSearch, memberRegion, memberGenres, memberGender]);
+  const hasMemberFilter = useMemo(
+    () =>
+      memberSearch.trim() !== "" ||
+      memberRegion !== "전체" ||
+      memberGenres.length > 0 ||
+      memberGender !== "",
+    [memberSearch, memberRegion, memberGenres, memberGender]
+  );
+  const memberResultCount = hasMemberFilter ? visibleMembers.length : Math.max(memberTotalCount, visibleMembers.length);
 
   const lockCurrentFriendOrder = useCallback(() => {
     setFriendOrderIds((prev) => {
@@ -404,6 +481,122 @@ export default function SearchPage() {
       .catch(() => {});
   }, []);
 
+  const writeMembersCache = useCallback(
+    (nextMembers: DancerMember[], totalCount: number, availableRegions: string[], fullyLoaded: boolean) => {
+      try {
+        localStorage.setItem(
+          MEMBERS_CACHE_KEY,
+          JSON.stringify({
+            members: nextMembers,
+            totalCount,
+            availableRegions,
+            fullyLoaded,
+            ts: Date.now(),
+          })
+        );
+      } catch {}
+    },
+    []
+  );
+
+  const loadMembersFromCache = useCallback(() => {
+    try {
+      const cached = localStorage.getItem(MEMBERS_CACHE_KEY);
+      if (!cached) return { count: 0, fullyLoaded: false, totalCount: 0 };
+      const parsed = JSON.parse(cached);
+      const cachedMembers = parsed?.members;
+      if (!Array.isArray(cachedMembers)) return { count: 0, fullyLoaded: false, totalCount: 0 };
+
+      // gender 필드가 없는 구버전 캐시는 사용하지 않고 다시 받아온다.
+      const hasLegacyRow = cachedMembers.some(
+        (member) =>
+          !member ||
+          typeof member !== "object" ||
+          !Object.prototype.hasOwnProperty.call(member, "gender")
+      );
+      if (hasLegacyRow) {
+        localStorage.removeItem(MEMBERS_CACHE_KEY);
+        return { count: 0, fullyLoaded: false, totalCount: 0 };
+      }
+
+      const totalCount = typeof parsed.totalCount === "number" ? parsed.totalCount : cachedMembers.length;
+      const availableRegions = Array.isArray(parsed.availableRegions) ? parsed.availableRegions : [];
+      const fullyLoaded = !!parsed.fullyLoaded || cachedMembers.length >= totalCount;
+      setMembers(cachedMembers);
+      setMemberTotalCount(totalCount);
+      setMemberRegions(availableRegions);
+      setMembersFullyLoaded(fullyLoaded);
+      setMembersLoaded(true);
+      return { count: cachedMembers.length, fullyLoaded, totalCount };
+    } catch {
+      return { count: 0, fullyLoaded: false, totalCount: 0 };
+    }
+  }, []);
+
+  const fetchMembersBatch = useCallback(
+    async (offset: number, limit: number, append: boolean) => {
+      if (offset === 0) setMembersLoading(true);
+
+      try {
+        const res = await fetch(`/api/users/members?limit=${limit}&offset=${offset}`);
+        if (!res.ok) throw new Error();
+        const json = await res.json();
+        const incoming = (json.data ?? []) as DancerMember[];
+        const totalCount = typeof json.totalCount === "number" ? json.totalCount : incoming.length;
+        const availableRegions = Array.isArray(json.availableRegions) ? json.availableRegions : [];
+        const fullyLoaded = offset + incoming.length >= totalCount || incoming.length < limit;
+
+        setMemberTotalCount(totalCount);
+        setMemberRegions(availableRegions);
+        setMembersFullyLoaded(fullyLoaded);
+        setMembersLoaded(true);
+        setMembers((prev) => {
+          const nextMembers = append ? mergeMembersById(prev, incoming) : incoming;
+          writeMembersCache(nextMembers, totalCount, availableRegions, fullyLoaded);
+          return nextMembers;
+        });
+
+        return { incomingCount: incoming.length, totalCount, fullyLoaded };
+      } finally {
+        if (offset === 0) setMembersLoading(false);
+      }
+    },
+    [writeMembersCache]
+  );
+
+  const fetchRemainingMembers = useCallback(
+    (startOffset: number, totalCount: number) => {
+      const run = async () => {
+        let offset = startOffset;
+        let expectedTotal = totalCount;
+
+        while (offset < expectedTotal) {
+          const result = await fetchMembersBatch(offset, 100, true);
+          if (result.incomingCount === 0 || result.fullyLoaded) break;
+          offset += result.incomingCount;
+          expectedTotal = result.totalCount;
+          await new Promise((resolve) => window.setTimeout(resolve, 250));
+        }
+      };
+
+      run().catch(() => {});
+    },
+    [fetchMembersBatch]
+  );
+
+  const removeMemberFromMemberList = useCallback(
+    (targetId: string) => {
+      setMembers((prev) => {
+        const nextMembers = prev.filter((member) => member.id !== targetId);
+        const nextTotalCount = Math.max(0, memberTotalCount - 1);
+        writeMembersCache(nextMembers, nextTotalCount, memberRegions, membersFullyLoaded);
+        return nextMembers;
+      });
+      setMemberTotalCount((prev) => Math.max(0, prev - 1));
+    },
+    [memberRegions, memberTotalCount, membersFullyLoaded, writeMembersCache]
+  );
+
   const writePendingCache = useCallback((members: PendingMember[]) => {
     try {
       sessionStorage.setItem(PENDING_CACHE_KEY, JSON.stringify({ members, ts: Date.now() }));
@@ -445,6 +638,43 @@ export default function SearchPage() {
       .catch(() => {})
       .finally(() => setSuggestionsLoading(false));
   }, [loadFromCache, fetchFollowersAndFollowing]);
+
+  useEffect(() => {
+    if (activeTab !== "members" || membersBootstrappedRef.current) return;
+    membersBootstrappedRef.current = true;
+
+    queueMicrotask(() => {
+      const cached = loadMembersFromCache();
+      if (cached.count > 0) {
+        if (!cached.fullyLoaded) {
+          fetchMembersBatch(cached.count, MEMBERS_PAGE_SIZE, true)
+            .then((result) => {
+              const nextOffset = cached.count + result.incomingCount;
+              if (!result.fullyLoaded && nextOffset < result.totalCount) {
+                fetchRemainingMembers(nextOffset, result.totalCount);
+              }
+            })
+            .catch(() => {});
+        }
+        return;
+      }
+
+      fetchMembersBatch(0, MEMBERS_PAGE_SIZE, false)
+        .then((firstResult) => {
+          if (firstResult.incomingCount === 0 || firstResult.fullyLoaded) return;
+          return fetchMembersBatch(firstResult.incomingCount, MEMBERS_PAGE_SIZE, true).then((secondResult) => {
+            const nextOffset = firstResult.incomingCount + secondResult.incomingCount;
+            if (!secondResult.fullyLoaded && nextOffset < secondResult.totalCount) {
+              fetchRemainingMembers(nextOffset, secondResult.totalCount);
+            }
+          });
+        })
+        .catch(() => {
+          membersBootstrappedRef.current = false;
+          setMembersLoaded(true);
+        });
+    });
+  }, [activeTab, fetchMembersBatch, fetchRemainingMembers, loadMembersFromCache]);
 
   useEffect(() => {
     if (activeTab !== "pending" || !isBlacklistUnlocked || pendingLoaded) return;
@@ -710,12 +940,17 @@ export default function SearchPage() {
     const nextFollowing = following.map((member) =>
       member.id === targetId ? { ...member, is_subscribed: isSubscribed } : member
     );
+    const nextMembers = members.map((member) =>
+      member.id === targetId ? { ...member, is_subscribed: isSubscribed } : member
+    );
     setFollowers(nextFollowers);
     setFollowing(nextFollowing);
+    setMembers(nextMembers);
     setSubscriptionCount(nextSubscriptionCount);
     try {
       writeSearchSocialCache(nextFollowers, nextFollowing, nextSubscriptionCount);
       syncMyPageSocialCounts(nextFollowers, nextFollowing, nextSubscriptionCount);
+      writeMembersCache(nextMembers, memberTotalCount, memberRegions, membersFullyLoaded);
     } catch {}
   }
 
@@ -764,6 +999,7 @@ export default function SearchPage() {
         } catch {}
         return updated;
       });
+      removeMemberFromMemberList(targetId);
       refreshSocialLists();
       invalidatePendingCache();
       setShowBlackReportToast(true);
@@ -788,6 +1024,7 @@ export default function SearchPage() {
       const nextFollowing = following.filter((member) => member.id !== targetId);
       setFollowers(nextFollowers);
       setFollowing(nextFollowing);
+      removeMemberFromMemberList(targetId);
       try {
         writeSearchSocialCache(nextFollowers, nextFollowing);
         syncMyPageSocialCounts(nextFollowers, nextFollowing);
@@ -1057,6 +1294,16 @@ export default function SearchPage() {
     }
   }
 
+  function toggleMemberGenre(genre: string) {
+    setMemberGenres((prev) => {
+      if (prev.includes(genre)) return prev.filter((item) => item !== genre);
+      if (genre === "kizomba") return [genre];
+      if (prev.includes("kizomba")) return prev;
+      if (prev.length >= 2) return prev;
+      return [...prev, genre];
+    });
+  }
+
   return (
     <>
       <SearchHeader activeTab={activeTab} onTabChange={handleTabChange} myRegionLabel="친구들" />
@@ -1275,6 +1522,198 @@ export default function SearchPage() {
                     </button>
                   </div>
                 )})}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {activeTab === "members" && (
+        <div className="px-4 pt-0 bg-white">
+          <div className="pt-5">
+            <div className="relative flex items-center gap-3 mb-3">
+              <div className="flex items-center gap-1 text-gray-900">
+                <Users size={24} />
+                <span className="font-bold" style={{ fontSize: 15 }}>
+                  {memberResultCount}
+                </span>
+              </div>
+              <div className="flex-1 flex justify-center">
+                <div className="flex items-center gap-2">
+                  <select
+                    value={memberRegion}
+                    onChange={(e) => setMemberRegion(e.target.value)}
+                    className="h-8 w-[88px] flex-shrink-0 rounded-full border border-gray-200 bg-white px-3 text-[14px] text-gray-800 focus:outline-none focus:border-gray-400"
+                  >
+                    {availableMemberRegions.map((region) => (
+                      <option key={region} value={region}>
+                        {region}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="relative" style={{ width: 150 }}>
+                    <input
+                      type="text"
+                      placeholder="아이디로 검색"
+                      value={memberSearch}
+                      onChange={(e) => setMemberSearch(e.target.value)}
+                      className="w-full h-8 pl-3 pr-8 border border-gray-200 rounded-full bg-gray-50 focus:outline-none focus:border-gray-400"
+                      style={{ fontSize: 15 }}
+                    />
+                    {memberSearch && (
+                      <button
+                        onClick={() => setMemberSearch("")}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-gray-300 flex items-center justify-center"
+                      >
+                        <span className="text-white text-[10px] leading-none font-bold">×</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 mb-3">
+              <div className="flex items-center gap-3 flex-shrink-0">
+                {(["로", "라"] as const).map((value) => (
+                  <label
+                    key={value}
+                    className="flex items-center gap-1.5 text-[14px] font-semibold text-gray-800 cursor-pointer"
+                  >
+                    <input
+                      type="radio"
+                      name="member-gender"
+                      value={value}
+                      checked={memberGender === value}
+                      onClick={() => setMemberGender((prev) => (prev === value ? "" : value))}
+                      onChange={(e) => setMemberGender(e.target.value as "로" | "라")}
+                      className="h-4 w-4 accent-black"
+                    />
+                    <span>{value}</span>
+                  </label>
+                ))}
+              </div>
+              <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
+                {MEMBER_GENRE_OPTIONS.map((genre) => {
+                  const active = memberGenres.includes(genre.value);
+                  const disabled = !active && (memberGenres.length >= 2 || memberGenres.includes("kizomba"));
+                  return (
+                    <button
+                      key={genre.value}
+                      type="button"
+                      onClick={() => toggleMemberGenre(genre.value)}
+                      disabled={disabled}
+                      className={`h-8 flex-shrink-0 rounded-full px-3 text-[14px] font-semibold transition-colors ${
+                        active
+                          ? "bg-yellow-300 text-gray-950"
+                          : "bg-gray-100 text-gray-500"
+                      } ${disabled ? "opacity-40" : ""}`}
+                    >
+                      {genre.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {!membersLoaded && membersLoading ? (
+              <div className="flex flex-col">
+                {Array.from({ length: 8 }).map((_, index) => (
+                  <div key={index} className="flex items-center gap-3 py-3 border-b border-gray-50">
+                    <div className="w-11 h-11 rounded-full bg-gray-200 animate-pulse" />
+                    <div className="flex-1">
+                      <div className="w-24 h-4 rounded bg-gray-200 animate-pulse mb-2" />
+                      <div className="w-32 h-3 rounded bg-gray-100 animate-pulse" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : visibleMembers.length === 0 ? (
+              <p className="text-sm text-gray-400">조건에 맞는 회원이 없어요</p>
+            ) : (
+              <div className="flex flex-col">
+                {visibleMembers.map((member) => {
+                  const genreLabels = (member.favorite_genre ?? [])
+                    .filter((genre) => MEMBER_GENRE_OPTIONS.some((option) => option.value === genre))
+                    .map(getGenreLabel);
+
+                  return (
+                    <div key={member.id} className="flex items-center gap-3 py-3 border-b border-gray-50">
+                      <button
+                        onClick={() => {
+                          setProfileModal(member);
+                          setProfileModalData(null);
+                          const cached = sessionStorage.getItem(`user_view_${member.id}`);
+                          if (cached) {
+                            try {
+                              const json = JSON.parse(cached);
+                              setProfileModalData({ bio: json.profile?.bio ?? null, member_type: json.profile?.member_type ?? [] });
+                            } catch {}
+                          } else {
+                            fetch(`/api/users/${member.id}/view-summary`)
+                              .then((res) => res.json())
+                              .then((json) => {
+                                sessionStorage.setItem(`user_view_${member.id}`, JSON.stringify(json));
+                                setProfileModalData({ bio: json.profile?.bio ?? null, member_type: json.profile?.member_type ?? [] });
+                              })
+                              .catch(() => {});
+                          }
+                        }}
+                      >
+                        <div className="relative">
+                          <Avatar
+                            src={member.profile_image_url}
+                            nickname={member.nickname}
+                            size={44}
+                            className="border-2 border-white"
+                          />
+                          {onlineIds.has(member.id) && (
+                            <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-400 rounded-full border-2 border-white" />
+                          )}
+                          {member.is_subscribed && <SubscriptionBadge />}
+                        </div>
+                      </button>
+                      <button
+                        className="flex-1 text-left min-w-0"
+                        onClick={() => router.push(`/users/${member.id}/view`)}
+                      >
+                        <p className="font-semibold text-gray-900 truncate" style={{ fontSize: 16 }}>
+                          {member.nickname}
+                        </p>
+                        <p className="text-xs text-gray-400 truncate">
+                          {[member.country, member.region].filter(Boolean).join(", ") || "지역 미입력"}
+                          {genreLabels.length > 0 ? ` · ${genreLabels.join(" · ")}` : ""}
+                        </p>
+                      </button>
+                      <button
+                        className="p-2 -mr-2 text-gray-400 hover:text-gray-700 flex-shrink-0"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const r = e.currentTarget.getBoundingClientRect();
+                          const placement = r.top > window.innerHeight / 2 ? "top" : "bottom";
+                          setMenuTarget({
+                            id: member.id,
+                            nickname: member.nickname,
+                            status: followingStatusById.get(member.id),
+                            relation: getMenuRelation(member.id),
+                            x: r.right,
+                            y: placement === "top" ? r.top : r.bottom,
+                            placement,
+                            member,
+                            isHidden: !!member.is_hidden,
+                            source: "members",
+                          });
+                          fetch(`/api/users/${member.id}/view-summary`)
+                            .then((res) => res.json())
+                            .then((json) => { sessionStorage.setItem(`user_view_${member.id}`, JSON.stringify(json)); })
+                            .catch(() => {});
+                        }}
+                      >
+                        <MoreVertical size={18} />
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -1639,7 +2078,7 @@ export default function SearchPage() {
               />
             </button>
             <div className="border-t border-gray-100 mx-3" />
-            {menuTarget.relation === "mutual" && (
+            {menuTarget.source !== "members" && menuTarget.relation === "mutual" && (
               <>
                 <button
                   className="flex items-center justify-between w-full px-4 py-3 text-gray-700"
@@ -1656,7 +2095,7 @@ export default function SearchPage() {
                 <div className="border-t border-gray-100 mx-3" />
               </>
             )}
-            {menuTarget.relation === "following" && (
+            {menuTarget.source !== "members" && menuTarget.relation === "following" && (
               <>
                 <button
                   className="flex items-center justify-between w-full px-4 py-3 text-gray-700"
@@ -1669,7 +2108,7 @@ export default function SearchPage() {
                 <div className="border-t border-gray-100 mx-3" />
               </>
             )}
-            {menuTarget.relation === "follower" && (
+            {menuTarget.source !== "members" && menuTarget.relation === "follower" && (
               <>
                 <button
                   className="flex items-center justify-between w-full px-4 py-3 text-gray-700"
@@ -1682,7 +2121,7 @@ export default function SearchPage() {
                 <div className="border-t border-gray-100 mx-3" />
               </>
             )}
-            {menuTarget.relation === "none" && (
+            {menuTarget.source !== "members" && menuTarget.relation === "none" && (
               <>
                 <button
                   className="flex items-center justify-between w-full px-4 py-3 text-gray-700"
@@ -1695,7 +2134,7 @@ export default function SearchPage() {
                 <div className="border-t border-gray-100 mx-3" />
               </>
             )}
-            {menuTarget.relation !== "none" && (
+            {(menuTarget.source === "members" || menuTarget.relation !== "none") && (
               <>
                 <button
                   className="flex items-center justify-between w-full px-4 py-3 text-gray-700"

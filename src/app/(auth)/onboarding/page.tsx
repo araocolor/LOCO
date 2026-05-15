@@ -40,17 +40,46 @@ export default function OnboardingPage() {
     } = await supabase.auth.getUser();
 
     if (!user) {
+      setLoading(false);
       router.push("/login");
       return;
     }
 
+    const nicknameFromMeta =
+      typeof user.user_metadata?.nickname === "string"
+        ? user.user_metadata.nickname.trim()
+        : "";
+
+    const profilePatch: {
+      region: string;
+      preferred_genres: string[];
+      nickname?: string;
+    } = {
+      region,
+      preferred_genres: selectedGenres,
+    };
+
+    if (nicknameFromMeta.length >= 2) {
+      profilePatch.nickname = nicknameFromMeta;
+    }
+
     const { error: updateError } = await supabase
       .from("profiles")
-      .update({ region, preferred_genres: selectedGenres })
+      .update(profilePatch)
       .eq("id", user.id);
 
     if (updateError) {
       setError("저장 중 오류가 발생했습니다. 다시 시도해주세요.");
+      setLoading(false);
+      return;
+    }
+
+    const defaultFollowerRes = await fetch("/api/friends/default-follower", {
+      method: "POST",
+    });
+
+    if (!defaultFollowerRes.ok) {
+      setError("최종 가입 처리 중 오류가 발생했습니다. 다시 시도해주세요.");
       setLoading(false);
       return;
     }
@@ -88,7 +117,6 @@ export default function OnboardingPage() {
               ))}
             </select>
           </div>
-
           {/* 관심 장르 */}
           <div>
             <div className="flex items-center justify-between mb-2">
