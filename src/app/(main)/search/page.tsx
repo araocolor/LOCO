@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, useCallback, useSyncExternalStore, type CSSProperties } from "react";
 import Avatar from "@/components/ui/Avatar";
 import { useRouter } from "next/navigation";
-import { MoreVertical, Plus, Check, UserMinus, Send, Ban, UserCircle, Bookmark, HeartHandshake, Hand, Coffee, Users } from "lucide-react";
+import { MoreVertical, Plus, Check, UserMinus, Send, Ban, UserCircle, Bookmark, HeartHandshake, Hand, Coffee, Users, Binoculars } from "lucide-react";
 import { RiVerifiedBadgeFill } from "react-icons/ri";
 import SearchHeader from "@/components/layout/SearchHeader";
 import SendMessageModal from "@/components/modal/SendMessageModal";
@@ -259,7 +259,6 @@ export default function SearchPage() {
   const [memberRegion, setMemberRegion] = useState("전체");
   const [memberGenres, setMemberGenres] = useState<string[]>([]);
   const [memberGender, setMemberGender] = useState<"" | "로" | "라">("");
-  const [memberSubscribedOnly, setMemberSubscribedOnly] = useState(false);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [suggestionsLoading, setSuggestionsLoading] = useState(true);
   const [addedIds, setAddedIds] = useState<Set<string>>(new Set());
@@ -381,19 +380,16 @@ export default function SearchPage() {
           selectedSalsaBachata.length === memberSalsaBachata.length &&
           selectedSalsaBachata.every((g) => memberSalsaBachata.includes(g)));
       const matchesGender = memberGender === "" || member.gender === memberGender;
-      const matchesSubscribed = !memberSubscribedOnly || !!member.is_subscribed;
-
-      return matchesSearch && matchesRegion && matchesGenre && matchesGender && matchesSubscribed;
+      return matchesSearch && matchesRegion && matchesGenre && matchesGender;
     });
-  }, [members, memberSearch, memberRegion, memberGenres, memberGender, memberSubscribedOnly]);
+  }, [members, memberSearch, memberRegion, memberGenres, memberGender]);
   const hasMemberFilter = useMemo(
     () =>
       memberSearch.trim() !== "" ||
       memberRegion !== "전체" ||
       memberGenres.length > 0 ||
-      memberGender !== "" ||
-      memberSubscribedOnly,
-    [memberSearch, memberRegion, memberGenres, memberGender, memberSubscribedOnly]
+      memberGender !== "",
+    [memberSearch, memberRegion, memberGenres, memberGender]
   );
   const memberResultCount = hasMemberFilter ? visibleMembers.length : Math.max(memberTotalCount, visibleMembers.length);
 
@@ -1407,7 +1403,7 @@ export default function SearchPage() {
           <div className="pt-5">
             <div className="flex items-center gap-3 mb-3">
               <div className="flex items-center gap-1 text-gray-900">
-                <Users size={24} />
+                <Binoculars size={24} />
                 <span className="inline-block w-[4ch] text-left tabular-nums font-bold" style={{ fontSize: 15 }}>
                   {memberResultCount}
                 </span>
@@ -1424,7 +1420,7 @@ export default function SearchPage() {
                       </option>
                     ))}
                   </select>
-                  <div className="relative" style={{ width: 120 }}>
+                  <div className="relative" style={{ width: 110 }}>
                     <input
                       type="text"
                       placeholder="아이디"
@@ -1442,41 +1438,19 @@ export default function SearchPage() {
                       </button>
                     )}
                   </div>
+                  <select
+                    value={memberGender}
+                    onChange={(e) => setMemberGender(e.target.value as "" | "로" | "라")}
+                    className="h-8 w-[64px] flex-shrink-0 rounded-full border border-gray-200 bg-white px-2 text-[14px] text-gray-800 focus:outline-none focus:border-gray-400"
+                  >
+                    <option value="">전체</option>
+                    <option value="로">로</option>
+                    <option value="라">라</option>
+                  </select>
               </div>
             </div>
 
             <div className="flex items-center gap-3 mb-3">
-              <button
-                type="button"
-                onClick={() => setMemberSubscribedOnly((prev) => !prev)}
-                aria-label="구독 회원만 보기"
-                title="구독 회원만 보기"
-              >
-                <Bookmark
-                  size={22}
-                  fill={memberSubscribedOnly ? "#FEE500" : "#D1D5DB"}
-                  stroke="none"
-                />
-              </button>
-              <div className="flex items-center gap-3 flex-shrink-0 ml-auto">
-                {(["로", "라"] as const).map((value) => (
-                  <label
-                    key={value}
-                    className="flex items-center gap-1.5 text-[14px] font-semibold text-gray-800 cursor-pointer"
-                  >
-                    <input
-                      type="radio"
-                      name="member-gender"
-                      value={value}
-                      checked={memberGender === value}
-                      onClick={() => setMemberGender((prev) => (prev === value ? "" : value))}
-                      onChange={(e) => setMemberGender(e.target.value as "로" | "라")}
-                      className="h-4 w-4 accent-black"
-                    />
-                    <span>{value}</span>
-                  </label>
-                ))}
-              </div>
               <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
                 {MEMBER_GENRE_OPTIONS.map((genre) => {
                   const active = memberGenres.includes(genre.value);
@@ -1674,16 +1648,18 @@ export default function SearchPage() {
                   setFriendListMode((prev) => prev === "friends" ? "following" : "friends");
                   resortFriendMembers();
                 }}
-                className={`flex items-center gap-1 transition-colors ${
+                className={`flex items-center gap-1 transition-colors ml-4 ${
                   friendListMode === "friends" ? "text-gray-900" : "text-gray-400"
                 }`}
                 aria-label="맞팔 목록 보기"
                 title="맞팔 목록 보기"
               >
                 <HeartHandshake size={25} />
-                <span className="font-bold" style={{ fontSize: 15 }}>
-                  {mutualFollowingCount}
-                </span>
+                {friendListMode === "friends" && (
+                  <span className="font-bold" style={{ fontSize: 18 }}>
+                    {mutualFollowingCount}
+                  </span>
+                )}
               </button>
               <div className="absolute left-1/2" style={{ transform: "translateX(calc(-50% + 20px))" }}>
                 <div className="relative" style={{ width: 150 }}>
@@ -1744,17 +1720,11 @@ export default function SearchPage() {
                           style={isMutualFriend ? getAvatarFloatStyle(m.id) : undefined}
                         >
                           {isFollowingOnly ? (
-                            <div
-                              className="rounded-full p-[2px]"
-                              style={{ background: "conic-gradient(transparent 0deg, transparent 180deg, #ef4444 180deg, #ef4444 360deg)" }}
-                            >
-                              <Avatar
-                                src={m.profile_image_url}
-                                nickname={m.nickname}
-                                size={44}
-                                className="border-2 border-white"
-                              />
-                            </div>
+                            <Avatar
+                              src={m.profile_image_url}
+                              nickname={m.nickname}
+                              size={44}
+                            />
                           ) : (
                           <Avatar
                             src={m.profile_image_url}
@@ -1776,6 +1746,9 @@ export default function SearchPage() {
                         {(m.country || m.region) && <p className="text-xs text-gray-400 truncate">{[m.country, m.region].filter(Boolean).join(", ")}</p>}
                       </button>
                       <div className="ml-auto flex items-center gap-2">
+                        {isFollowingOnly && (
+                          <span className="text-gray-500 border border-gray-300 rounded-full px-2 py-0.5" style={{ fontSize: 14 }}>연결중</span>
+                        )}
                         <button
                           type="button"
                           className="p-2 -mr-2 text-gray-400 flex-shrink-0"
@@ -2049,7 +2022,7 @@ export default function SearchPage() {
                   style={{ fontSize: "16px" }}
                   onClick={() => handleCancelFollowing(menuTarget.member)}
                 >
-                  <span>팔로잉취소</span>
+                  <span>연결취소</span>
                   <UserMinus size={20} className="text-gray-500" />
                 </button>
                 <div className="border-t border-gray-100 mx-3" />
@@ -2140,7 +2113,7 @@ export default function SearchPage() {
                 {profileModalData?.bio && (
                   <p className="text-[17px] text-gray-600 line-clamp-4 mt-1 whitespace-pre-wrap">{profileModalData.bio}</p>
                 )}
-                <p className="text-xs text-gray-500 mt-2">친구상태: {getRelationStatusValue(profileModal.id)}</p>
+                <p className="text-xs text-gray-500 mt-2">{{"맞팔": "Friends", "팔로잉": "Following", "팔로워": "Follower", "아님": "None"}[getRelationStatusValue(profileModal.id)]}</p>
               </div>
               <div className="flex gap-2 w-full mt-2">
                 {getRelationStatusValue(profileModal.id) === "맞팔" ? (
@@ -2155,7 +2128,7 @@ export default function SearchPage() {
                     className="flex-1 h-9 rounded-full bg-[#FEE500] text-gray-900 font-semibold text-[14px]"
                     onClick={() => { handleFollowFromMenu(profileModal); setProfileModal(null); setProfileModalData(null); }}
                   >
-                    친구추가
+                    {getRelationStatusValue(profileModal.id) === "팔로잉" ? "구독하기" : "친구추가"}
                   </button>
                 )}
                 <button

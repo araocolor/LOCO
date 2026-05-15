@@ -20,7 +20,6 @@ export const GENRES = [
   { value: "salsa", label: "살사" },
   { value: "bachata", label: "바차타" },
   { value: "kizomba", label: "키좀바" },
-  { value: "zouk", label: "쥬크" },
   { value: "other", label: "기타" },
 ] as const;
 

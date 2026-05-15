@@ -5,11 +5,13 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { REGIONS, GENRES } from "@/lib/constants";
 
-const MAX_GENRES = 3;
+const MAX_GENRES = 2;
+const SOLO_GENRES = ["kizomba", "other"];
 
 export default function OnboardingPage() {
   const [region, setRegion] = useState("");
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
+  const [gender, setGender] = useState<"로" | "라" | "">("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const router = useRouter();
@@ -17,6 +19,8 @@ export default function OnboardingPage() {
   function toggleGenre(value: string) {
     setSelectedGenres((prev) => {
       if (prev.includes(value)) return prev.filter((g) => g !== value);
+      if (SOLO_GENRES.includes(value)) return [value];
+      if (prev.some((g) => SOLO_GENRES.includes(g))) return [value];
       if (prev.length >= MAX_GENRES) return prev;
       return [...prev, value];
     });
@@ -26,6 +30,10 @@ export default function OnboardingPage() {
     e.preventDefault();
     if (!region) {
       setError("활동지역을 선택해주세요.");
+      return;
+    }
+    if (!gender) {
+      setError("포지션을 선택해주세요.");
       return;
     }
     if (selectedGenres.length === 0) {
@@ -54,9 +62,11 @@ export default function OnboardingPage() {
       region: string;
       preferred_genres: string[];
       nickname?: string;
+      gender?: string;
     } = {
       region,
       preferred_genres: selectedGenres,
+      ...(gender ? { gender } : {}),
     };
 
     if (nicknameFromMeta.length >= 2) {
@@ -117,6 +127,25 @@ export default function OnboardingPage() {
               ))}
             </select>
           </div>
+          {/* 포지션 */}
+          <div>
+            <label className="field-label">포지션</label>
+            <div className="flex gap-6 mt-2">
+              {(["로", "라"] as const).map((value) => (
+                <label key={value} className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="gender"
+                    value={value}
+                    checked={gender === value}
+                    onChange={() => setGender(value)}
+                    className="h-4 w-4 accent-black"
+                  />
+                  <span className="text-sm font-semibold text-gray-800">{value}</span>
+                </label>
+              ))}
+            </div>
+          </div>
           {/* 관심 장르 */}
           <div>
             <div className="flex items-center justify-between mb-2">
@@ -139,11 +168,6 @@ export default function OnboardingPage() {
                 </button>
               ))}
             </div>
-            {selectedGenres.length === MAX_GENRES && (
-              <p className="text-xs mt-2" style={{ color: "#999999" }}>
-                최대 3개까지 선택 가능합니다
-              </p>
-            )}
           </div>
 
           {error && <p className="error-text">{error}</p>}
@@ -153,7 +177,7 @@ export default function OnboardingPage() {
             disabled={loading}
             className="btn-primary"
           >
-            {loading ? "저장 중..." : "시작하기 🎉"}
+            {loading ? "저장 중..." : "시작하기"}
           </button>
         </form>
       </div>
