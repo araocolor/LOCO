@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, useCallback, useSyncExternalStore, type CSSProperties } from "react";
 import Avatar from "@/components/ui/Avatar";
 import { useRouter } from "next/navigation";
-import { MoreVertical, Plus, Check, UserMinus, Send, Ban, UserCircle, Bookmark, HeartHandshake, Hand, Coffee, Users, Binoculars } from "lucide-react";
+import { MoreVertical, Plus, Check, UserMinus, Send, Ban, UserCircle, Bookmark, HeartHandshake, Hand, Coffee, Users, Binoculars, UsersRound } from "lucide-react";
 import { RiVerifiedBadgeFill } from "react-icons/ri";
 import SearchHeader from "@/components/layout/SearchHeader";
 import SendMessageModal from "@/components/modal/SendMessageModal";
@@ -1402,76 +1402,76 @@ export default function SearchPage() {
 
       {activeTab === "members" && (
         <div className="px-4 pt-0 bg-white">
+          <div className="h-[120px] -mx-4 bg-gray-100 flex flex-col justify-center px-4 gap-2">
+            <div className="flex items-center gap-2 justify-center">
+                <select
+                  value={memberRegion}
+                  onChange={(e) => setMemberRegion(e.target.value)}
+                  className="h-8 w-[88px] flex-shrink-0 rounded-full border border-gray-200 bg-white px-3 text-[14px] text-gray-800 focus:outline-none focus:border-gray-400"
+                >
+                  {availableMemberRegions.map((region) => (
+                    <option key={region} value={region}>
+                      {region}
+                    </option>
+                  ))}
+                </select>
+                <div className="relative" style={{ width: 110 }}>
+                  <input
+                    type="text"
+                    placeholder="아이디"
+                    value={memberSearch}
+                    onChange={(e) => setMemberSearch(e.target.value)}
+                    className="w-full h-8 pl-3 pr-8 border border-gray-200 rounded-full bg-white focus:outline-none focus:border-gray-400"
+                    style={{ fontSize: 15 }}
+                  />
+                  {memberSearch && (
+                    <button
+                      onClick={() => setMemberSearch("")}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-gray-300 flex items-center justify-center"
+                    >
+                      <span className="text-white text-[10px] leading-none font-bold">×</span>
+                    </button>
+                  )}
+                </div>
+                <select
+                  value={memberGender}
+                  onChange={(e) => setMemberGender(e.target.value as "" | "로" | "라")}
+                  className="h-8 w-[64px] flex-shrink-0 rounded-full border border-gray-200 bg-white px-2 text-[14px] text-gray-800 focus:outline-none focus:border-gray-400"
+                >
+                  <option value="">전체</option>
+                  <option value="로">로</option>
+                  <option value="라">라</option>
+                </select>
+            </div>
+
+            <div className="flex items-center justify-center gap-2 w-full overflow-x-auto scrollbar-hide">
+              {MEMBER_GENRE_OPTIONS.map((genre) => {
+                const active = memberGenres.includes(genre.value);
+                const faded = !active && (memberGenres.length >= 2 || memberGenres.some((g) => SOLO_MEMBER_GENRES.includes(g)));
+                return (
+                  <button
+                    key={genre.value}
+                    type="button"
+                    onClick={() => toggleMemberGenre(genre.value)}
+                    className={`h-8 flex-shrink-0 rounded-full px-3 text-[14px] font-semibold transition-colors ${
+                      active
+                        ? "bg-yellow-300 text-gray-950"
+                        : "bg-white text-gray-500"
+                    } ${faded ? "opacity-40" : ""}`}
+                  >
+                    {genre.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
           <div className="pt-5">
             <div className="flex items-center gap-3 mb-3">
               <div className="flex items-center gap-1 text-gray-900">
                 <Binoculars size={24} />
-                <span className="inline-block w-[4ch] text-left tabular-nums font-bold" style={{ fontSize: 15 }}>
+                <span className="inline-block w-[4ch] text-left tabular-nums font-bold" style={{ fontSize: 18 }}>
                   {memberResultCount}
                 </span>
-              </div>
-              <div className="flex items-center gap-2 ml-auto">
-                  <select
-                    value={memberRegion}
-                    onChange={(e) => setMemberRegion(e.target.value)}
-                    className="h-8 w-[88px] flex-shrink-0 rounded-full border border-gray-200 bg-white px-3 text-[14px] text-gray-800 focus:outline-none focus:border-gray-400"
-                  >
-                    {availableMemberRegions.map((region) => (
-                      <option key={region} value={region}>
-                        {region}
-                      </option>
-                    ))}
-                  </select>
-                  <div className="relative" style={{ width: 110 }}>
-                    <input
-                      type="text"
-                      placeholder="아이디"
-                      value={memberSearch}
-                      onChange={(e) => setMemberSearch(e.target.value)}
-                      className="w-full h-8 pl-3 pr-8 border border-gray-200 rounded-full bg-gray-50 focus:outline-none focus:border-gray-400"
-                      style={{ fontSize: 15 }}
-                    />
-                    {memberSearch && (
-                      <button
-                        onClick={() => setMemberSearch("")}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-gray-300 flex items-center justify-center"
-                      >
-                        <span className="text-white text-[10px] leading-none font-bold">×</span>
-                      </button>
-                    )}
-                  </div>
-                  <select
-                    value={memberGender}
-                    onChange={(e) => setMemberGender(e.target.value as "" | "로" | "라")}
-                    className="h-8 w-[64px] flex-shrink-0 rounded-full border border-gray-200 bg-white px-2 text-[14px] text-gray-800 focus:outline-none focus:border-gray-400"
-                  >
-                    <option value="">전체</option>
-                    <option value="로">로</option>
-                    <option value="라">라</option>
-                  </select>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3 mb-3">
-              <div className="flex items-center justify-center gap-2 w-full overflow-x-auto scrollbar-hide">
-                {MEMBER_GENRE_OPTIONS.map((genre) => {
-                  const active = memberGenres.includes(genre.value);
-                  const faded = !active && (memberGenres.length >= 2 || memberGenres.some((g) => SOLO_MEMBER_GENRES.includes(g)));
-                  return (
-                    <button
-                      key={genre.value}
-                      type="button"
-                      onClick={() => toggleMemberGenre(genre.value)}
-                      className={`h-8 flex-shrink-0 rounded-full px-3 text-[14px] font-semibold transition-colors ${
-                        active
-                          ? "bg-yellow-300 text-gray-950"
-                          : "bg-gray-100 text-gray-500"
-                      } ${faded ? "opacity-40" : ""}`}
-                    >
-                      {genre.label}
-                    </button>
-                  );
-                })}
               </div>
             </div>
 
@@ -1581,7 +1581,7 @@ export default function SearchPage() {
 
       {activeTab === "friends" && (
         <div className="px-4 pt-0 bg-white">
-          <div className={`mb-0 -mx-4 py-3 ${!suggestionsLoading && suggestions.length === 0 ? "bg-white" : "bg-sky-100/70"}`}>
+          <div className={`mb-0 -mx-4 py-3 h-[120px] ${!suggestionsLoading && suggestions.length === 0 ? "bg-white" : "bg-sky-100/70"}`}>
             {suggestionsLoading ? (
               <div className="flex gap-7 overflow-x-auto pb-1 pt-3 scrollbar-hide">
                 {Array.from({ length: 8 }).map((_, i) => (
@@ -1645,22 +1645,19 @@ export default function SearchPage() {
             <div className="relative flex items-center mb-3">
               <button
                 type="button"
-                onClick={() => {
-                  setFriendListMode((prev) => prev === "friends" ? "following" : "friends");
-                  resortFriendMembers();
-                }}
-                className={`flex items-center gap-1 transition-colors ml-4 ${
-                  friendListMode === "friends" ? "text-gray-900" : "text-gray-400"
-                }`}
-                aria-label="맞팔 목록 보기"
-                title="맞팔 목록 보기"
+                onClick={() => { setFriendListMode("following"); resortFriendMembers(); }}
+                className={`flex items-center gap-1 transition-colors ${friendListMode === "following" ? "text-gray-900" : "text-gray-300"}`}
+              >
+                <UsersRound size={24} />
+                <span className="font-bold tabular-nums" style={{ fontSize: 18 }}>{following.length}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => { setFriendListMode("friends"); resortFriendMembers(); }}
+                className={`flex items-center gap-1 transition-colors ml-auto mr-1 ${friendListMode === "friends" ? "text-gray-900" : "text-gray-300"}`}
               >
                 <HeartHandshake size={25} />
-                {friendListMode === "friends" && (
-                  <span className="font-bold" style={{ fontSize: 18 }}>
-                    {mutualFollowingCount}
-                  </span>
-                )}
+                <span className="font-bold tabular-nums" style={{ fontSize: 18 }}>{mutualFollowingCount}</span>
               </button>
               <div className="absolute left-1/2" style={{ transform: "translateX(calc(-50% + 20px))" }}>
                 <div className="relative" style={{ width: 150 }}>
