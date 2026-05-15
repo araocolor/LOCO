@@ -246,6 +246,7 @@ export default function SearchPage() {
   const membersBootstrappedRef = useRef(false);
   const [followers, setFollowers] = useState<Follower[]>([]);
   const [following, setFollowing] = useState<Follower[]>([]);
+  const [mySubscribers, setMySubscribers] = useState<Suggestion[]>([]);
   const [pendingMembers, setPendingMembers] = useState<PendingMember[]>([]);
   const [pendingLoaded, setPendingLoaded] = useState(false);
   const [members, setMembers] = useState<DancerMember[]>([]);
@@ -278,6 +279,7 @@ export default function SearchPage() {
   const [blacklistPinError, setBlacklistPinError] = useState("");
   const [blacklistPinFailCount, setBlacklistPinFailCount] = useState(0);
   const [showBlackReportToast, setShowBlackReportToast] = useState(false);
+  const [showHideFriendToast, setShowHideFriendToast] = useState(false);
   const [friendLinkedNickname, setFriendLinkedNickname] = useState<string | null>(null);
   const [followingCancelledNickname, setFollowingCancelledNickname] = useState<string | null>(null);
   const [removingPendingIds, setRemovingPendingIds] = useState<Set<string>>(new Set());
@@ -307,24 +309,12 @@ export default function SearchPage() {
         return t ? new Date(t).getTime() : 0;
       };
 
-      const nonMutualFollowing = following.filter((f) => f.status !== "friend");
       const followerOnly = followers.filter((f) => followingStatusById.get(f.id) !== "friend");
-      const mergedById = new Map<string, Follower>();
-
-      [...nonMutualFollowing, ...followerOnly].forEach((item) => {
-        const existing = mergedById.get(item.id);
-        if (!existing || getTime(item) >= getTime(existing)) {
-          mergedById.set(item.id, item);
-        }
-      });
-
-      const filtered = Array.from(mergedById.values());
-
-      const normal = filtered.filter((f) => !f.is_greyed).sort((a, b) => getTime(b) - getTime(a));
-      const greyed = filtered.filter((f) => !!f.is_greyed).sort((a, b) => getTime(b) - getTime(a));
+      const normal = followerOnly.filter((f) => !f.is_greyed).sort((a, b) => getTime(b) - getTime(a));
+      const greyed = followerOnly.filter((f) => !!f.is_greyed).sort((a, b) => getTime(b) - getTime(a));
       return [...normal, ...greyed];
     },
-    [following, followers, followingStatusById]
+    [followers, followingStatusById]
   );
   const followerById = useMemo(
     () => new Map(followers.map((item) => [item.id, item])),
@@ -452,6 +442,7 @@ export default function SearchPage() {
         setFollowers(sortedFollowers);
         setFollowing(following);
         setSubscriptionCount(subscriptionCount);
+        if (Array.isArray(json.data?.mySubscribers)) setMySubscribers(json.data.mySubscribers);
         try {
           writeSearchSocialCache(sortedFollowers, following, subscriptionCount);
           syncMyPageSocialCounts(sortedFollowers, following, subscriptionCount);
@@ -1010,7 +1001,8 @@ export default function SearchPage() {
       } catch {}
       refreshSocialLists();
       invalidatePendingCache();
-      alert("친구숨김이 완료되었습니다.");
+      setShowHideFriendToast(true);
+      setTimeout(() => setShowHideFriendToast(false), 2000);
     } catch {
       alert("친구숨김 처리 중 오류가 발생했습니다.");
     }
@@ -1027,14 +1019,17 @@ export default function SearchPage() {
 
       if (!res.ok) throw new Error();
 
-      setPendingMembers((prev) => {
-        const next = prev.filter((member) => !(member.id === targetId && member.state === "hidden"));
-        writePendingCache(next);
-        return next;
-      });
-      refreshSocialLists();
-      invalidatePendingCache();
-      alert("숨김해제가 완료되었습니다.");
+      setRemovingPendingIds((prev) => { const next = new Set(prev); next.add(targetId); return next; });
+      setTimeout(() => {
+        setRemovingPendingIds((prev) => { const next = new Set(prev); next.delete(targetId); return next; });
+        setPendingMembers((prev) => {
+          const next = prev.filter((member) => !(member.id === targetId && member.state === "hidden"));
+          writePendingCache(next);
+          return next;
+        });
+        refreshSocialLists();
+        invalidatePendingCache();
+      }, 1400);
     } catch {
       alert("숨김해제 처리 중 오류가 발생했습니다.");
     }
@@ -1289,75 +1284,17 @@ export default function SearchPage() {
 
       {activeTab === "followings" && (
         <div className="px-4 pt-0 bg-white">
-          <div className={`mb-0 -mx-4 py-3 ${!suggestionsLoading && suggestions.length === 0 ? "bg-white" : "bg-sky-100/70"}`}>
-            {suggestionsLoading ? (
-              <div className="flex gap-7 overflow-x-auto pb-1 pt-3 scrollbar-hide">
-                {Array.from({ length: 8 }).map((_, i) => (
-                  <div key={i} className="flex flex-col items-center gap-1 flex-shrink-0">
-                    <div className="w-[60px] h-[60px] rounded-full bg-gray-200 animate-pulse" />
-                    <div className="w-10 h-3 rounded bg-gray-200 animate-pulse mt-1" />
-                  </div>
-                ))}
-              </div>
-            ) : suggestions.length === 0 ? (
-              <div className="flex items-center justify-center py-3">
-                <p className="text-gray-400 animate-blacklist-avatar" style={{ fontSize: 16 }}>친구추천 목록 없음</p>
-              </div>
-            ) : (
-              <div
-                className="overflow-x-auto scrollbar-hide pt-3 pb-1"
-                style={{ WebkitOverflowScrolling: "touch", touchAction: "pan-x" }}
-              >
-                <div className="flex gap-7 w-max">
-                  {suggestions.map((s) => (
-                    <div key={s.id} className="flex flex-col items-center gap-1 flex-shrink-0">
-                      <div className="relative" style={{ width: 60, height: 60 }}>
-                        <div className="relative animate-blacklist-avatar" style={getAvatarFloatStyle(s.id)}>
-                          <button onClick={() => handleAddFriend(s.id)}>
-                            <Avatar
-                              src={s.profile_image_url}
-                              nickname={s.nickname}
-                              size={60}
-                              className="bg-black"
-                            />
-                          </button>
-                          <button
-                            onClick={() => handleAddFriend(s.id)}
-                            className={`absolute -top-0.5 -right-0.5 w-6 h-6 rounded-full flex items-center justify-center ${
-                              addedIds.has(s.id)
-                                ? "bg-gray-400 cursor-default"
-                                : "bg-yellow-300"
-                            }`}
-                          >
-                            {addedIds.has(s.id)
-                              ? <Check size={11} className="text-white" strokeWidth={3} />
-                              : <Plus size={15} className="text-black" strokeWidth={3.5} />
-                            }
-                          </button>
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => router.push(`/users/${s.id}/view`)}
-                        className="max-w-[62px] rounded-full bg-gray-400 px-2 py-0.5 text-center text-xs text-gray-100 truncate"
-                      >
-                        {s.nickname}
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* 친구목록 리스트 */}
           <div className="border-t border-gray-100 pt-0">
-            <div className="flex items-center mt-3 mb-3 gap-3">
-              <div className="ml-2 flex items-center gap-4 min-w-0">
-                <div className="font-bold flex items-center gap-1" style={{ fontSize: 15, color: "#333333" }}>
-                  <Hand size={20} />
-                  <span className="font-bold" style={{ fontSize: 15 }}>{visibleFollowing.length}</span>
-                </div>
+            <div className="flex items-center justify-center gap-3 mt-3 mb-3">
+              <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-gray-100">
+                <Hand size={14} className="text-gray-600" />
+                <span className="text-[13px] font-semibold text-gray-700">팔로워</span>
+                <span className="text-[13px] font-bold text-gray-900">{visibleFollowing.length}</span>
+              </div>
+              <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-gray-100">
+                <Bookmark size={14} className="text-gray-600" />
+                <span className="text-[13px] font-semibold text-gray-700">구독자</span>
+                <span className="text-[13px] font-bold text-gray-900">{mySubscribers.length}</span>
               </div>
             </div>
             {visibleFollowing.length === 0 ? (
@@ -1367,9 +1304,6 @@ export default function SearchPage() {
                 {visibleFollowing.map((f) => {
                   const memberTypeLabel = f.member_type?.[0] ? getMemberTypeLabel(f.member_type[0]) : "";
                   const isNotificationOff = !!f.is_greyed;
-                  const isFriendFollowing = f.status === "friend" || f.status === "approved";
-                  const isFollowerOnly = !followingStatusById.has(f.id);
-                  const canShowMutualFollow = isFollowerOnly && followingStatusById.get(f.id) !== "friend";
                   const isMutualFollowProcessing = acceptingFollowerIds.has(f.id);
 
                   return (
@@ -1393,18 +1327,10 @@ export default function SearchPage() {
                       }
                     }}>
                       <div className="relative">
-                        <div
-                          className={`relative ${isFriendFollowing ? "animate-blacklist-avatar" : ""} ${isNotificationOff ? "opacity-50" : ""}`}
-                          style={isFriendFollowing ? getAvatarFloatStyle(f.id) : undefined}
-                        >
+                        <div className={`relative ${isNotificationOff ? "opacity-50" : ""}`}>
                           <div
                             className="rounded-full p-[2px]"
-                            style={{
-                              background:
-                                isFollowerOnly
-                                  ? "conic-gradient(#ef4444 0deg, #ef4444 180deg, transparent 180deg, transparent 360deg)"
-                                  : "conic-gradient(transparent 0deg, transparent 180deg, #ef4444 180deg, #ef4444 360deg)",
-                            }}
+                            style={{ background: "conic-gradient(#ef4444 0deg, #ef4444 180deg, transparent 180deg, transparent 360deg)" }}
                           >
                             <Avatar
                               src={f.profile_image_url}
@@ -1424,7 +1350,7 @@ export default function SearchPage() {
                       <p className={`font-semibold text-gray-900 truncate ${isNotificationOff ? "opacity-50" : ""}`} style={{ fontSize: 16 }}>{f.nickname}</p>
                       {(f.country || f.region) && <p className="text-xs text-gray-400 truncate">{[f.country, f.region].filter(Boolean).join(", ")}</p>}
                     </div>
-                    {!isFollowerOnly && f.member_type?.[0] && (
+                    {f.member_type?.[0] && (
                       <span className={`text-[16px] flex-shrink-0 inline-flex items-center gap-1 ${isNotificationOff ? "opacity-50" : ""}`} style={{ color: "#000000B3" }}>
                         {memberTypeLabel === "강사" && (
                           <RiVerifiedBadgeFill size={18} color="#FEE500" />
@@ -1435,16 +1361,14 @@ export default function SearchPage() {
                         {memberTypeLabel}
                       </span>
                     )}
-                    {canShowMutualFollow && (
-                      <button
-                        type="button"
-                        disabled={isMutualFollowProcessing}
-                        onClick={() => handleAcceptFollower(f, true)}
-                        className="px-3 py-1.5 rounded-full text-xs font-semibold bg-[#000000CC] text-white disabled:opacity-60"
-                      >
-                        친구연결
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      disabled={isMutualFollowProcessing}
+                      onClick={() => handleAcceptFollower(f, true)}
+                      className="px-3 py-1.5 rounded-full text-xs font-semibold bg-[#000000CC] text-white disabled:opacity-60"
+                    >
+                      친구연결
+                    </button>
                     <button
                       className="p-2 -mr-2 text-gray-400 hover:text-gray-700 flex-shrink-0"
                       onClick={(e) => {
@@ -1682,6 +1606,66 @@ export default function SearchPage() {
 
       {activeTab === "friends" && (
         <div className="px-4 pt-0 bg-white">
+          <div className={`mb-0 -mx-4 py-3 ${!suggestionsLoading && suggestions.length === 0 ? "bg-white" : "bg-sky-100/70"}`}>
+            {suggestionsLoading ? (
+              <div className="flex gap-7 overflow-x-auto pb-1 pt-3 scrollbar-hide">
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <div key={i} className="flex flex-col items-center gap-1 flex-shrink-0">
+                    <div className="w-[60px] h-[60px] rounded-full bg-gray-200 animate-pulse" />
+                    <div className="w-10 h-3 rounded bg-gray-200 animate-pulse mt-1" />
+                  </div>
+                ))}
+              </div>
+            ) : suggestions.length === 0 ? (
+              <div className="flex items-center justify-center py-3">
+                <p className="text-gray-400 animate-blacklist-avatar" style={{ fontSize: 16 }}>친구추천 목록 없음</p>
+              </div>
+            ) : (
+              <div
+                className="overflow-x-auto scrollbar-hide pt-3 pb-1"
+                style={{ WebkitOverflowScrolling: "touch", touchAction: "pan-x" }}
+              >
+                <div className="flex gap-7 w-max">
+                  {suggestions.map((s) => (
+                    <div key={s.id} className="flex flex-col items-center gap-1 flex-shrink-0">
+                      <div className="relative" style={{ width: 60, height: 60 }}>
+                        <div className="relative animate-blacklist-avatar" style={getAvatarFloatStyle(s.id)}>
+                          <button onClick={() => handleAddFriend(s.id)}>
+                            <Avatar
+                              src={s.profile_image_url}
+                              nickname={s.nickname}
+                              size={60}
+                              className="bg-black"
+                            />
+                          </button>
+                          <button
+                            onClick={() => handleAddFriend(s.id)}
+                            className={`absolute -top-0.5 -right-0.5 w-6 h-6 rounded-full flex items-center justify-center ${
+                              addedIds.has(s.id)
+                                ? "bg-gray-400 cursor-default"
+                                : "bg-yellow-300"
+                            }`}
+                          >
+                            {addedIds.has(s.id)
+                              ? <Check size={11} className="text-white" strokeWidth={3} />
+                              : <Plus size={15} className="text-black" strokeWidth={3.5} />
+                            }
+                          </button>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => router.push(`/users/${s.id}/view`)}
+                        className="max-w-[62px] rounded-full bg-gray-400 px-2 py-0.5 text-center text-xs text-gray-100 truncate"
+                      >
+                        {s.nickname}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
           <div className="pt-5">
             <div className="relative flex items-center mb-3">
               <button
@@ -1982,6 +1966,13 @@ export default function SearchPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
           <div className="bg-black/70 text-white rounded-full px-5 py-3 text-[15px] font-semibold animate-fade-in-out">
             블랙신고완료
+          </div>
+        </div>
+      )}
+      {showHideFriendToast && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
+          <div className="bg-black/70 text-white rounded-full px-5 py-3 text-[15px] font-semibold animate-fade-in-out">
+            해당 회원을 친구관리로 이동하였습니다.
           </div>
         </div>
       )}

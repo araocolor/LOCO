@@ -46,7 +46,7 @@ export default function SearchHeader({ activeTab, onTabChange, myRegionLabel = "
               : "border-transparent text-gray-400"
           }`}
         >
-          팔로잉
+          구독자
         </button>
         <button
           onClick={() => onTabChange("pending")}

@@ -17,6 +17,7 @@ export async function GET() {
       { data: followerRows, error: followerError },
       { data: stateRows, error: stateError },
       { data: subscriptionRows, error: subscriptionError },
+      { data: mySubscriberRows, error: mySubscriberError },
     ] = await Promise.all([
       supabase
         .from("friendships")
@@ -40,12 +41,17 @@ export async function GET() {
         .from("user_subscriptions")
         .select("target_id")
         .eq("owner_id", user.id),
+      supabase
+        .from("user_subscriptions")
+        .select("owner_id, profiles!user_subscriptions_owner_id_fkey(id, nickname, profile_image_url, country, region)")
+        .eq("target_id", user.id),
     ]);
 
     if (followingError) throw followingError;
     if (followerError) throw followerError;
     if (stateError) throw stateError;
     if (subscriptionError) throw subscriptionError;
+    if (mySubscriberError) throw mySubscriberError;
 
     const excludedIds = new Set<string>(
       (stateRows ?? [])
@@ -104,7 +110,18 @@ export async function GET() {
       .filter((item) => !excludedIds.has(item.id))
       .sort((a, b) => (a.nickname ?? "").localeCompare(b.nickname ?? "", "ko"));
 
-    return NextResponse.json({ data: { following, followers, subscriptionCount: subscribedIds.size } });
+    const mySubscribers = (mySubscriberRows ?? []).map((row) => {
+      const p = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles;
+      return {
+        id: p?.id ?? row.owner_id,
+        nickname: p?.nickname ?? "",
+        profile_image_url: p?.profile_image_url ?? null,
+        country: p?.country ?? null,
+        region: p?.region ?? null,
+      };
+    });
+
+    return NextResponse.json({ data: { following, followers, subscriptionCount: subscribedIds.size, mySubscribers } });
   } catch (e) {
     console.error(e);
     return NextResponse.json({ error: "서버 오류" }, { status: 500 });
