@@ -80,6 +80,7 @@ const MEMBER_GENRE_OPTIONS = [
   { value: "salsa", label: "살사" },
   { value: "bachata", label: "바차타" },
   { value: "kizomba", label: "키좀바" },
+  { value: "other", label: "기타" },
 ] as const;
 
 function getSearchTab(): Tab {
@@ -1264,11 +1265,12 @@ export default function SearchPage() {
     }
   }
 
+  const SOLO_MEMBER_GENRES = ["kizomba", "other"];
   function toggleMemberGenre(genre: string) {
     setMemberGenres((prev) => {
       if (prev.includes(genre)) return prev.filter((item) => item !== genre);
-      if (genre === "kizomba") return [genre];
-      if (prev.includes("kizomba")) return prev;
+      if (SOLO_MEMBER_GENRES.includes(genre)) return [genre];
+      if (prev.some((g) => SOLO_MEMBER_GENRES.includes(g))) return [genre];
       if (prev.length >= 2) return prev;
       return [...prev, genre];
     });
@@ -1451,10 +1453,10 @@ export default function SearchPage() {
             </div>
 
             <div className="flex items-center gap-3 mb-3">
-              <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
+              <div className="flex items-center justify-center gap-2 w-full overflow-x-auto scrollbar-hide">
                 {MEMBER_GENRE_OPTIONS.map((genre) => {
                   const active = memberGenres.includes(genre.value);
-                  const disabled = !active && (memberGenres.length >= 2 || memberGenres.includes("kizomba"));
+                  const disabled = !active && (memberGenres.length >= 2 || memberGenres.some((g) => SOLO_MEMBER_GENRES.includes(g)));
                   return (
                     <button
                       key={genre.value}
