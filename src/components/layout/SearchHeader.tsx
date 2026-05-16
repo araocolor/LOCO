@@ -14,52 +14,35 @@ export default function SearchHeader({ activeTab, onTabChange, myRegionLabel = "
   return (
     <header className="sticky top-0 z-50 bg-white border-b border-[#e5e7eb]">
       <div className="h-14 px-4 flex items-center justify-center">
-        <Shell size={31} className="text-[#808080]" />
+        <Shell size={31} className="mt-2 text-[#808080]" />
       </div>
-      <div className="flex px-4 gap-5 pb-0 overflow-x-auto scrollbar-hide whitespace-nowrap">
+      <div className="flex pl-8 pr-4 gap-5 pb-0 overflow-x-auto scrollbar-hide whitespace-nowrap">
         <button
           onClick={() => onTabChange("friends")}
-          style={{ fontSize: 17 }}
-          className={`pb-2 font-bold border-b-2 transition-colors ${
-            activeTab === "friends"
-              ? "border-black text-black"
-              : "border-transparent text-gray-400"
+          className={`pb-2 font-bold transition-colors ${
+            activeTab === "friends" ? "text-black" : "text-gray-400"
           }`}
+          style={{ fontSize: activeTab === "friends" ? 18 : 17 }}
         >
           {myRegionLabel}
         </button>
         <button
           onClick={() => onTabChange("members")}
-          style={{ fontSize: 17 }}
-          className={`pb-2 font-bold border-b-2 transition-colors ${
-            activeTab === "members"
-              ? "border-black text-black"
-              : "border-transparent text-gray-400"
+          className={`pb-2 font-bold transition-colors ${
+            activeTab === "members" ? "text-black" : "text-gray-400"
           }`}
+          style={{ fontSize: activeTab === "members" ? 18 : 17 }}
         >
-          댄서찾기
+          사람들
         </button>
         <button
           onClick={() => onTabChange("followings")}
-          style={{ fontSize: 17 }}
-          className={`pb-2 font-bold border-b-2 transition-colors ${
-            activeTab === "followings"
-              ? "border-black text-black"
-              : "border-transparent text-gray-400"
+          className={`pb-2 font-bold transition-colors ${
+            activeTab === "followings" ? "text-black" : "text-gray-400"
           }`}
+          style={{ fontSize: activeTab === "followings" ? 18 : 17 }}
         >
           구독자
-        </button>
-        <button
-          onClick={() => onTabChange("pending")}
-          style={{ fontSize: 17 }}
-          className={`pb-2 font-bold border-b-2 transition-colors ${
-            activeTab === "pending"
-              ? "border-black text-black"
-              : "border-transparent text-gray-400"
-          }`}
-        >
-          회원관리
         </button>
       </div>
     </header>

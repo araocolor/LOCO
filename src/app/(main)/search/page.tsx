@@ -4,7 +4,6 @@ import { useEffect, useMemo, useRef, useState, useCallback, useSyncExternalStore
 import Avatar from "@/components/ui/Avatar";
 import { useRouter } from "next/navigation";
 import { MoreVertical, Plus, Check, UserMinus, Send, Ban, UserCircle, Bookmark, HeartHandshake, Coffee, Binoculars, Users, UsersRound, LayoutGrid, LayoutList } from "lucide-react";
-import { RiVerifiedBadgeFill } from "react-icons/ri";
 import SearchHeader from "@/components/layout/SearchHeader";
 import SendMessageModal from "@/components/modal/SendMessageModal";
 import { PRESENCE_EVENT } from "@/components/features/PresenceTracker";
@@ -252,6 +251,13 @@ function getGenreLabel(value: string) {
   return MEMBER_GENRE_OPTIONS.find((genre) => genre.value === value)?.label ?? value;
 }
 
+function formatLocation(country: string | null | undefined, region: string | null | undefined) {
+  const normalizedCountry = country?.trim() ?? "";
+  const normalizedRegion = region?.trim() ?? "";
+  if (normalizedCountry === "대한민국") return normalizedRegion;
+  return [normalizedCountry, normalizedRegion].filter(Boolean).join(", ");
+}
+
 function CheckModal() {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
@@ -292,6 +298,7 @@ export default function SearchPage() {
   const [selectedMemberTypes, setSelectedMemberTypes] = useState<string[]>([]);
   const memberSearchPanelRef = useRef<HTMLDivElement | null>(null);
   const [memberViewMode, setMemberViewMode] = useState<"list" | "grid">("list");
+  const [socialViewMode, setSocialViewMode] = useState<"list" | "grid">("list");
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [suggestionsLoading, setSuggestionsLoading] = useState(true);
   const [addedIds, setAddedIds] = useState<Set<string>>(new Set());
@@ -327,9 +334,37 @@ export default function SearchPage() {
     replaceSearchTab(tab);
     setFriendListMode("following");
     if (tab === "followings") {
-      setSocialListMode("mySubscribers");
+      setSocialListMode("subscriptions");
     }
   }, []);
+
+  const prevActiveTabRef = useRef<Tab>(activeTab);
+  useEffect(() => {
+    if (activeTab === "followings" && prevActiveTabRef.current !== "followings") {
+      setSocialListMode("subscriptions");
+    }
+    prevActiveTabRef.current = activeTab;
+  }, [activeTab]);
+
+  function openSocialProfile(member: Follower) {
+    setProfileModal(member);
+    const cached = sessionStorage.getItem(`user_view_${member.id}`);
+    if (cached) {
+      try {
+        const json = JSON.parse(cached);
+        setProfileModalData({ bio: json.profile?.bio ?? null, member_type: json.profile?.member_type ?? [] });
+      } catch {}
+      return;
+    }
+
+    fetch(`/api/users/${member.id}/view-summary`)
+      .then((res) => res.json())
+      .then((json) => {
+        sessionStorage.setItem(`user_view_${member.id}`, JSON.stringify(json));
+        setProfileModalData({ bio: json.profile?.bio ?? null, member_type: json.profile?.member_type ?? [] });
+      })
+      .catch(() => {});
+  }
 
   const followingStatusById = useMemo(
     () => new Map(following.map((f) => [f.id, f.status])),
@@ -1567,7 +1602,7 @@ export default function SearchPage() {
                         key={option.value}
                         type="button"
                         onClick={() => setSocialListMode(option.value)}
-                        className={`rounded-full px-2.5 py-1 text-[15px] font-semibold leading-tight transition-colors ${
+                        className={`h-8 rounded-full px-3 text-[16px] font-semibold leading-tight transition-colors ${
                           active
                             ? "bg-gray-900 text-lime-100"
                             : "bg-white/90 text-[#595959]"
@@ -1587,6 +1622,17 @@ export default function SearchPage() {
               <span className="text-[18px] font-bold tabular-nums">
                 {socialListMode === "management" ? pendingMembers.length : socialListMembers.length}
               </span>
+              {socialListMode !== "management" && (
+                <button
+                  type="button"
+                  onClick={() => setSocialViewMode((mode) => mode === "list" ? "grid" : "list")}
+                  className="ml-auto h-9 w-9 flex items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors"
+                  aria-label={socialViewMode === "list" ? "그리드 보기" : "리스트 보기"}
+                  title={socialViewMode === "list" ? "그리드 보기" : "리스트 보기"}
+                >
+                  {socialViewMode === "list" ? <LayoutGrid size={21} /> : <LayoutList size={21} />}
+                </button>
+              )}
             </div>
             {socialLoadError && (
               <p className="mb-3 text-center text-xs text-red-500">목록을 새로 불러오지 못했어요</p>
@@ -1595,47 +1641,51 @@ export default function SearchPage() {
               renderManagementPanel()
             ) : socialListMembers.length === 0 ? (
               <p className="text-sm text-gray-400">아직 목록이 없어요</p>
+            ) : socialViewMode === "grid" ? (
+              <div className="grid grid-cols-5 gap-x-3 gap-y-4 pb-4">
+                {socialListMembers.map((f) => {
+                  const isNotificationOff = !!f.is_greyed;
+                  return (
+                    <button
+                      key={f.id}
+                      type="button"
+                      onClick={() => openSocialProfile(f)}
+                      className={`relative aspect-square min-w-0 flex items-center justify-center ${isNotificationOff ? "grayscale" : ""}`}
+                      aria-label={`${f.nickname} 프로필`}
+                    >
+                      <div className={`relative ${closingProfileMemberId === f.id ? "profile-close-pop" : ""}`}>
+                        <div className={`relative ${isNotificationOff ? "opacity-50" : ""}`}>
+                          <Avatar
+                            src={f.profile_image_url}
+                            nickname={f.nickname}
+                            size={48}
+                            className="border-2 border-white"
+                          />
+                        </div>
+                        {onlineIds.has(f.id) && (
+                          <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-400 rounded-full border-2 border-white" />
+                        )}
+                        {f.is_subscribed && <SubscriptionBadge />}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
             ) : (
               <div className="flex flex-col">
                 {socialListMembers.map((f) => {
-                  const memberTypeLabel = f.member_type?.[0] ? getMemberTypeLabel(f.member_type[0]) : "";
                   const isNotificationOff = !!f.is_greyed;
-                  const audienceMeta = visibleSocialAudience.find((member) => member.id === f.id);
-                  const isMyFollower = socialListMode === "followers" || !!audienceMeta?.is_my_follower;
-                  const isMySubscriber = socialListMode === "mySubscribers" || !!audienceMeta?.is_my_subscriber;
                   return (
                   <div key={f.id} className={`flex items-center gap-3 py-3 border-b border-gray-50 ${isNotificationOff ? "grayscale" : ""}`}>
-                    <button onClick={() => {
-                      setProfileModal(f);
-                      const cached = sessionStorage.getItem(`user_view_${f.id}`);
-                      if (cached) {
-                        try {
-                          const json = JSON.parse(cached);
-                          setProfileModalData({ bio: json.profile?.bio ?? null, member_type: json.profile?.member_type ?? [] });
-                        } catch {}
-                      } else {
-                        fetch(`/api/users/${f.id}/view-summary`)
-                          .then((res) => res.json())
-                          .then((json) => {
-                            sessionStorage.setItem(`user_view_${f.id}`, JSON.stringify(json));
-                            setProfileModalData({ bio: json.profile?.bio ?? null, member_type: json.profile?.member_type ?? [] });
-                          })
-                          .catch(() => {});
-                      }
-                    }}>
+                    <button onClick={() => openSocialProfile(f)}>
                       <div className={`relative ${closingProfileMemberId === f.id ? "profile-close-pop" : ""}`}>
                         <div className={`relative ${isNotificationOff ? "opacity-50" : ""}`}>
-                          <div
-                            className="rounded-full p-[2px]"
-                            style={{ background: "conic-gradient(#ef4444 0deg, #ef4444 180deg, transparent 180deg, transparent 360deg)" }}
-                          >
-                            <Avatar
-                              src={f.profile_image_url}
-                              nickname={f.nickname}
-                              size={44}
-                              className="border-2 border-white"
-                            />
-                          </div>
+                          <Avatar
+                            src={f.profile_image_url}
+                            nickname={f.nickname}
+                            size={44}
+                            className="border-2 border-white"
+                          />
                         </div>
                         {onlineIds.has(f.id) && (
                           <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-400 rounded-full border-2 border-white" />
@@ -1645,33 +1695,10 @@ export default function SearchPage() {
                     </button>
                     <div className="flex-1 min-w-0">
                       <p className={`font-semibold text-gray-900 truncate ${isNotificationOff ? "opacity-50" : ""}`} style={{ fontSize: 16 }}>{f.nickname}</p>
-                      {(f.country || f.region) && <p className="text-xs text-gray-400 truncate">{[f.country, f.region].filter(Boolean).join(", ")}</p>}
+                      {formatLocation(f.country, f.region) && (
+                        <p className="text-xs text-gray-400 truncate">{formatLocation(f.country, f.region)}</p>
+                      )}
                     </div>
-                    {f.member_type?.[0] && (
-                      <span className={`text-[16px] flex-shrink-0 inline-flex items-center gap-1 ${isNotificationOff ? "opacity-50" : ""}`} style={{ color: "#000000B3" }}>
-                        {memberTypeLabel === "강사" && (
-                          <RiVerifiedBadgeFill size={18} color="#FEE500" />
-                        )}
-                        {memberTypeLabel === "운영진" && (
-                          <RiVerifiedBadgeFill size={18} color="#1D9BF0" />
-                        )}
-                        {memberTypeLabel}
-                      </span>
-                    )}
-                    {(isMyFollower || isMySubscriber) && (
-                      <div className="flex items-center gap-1.5 flex-shrink-0">
-                        {isMyFollower && (
-                          <span className="text-gray-900 bg-yellow-300 rounded-full px-2 py-0.5 whitespace-nowrap font-semibold" style={{ fontSize: 13 }}>
-                            팔로워
-                          </span>
-                        )}
-                        {isMySubscriber && (
-                          <span className="text-gray-500 border border-gray-300 rounded-full px-2 py-0.5 whitespace-nowrap" style={{ fontSize: 13 }}>
-                            구독자
-                          </span>
-                        )}
-                      </div>
-                    )}
                     <button
                       className="p-2 -mr-2 text-gray-400 hover:text-gray-700 flex-shrink-0"
                       onClick={(e) => {
@@ -1896,7 +1923,7 @@ export default function SearchPage() {
                           {member.nickname}
                         </p>
                         <p className="text-xs text-gray-400 truncate">
-                          {[member.country, member.region].filter(Boolean).join(", ") || "지역 미입력"}
+                          {formatLocation(member.country, member.region) || "지역 미입력"}
                           {genreLabels.length > 0 ? ` · ${genreLabels.join(" · ")}` : ""}
                         </p>
                       </button>
@@ -2332,8 +2359,8 @@ export default function SearchPage() {
               <Avatar src={profileModal.profile_image_url} nickname={profileModal.nickname} size={80} />
               <div className="text-center w-full">
                 <p className="font-bold text-gray-900 truncate" style={{ fontSize: 16 }}>{profileModal.nickname}</p>
-                {(profileModal.country || profileModal.region) && (
-                  <p className="text-xs text-gray-400 mt-0.5">{[profileModal.country, profileModal.region].filter(Boolean).join(", ")}</p>
+                {formatLocation(profileModal.country, profileModal.region) && (
+                  <p className="text-xs text-gray-400 mt-0.5">{formatLocation(profileModal.country, profileModal.region)}</p>
                 )}
                 {profileModalData?.member_type?.[0] && (
                   <div className="flex items-center justify-center mt-2">
