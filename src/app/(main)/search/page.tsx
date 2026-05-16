@@ -1718,7 +1718,7 @@ export default function SearchPage() {
                   <select
                     value={memberRegion}
                     onChange={(e) => setMemberRegion(e.target.value)}
-                    className="h-8 w-[88px] flex-shrink-0 rounded-full border border-transparent bg-white px-3 text-[14px] text-gray-800 focus:outline-none focus:border-transparent"
+                    className="h-8 w-[88px] flex-shrink-0 rounded-full border border-transparent bg-white px-3 text-[16px] text-gray-800 focus:outline-none focus:border-transparent"
                   >
                     {availableMemberRegions.map((region) => (
                       <option key={region} value={region}>
@@ -1733,21 +1733,21 @@ export default function SearchPage() {
                       value={memberSearch}
                       onChange={(e) => setMemberSearch(e.target.value)}
                       className="w-full h-8 pl-3 pr-8 border border-transparent rounded-full bg-white focus:outline-none focus:border-transparent"
-                      style={{ fontSize: 15 }}
+                      style={{ fontSize: 16 }}
                     />
                     {memberSearch && (
                       <button
                         onClick={() => setMemberSearch("")}
                         className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-gray-300 flex items-center justify-center"
                       >
-                        <span className="text-white text-[10px] leading-none font-bold">×</span>
+                        <span className="text-white text-[14px] leading-none font-bold">×</span>
                       </button>
                     )}
                   </div>
                   <select
                     value={memberGender}
                     onChange={(e) => setMemberGender(e.target.value as "" | "로" | "라")}
-                    className="h-8 w-[64px] flex-shrink-0 rounded-full border border-transparent bg-white px-2 text-[14px] text-gray-800 focus:outline-none focus:border-transparent"
+                    className="h-8 w-[64px] flex-shrink-0 rounded-full border border-transparent bg-white px-2 text-[16px] text-gray-800 focus:outline-none focus:border-transparent"
                   >
                     <option value="">전체</option>
                     <option value="로">로</option>
@@ -1764,7 +1764,7 @@ export default function SearchPage() {
                         key={genre.value}
                         type="button"
                         onClick={() => toggleMemberGenre(genre.value)}
-                        className={`h-8 flex-shrink-0 rounded-full px-3 text-[14px] font-semibold transition-colors ${
+                        className={`h-8 flex-shrink-0 rounded-full px-3 text-[16px] font-semibold transition-colors ${
                           active
                             ? "bg-yellow-300 text-gray-950 border border-transparent"
                             : "bg-white text-gray-500 border border-transparent"
@@ -1788,7 +1788,7 @@ export default function SearchPage() {
                         type="button"
                         onClick={() => toggleMemberTypeFilter(type)}
                         disabled={limitReached}
-                        className={`rounded-full border px-2.5 py-1 text-[14px] font-semibold leading-tight transition-colors ${
+                        className={`rounded-full border px-2.5 py-1 text-[16px] font-semibold leading-tight transition-colors ${
                           active
                             ? "bg-gray-900 border-gray-900 text-yellow-200"
                             : "bg-white/90 border-yellow-300 text-[#595959]"
