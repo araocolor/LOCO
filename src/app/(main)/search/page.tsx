@@ -8,7 +8,8 @@ import { RiVerifiedBadgeFill } from "react-icons/ri";
 import SearchHeader from "@/components/layout/SearchHeader";
 import SendMessageModal from "@/components/modal/SendMessageModal";
 import { PRESENCE_EVENT } from "@/components/features/PresenceTracker";
-import { REGIONS_WITH_ALL } from "@/lib/constants";
+import { MEMBER_TYPES, REGIONS_WITH_ALL } from "@/lib/constants";
+import { fetchWithAuthRetry } from "@/lib/auth/fetch-with-auth-retry";
 
 type Tab = "friends" | "members" | "followings" | "pending";
 type MenuRelation = "mutual" | "following" | "follower" | "none";
@@ -81,6 +82,7 @@ const PENDING_CACHE_KEY = "search_pending_members_cache_v2";
 const MYPAGE_CACHE_KEY = "loco_mypage_cache_local_v2";
 const SEARCH_TAB_CHANGE_EVENT = "loco-search-tab-change";
 const MEMBERS_PAGE_SIZE = 30;
+const MAX_MEMBER_TYPE_FILTER = 2;
 const MEMBER_GENRE_OPTIONS = [
   { value: "salsa", label: "살사" },
   { value: "bachata", label: "바차타" },
@@ -272,6 +274,9 @@ export default function SearchPage() {
   const [memberRegion, setMemberRegion] = useState("전체");
   const [memberGenres, setMemberGenres] = useState<string[]>([]);
   const [memberGender, setMemberGender] = useState<"" | "로" | "라">("");
+  const [memberSearchMode, setMemberSearchMode] = useState<"basic" | "memberType">("basic");
+  const [selectedMemberTypes, setSelectedMemberTypes] = useState<string[]>([]);
+  const memberSearchPanelRef = useRef<HTMLDivElement | null>(null);
   const [memberViewMode, setMemberViewMode] = useState<"list" | "grid">("list");
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [suggestionsLoading, setSuggestionsLoading] = useState(true);
@@ -410,6 +415,14 @@ export default function SearchPage() {
     return ["전체", ...Array.from(regionSet)];
   }, [memberRegions]);
   const visibleMembers = useMemo(() => {
+    if (memberSearchMode === "memberType") {
+      if (selectedMemberTypes.length === 0) return members;
+
+      return members.filter((member) =>
+        selectedMemberTypes.some((type) => member.member_type?.includes(type))
+      );
+    }
+
     const search = memberSearch.trim().toLowerCase();
 
     return members.filter((member) => {
@@ -426,16 +439,37 @@ export default function SearchPage() {
       const matchesGender = memberGender === "" || member.gender === memberGender;
       return matchesSearch && matchesRegion && matchesGenre && matchesGender;
     });
-  }, [members, memberSearch, memberRegion, memberGenres, memberGender]);
+  }, [members, memberSearch, memberRegion, memberGenres, memberGender, memberSearchMode, selectedMemberTypes]);
   const hasMemberFilter = useMemo(
-    () =>
-      memberSearch.trim() !== "" ||
-      memberRegion !== "전체" ||
-      memberGenres.length > 0 ||
-      memberGender !== "",
-    [memberSearch, memberRegion, memberGenres, memberGender]
+    () => {
+      if (memberSearchMode === "memberType") return selectedMemberTypes.length > 0;
+
+      return (
+        memberSearch.trim() !== "" ||
+        memberRegion !== "전체" ||
+        memberGenres.length > 0 ||
+        memberGender !== ""
+      );
+    },
+    [memberSearch, memberRegion, memberGenres, memberGender, memberSearchMode, selectedMemberTypes]
   );
   const memberResultCount = hasMemberFilter ? visibleMembers.length : Math.max(memberTotalCount, visibleMembers.length);
+
+  const handleMemberSearchPanelScroll = useCallback(() => {
+    const node = memberSearchPanelRef.current;
+    if (!node) return;
+
+    const nextMode = node.scrollLeft > node.clientWidth / 2 ? "memberType" : "basic";
+    setMemberSearchMode((current) => (current === nextMode ? current : nextMode));
+  }, []);
+
+  const toggleMemberTypeFilter = useCallback((type: string) => {
+    setSelectedMemberTypes((prev) => {
+      if (prev.includes(type)) return prev.filter((item) => item !== type);
+      if (prev.length >= MAX_MEMBER_TYPE_FILTER) return prev;
+      return [...prev, type];
+    });
+  }, []);
 
   const lockCurrentFriendOrder = useCallback(() => {
     setFriendOrderIds((prev) => {
@@ -472,7 +506,7 @@ export default function SearchPage() {
   }, []);
 
   const fetchFollowersAndFollowing = useCallback(() => {
-    fetch("/api/friends/social")
+    fetchWithAuthRetry("/api/friends/social")
       .then((r) => {
         if (!r.ok) throw new Error("social fetch failed");
         return r.json();
@@ -1466,67 +1500,104 @@ export default function SearchPage() {
 
       {activeTab === "members" && (
         <div className="px-4 pt-0 bg-white">
-          <div className="h-[120px] -mx-4 bg-gray-100 flex flex-col justify-center px-4 gap-2">
-            <div className="flex items-center gap-2 justify-center">
-                <select
-                  value={memberRegion}
-                  onChange={(e) => setMemberRegion(e.target.value)}
-                  className="h-8 w-[88px] flex-shrink-0 rounded-full border border-gray-200 bg-white px-3 text-[14px] text-gray-800 focus:outline-none focus:border-gray-400"
-                >
-                  {availableMemberRegions.map((region) => (
-                    <option key={region} value={region}>
-                      {region}
-                    </option>
-                  ))}
-                </select>
-                <div className="relative" style={{ width: 110 }}>
-                  <input
-                    type="text"
-                    placeholder="아이디"
-                    value={memberSearch}
-                    onChange={(e) => setMemberSearch(e.target.value)}
-                    className="w-full h-8 pl-3 pr-8 border border-gray-200 rounded-full bg-white focus:outline-none focus:border-gray-400"
-                    style={{ fontSize: 15 }}
-                  />
-                  {memberSearch && (
-                    <button
-                      onClick={() => setMemberSearch("")}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-gray-300 flex items-center justify-center"
-                    >
-                      <span className="text-white text-[10px] leading-none font-bold">×</span>
-                    </button>
-                  )}
-                </div>
-                <select
-                  value={memberGender}
-                  onChange={(e) => setMemberGender(e.target.value as "" | "로" | "라")}
-                  className="h-8 w-[64px] flex-shrink-0 rounded-full border border-gray-200 bg-white px-2 text-[14px] text-gray-800 focus:outline-none focus:border-gray-400"
-                >
-                  <option value="">전체</option>
-                  <option value="로">로</option>
-                  <option value="라">라</option>
-                </select>
-            </div>
-
-            <div className="flex items-center justify-center gap-2 w-full overflow-x-auto scrollbar-hide">
-              {MEMBER_GENRE_OPTIONS.map((genre) => {
-                const active = memberGenres.includes(genre.value);
-                const faded = !active && (memberGenres.length >= 2 || memberGenres.some((g) => SOLO_MEMBER_GENRES.includes(g)));
-                return (
-                  <button
-                    key={genre.value}
-                    type="button"
-                    onClick={() => toggleMemberGenre(genre.value)}
-                    className={`h-8 flex-shrink-0 rounded-full px-3 text-[14px] font-semibold transition-colors ${
-                      active
-                        ? "bg-yellow-300 text-gray-950"
-                        : "bg-white text-gray-500"
-                    } ${faded ? "opacity-40" : ""}`}
+          <div className="h-[120px] -mx-4 bg-yellow-200">
+            <div
+              ref={memberSearchPanelRef}
+              onScroll={handleMemberSearchPanelScroll}
+              className="flex h-full overflow-x-auto snap-x snap-mandatory scrollbar-hide"
+              style={{ WebkitOverflowScrolling: "touch", touchAction: "pan-x" }}
+            >
+              <div className="h-full min-w-full snap-start flex flex-col justify-center px-4 gap-2 bg-yellow-200">
+                <div className="flex items-center gap-2 justify-center">
+                  <select
+                    value={memberRegion}
+                    onChange={(e) => setMemberRegion(e.target.value)}
+                    className="h-8 w-[88px] flex-shrink-0 rounded-full border border-transparent bg-white px-3 text-[14px] text-gray-800 focus:outline-none focus:border-transparent"
                   >
-                    {genre.label}
-                  </button>
-                );
-              })}
+                    {availableMemberRegions.map((region) => (
+                      <option key={region} value={region}>
+                        {region}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="relative" style={{ width: 110 }}>
+                    <input
+                      type="text"
+                      placeholder="아이디"
+                      value={memberSearch}
+                      onChange={(e) => setMemberSearch(e.target.value)}
+                      className="w-full h-8 pl-3 pr-8 border border-transparent rounded-full bg-white focus:outline-none focus:border-transparent"
+                      style={{ fontSize: 15 }}
+                    />
+                    {memberSearch && (
+                      <button
+                        onClick={() => setMemberSearch("")}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-gray-300 flex items-center justify-center"
+                      >
+                        <span className="text-white text-[10px] leading-none font-bold">×</span>
+                      </button>
+                    )}
+                  </div>
+                  <select
+                    value={memberGender}
+                    onChange={(e) => setMemberGender(e.target.value as "" | "로" | "라")}
+                    className="h-8 w-[64px] flex-shrink-0 rounded-full border border-transparent bg-white px-2 text-[14px] text-gray-800 focus:outline-none focus:border-transparent"
+                  >
+                    <option value="">전체</option>
+                    <option value="로">로</option>
+                    <option value="라">라</option>
+                  </select>
+                </div>
+
+                <div className="flex items-center justify-center gap-2 w-full overflow-x-auto scrollbar-hide">
+                  {MEMBER_GENRE_OPTIONS.map((genre) => {
+                    const active = memberGenres.includes(genre.value);
+                    const faded = !active && (memberGenres.length >= 2 || memberGenres.some((g) => SOLO_MEMBER_GENRES.includes(g)));
+                    return (
+                      <button
+                        key={genre.value}
+                        type="button"
+                        onClick={() => toggleMemberGenre(genre.value)}
+                        className={`h-8 flex-shrink-0 rounded-full px-3 text-[14px] font-semibold transition-colors ${
+                          active
+                            ? "bg-yellow-300 text-gray-950 border border-transparent"
+                            : "bg-white text-gray-500 border border-transparent"
+                        } ${faded ? "opacity-40" : ""}`}
+                      >
+                        {genre.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="h-full min-w-full snap-start flex flex-col justify-center px-4 gap-2 bg-yellow-200">
+                <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 overflow-hidden">
+                  {MEMBER_TYPES.map((type) => {
+                    const active = selectedMemberTypes.includes(type);
+                    const limitReached = !active && selectedMemberTypes.length >= MAX_MEMBER_TYPE_FILTER;
+                    return (
+                      <button
+                        key={type}
+                        type="button"
+                        onClick={() => toggleMemberTypeFilter(type)}
+                        disabled={limitReached}
+                        className={`rounded-full border px-2.5 py-1 text-[14px] font-semibold leading-tight transition-colors ${
+                          active
+                            ? "bg-gray-900 border-gray-900 text-yellow-200"
+                            : "bg-white/90 border-yellow-300 text-[#595959]"
+                        } ${limitReached ? "opacity-40 cursor-not-allowed" : "hover:border-gray-700"}`}
+                      >
+                        {getMemberTypeLabel(type)}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+            <div className="pointer-events-none -mt-4 flex justify-center gap-1.5">
+              <span className={`rounded-full transition-all ${memberSearchMode === "basic" ? "h-2 w-2 bg-gray-900" : "h-1.5 w-1.5 bg-gray-400"}`} />
+              <span className={`rounded-full transition-all ${memberSearchMode === "memberType" ? "h-2 w-2 bg-gray-900" : "h-1.5 w-1.5 bg-gray-400"}`} />
             </div>
           </div>
           <div className="pt-5">
@@ -1658,7 +1729,6 @@ export default function SearchPage() {
           </div>
         </div>
       )}
-
       {activeTab === "friends" && (
         <div className="px-4 pt-0 bg-white">
           <div className={`mb-0 -mx-4 py-3 h-[120px] ${!suggestionsLoading && suggestions.length === 0 ? "bg-white" : "bg-sky-100/70"}`}>

@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { fetchWithAuthRetry } from "@/lib/auth/fetch-with-auth-retry";
 
 const CONVERSATIONS_CACHE_KEY = "loco_conversations_cache_v2";
 const MYPAGE_CACHE_KEY = "loco_mypage_cache_local_v2";
@@ -114,7 +115,7 @@ export default function BottomNav({ isLoggedIn }: { isLoggedIn: boolean }) {
         }
 
         if (shouldPrefetchSearch) {
-          const socialRes = await fetch("/api/friends/social");
+          const socialRes = await fetchWithAuthRetry("/api/friends/social");
           if (socialRes.ok) {
             const social = await socialRes.json();
             const followers = social.data?.followers ?? [];

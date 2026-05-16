@@ -6,6 +6,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { UserCircle, X, Settings, Check, HeartHandshake, Bookmark, SmilePlus } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { fetchWithAuthRetry } from "@/lib/auth/fetch-with-auth-retry";
 import { parseBookmarkEntries } from "@/lib/bookmarks/local";
 import { REGIONS, MEMBER_TYPES, MAX_MEMBER_TYPE } from "@/lib/constants";
 import AvatarCropModal from "./AvatarCropModal";
@@ -154,7 +155,7 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses, soc
           return;
         }
       }
-      fetch("/api/friends/social").then((res) => {
+      fetchWithAuthRetry("/api/friends/social").then((res) => {
         if (!res.ok) return;
         res.json().then((social) => {
           const count = social.data?.subscriptionCount ?? 0;
