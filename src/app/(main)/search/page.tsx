@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, useCallback, useSyncExternalStore, type CSSProperties } from "react";
 import Avatar from "@/components/ui/Avatar";
 import { useRouter } from "next/navigation";
-import { MoreVertical, Plus, Check, UserMinus, Send, Ban, UserCircle, Bookmark, HeartHandshake, Hand, Coffee, Binoculars, UsersRound, LayoutGrid, LayoutList } from "lucide-react";
+import { MoreVertical, Plus, Check, UserMinus, Send, Ban, UserCircle, Bookmark, HeartHandshake, Coffee, Binoculars, Users, UsersRound, LayoutGrid, LayoutList } from "lucide-react";
 import { RiVerifiedBadgeFill } from "react-icons/ri";
 import SearchHeader from "@/components/layout/SearchHeader";
 import SendMessageModal from "@/components/modal/SendMessageModal";
@@ -13,6 +13,7 @@ import { fetchWithAuthRetry } from "@/lib/auth/fetch-with-auth-retry";
 
 type Tab = "friends" | "members" | "followings" | "pending";
 type MenuRelation = "mutual" | "following" | "follower" | "none";
+type SocialListMode = "followers" | "mySubscribers" | "subscriptions" | "management" | "following";
 
 interface Follower {
   id: string;
@@ -83,6 +84,17 @@ const MYPAGE_CACHE_KEY = "loco_mypage_cache_local_v2";
 const SEARCH_TAB_CHANGE_EVENT = "loco-search-tab-change";
 const MEMBERS_PAGE_SIZE = 30;
 const MAX_MEMBER_TYPE_FILTER = 2;
+const SOCIAL_LIST_OPTIONS: { value: SocialListMode; label: string }[] = [
+  { value: "mySubscribers", label: "구독자" },
+  { value: "followers", label: "팔로워" },
+  { value: "subscriptions", label: "내구독" },
+  { value: "following", label: "팔로잉" },
+  { value: "management", label: "회원관리" },
+];
+const SOCIAL_LIST_ROWS: SocialListMode[][] = [
+  ["subscriptions", "mySubscribers"],
+  ["following", "followers", "management"],
+];
 const MEMBER_GENRE_OPTIONS = [
   { value: "salsa", label: "살사" },
   { value: "bachata", label: "바차타" },
@@ -304,6 +316,7 @@ export default function SearchPage() {
   const [closingProfileMemberId, setClosingProfileMemberId] = useState<string | null>(null);
   const [friendOrderIds, setFriendOrderIds] = useState<string[]>([]);
   const [friendListMode, setFriendListMode] = useState<"following" | "friends">(getInitialFriendListMode);
+  const [socialListMode, setSocialListMode] = useState<SocialListMode>("followers");
   const [subscriptionCount, setSubscriptionCount] = useState(0);
   const [subscriberCount, setSubscriberCount] = useState<number | null>(null);
   const [socialLoadError, setSocialLoadError] = useState(false);
@@ -311,6 +324,9 @@ export default function SearchPage() {
   const handleTabChange = useCallback((tab: Tab) => {
     replaceSearchTab(tab);
     setFriendListMode("following");
+    if (tab === "followings") {
+      setSocialListMode("mySubscribers");
+    }
   }, []);
 
   const followingStatusById = useMemo(
@@ -321,10 +337,7 @@ export default function SearchPage() {
     () => following.filter((f) => f.status === "friend").length,
     [following]
   );
-  const visibleFollowers = useMemo(
-    () => followers.filter((member) => member.status !== "friend"),
-    [followers]
-  );
+  const visibleFollowers = useMemo(() => followers, [followers]);
   const visibleSocialAudience = useMemo(
     () => {
       const getTime = (f: Follower) => {
@@ -359,6 +372,29 @@ export default function SearchPage() {
     },
     [visibleFollowers, mySubscribers]
   );
+  const visibleSubscriptions = useMemo(
+    () => {
+      const byId = new Map<string, Follower>();
+      following.forEach((member) => {
+        if (member.is_subscribed) byId.set(member.id, member);
+      });
+      followers.forEach((member) => {
+        if (member.is_subscribed) byId.set(member.id, member);
+      });
+      mySubscribers.forEach((member) => {
+        if (member.is_subscribed) byId.set(member.id, member);
+      });
+      return Array.from(byId.values()).sort((a, b) => (a.nickname ?? "").localeCompare(b.nickname ?? "", "ko"));
+    },
+    [following, followers, mySubscribers]
+  );
+  const socialListMembers = useMemo(() => {
+    if (socialListMode === "followers") return visibleFollowers;
+    if (socialListMode === "mySubscribers") return mySubscribers;
+    if (socialListMode === "subscriptions") return visibleSubscriptions;
+    if (socialListMode === "following") return following;
+    return [];
+  }, [following, mySubscribers, socialListMode, visibleFollowers, visibleSubscriptions]);
   const followerById = useMemo(
     () => new Map(followers.map((item) => [item.id, item])),
     [followers]
@@ -729,7 +765,10 @@ export default function SearchPage() {
   }, [activeTab, fetchMembersBatch, fetchRemainingMembers, loadMembersFromCache]);
 
   useEffect(() => {
-    if (activeTab !== "pending" || !isBlacklistUnlocked || pendingLoaded) return;
+    const shouldLoadPending =
+      (activeTab === "pending" && isBlacklistUnlocked) ||
+      (activeTab === "followings" && socialListMode === "management" && isBlacklistUnlocked);
+    if (!shouldLoadPending || pendingLoaded) return;
     try {
       const cached = sessionStorage.getItem(PENDING_CACHE_KEY);
       if (cached) {
@@ -745,10 +784,13 @@ export default function SearchPage() {
       }
     } catch {}
     fetchPendingMembers();
-  }, [activeTab, isBlacklistUnlocked, pendingLoaded, fetchPendingMembers]);
+  }, [activeTab, isBlacklistUnlocked, pendingLoaded, fetchPendingMembers, socialListMode]);
 
   useEffect(() => {
-    if (activeTab !== "pending") {
+    const isManagementGuardTab =
+      activeTab === "pending" || (activeTab === "followings" && socialListMode === "management");
+
+    if (!isManagementGuardTab) {
       queueMicrotask(() => {
         setIsBlacklistUnlocked(false);
         setBlacklistPinInput("");
@@ -767,7 +809,7 @@ export default function SearchPage() {
       .catch(() => {
         setHasBlacklistPin(true);
       });
-  }, [activeTab, hasBlacklistPin]);
+  }, [activeTab, hasBlacklistPin, socialListMode]);
 
   // PresenceTracker에서 브로드캐스트하는 이벤트 수신
   useEffect(() => {
@@ -1367,35 +1409,199 @@ export default function SearchPage() {
     setProfileModalData(null);
   }
 
+  function renderManagementPanel() {
+    if (!isBlacklistUnlocked) {
+      return (
+        <div className="min-h-[60vh] flex items-center justify-center">
+          <div>
+            <div className="relative" style={{ width: 200 }}>
+              <input
+                type="password"
+                inputMode="numeric"
+                maxLength={4}
+                value={blacklistPinInput}
+                onChange={(e) => {
+                  setBlacklistPinInput(e.target.value.replace(/\D/g, "").slice(0, 4));
+                  if (blacklistPinError) setBlacklistPinError("");
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleBlacklistPinSubmit();
+                }}
+                placeholder="비밀번호 입력"
+                className="w-full h-10 pl-4 pr-10 border border-gray-300 rounded-full bg-white focus:outline-none focus:border-gray-500 text-center text-[15px] placeholder:text-center placeholder:text-[15px]"
+              />
+              <button
+                type="button"
+                onClick={handleBlacklistPinSubmit}
+                disabled={blacklistPinSubmitting || hasBlacklistPin === null}
+                className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 rounded-full bg-gray-900 text-white text-sm font-semibold flex items-center justify-center animate-pill-breathe disabled:opacity-60 disabled:animate-none"
+              >
+                ✓
+              </button>
+            </div>
+            {blacklistPinError && (
+              <p className="mt-2 text-[15px] text-red-500 text-center">{blacklistPinError}</p>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="pt-3">
+        <div className="flex items-center mb-3">
+          <p className="text-base font-bold text-gray-400">회원관리</p>
+        </div>
+        {pendingMembers.length === 0 ? (
+          <div className="min-h-[60vh] flex flex-col items-center justify-center gap-3">
+            <Coffee size={40} className="text-gray-400" />
+            <p className="text-gray-400 text-base">현재 관리회원이 없습니다.</p>
+          </div>
+        ) : (
+          <div className="flex flex-col">
+            {pendingMembers.map((m) => {
+              const isRemoving = removingPendingIds.has(m.id);
+              return (
+              <div
+                key={m.id}
+                className="flex items-center gap-3 py-3 border-b border-gray-50 relative"
+              >
+                {isRemoving && (
+                  <span
+                    className="absolute left-[10px] top-0 text-red-500 text-[40px] pointer-events-none z-10 leading-none"
+                    style={{ animation: "heartFloatUp 1.4s ease-out forwards" }}
+                  >
+                    ❤
+                  </span>
+                )}
+                <button
+                  onClick={() => {
+                    setProfileModal({
+                      id: m.id,
+                      nickname: m.nickname,
+                      profile_image_url: m.profile_image_url,
+                      country: m.country,
+                      region: m.region,
+                    });
+                    const cached = sessionStorage.getItem(`user_view_${m.id}`);
+                    if (cached) {
+                      try {
+                        const json = JSON.parse(cached);
+                        setProfileModalData({ bio: json.profile?.bio ?? null, member_type: json.profile?.member_type ?? [] });
+                      } catch {}
+                    } else {
+                      fetch(`/api/users/${m.id}/view-summary`)
+                        .then((res) => res.json())
+                        .then((json) => {
+                          sessionStorage.setItem(`user_view_${m.id}`, JSON.stringify(json));
+                          setProfileModalData({ bio: json.profile?.bio ?? null, member_type: json.profile?.member_type ?? [] });
+                        })
+                        .catch(() => {});
+                    }
+                  }}
+                >
+                  <div className="animate-blacklist-avatar" style={getAvatarFloatStyle(m.id)}>
+                    <Avatar src={m.profile_image_url} nickname={m.nickname} size={44} />
+                  </div>
+                </button>
+                <button
+                  className="flex-1 text-left min-w-0"
+                  onClick={() => router.push(`/users/${m.id}/view`)}
+                >
+                  <p className="font-semibold text-gray-900 truncate" style={{ fontSize: 16 }}>{m.nickname}</p>
+                  {(m.country || m.region) && <p className="text-xs text-gray-400 truncate">{[m.country, m.region].filter(Boolean).join(", ")}</p>}
+                  <p className="text-[11px] text-gray-400 mt-0.5">{new Date(m.updated_at).toLocaleDateString("ko-KR")}</p>
+                </button>
+                <div className="flex items-center gap-1">
+                  {m.state === "hidden" && (
+                    <button
+                      className="px-2 py-1 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-600"
+                      onClick={() => handleUnhideFriendFromMenu(m.id)}
+                    >
+                      숨김해제
+                    </button>
+                  )}
+                  {m.state === "blocked" && (
+                    <button
+                      className="px-2 py-1 rounded-full text-[11px] font-semibold bg-red-50 text-red-500"
+                      onClick={() => handleUnblockUser(m.id)}
+                    >
+                      차단해제
+                    </button>
+                  )}
+                  {m.state === "black" && (
+                    <button
+                      className="px-2 py-1 rounded-full text-[11px] font-semibold bg-gray-100 text-gray-700"
+                      onClick={() => handleUnreportUser(m.id)}
+                    >
+                      블랙해제
+                    </button>
+                  )}
+                </div>
+              </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <>
       <SearchHeader activeTab={activeTab} onTabChange={handleTabChange} myRegionLabel="친구들" />
 
       {activeTab === "followings" && (
         <div className="px-4 pt-0 bg-white">
+          <div className="h-[120px] -mx-4 bg-gray-100 flex items-center justify-center px-4">
+            <div className="flex flex-col items-center gap-y-2 overflow-hidden">
+              {SOCIAL_LIST_ROWS.map((row, rowIndex) => (
+                <div key={rowIndex} className="flex items-center justify-center gap-x-2">
+                  {row.map((mode) => {
+                    const option = SOCIAL_LIST_OPTIONS.find((item) => item.value === mode);
+                    if (!option) return null;
+                    const active = socialListMode === option.value;
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => setSocialListMode(option.value)}
+                        className={`rounded-full px-2.5 py-1 text-[15px] font-semibold leading-tight transition-colors ${
+                          active
+                            ? "bg-gray-900 text-lime-100"
+                            : "bg-white/90 text-[#595959]"
+                        }`}
+                      >
+                        {option.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          </div>
           <div className="border-t border-gray-100 pt-0">
-            <div className="flex items-center justify-center gap-3 mt-3 mb-3">
-              <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-gray-100">
-                <Hand size={14} className="text-gray-600" />
-                <span className="text-[13px] font-semibold text-gray-700">팔로워</span>
-                <span className="text-[13px] font-bold text-gray-900">{visibleFollowers.length}</span>
-              </div>
-              <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-gray-100">
-                <Bookmark size={14} className="text-gray-600" />
-                <span className="text-[13px] font-semibold text-gray-700">구독자</span>
-                <span className="text-[13px] font-bold text-gray-900">{subscriberCount ?? "-"}</span>
-              </div>
+            <div className="flex items-center justify-start gap-1 mt-3 mb-3 text-gray-900">
+              <Users size={22} />
+              <span className="text-[18px] font-bold tabular-nums">
+                {socialListMode === "management" ? pendingMembers.length : socialListMembers.length}
+              </span>
             </div>
             {socialLoadError && (
               <p className="mb-3 text-center text-xs text-red-500">목록을 새로 불러오지 못했어요</p>
             )}
-            {visibleSocialAudience.length === 0 ? (
-              <p className="text-sm text-gray-400">아직 팔로워/구독자 목록이 없어요</p>
+            {socialListMode === "management" ? (
+              renderManagementPanel()
+            ) : socialListMembers.length === 0 ? (
+              <p className="text-sm text-gray-400">아직 목록이 없어요</p>
             ) : (
               <div className="flex flex-col">
-                {visibleSocialAudience.map((f) => {
+                {socialListMembers.map((f) => {
                   const memberTypeLabel = f.member_type?.[0] ? getMemberTypeLabel(f.member_type[0]) : "";
                   const isNotificationOff = !!f.is_greyed;
+                  const audienceMeta = visibleSocialAudience.find((member) => member.id === f.id);
+                  const isMyFollower = socialListMode === "followers" || !!audienceMeta?.is_my_follower;
+                  const isMySubscriber = socialListMode === "mySubscribers" || !!audienceMeta?.is_my_subscriber;
                   return (
                   <div key={f.id} className={`flex items-center gap-3 py-3 border-b border-gray-50 ${isNotificationOff ? "grayscale" : ""}`}>
                     <button onClick={() => {
@@ -1451,14 +1657,14 @@ export default function SearchPage() {
                         {memberTypeLabel}
                       </span>
                     )}
-                    {(f.is_my_follower || f.is_my_subscriber) && (
+                    {(isMyFollower || isMySubscriber) && (
                       <div className="flex items-center gap-1.5 flex-shrink-0">
-                        {f.is_my_follower && (
+                        {isMyFollower && (
                           <span className="text-gray-900 bg-yellow-300 rounded-full px-2 py-0.5 whitespace-nowrap font-semibold" style={{ fontSize: 13 }}>
                             팔로워
                           </span>
                         )}
-                        {f.is_my_subscriber && (
+                        {isMySubscriber && (
                           <span className="text-gray-500 border border-gray-300 rounded-full px-2 py-0.5 whitespace-nowrap" style={{ fontSize: 13 }}>
                             구독자
                           </span>
@@ -1595,7 +1801,7 @@ export default function SearchPage() {
                 </div>
               </div>
             </div>
-            <div className="pointer-events-none -mt-4 flex justify-center gap-1.5">
+            <div className="pointer-events-none -mt-3 flex justify-center gap-1.5">
               <span className={`rounded-full transition-all ${memberSearchMode === "basic" ? "h-2 w-2 bg-gray-900" : "h-1.5 w-1.5 bg-gray-400"}`} />
               <span className={`rounded-full transition-all ${memberSearchMode === "memberType" ? "h-2 w-2 bg-gray-900" : "h-1.5 w-1.5 bg-gray-400"}`} />
             </div>
@@ -1937,137 +2143,7 @@ export default function SearchPage() {
 
       {activeTab === "pending" && (
         <div className="px-4 pt-4 bg-white">
-          {!isBlacklistUnlocked ? (
-            <div className="min-h-[60vh] flex items-center justify-center">
-              <div>
-                <div className="relative" style={{ width: 200 }}>
-                  <input
-                    type="password"
-                    inputMode="numeric"
-                    maxLength={4}
-                    value={blacklistPinInput}
-                    onChange={(e) => {
-                      setBlacklistPinInput(e.target.value.replace(/\D/g, "").slice(0, 4));
-                      if (blacklistPinError) setBlacklistPinError("");
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") handleBlacklistPinSubmit();
-                    }}
-                    placeholder="비밀번호 입력"
-                    className="w-full h-10 pl-4 pr-10 border border-gray-300 rounded-full bg-white focus:outline-none focus:border-gray-500 text-center text-[15px] placeholder:text-center placeholder:text-[15px]"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleBlacklistPinSubmit}
-                    disabled={blacklistPinSubmitting || hasBlacklistPin === null}
-                    className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 rounded-full bg-gray-900 text-white text-sm font-semibold flex items-center justify-center animate-pill-breathe disabled:opacity-60 disabled:animate-none"
-                  >
-                    ✓
-                  </button>
-                </div>
-                {blacklistPinError && (
-                  <p className="mt-2 text-[15px] text-red-500 text-center">{blacklistPinError}</p>
-                )}
-              </div>
-            </div>
-          ) : (
-            <div className="pt-3">
-              <div className="flex items-center mb-3">
-                <p className="text-base font-bold text-gray-400">회원관리</p>
-              </div>
-              {pendingMembers.length === 0 ? (
-                <div className="min-h-[60vh] flex flex-col items-center justify-center gap-3">
-                  <Coffee size={40} className="text-gray-400" />
-                  <p className="text-gray-400 text-base">현재 관리회원이 없습니다.</p>
-                </div>
-              ) : (
-                <div className="flex flex-col">
-                  {pendingMembers.map((m) => {
-                    const isRemoving = removingPendingIds.has(m.id);
-                    return (
-                    <div
-                      key={m.id}
-                      className="flex items-center gap-3 py-3 border-b border-gray-50 relative"
-                    >
-                      {isRemoving && (
-                        <span
-                          className="absolute left-[10px] top-0 text-red-500 text-[40px] pointer-events-none z-10 leading-none"
-                          style={{ animation: "heartFloatUp 1.4s ease-out forwards" }}
-                        >
-                          ❤
-                        </span>
-                      )}
-                      <button
-                        onClick={() => {
-                          setProfileModal({
-                            id: m.id,
-                            nickname: m.nickname,
-                            profile_image_url: m.profile_image_url,
-                            country: m.country,
-                            region: m.region,
-                          });
-                          const cached = sessionStorage.getItem(`user_view_${m.id}`);
-                          if (cached) {
-                            try {
-                              const json = JSON.parse(cached);
-                              setProfileModalData({ bio: json.profile?.bio ?? null, member_type: json.profile?.member_type ?? [] });
-                            } catch {}
-                          } else {
-                            fetch(`/api/users/${m.id}/view-summary`)
-                              .then((res) => res.json())
-                              .then((json) => {
-                                sessionStorage.setItem(`user_view_${m.id}`, JSON.stringify(json));
-                                setProfileModalData({ bio: json.profile?.bio ?? null, member_type: json.profile?.member_type ?? [] });
-                              })
-                              .catch(() => {});
-                          }
-                        }}
-                      >
-                        <div className="animate-blacklist-avatar" style={getAvatarFloatStyle(m.id)}>
-                          <Avatar src={m.profile_image_url} nickname={m.nickname} size={44} />
-                        </div>
-                      </button>
-                      <button
-                        className="flex-1 text-left min-w-0"
-                        onClick={() => router.push(`/users/${m.id}/view`)}
-                      >
-                        <p className="font-semibold text-gray-900 truncate" style={{ fontSize: 16 }}>{m.nickname}</p>
-                        {(m.country || m.region) && <p className="text-xs text-gray-400 truncate">{[m.country, m.region].filter(Boolean).join(", ")}</p>}
-                        <p className="text-[11px] text-gray-400 mt-0.5">{new Date(m.updated_at).toLocaleDateString("ko-KR")}</p>
-                      </button>
-                      <div className="flex items-center gap-1">
-                        {m.state === "hidden" && (
-                          <button
-                            className="px-2 py-1 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-600"
-                            onClick={() => handleUnhideFriendFromMenu(m.id)}
-                          >
-                            숨김해제
-                          </button>
-                        )}
-                        {m.state === "blocked" && (
-                          <button
-                            className="px-2 py-1 rounded-full text-[11px] font-semibold bg-red-50 text-red-500"
-                            onClick={() => handleUnblockUser(m.id)}
-                          >
-                            차단해제
-                          </button>
-                        )}
-                        {m.state === "black" && (
-                          <button
-                            className="px-2 py-1 rounded-full text-[11px] font-semibold bg-gray-100 text-gray-700"
-                            onClick={() => handleUnreportUser(m.id)}
-                          >
-                            블랙해제
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
+          {renderManagementPanel()}
         </div>
       )}
 
