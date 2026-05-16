@@ -2047,7 +2047,8 @@ export default function SearchPage() {
                       <button
                         type="button"
                         onClick={() => router.push(`/users/${s.id}/view`)}
-                        className="max-w-[62px] rounded-full bg-gray-400 px-2 py-0.5 text-center text-xs text-gray-100 truncate"
+                        className="max-w-[62px] text-center font-bold text-gray-900 truncate"
+                        style={{ fontSize: 14 }}
                       >
                         {s.nickname}
                       </button>
