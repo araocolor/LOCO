@@ -33,7 +33,7 @@ export default function SearchHeader({ activeTab, onTabChange, myRegionLabel = "
           }`}
           style={{ fontSize: activeTab === "members" ? 18 : 17 }}
         >
-          사람들
+          댄서검색
         </button>
         <button
           onClick={() => onTabChange("followings")}
