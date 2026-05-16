@@ -60,7 +60,7 @@ export async function GET(request: NextRequest) {
     const { data, error, count } = await supabase
       .from("profiles")
       .select(
-        "id, nickname, profile_image_url, country, region, gender, member_type, role, favorite_genre, created_at",
+        "id, nickname, profile_image_url, bio, country, region, gender, member_type, role, favorite_genre, created_at",
         { count: "exact" }
       )
       .not("id", "in", `(${excludeList.join(",")})`)

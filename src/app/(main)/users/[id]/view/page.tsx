@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
-import HeaderBackCircleButton from "@/components/layout/HeaderBackCircleButton";
+import UserViewBackButton from "@/components/user/UserViewBackButton";
 import UserViewLoader from "@/components/user/UserViewLoader";
 import UserViewHeaderMenu from "@/components/user/UserViewHeaderMenu";
 
@@ -38,7 +38,7 @@ export default async function UserViewPage({
     >
       <header className="shrink-0 bg-white border-b border-[#e5e7eb] h-14 px-4 relative flex items-center">
         <div className="w-10 flex items-center justify-start">
-          <HeaderBackCircleButton />
+          <UserViewBackButton userId={id} />
         </div>
         <div className="absolute left-1/2 -translate-x-1/2 font-bold text-[17px] text-[#333333] leading-none">
           프로필

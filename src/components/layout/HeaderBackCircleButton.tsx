@@ -5,28 +5,33 @@ import { useRouter } from "next/navigation";
 interface HeaderBackCircleButtonProps {
   exitAnimationClass?: string;
   exitDelayMs?: number;
+  onBeforeBack?: () => void;
 }
 
 export default function HeaderBackCircleButton({
   exitAnimationClass,
   exitDelayMs = 200,
+  onBeforeBack,
 }: HeaderBackCircleButtonProps) {
   const router = useRouter();
 
   function handleBack() {
     if (!exitAnimationClass) {
+      onBeforeBack?.();
       router.back();
       return;
     }
 
     const shell = document.querySelector("[data-page-shell]");
     if (!shell) {
+      onBeforeBack?.();
       router.back();
       return;
     }
 
     shell.classList.add(exitAnimationClass);
     window.setTimeout(() => {
+      onBeforeBack?.();
       router.back();
     }, exitDelayMs);
   }

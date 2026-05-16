@@ -3,12 +3,13 @@
 import { useEffect, useMemo, useRef, useState, useCallback, useSyncExternalStore, type CSSProperties } from "react";
 import Avatar from "@/components/ui/Avatar";
 import { useRouter } from "next/navigation";
-import { MoreVertical, Plus, Check, UserMinus, Send, Ban, UserCircle, Bookmark, HeartHandshake, Coffee, Binoculars, Users, UsersRound, LayoutGrid, LayoutList } from "lucide-react";
+import { MoreVertical, Plus, Check, UserMinus, Send, Ban, UserCircle, Bookmark, Coffee, Binoculars, Users, UsersRound, LayoutGrid, LayoutList, Ellipsis } from "lucide-react";
 import SearchHeader from "@/components/layout/SearchHeader";
 import SendMessageModal from "@/components/modal/SendMessageModal";
 import { PRESENCE_EVENT } from "@/components/features/PresenceTracker";
 import { MEMBER_TYPES, REGIONS_WITH_ALL } from "@/lib/constants";
 import { fetchWithAuthRetry } from "@/lib/auth/fetch-with-auth-retry";
+import { PROFILE_RETURN_FOCUS_USER_KEY } from "@/lib/profile-return-focus";
 
 type Tab = "friends" | "members" | "followings" | "pending";
 type MenuRelation = "mutual" | "following" | "follower" | "none";
@@ -18,6 +19,7 @@ interface Follower {
   id: string;
   nickname: string;
   profile_image_url: string | null;
+  bio?: string | null;
   country: string | null;
   region: string | null;
   gender?: "로" | "라" | null;
@@ -33,11 +35,6 @@ interface Follower {
   relation_updated_at?: string | null;
   favorite_genre?: string[];
   created_at?: string | null;
-}
-
-interface SocialAudienceMember extends Follower {
-  is_my_follower: boolean;
-  is_my_subscriber: boolean;
 }
 
 interface DancerMember extends Follower {
@@ -77,7 +74,7 @@ interface PendingMember {
 }
 
 const SEARCH_CACHE_KEY = "search_prefetch_cache";
-const MEMBERS_CACHE_KEY = "search_members_cache_v2";
+const MEMBERS_CACHE_KEY = "search_members_cache_v3";
 const PENDING_CACHE_KEY = "search_pending_members_cache_v2";
 const MYPAGE_CACHE_KEY = "loco_mypage_cache_local_v2";
 const SEARCH_TAB_CHANGE_EVENT = "loco-search-tab-change";
@@ -258,6 +255,28 @@ function formatLocation(country: string | null | undefined, region: string | nul
   return [normalizedCountry, normalizedRegion].filter(Boolean).join(", ");
 }
 
+function writeProfilePreviewCache(member: Follower) {
+  try {
+    sessionStorage.setItem(
+      `user_view_${member.id}`,
+      JSON.stringify({
+        profile: {
+          id: member.id,
+          email: null,
+          nickname: member.nickname,
+          bio: member.bio ?? null,
+          country: member.country ?? null,
+          member_type: member.member_type ?? [],
+          profile_image_url: member.profile_image_url ?? null,
+          region: member.region ?? null,
+        },
+        myClasses: [],
+        bookmarkClasses: [],
+      })
+    );
+  } catch {}
+}
+
 function CheckModal() {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
@@ -297,7 +316,7 @@ export default function SearchPage() {
   const [memberSearchMode, setMemberSearchMode] = useState<"basic" | "memberType">("basic");
   const [selectedMemberTypes, setSelectedMemberTypes] = useState<string[]>([]);
   const memberSearchPanelRef = useRef<HTMLDivElement | null>(null);
-  const [memberViewMode, setMemberViewMode] = useState<"list" | "grid">("list");
+  const [memberViewMode, setMemberViewMode] = useState<"list" | "grid">("grid");
   const [socialViewMode, setSocialViewMode] = useState<"list" | "grid">("list");
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [suggestionsLoading, setSuggestionsLoading] = useState(true);
@@ -306,6 +325,7 @@ export default function SearchPage() {
   const [showCheck, setShowCheck] = useState(false);
   const activeTab = useSyncExternalStore(subscribeSearchTab, getSearchTab, (): Tab => "friends");
   const [friendSearch, setFriendSearch] = useState("");
+  const [friendViewMode, setFriendViewMode] = useState<"list" | "grid">("grid");
   const [onlineIds, setOnlineIds] = useState<Set<string>>(new Set());
   const [menuTarget, setMenuTarget] = useState<MenuTarget | null>(null);
   const [messageModalTarget, setMessageModalTarget] = useState<{ id: string; nickname: string; profile_image_url: string | null } | null>(null);
@@ -327,12 +347,17 @@ export default function SearchPage() {
   const [friendListMode, setFriendListMode] = useState<"following" | "friends">(getInitialFriendListMode);
   const [socialListMode, setSocialListMode] = useState<SocialListMode>("followers");
   const [subscriptionCount, setSubscriptionCount] = useState(0);
-  const [subscriberCount, setSubscriberCount] = useState<number | null>(null);
   const [socialLoadError, setSocialLoadError] = useState(false);
 
   const handleTabChange = useCallback((tab: Tab) => {
     replaceSearchTab(tab);
     setFriendListMode("following");
+    if (tab === "friends") {
+      setFriendViewMode("grid");
+    }
+    if (tab === "members") {
+      setMemberViewMode("grid");
+    }
     if (tab === "followings") {
       setSocialListMode("subscriptions");
     }
@@ -370,45 +395,7 @@ export default function SearchPage() {
     () => new Map(following.map((f) => [f.id, f.status])),
     [following]
   );
-  const mutualFollowingCount = useMemo(
-    () => following.filter((f) => f.status === "friend").length,
-    [following]
-  );
   const visibleFollowers = useMemo(() => followers, [followers]);
-  const visibleSocialAudience = useMemo(
-    () => {
-      const getTime = (f: Follower) => {
-        const t = f.relation_updated_at || f.friend_accepted_at || f.joined_at || "";
-        return t ? new Date(t).getTime() : 0;
-      };
-      const byId = new Map<string, SocialAudienceMember>();
-
-      visibleFollowers.forEach((member) => {
-        byId.set(member.id, {
-          ...member,
-          is_my_follower: true,
-          is_my_subscriber: false,
-        });
-      });
-
-      mySubscribers.forEach((member) => {
-        const existing = byId.get(member.id);
-        byId.set(member.id, {
-          ...member,
-          ...existing,
-          is_my_follower: existing?.is_my_follower ?? false,
-          is_my_subscriber: true,
-          is_subscribed: existing?.is_subscribed ?? member.is_subscribed,
-        });
-      });
-
-      const audience = Array.from(byId.values());
-      const normal = audience.filter((f) => !f.is_greyed).sort((a, b) => getTime(b) - getTime(a));
-      const greyed = audience.filter((f) => !!f.is_greyed).sort((a, b) => getTime(b) - getTime(a));
-      return [...normal, ...greyed];
-    },
-    [visibleFollowers, mySubscribers]
-  );
   const visibleSubscriptions = useMemo(
     () => {
       const byId = new Map<string, Follower>();
@@ -528,6 +515,40 @@ export default function SearchPage() {
   );
   const memberResultCount = hasMemberFilter ? visibleMembers.length : Math.max(memberTotalCount, visibleMembers.length);
 
+  useEffect(() => {
+    if (activeTab !== "members") return;
+
+    let focusUserId: string | null = null;
+    try {
+      focusUserId = sessionStorage.getItem(PROFILE_RETURN_FOCUS_USER_KEY);
+    } catch {
+      return;
+    }
+
+    if (!focusUserId) return;
+    if (!visibleMembers.some((member) => member.id === focusUserId)) return;
+
+    try {
+      sessionStorage.removeItem(PROFILE_RETURN_FOCUS_USER_KEY);
+    } catch {}
+
+    let timeoutId: number | undefined;
+    let cancelled = false;
+
+    queueMicrotask(() => {
+      if (cancelled) return;
+      setClosingProfileMemberId(focusUserId);
+      timeoutId = window.setTimeout(() => {
+        setClosingProfileMemberId((current) => (current === focusUserId ? null : current));
+      }, 1000);
+    });
+
+    return () => {
+      cancelled = true;
+      if (timeoutId) window.clearTimeout(timeoutId);
+    };
+  }, [activeTab, visibleMembers]);
+
   const handleMemberSearchPanelScroll = useCallback(() => {
     const node = memberSearchPanelRef.current;
     if (!node) return;
@@ -593,7 +614,6 @@ export default function SearchPage() {
         setFollowing(following);
         setMySubscribers(mySubscribers);
         setSubscriptionCount(subscriptionCount);
-        setSubscriberCount(subscriptionCount);
         setSocialLoadError(false);
         try {
           writeSearchSocialCache(sortedFollowers, following, subscriptionCount, Date.now(), mySubscribers);
@@ -1415,9 +1435,8 @@ export default function SearchPage() {
     });
   }
 
-  function openMemberProfile(member: Follower) {
+  function openFriendProfile(member: Follower) {
     setProfileModal(member);
-    setProfileModalData(null);
     const cached = sessionStorage.getItem(`user_view_${member.id}`);
     if (cached) {
       try {
@@ -1436,10 +1455,25 @@ export default function SearchPage() {
       .catch(() => {});
   }
 
+  function openMemberProfile(member: Follower) {
+    setProfileModal(member);
+    const cached = sessionStorage.getItem(`user_view_${member.id}`);
+    if (cached) {
+      try {
+        const json = JSON.parse(cached);
+        setProfileModalData({ bio: json.profile?.bio ?? null, member_type: json.profile?.member_type ?? [] });
+        return;
+      } catch {}
+    }
+
+    setProfileModalData({ bio: member.bio ?? null, member_type: member.member_type ?? [] });
+    writeProfilePreviewCache(member);
+  }
+
   function closeProfileModal() {
     if (profileModal) {
       setClosingProfileMemberId(profileModal.id);
-      window.setTimeout(() => setClosingProfileMemberId(null), 500);
+      window.setTimeout(() => setClosingProfileMemberId(null), 1000);
     }
     setProfileModal(null);
     setProfileModalData(null);
@@ -1665,7 +1699,7 @@ export default function SearchPage() {
                         {onlineIds.has(f.id) && (
                           <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-400 rounded-full border-2 border-white" />
                         )}
-                        {f.is_subscribed && <SubscriptionBadge />}
+                        {socialListMode === "subscriptions" && f.is_subscribed && <SubscriptionBadge />}
                       </div>
                     </button>
                   );
@@ -1690,7 +1724,7 @@ export default function SearchPage() {
                         {onlineIds.has(f.id) && (
                           <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-400 rounded-full border-2 border-white" />
                         )}
-                        {f.is_subscribed && <SubscriptionBadge />}
+                        {socialListMode === "subscriptions" && f.is_subscribed && <SubscriptionBadge />}
                       </div>
                     </button>
                     <div className="flex-1 min-w-0">
@@ -2035,11 +2069,12 @@ export default function SearchPage() {
               </button>
               <button
                 type="button"
-                onClick={() => { setFriendListMode("friends"); resortFriendMembers(); }}
-                className={`flex items-center gap-1 transition-colors ml-auto mr-1 ${friendListMode === "friends" ? "text-gray-900" : "text-gray-300"}`}
+                onClick={() => setFriendViewMode((mode) => mode === "list" ? "grid" : "list")}
+                className="ml-auto mr-1 h-9 w-9 flex items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors"
+                aria-label={friendViewMode === "list" ? "그리드 보기" : "리스트 보기"}
+                title={friendViewMode === "list" ? "그리드 보기" : "리스트 보기"}
               >
-                <HeartHandshake size={25} />
-                <span className="font-bold tabular-nums" style={{ fontSize: 18 }}>{mutualFollowingCount}</span>
+                {friendViewMode === "list" ? <LayoutGrid size={21} /> : <LayoutList size={21} />}
               </button>
               <div className="absolute left-1/2" style={{ transform: "translateX(calc(-50% + 20px))" }}>
                 <div className="relative" style={{ width: 150 }}>
@@ -2067,6 +2102,37 @@ export default function SearchPage() {
               <p className="text-sm text-gray-400">
                 {friendListMode === "friends" ? "맞팔 회원이 없어요" : "팔로잉한 회원이 없어요"}
               </p>
+            ) : friendViewMode === "grid" ? (
+              <div className="grid grid-cols-5 gap-x-3 gap-y-4 pb-4">
+                {visibleFriendMembers.map((m) => {
+                  const isNotificationOff = !!m.is_greyed;
+                  const isMutualFriend = m.status === "friend";
+                  return (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => openFriendProfile(m)}
+                      className={`relative aspect-square min-w-0 flex items-center justify-center ${isNotificationOff ? "grayscale" : ""}`}
+                      aria-label={`${m.nickname} 프로필`}
+                    >
+                      <div
+                        className={`relative ${isMutualFriend ? "animate-blacklist-avatar" : ""} ${closingProfileMemberId === m.id ? "profile-close-pop" : ""} ${isNotificationOff ? "opacity-50" : ""}`}
+                        style={isMutualFriend ? getAvatarFloatStyle(m.id) : undefined}
+                      >
+                        <Avatar
+                          src={m.profile_image_url}
+                          nickname={m.nickname}
+                          size={48}
+                          className={m.status === "approved" ? undefined : "border-2 border-white shadow-[0_0_0_2px_#ef4444]"}
+                        />
+                        {onlineIds.has(m.id) && (
+                          <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-400 rounded-full border-2 border-white" />
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
             ) : (
               <div className="flex flex-col">
                 {visibleFriendMembers.map((m) => {
@@ -2078,24 +2144,7 @@ export default function SearchPage() {
 
                   return (
                     <div key={m.id} className={`flex items-center gap-3 py-3 border-b border-gray-50 ${isNotificationOff ? "grayscale" : ""}`}>
-                      <button onClick={() => {
-                        setProfileModal(m);
-                        const cached = sessionStorage.getItem(`user_view_${m.id}`);
-                        if (cached) {
-                          try {
-                            const json = JSON.parse(cached);
-                            setProfileModalData({ bio: json.profile?.bio ?? null, member_type: json.profile?.member_type ?? [] });
-                          } catch {}
-                        } else {
-                          fetch(`/api/users/${m.id}/view-summary`)
-                            .then((res) => res.json())
-                            .then((json) => {
-                              sessionStorage.setItem(`user_view_${m.id}`, JSON.stringify(json));
-                              setProfileModalData({ bio: json.profile?.bio ?? null, member_type: json.profile?.member_type ?? [] });
-                            })
-                            .catch(() => {});
-                        }
-                      }}>
+                      <button onClick={() => openFriendProfile(m)}>
                         <div className={`relative ${isMutualFriend ? "animate-blacklist-avatar" : ""} ${isNotificationOff ? "opacity-50" : ""}`}
                           style={isMutualFriend ? getAvatarFloatStyle(m.id) : undefined}
                         >
@@ -2189,7 +2238,7 @@ export default function SearchPage() {
           100% { transform: scale(1); }
         }
         .profile-close-pop {
-          animation: profileClosePop 0.5s ease-out both;
+          animation: profileClosePop 1s ease-out both;
           transform-origin: center;
         }
       `}</style>
@@ -2225,9 +2274,9 @@ export default function SearchPage() {
 
       {menuTarget && (
         <>
-          <div className="fixed inset-0 z-[70]" onClick={() => setMenuTarget(null)} />
+          <div className="fixed inset-0 z-[85]" onClick={() => setMenuTarget(null)} />
           <div
-            className="fixed z-[80] bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden"
+            className="fixed z-[90] bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden"
             style={{
               width: 180,
               top: menuTarget.placement === "bottom" ? menuTarget.y : "auto",
@@ -2355,7 +2404,34 @@ export default function SearchPage() {
         <>
           <div className="fixed inset-0 z-[70] bg-black/50" onClick={closeProfileModal} />
           <div className="fixed inset-0 z-[80] flex items-center justify-center pointer-events-none">
-            <div className="w-[250px] bg-white rounded-2xl shadow-lg p-6 pointer-events-auto flex flex-col items-center gap-2">
+            <div className="relative w-[250px] bg-white rounded-2xl shadow-lg p-6 pointer-events-auto flex flex-col items-center gap-2">
+              {(activeTab === "friends" || activeTab === "members") && (
+                <button
+                  type="button"
+                  className="absolute top-3 right-3 rounded-full p-1 text-gray-500 hover:bg-gray-100"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const r = e.currentTarget.getBoundingClientRect();
+                    const placement = r.top > window.innerHeight / 2 ? "top" : "bottom";
+                    setMenuTarget({
+                      id: profileModal.id,
+                      nickname: profileModal.nickname,
+                      status: profileModal.status,
+                      relation: getMenuRelation(profileModal.id),
+                      x: r.right,
+                      y: placement === "top" ? r.top : r.bottom,
+                      placement,
+                      member: profileModal,
+                      isHidden: !!profileModal.is_hidden,
+                      source: activeTab === "members" ? "members" : "social",
+                    });
+                  }}
+                  aria-label="더보기"
+                  title="더보기"
+                >
+                  <Ellipsis size={20} />
+                </button>
+              )}
               <Avatar src={profileModal.profile_image_url} nickname={profileModal.nickname} size={80} />
               <div className="text-center w-full">
                 <p className="font-bold text-gray-900 truncate" style={{ fontSize: 16 }}>{profileModal.nickname}</p>
