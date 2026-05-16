@@ -83,7 +83,6 @@ const PENDING_CACHE_KEY = "search_pending_members_cache_v2";
 const MYPAGE_CACHE_KEY = "loco_mypage_cache_local_v2";
 const SEARCH_TAB_CHANGE_EVENT = "loco-search-tab-change";
 const MEMBERS_PAGE_SIZE = 30;
-const MAX_MEMBER_TYPE_FILTER = 2;
 const SOCIAL_LIST_OPTIONS: { value: SocialListMode; label: string }[] = [
   { value: "mySubscribers", label: "구독자" },
   { value: "followers", label: "팔로워" },
@@ -113,7 +112,10 @@ function getSearchTab(): Tab {
 }
 
 function getMemberTypeLabel(type: string) {
-  return type === "인스트럭터" ? "강사" : type;
+  if (type === "인스트럭터") return "강사";
+  if (type === "일반회원") return "활동회원";
+  if (type === "독립군") return "잠수중";
+  return type;
 }
 
 function getAvatarFloatStyle(id: string): CSSProperties {
@@ -502,8 +504,7 @@ export default function SearchPage() {
   const toggleMemberTypeFilter = useCallback((type: string) => {
     setSelectedMemberTypes((prev) => {
       if (prev.includes(type)) return prev.filter((item) => item !== type);
-      if (prev.length >= MAX_MEMBER_TYPE_FILTER) return prev;
-      return [...prev, type];
+      return [type];
     });
   }, []);
 
@@ -1781,18 +1782,16 @@ export default function SearchPage() {
                 <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 overflow-hidden">
                   {MEMBER_TYPES.map((type) => {
                     const active = selectedMemberTypes.includes(type);
-                    const limitReached = !active && selectedMemberTypes.length >= MAX_MEMBER_TYPE_FILTER;
                     return (
                       <button
                         key={type}
                         type="button"
                         onClick={() => toggleMemberTypeFilter(type)}
-                        disabled={limitReached}
                         className={`rounded-full border px-2.5 py-1 text-[16px] font-semibold leading-tight transition-colors ${
                           active
                             ? "bg-gray-900 border-gray-900 text-yellow-200"
                             : "bg-white/90 border-yellow-300 text-[#595959]"
-                        } ${limitReached ? "opacity-40 cursor-not-allowed" : "hover:border-gray-700"}`}
+                        } hover:border-gray-700`}
                       >
                         {getMemberTypeLabel(type)}
                       </button>
@@ -2339,7 +2338,7 @@ export default function SearchPage() {
                 {profileModalData?.member_type?.[0] && (
                   <div className="flex items-center justify-center mt-2">
                     <span className="px-2.5 py-1 rounded-full bg-gray-800 text-white text-[12px] font-medium">
-                      {profileModalData.member_type[0]}
+                      {getMemberTypeLabel(profileModalData.member_type[0])}
                     </span>
                   </div>
                 )}

@@ -15,7 +15,10 @@ import { ClassImage } from "@/types/class";
 type TabType = "all" | "my" | "bookmark";
 
 function getMemberTypeLabel(type: string) {
-  return type === "인스트럭터" ? "강사" : type;
+  if (type === "인스트럭터") return "강사";
+  if (type === "일반회원") return "활동회원";
+  if (type === "독립군") return "잠수중";
+  return type;
 }
 
 
@@ -444,7 +447,7 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses, soc
           <span className="text-[17px] font-bold text-[#333333]">{profile.nickname}</span>
           {profileMeta.member_type?.[0] && (
             <span className="px-2.5 py-0 rounded-full bg-gray-800 text-white text-[13px] self-start">
-              {profileMeta.member_type[0]}
+              {getMemberTypeLabel(profileMeta.member_type[0])}
             </span>
           )}
           <span className="text-[14px] text-gray-400 -mt-1">{profile.email ?? ""}</span>
