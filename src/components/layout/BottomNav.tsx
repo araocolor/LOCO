@@ -26,6 +26,13 @@ function shouldRefreshSearchCache(raw: string | null) {
   }
 }
 
+const NAV_COLORS: Record<string, string> = {
+  "/": "#E84040",
+  "/messages": "#F5A623",
+  "/search": "#B8D44A",
+  "/mypage": "#5BB8E8",
+};
+
 const NAV_ITEMS = [
   {
     href: "/",
@@ -174,7 +181,7 @@ export default function BottomNav({ isLoggedIn }: { isLoggedIn: boolean }) {
 
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 z-50 bg-red-500 border-t border-[#e5e7eb] h-[70px] flex items-center touch-none overscroll-contain select-none"
+      className="fixed bottom-0 left-0 right-0 z-50 border-t border-[#e5e7eb] h-[70px] flex items-center touch-none overscroll-contain select-none"
       onTouchMove={(event) => event.preventDefault()}
     >
       {NAV_ITEMS.map(({ href, label, icon }) => {
@@ -189,6 +196,7 @@ export default function BottomNav({ isLoggedIn }: { isLoggedIn: boolean }) {
             key={href}
             href={href}
             className={className}
+            style={{ backgroundColor: NAV_COLORS[href] }}
             prefetch={href === "/" || href === "/messages" ? true : undefined}
             onTouchStart={() => {
               setPressedNav({ href, basePath: pathname });
