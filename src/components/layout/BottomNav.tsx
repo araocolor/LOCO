@@ -181,7 +181,7 @@ export default function BottomNav({ isLoggedIn }: { isLoggedIn: boolean }) {
 
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 z-50 border-t border-[#e5e7eb] h-[70px] flex items-center touch-none overscroll-contain select-none"
+      className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] z-50 border-t border-[#e5e7eb] h-[70px] flex items-center touch-none overscroll-contain select-none"
       onTouchMove={(event) => event.preventDefault()}
     >
       {NAV_ITEMS.map(({ href, label, icon }) => {

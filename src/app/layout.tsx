@@ -17,7 +17,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ko" className="h-full">
-      <body className="min-h-full flex flex-col antialiased hide-scrollbar">
+      <body className="min-h-full flex flex-col antialiased hide-scrollbar bg-gray-100">
         <AuthProvider>{children}</AuthProvider>
       </body>
     </html>

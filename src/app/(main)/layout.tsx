@@ -12,11 +12,13 @@ export default async function MainLayout({
   const user = await getCurrentUser();
 
   return (
-    <div className="flex flex-col min-h-screen">
-      <MainContentShell>{children}</MainContentShell>
-      <PresenceTracker />
-      <SearchSheet />
-      <BottomNav isLoggedIn={!!user} />
+    <div className="flex justify-center min-h-screen bg-gray-300">
+      <div className="relative flex flex-col w-full max-w-[430px] min-h-screen bg-white">
+        <MainContentShell>{children}</MainContentShell>
+        <PresenceTracker />
+        <SearchSheet />
+        <BottomNav isLoggedIn={!!user} />
+      </div>
     </div>
   );
 }
