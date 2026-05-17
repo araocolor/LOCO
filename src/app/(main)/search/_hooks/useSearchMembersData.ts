@@ -215,7 +215,8 @@ export function useSearchMembersData(activeTab: Tab) {
   );
 
   useEffect(() => {
-    if (activeTab !== "members" || membersBootstrappedRef.current) return;
+    const shouldBootstrap = activeTab === "members" || activeTab === "friends";
+    if (!shouldBootstrap || membersBootstrappedRef.current) return;
     membersBootstrappedRef.current = true;
 
     queueMicrotask(() => {
@@ -246,7 +247,9 @@ export function useSearchMembersData(activeTab: Tab) {
         })
         .catch(() => {
           membersBootstrappedRef.current = false;
-          setMembersLoaded(true);
+          if (activeTab === "members") {
+            setMembersLoaded(true);
+          }
         });
     });
   }, [activeTab, fetchMembersBatch, fetchRemainingMembers, loadMembersFromCache]);
