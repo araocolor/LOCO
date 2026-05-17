@@ -1,6 +1,6 @@
 "use client";
 
-import { Binoculars, LayoutGrid, LayoutList, MoreVertical } from "lucide-react";
+import { Binoculars, ChevronLeft, ChevronRight, LayoutGrid, LayoutList, MoreVertical } from "lucide-react";
 import Avatar from "@/components/ui/Avatar";
 import type { Dispatch, MouseEvent, RefObject, SetStateAction } from "react";
 import { MEMBER_TYPES } from "@/lib/constants";
@@ -66,7 +66,7 @@ export default function MembersSection({
 }: MembersSectionProps) {
   return (
     <div className="px-4 pt-0 bg-white">
-      <div className="h-[120px] -mx-4 bg-yellow-200">
+      <div className="h-[120px] -mx-4 bg-yellow-200 relative">
         <div
           ref={memberSearchPanelRef}
           onScroll={onMemberSearchPanelScroll}
@@ -159,10 +159,28 @@ export default function MembersSection({
             </div>
           </div>
         </div>
-        <div className="pointer-events-none -mt-3 flex justify-center gap-1.5">
+        <div className="pointer-events-none -mt-3 flex items-center justify-center gap-1.5">
           <span className={`rounded-full transition-all ${memberSearchMode === "basic" ? "h-2 w-2 bg-gray-900" : "h-1.5 w-1.5 bg-gray-400"}`} />
           <span className={`rounded-full transition-all ${memberSearchMode === "memberType" ? "h-2 w-2 bg-gray-900" : "h-1.5 w-1.5 bg-gray-400"}`} />
         </div>
+        {memberSearchMode === "basic" && (
+          <button
+            type="button"
+            onClick={() => memberSearchPanelRef.current?.scrollBy({ left: memberSearchPanelRef.current.offsetWidth, behavior: "smooth" })}
+            className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center"
+          >
+            <ChevronRight size={28} strokeWidth={3} className="text-gray-500" />
+          </button>
+        )}
+        {memberSearchMode === "memberType" && (
+          <button
+            type="button"
+            onClick={() => memberSearchPanelRef.current?.scrollBy({ left: -memberSearchPanelRef.current.offsetWidth, behavior: "smooth" })}
+            className="absolute left-1 top-1/2 -translate-y-1/2 flex items-center"
+          >
+            <ChevronLeft size={28} strokeWidth={3} className="text-gray-500" />
+          </button>
+        )}
       </div>
       <div className="pt-5">
         <div className="flex items-center gap-3 mb-3">
