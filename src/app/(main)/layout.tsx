@@ -12,8 +12,8 @@ export default async function MainLayout({
   const user = await getCurrentUser();
 
   return (
-    <div className="flex justify-center min-h-screen bg-gray-300">
-      <div className="relative flex flex-col w-full max-w-[430px] min-h-screen bg-white">
+    <div className="flex justify-center min-h-screen bg-gray-100">
+      <div className="relative flex flex-col w-full max-w-[500px] min-h-screen bg-white">
         <MainContentShell>{children}</MainContentShell>
         <PresenceTracker />
         <SearchSheet />
