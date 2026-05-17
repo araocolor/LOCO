@@ -80,7 +80,7 @@ export default function SearchPage() {
       setMemberViewMode("grid");
     }
     if (tab === "followings") {
-      setSocialListMode("subscriptions");
+      setSocialListMode("mySubscribers");
     }
   }, [setFriendListMode, setFriendViewMode, setMemberViewMode, setSocialListMode]);
 
