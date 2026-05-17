@@ -174,8 +174,7 @@ export default function FriendsSection({
                   aria-label={`${member.nickname} 프로필`}
                 >
                   <div
-                    className={`relative ${isMutualFriend ? "animate-blacklist-avatar" : ""} ${closingProfileMemberId === member.id ? "profile-close-pop" : ""} ${isNotificationOff ? "opacity-50" : ""}`}
-                    style={isMutualFriend ? getAvatarFloatStyle(member.id) : undefined}
+                    className={`relative ${closingProfileMemberId === member.id ? "profile-close-pop" : ""} ${isNotificationOff ? "opacity-50" : ""}`}
                   >
                     <Avatar
                       src={member.profile_image_url}
@@ -204,8 +203,7 @@ export default function FriendsSection({
                 <div key={member.id} className={`flex items-center gap-3 py-3 border-b border-gray-50 ${isNotificationOff ? "grayscale" : ""}`}>
                   <button onClick={() => onOpenProfile(member)}>
                     <div
-                      className={`relative ${isMutualFriend ? "animate-blacklist-avatar" : ""} ${isNotificationOff ? "opacity-50" : ""}`}
-                      style={isMutualFriend ? getAvatarFloatStyle(member.id) : undefined}
+                      className={`relative ${isNotificationOff ? "opacity-50" : ""}`}
                     >
                       {isFollowingOnly ? (
                         <Avatar

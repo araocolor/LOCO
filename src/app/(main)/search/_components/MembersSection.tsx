@@ -82,7 +82,7 @@ export default function MembersSection({
               >
                 {availableMemberRegions.map((region) => (
                   <option key={region} value={region}>
-                    {region}
+                    {region === "전체" ? "한국" : region}
                   </option>
                 ))}
               </select>
@@ -109,7 +109,7 @@ export default function MembersSection({
                 onChange={(e) => setMemberGender(e.target.value as "" | "로" | "라")}
                 className="h-8 w-[64px] flex-shrink-0 rounded-full border border-transparent bg-white px-2 text-[16px] text-gray-800 focus:outline-none focus:border-transparent"
               >
-                <option value="">전체</option>
+                <option value="">로/라</option>
                 <option value="로">로</option>
                 <option value="라">라</option>
               </select>
