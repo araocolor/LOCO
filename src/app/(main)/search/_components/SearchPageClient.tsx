@@ -1,0 +1,281 @@
+"use client";
+
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import { useRouter } from "next/navigation";
+import SearchHeader from "@/components/layout/SearchHeader";
+import SendMessageModal from "@/components/modal/SendMessageModal";
+import { PRESENCE_EVENT } from "@/components/features/PresenceTracker";
+import { CheckModal } from "./SearchBadges";
+import FriendsSection from "./FriendsSection";
+import ManagementPanel from "./ManagementPanel";
+import MembersSection from "./MembersSection";
+import ProfileModal from "./ProfileModal";
+import SearchToasts from "./SearchToasts";
+import SocialSection from "./SocialSection";
+import UserActionMenu from "./UserActionMenu";
+import { getSearchTab, replaceSearchTab, subscribeSearchTab } from "../_lib/tab";
+import { useFriendActions } from "../_hooks/useFriendActions";
+import { useProfileModal } from "../_hooks/useProfileModal";
+import { useSearchManagementData } from "../_hooks/useSearchManagementData";
+import { useSearchMembersData } from "../_hooks/useSearchMembersData";
+import { useSearchSocialData } from "../_hooks/useSearchSocialData";
+import { useUserMenuActions } from "../_hooks/useUserMenuActions";
+import type { Tab } from "../_types/search";
+
+export default function SearchPage() {
+  const router = useRouter();
+  const activeTab = useSyncExternalStore(subscribeSearchTab, getSearchTab, (): Tab => "friends");
+  const [onlineIds, setOnlineIds] = useState<Set<string>>(new Set());
+
+  const socialData = useSearchSocialData(activeTab);
+  const membersData = useSearchMembersData(activeTab);
+  const managementData = useSearchManagementData({
+    activeTab,
+    socialListMode: socialData.socialListMode,
+    refreshSocialLists: socialData.refreshSocialLists,
+  });
+  const friendActions = useFriendActions({
+    followers: socialData.followers,
+    setFollowers: socialData.setFollowers,
+    following: socialData.following,
+    setFollowing: socialData.setFollowing,
+    followingStatusById: socialData.followingStatusById,
+  });
+  const menuActions = useUserMenuActions({
+    followers: socialData.followers,
+    setFollowers: socialData.setFollowers,
+    following: socialData.following,
+    setFollowing: socialData.setFollowing,
+    mySubscribers: socialData.mySubscribers,
+    setMySubscribers: socialData.setMySubscribers,
+    members: membersData.members,
+    setMembers: membersData.setMembers,
+    subscriptionCount: socialData.subscriptionCount,
+    memberTotalCount: membersData.memberTotalCount,
+    memberRegions: membersData.memberRegions,
+    membersFullyLoaded: membersData.membersFullyLoaded,
+    followingStatusById: socialData.followingStatusById,
+    getMenuRelation: socialData.getMenuRelation,
+    setAddedIds: friendActions.setAddedIds,
+    writeMembersCache: membersData.writeMembersCache,
+    removeMemberFromMemberList: membersData.removeMemberFromMemberList,
+    refreshSocialLists: socialData.refreshSocialLists,
+    invalidatePendingCache: managementData.invalidatePendingCache,
+    lockCurrentFriendOrder: socialData.lockCurrentFriendOrder,
+  });
+  const profileModal = useProfileModal({
+    activeTab,
+    visibleMembers: membersData.visibleMembers,
+  });
+  const { setFriendListMode, setFriendViewMode, setSocialListMode } = socialData;
+  const { setMemberViewMode } = membersData;
+
+  const handleTabChange = useCallback((tab: Tab) => {
+    replaceSearchTab(tab);
+    setFriendListMode("following");
+    if (tab === "friends") {
+      setFriendViewMode("grid");
+    }
+    if (tab === "members") {
+      setMemberViewMode("grid");
+    }
+    if (tab === "followings") {
+      setSocialListMode("subscriptions");
+    }
+  }, [setFriendListMode, setFriendViewMode, setMemberViewMode, setSocialListMode]);
+
+  useEffect(() => {
+    queueMicrotask(() => {
+      if (window.__onlineIds) setOnlineIds(window.__onlineIds);
+    });
+    const handler = (event: Event) => {
+      setOnlineIds((event as CustomEvent<Set<string>>).detail);
+    };
+    window.addEventListener(PRESENCE_EVENT, handler);
+    return () => window.removeEventListener(PRESENCE_EVENT, handler);
+  }, []);
+
+  const managementPanel = (
+    <ManagementPanel
+      isBlacklistUnlocked={managementData.isBlacklistUnlocked}
+      blacklistPinInput={managementData.blacklistPinInput}
+      blacklistPinError={managementData.blacklistPinError}
+      blacklistPinSubmitting={managementData.blacklistPinSubmitting}
+      hasBlacklistPin={managementData.hasBlacklistPin}
+      pendingMembers={managementData.pendingMembers}
+      removingPendingIds={managementData.removingPendingIds}
+      onPinChange={managementData.handleBlacklistPinInputChange}
+      onPinSubmit={managementData.handleBlacklistPinSubmit}
+      onOpenProfile={profileModal.openPendingProfile}
+      onViewProfile={(id) => router.push(`/users/${id}/view`)}
+      onUnhideFriend={managementData.handleUnhideFriendFromMenu}
+      onUnblockUser={managementData.handleUnblockUser}
+      onUnreportUser={managementData.handleUnreportUser}
+    />
+  );
+
+  return (
+    <>
+      <SearchHeader activeTab={activeTab} onTabChange={handleTabChange} myRegionLabel="친구들" />
+
+      {activeTab === "followings" && (
+        <SocialSection
+          socialListMode={socialData.socialListMode}
+          setSocialListMode={socialData.setSocialListMode}
+          pendingCount={managementData.pendingMembers.length}
+          socialListMembers={socialData.socialListMembers}
+          socialViewMode={socialData.socialViewMode}
+          setSocialViewMode={socialData.setSocialViewMode}
+          socialLoadError={socialData.socialLoadError}
+          managementPanel={managementPanel}
+          onlineIds={onlineIds}
+          closingProfileMemberId={profileModal.closingProfileMemberId}
+          onOpenProfile={profileModal.openSocialProfile}
+          onOpenMenu={menuActions.openUserMenu}
+        />
+      )}
+
+      {activeTab === "members" && (
+        <MembersSection
+          memberSearchPanelRef={membersData.memberSearchPanelRef}
+          onMemberSearchPanelScroll={membersData.handleMemberSearchPanelScroll}
+          memberRegion={membersData.memberRegion}
+          setMemberRegion={membersData.setMemberRegion}
+          availableMemberRegions={membersData.availableMemberRegions}
+          memberSearch={membersData.memberSearch}
+          setMemberSearch={membersData.setMemberSearch}
+          memberGender={membersData.memberGender}
+          setMemberGender={membersData.setMemberGender}
+          memberGenres={membersData.memberGenres}
+          onToggleMemberGenre={membersData.toggleMemberGenre}
+          memberSearchMode={membersData.memberSearchMode}
+          selectedMemberTypes={membersData.selectedMemberTypes}
+          onToggleMemberTypeFilter={membersData.toggleMemberTypeFilter}
+          memberResultCount={membersData.memberResultCount}
+          memberViewMode={membersData.memberViewMode}
+          setMemberViewMode={membersData.setMemberViewMode}
+          membersLoaded={membersData.membersLoaded}
+          membersLoading={membersData.membersLoading}
+          visibleMembers={membersData.visibleMembers}
+          onlineIds={onlineIds}
+          closingProfileMemberId={profileModal.closingProfileMemberId}
+          onOpenProfile={profileModal.openMemberProfile}
+          onViewProfile={(id) => router.push(`/users/${id}/view`)}
+          onOpenMenu={menuActions.openUserMenu}
+        />
+      )}
+
+      {activeTab === "friends" && (
+        <FriendsSection
+          suggestionsLoading={friendActions.suggestionsLoading}
+          suggestions={friendActions.suggestions}
+          addedIds={friendActions.addedIds}
+          onAddFriend={friendActions.handleAddFriend}
+          onViewProfile={(id) => router.push(`/users/${id}/view`)}
+          friendListMode={socialData.friendListMode}
+          setFriendListMode={socialData.setFriendListMode}
+          onResortFriendMembers={socialData.resortFriendMembers}
+          followingCount={socialData.following.length}
+          friendViewMode={socialData.friendViewMode}
+          setFriendViewMode={socialData.setFriendViewMode}
+          friendSearch={socialData.friendSearch}
+          setFriendSearch={socialData.setFriendSearch}
+          visibleFriendMembers={socialData.visibleFriendMembers}
+          followerById={socialData.followerById}
+          onlineIds={onlineIds}
+          closingProfileMemberId={profileModal.closingProfileMemberId}
+          onOpenProfile={profileModal.openFriendProfile}
+          onOpenMenu={menuActions.openUserMenu}
+        />
+      )}
+
+      {activeTab === "pending" && (
+        <div className="px-4 pt-4 bg-white">
+          {managementPanel}
+        </div>
+      )}
+
+      <style jsx global>{`
+        @keyframes heartFloatUp {
+          0% { transform: translateY(0) scale(0.6); opacity: 0; }
+          20% { opacity: 1; }
+          100% { transform: translateY(-120px) scale(1.2); opacity: 0; }
+        }
+        @keyframes floatY {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-6px); }
+        }
+        @keyframes profileClosePop {
+          0% { transform: scale(1); }
+          45% { transform: scale(1.22); }
+          100% { transform: scale(1); }
+        }
+        .profile-close-pop {
+          animation: profileClosePop 1s ease-out both;
+          transform-origin: center;
+        }
+      `}</style>
+
+      {friendActions.showCheck && <CheckModal />}
+      <SearchToasts
+        showBlackReportToast={menuActions.showBlackReportToast}
+        showHideFriendToast={menuActions.showHideFriendToast}
+        friendLinkedNickname={friendActions.friendLinkedNickname}
+        followingCancelledNickname={menuActions.followingCancelledNickname}
+      />
+
+      {menuActions.menuTarget && (
+        <UserActionMenu
+          menuTarget={menuActions.menuTarget}
+          onClose={menuActions.closeMenu}
+          onViewProfile={(id) => {
+            menuActions.closeMenu();
+            router.push(`/users/${id}/view`);
+          }}
+          onToggleSubscription={menuActions.handleToggleSubscription}
+          onSetFollowingGrey={menuActions.handleSetFollowingGrey}
+          onUnsetFollowingGrey={menuActions.handleUnsetFollowingGrey}
+          onCancelFollowing={menuActions.handleCancelFollowing}
+          onAcceptFollower={friendActions.handleAcceptFollower}
+          onFollowFromMenu={(member) => {
+            menuActions.closeMenu();
+            friendActions.handleFollowFromMenu(member);
+          }}
+          onOpenMessage={(receiver) => {
+            menuActions.setMessageModalTarget(receiver);
+            menuActions.closeMenu();
+          }}
+          onHideFriend={menuActions.handleHideFriend}
+          onUnhideFriend={(targetId) => {
+            menuActions.closeMenu();
+            managementData.handleUnhideFriendFromMenu(targetId);
+          }}
+          onReportUser={menuActions.handleReportUser}
+        />
+      )}
+
+      {profileModal.profileModal && (
+        <ProfileModal
+          activeTab={activeTab}
+          profileModal={profileModal.profileModal}
+          profileModalData={profileModal.profileModalData}
+          onClose={profileModal.closeProfileModal}
+          onSetMenuTarget={menuActions.setMenuTarget}
+          getMenuRelation={socialData.getMenuRelation}
+          getRelationStatusValue={socialData.getRelationStatusValue}
+          onOpenMessage={menuActions.setMessageModalTarget}
+          onFollowFromMenu={friendActions.handleFollowFromMenu}
+          onViewProfile={(id) => router.push(`/users/${id}/view`)}
+        />
+      )}
+
+      {menuActions.messageModalTarget && (
+        <SendMessageModal
+          isOpen={!!menuActions.messageModalTarget}
+          onClose={() => menuActions.setMessageModalTarget(null)}
+          receiver={menuActions.messageModalTarget}
+        />
+      )}
+    </>
+  );
+}
