@@ -1,8 +1,7 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
 import { fetchWithAuthRetry } from "@/lib/auth/fetch-with-auth-retry";
 
 const CONVERSATIONS_CACHE_KEY = "loco_conversations_cache_v2";
@@ -79,7 +78,6 @@ const NAV_ITEMS = [
 
 export default function BottomNav({ isLoggedIn }: { isLoggedIn: boolean }) {
   const pathname = usePathname();
-  const [pressedNav, setPressedNav] = useState<{ href: string; basePath: string } | null>(null);
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
@@ -100,10 +98,6 @@ export default function BottomNav({ isLoggedIn }: { isLoggedIn: boolean }) {
             !shouldPrefetchSuggestions
           )
         ) return;
-
-        const supabase = createClient();
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
 
         if (shouldPrefetchConversations) {
           const convRes = await fetch("/api/conversations");
@@ -174,10 +168,7 @@ export default function BottomNav({ isLoggedIn }: { isLoggedIn: boolean }) {
   if (pathname.startsWith("/classes/") || pathname.startsWith("/users/")) return null;
   if (!hydrated) return null;
 
-  const activeHref =
-    pressedNav && pressedNav.basePath === pathname
-      ? pressedNav.href
-      : pathname;
+  const activeHref = pathname;
 
   return (
     <nav
@@ -198,22 +189,6 @@ export default function BottomNav({ isLoggedIn }: { isLoggedIn: boolean }) {
             className={className}
             style={{ backgroundColor: NAV_COLORS[href] }}
             prefetch={href === "/" || href === "/messages" ? true : undefined}
-            onTouchStart={() => {
-              setPressedNav({ href, basePath: pathname });
-              setTimeout(() => {
-                setPressedNav((prev) =>
-                  prev?.href === href && prev?.basePath === pathname ? null : prev
-                );
-              }, 1200);
-            }}
-            onMouseDown={() => {
-              setPressedNav({ href, basePath: pathname });
-              setTimeout(() => {
-                setPressedNav((prev) =>
-                  prev?.href === href && prev?.basePath === pathname ? null : prev
-                );
-              }, 1200);
-            }}
           >
             {icon}
             <span className="sr-only">{label}</span>
