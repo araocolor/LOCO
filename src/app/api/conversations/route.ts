@@ -35,11 +35,16 @@ export async function GET(request: Request) {
     // 각 사용자별 최신 메시지 + 최신 텍스트 메시지 뽑기
     const conversationMap = new Map<string, (typeof messages)[0]>();
     const lastTextMap = new Map<string, (typeof messages)[0]>();
+    const recentMessageMap = new Map<string, (typeof messages)>();
 
     messages.forEach((msg) => {
       const otherUserId = msg.sender_id === user.id ? msg.receiver_id : msg.sender_id;
       if (!conversationMap.has(otherUserId)) {
         conversationMap.set(otherUserId, msg);
+      }
+      const recentMessages = recentMessageMap.get(otherUserId) ?? [];
+      if (recentMessages.length < 8) {
+        recentMessageMap.set(otherUserId, [...recentMessages, msg]);
       }
       if (!lastTextMap.has(otherUserId)) {
         try {
@@ -107,6 +112,7 @@ export async function GET(request: Request) {
           content: lastText.content,
           is_mine: lastText.sender_id === user.id,
         } : null,
+        recent_messages: (recentMessageMap.get(otherUserId) ?? []).slice().reverse(),
         unread_count: unreadCountMap.get(otherUserId) ?? 0,
         updated_at: msg.sent_at,
       };

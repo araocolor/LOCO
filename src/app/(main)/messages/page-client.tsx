@@ -25,6 +25,7 @@ interface Conversation {
     content: string;
     is_mine: boolean;
   } | null;
+  recent_messages?: Message[];
   unread_count: number;
   updated_at: string;
 }
@@ -85,6 +86,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
   const photoInputRef = useRef<HTMLInputElement>(null);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const activeChatUserRef = useRef<string | null>(null);
 
   async function resizeToBlob(bitmap: ImageBitmap, maxW: number): Promise<Blob> {
     const scale = bitmap.width > maxW ? maxW / bitmap.width : 1;
@@ -299,23 +301,50 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
   }
 
   function appendMessageCache(userId: string, message: Message) {
-    const cacheKey = `${MESSAGES_CACHE_PREFIX}${userId}`;
-    const cached = sessionStorage.getItem(cacheKey);
-    const msgs: Message[] = cached ? JSON.parse(cached) : [];
-    sessionStorage.setItem(cacheKey, JSON.stringify(limitImageMessages([...msgs, message])));
+    const msgs = readMessageCache(userId);
+    writeMessageCache(userId, [...msgs, message]);
   }
 
   function patchMessageCache(userId: string, message: Message) {
     try {
-      const cacheKey = `${MESSAGES_CACHE_PREFIX}${userId}`;
-      const cached = sessionStorage.getItem(cacheKey);
-      if (!cached) return;
-      const msgs = JSON.parse(cached) as Message[];
-      sessionStorage.setItem(
-        cacheKey,
-        JSON.stringify(msgs.map((msg) => (msg.id === message.id ? { ...msg, ...message } : msg)))
-      );
+      const msgs = readMessageCache(userId);
+      if (msgs.length === 0) return;
+      writeMessageCache(userId, msgs.map((msg) => (msg.id === message.id ? { ...msg, ...message } : msg)));
     } catch {}
+  }
+
+  function getMessageCacheKey(userId: string) {
+    return `${MESSAGES_CACHE_PREFIX}${userId}`;
+  }
+
+  function readMessageCache(userId: string) {
+    try {
+      return JSON.parse(sessionStorage.getItem(getMessageCacheKey(userId)) ?? "[]") as Message[];
+    } catch {
+      return [];
+    }
+  }
+
+  function writeMessageCache(userId: string, msgs: Message[]) {
+    const nextMessages = limitImageMessages(msgs);
+    sessionStorage.setItem(getMessageCacheKey(userId), JSON.stringify(nextMessages));
+    warmImageMessages(nextMessages);
+  }
+
+  function cacheRecentMessagesFromConversations(convs: Conversation[]) {
+    convs.forEach((conv) => {
+      const otherId = conv.other_user?.id;
+      if (!otherId || !conv.recent_messages) return;
+      writeMessageCache(otherId, conv.recent_messages);
+    });
+  }
+
+  function stripRecentMessages(convs: Conversation[]) {
+    return convs.map((conv) => {
+      const next = { ...conv };
+      delete next.recent_messages;
+      return next;
+    });
   }
 
 
@@ -344,25 +373,26 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
       const json = await res.json();
       if (json.data) {
         const incoming = json.data as Conversation[];
+        cacheRecentMessagesFromConversations(incoming);
+        const incomingConversations = stripRecentMessages(incoming);
         const now = new Date().toISOString();
         localStorage.setItem(CACHE_SINCE_KEY, now);
 
         if (manual && since) {
-          if (incoming.length > 0) {
+          if (incomingConversations.length > 0) {
             // 새 메시지가 있는 대화는 목록 앞에 반영 + 세션에 메시지 저장
             setConversations((prev) => {
-              const incomingIds = new Set(incoming.map((c) => c.id));
-              const next = [...incoming, ...prev.filter((c) => !incomingIds.has(c.id))].slice(0, CONVERSATIONS_LIMIT);
+              const incomingIds = new Set(incomingConversations.map((c) => c.id));
+              const next = [...incomingConversations, ...prev.filter((c) => !incomingIds.has(c.id))].slice(0, CONVERSATIONS_LIMIT);
               localStorage.setItem(CACHE_KEY, JSON.stringify(next));
-              void prefetchMessagesToSession(incoming);
               return next;
             });
           }
           // 신규 없으면 기존 목록 유지
         } else {
-          setConversations(incoming);
-          localStorage.setItem(CACHE_KEY, JSON.stringify(incoming.slice(0, CONVERSATIONS_LIMIT)));
-          await saveMessageUserSession(incoming);
+          setConversations(incomingConversations);
+          localStorage.setItem(CACHE_KEY, JSON.stringify(incomingConversations.slice(0, CONVERSATIONS_LIMIT)));
+          await saveMessageUserSession(incomingConversations);
         }
       }
     } catch (error) {
@@ -372,33 +402,14 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
     }
   }
 
-  async function prefetchMessagesToSession(convs: Conversation[]) {
-    const supabase = createClient();
-    for (const conv of convs) {
-      const otherId = conv.other_user?.id;
-      if (!otherId) continue;
-      const cacheKey = `${MESSAGES_CACHE_PREFIX}${otherId}`;
-      if (sessionStorage.getItem(cacheKey)) continue;
-      try {
-        const { data: msgs } = await supabase
-          .from("messages")
-          .select("*")
-          .or(`and(sender_id.eq.${userId},receiver_id.eq.${otherId}),and(sender_id.eq.${otherId},receiver_id.eq.${userId})`)
-          .order("sent_at", { ascending: true });
-        if (msgs) sessionStorage.setItem(cacheKey, JSON.stringify(msgs));
-      } catch {}
-    }
-  }
-
   useEffect(() => {
-    // v1: 로컬 캐시 즉시 표시 후 대화 내용 세션 저장
+    // v1: 로컬 목록 캐시 즉시 표시
     const cached = localStorage.getItem(CACHE_KEY);
     if (cached) {
       const next = JSON.parse(cached) as Conversation[];
       queueMicrotask(() => {
         setConversations(next);
         setLoading(false);
-        void prefetchMessagesToSession(next);
       });
     }
 
@@ -490,14 +501,36 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
   }, [userId]);
 
   async function openChat(otherId: string) {
+    activeChatUserRef.current = otherId;
     setSelectedUserId(otherId);
     setChatOpen(true);
     setChatLoading(true);
-    setMessages([]);
-    setOtherUser(null);
 
     const supabase = createClient();
     const readAt = new Date().toISOString();
+    const markMessageAsRead = (msg: Message) =>
+      msg.sender_id === otherId && msg.receiver_id === userId && !msg.read_at
+        ? { ...msg, read_at: readAt }
+        : msg;
+    const localOtherUser = conversations.find((conv) => conv.other_user?.id === otherId)?.other_user ?? null;
+    let hasCachedMessages = false;
+
+    setOtherUser(localOtherUser);
+
+    try {
+      const cachedMessages = readMessageCache(otherId);
+      if (cachedMessages.length > 0) {
+        const nextMessages = cachedMessages.map(markMessageAsRead);
+        hasCachedMessages = true;
+        writeMessageCache(otherId, nextMessages);
+        setMessages(nextMessages);
+        setChatLoading(false);
+      } else {
+        setMessages([]);
+      }
+    } catch {
+      setMessages([]);
+    }
 
     setConversations((prev) => {
       const next = prev.map((conv) =>
@@ -506,22 +539,6 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
       try { localStorage.setItem(CACHE_KEY, JSON.stringify(next)); } catch {}
       return next;
     });
-
-    try {
-      const cacheKey = `${MESSAGES_CACHE_PREFIX}${otherId}`;
-      const cachedMessages = sessionStorage.getItem(cacheKey);
-      if (cachedMessages) {
-        const parsed = JSON.parse(cachedMessages) as Message[];
-        sessionStorage.setItem(
-          cacheKey,
-          JSON.stringify(parsed.map((msg) =>
-            msg.sender_id === otherId && msg.receiver_id === userId && !msg.read_at
-              ? { ...msg, read_at: readAt }
-              : msg
-          ))
-        );
-      }
-    } catch {}
 
     supabase
       .from("messages")
@@ -533,34 +550,40 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
         if (error) console.error("Failed to mark messages as read:", error);
       });
 
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("id, nickname, profile_image_url")
-      .eq("id", otherId)
-      .single();
+    if (!localOtherUser) {
+      void supabase
+        .from("profiles")
+        .select("id, nickname, profile_image_url")
+        .eq("id", otherId)
+        .single()
+        .then(({ data: profile }) => {
+          if (profile && activeChatUserRef.current === otherId) setOtherUser(profile);
+        });
+    }
 
-    if (profile) setOtherUser(profile);
-
-    const cacheKey = `${MESSAGES_CACHE_PREFIX}${otherId}`;
-    const cached = sessionStorage.getItem(cacheKey);
-    if (cached) {
-      setMessages(JSON.parse(cached));
-    } else {
+    void (async () => {
       const { data: msgs } = await supabase
         .from("messages")
         .select("*")
         .or(`and(sender_id.eq.${userId},receiver_id.eq.${otherId}),and(sender_id.eq.${otherId},receiver_id.eq.${userId})`)
         .order("sent_at", { ascending: true });
       if (msgs) {
-        setMessages(msgs);
-        sessionStorage.setItem(cacheKey, JSON.stringify(msgs));
+        const nextMessages = msgs.map(markMessageAsRead);
+        writeMessageCache(otherId, nextMessages);
+        if (activeChatUserRef.current === otherId) {
+          setMessages(readMessageCache(otherId));
+        }
       }
-    }
+      if (activeChatUserRef.current === otherId) {
+        setChatLoading(false);
+      }
+    })();
 
-    setChatLoading(false);
+    if (!hasCachedMessages) setChatLoading(true);
   }
 
   function closeChat() {
+    activeChatUserRef.current = null;
     setChatOpen(false);
     setTimeout(() => {
       setSelectedUserId(null);
@@ -618,12 +641,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
     setMessages((prev) => prev.filter((m) => m.id !== msgId));
     setShakingMsgId(null);
     if (selectedUserId) {
-      const cacheKey = `${MESSAGES_CACHE_PREFIX}${selectedUserId}`;
-      const cached = sessionStorage.getItem(cacheKey);
-      if (cached) {
-        const msgs: Message[] = JSON.parse(cached);
-        sessionStorage.setItem(cacheKey, JSON.stringify(msgs.filter((m) => m.id !== msgId)));
-      }
+      writeMessageCache(selectedUserId, readMessageCache(selectedUserId).filter((m) => m.id !== msgId));
     }
     await fetch(`/api/messages/${msgId}`, { method: "DELETE" });
   }
