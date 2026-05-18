@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { parseBookmarkEntries } from "@/lib/bookmarks/local";
 import { DanceClass, DANCE_GENRE_LABELS, CLASS_LEVEL_LABELS } from "@/types/class";
 import CommentSheet from "@/components/class/CommentSheet";
+import ClassApplicantSheet from "@/components/class/ClassApplicantSheet";
 import SendMessageModal from "@/components/modal/SendMessageModal";
 
 const LIKES_CACHE_KEY = "loco_liked_posts";
@@ -35,20 +35,6 @@ const GENRE_BG: Record<string, string> = {
   event: "#E4EEFF",
   other: "#F0F0F0",
 };
-
-const GENRE_CHIP: Record<string, string> = {
-  salsa: "bg-red-50 text-red-600",
-  bachata: "bg-purple-50 text-purple-600",
-  festival: "bg-yellow-50 text-yellow-700",
-  event: "bg-blue-50 text-blue-600",
-  other: "bg-gray-100 text-gray-600",
-};
-
-const STATUS_MAP = {
-  recruiting: { label: "모집중", cls: "bg-green-50 text-green-600" },
-  closed: { label: "마감", cls: "bg-gray-100 text-gray-500" },
-  cancelled: { label: "취소", cls: "bg-red-50 text-red-500" },
-} as const;
 
 function formatDate(dateStr: string) {
   const d = new Date(dateStr);
@@ -103,7 +89,7 @@ function writeFriendToSearchCache(host: ClassHost) {
 }
 
 export default function ClassCard({ classData }: ClassCardProps) {
-  const { id, host_id, title, genres, level, datetime, deadline, region, status, images, host, is_modified, description } =
+  const { id, host_id, title, genres, level, datetime, deadline, region, status, images, host, description } =
     classData;
   const [expanded, setExpanded] = useState(false);
   const [imgIndex, setImgIndex] = useState(0);
@@ -117,16 +103,19 @@ export default function ClassCard({ classData }: ClassCardProps) {
   const [heartVisible, setHeartVisible] = useState(false);
   const [heartLiked, setHeartLiked] = useState(false);
   const [messageModalOpen, setMessageModalOpen] = useState(false);
+  const [enteringClassRoom, setEnteringClassRoom] = useState(false);
+  const [applyingClass, setApplyingClass] = useState(false);
+  const [applicantSheetOpen, setApplicantSheetOpen] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const router = useRouter();
 
   useEffect(() => {
     const raw = localStorage.getItem(LIKES_CACHE_KEY);
     const likes: string[] = raw ? JSON.parse(raw) : [];
-    setLiked(likes.includes(id));
+    queueMicrotask(() => setLiked(likes.includes(id)));
     const rawB = localStorage.getItem(BOOKMARKS_CACHE_KEY);
     const bookmarks = parseBookmarkEntries(rawB);
-    setBookmarked(bookmarks.some((b) => b.id === id));
+    queueMicrotask(() => setBookmarked(bookmarks.some((b) => b.id === id)));
   }, [id]);
 
   useEffect(() => {
@@ -178,6 +167,73 @@ export default function ClassCard({ classData }: ClassCardProps) {
     }).catch(() => {});
   }
 
+  async function handleEnterClassRoom() {
+    if (enteringClassRoom) return;
+    setEnteringClassRoom(true);
+    setMenuOpen(false);
+    setUserExpanded(false);
+
+    try {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        router.push("/login");
+        return;
+      }
+
+      const res = await fetch(`/api/chat/rooms/class/${id}`, {
+        method: "POST",
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        alert(json.error ?? "대화방에 입장하지 못했습니다.");
+        return;
+      }
+
+      const roomId = json?.data?.id;
+      if (!roomId) {
+        alert("대화방 정보를 찾지 못했습니다.");
+        return;
+      }
+
+      router.push(`/messages?roomId=${roomId}`);
+    } catch {
+      alert("대화방에 입장하지 못했습니다.");
+    } finally {
+      setEnteringClassRoom(false);
+    }
+  }
+
+  async function handleApplyClass() {
+    if (applyingClass) return;
+    setApplyingClass(true);
+    setMenuOpen(false);
+    setUserExpanded(false);
+
+    try {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        router.push(`/login?next=/classes/${id}`);
+        return;
+      }
+
+      const res = await fetch("/api/applications", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ class_id: id }),
+      });
+      const json = await res.json().catch(() => ({}));
+      setFriendMsg(res.ok ? "수업 신청 완료!" : (json.error ?? "수업 신청에 실패했습니다."));
+      setTimeout(() => setFriendMsg(""), 3000);
+    } catch {
+      setFriendMsg("수업 신청에 실패했습니다.");
+      setTimeout(() => setFriendMsg(""), 3000);
+    } finally {
+      setApplyingClass(false);
+    }
+  }
+
   const touchStartX = useRef(0);
   const touchStartY = useRef(0);
   const isHorizontal = useRef<boolean | null>(null);
@@ -223,8 +279,6 @@ export default function ClassCard({ classData }: ClassCardProps) {
   }, [totalImages]);
   const genreLabel = genres?.map((g) => DANCE_GENRE_LABELS[g as keyof typeof DANCE_GENRE_LABELS] ?? g).join(" · ") ?? "";
   const levelLabel = CLASS_LEVEL_LABELS[level] ?? level;
-  const statusInfo = STATUS_MAP[status] ?? STATUS_MAP.recruiting;
-  const chipCls = GENRE_CHIP[primaryGenre] ?? GENRE_CHIP.other;
   const isHostFriend = !!host?.id && readCachedFollowingIds()?.has(host.id) === true;
   const isOwnClass = currentUserId === host_id;
 
@@ -265,8 +319,26 @@ export default function ClassCard({ classData }: ClassCardProps) {
                 >
                   {isOwnClass ? (
                     <>
-                      <button type="button" className="flex items-center w-full px-4 py-3 text-sm text-gray-700">
-                        대화방입장
+                      <button
+                        type="button"
+                        className="flex items-center w-full px-4 py-3 text-sm text-gray-700 disabled:opacity-60"
+                        onClick={() => {
+                          void handleEnterClassRoom();
+                        }}
+                        disabled={enteringClassRoom}
+                      >
+                        {enteringClassRoom ? "입장 중..." : "대화방입장"}
+                      </button>
+                      <div className="border-t border-gray-100 mx-3" />
+                      <button
+                        type="button"
+                        className="flex items-center w-full px-4 py-3 text-sm text-gray-700"
+                        onClick={() => {
+                          setMenuOpen(false);
+                          setApplicantSheetOpen(true);
+                        }}
+                      >
+                        신청자 목록
                       </button>
                       <div className="border-t border-gray-100 mx-3" />
                       <button type="button" className="flex items-center w-full px-4 py-3 text-sm text-gray-700">
@@ -292,6 +364,20 @@ export default function ClassCard({ classData }: ClassCardProps) {
                         <span>북마크저장</span>
                         <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500">
                           <polygon points="19 21 12 16 5 21 5 3 19 3"/>
+                        </svg>
+                      </button>
+                      <div className="border-t border-gray-100 mx-3" />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void handleApplyClass();
+                        }}
+                        disabled={applyingClass || status !== "recruiting"}
+                        className="flex items-center justify-between w-full px-4 py-3 text-sm text-gray-700 disabled:opacity-60"
+                      >
+                        <span>{applyingClass ? "신청 중..." : "수업신청"}</span>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500">
+                          <path d="M4 12h16"/><path d="M12 4v16"/>
                         </svg>
                       </button>
                       {!isHostFriend && (
@@ -550,6 +636,13 @@ export default function ClassCard({ classData }: ClassCardProps) {
             nickname: host.nickname,
             profile_image_url: host.profile_image_url,
           }}
+        />
+      )}
+      {isOwnClass && (
+        <ClassApplicantSheet
+          open={applicantSheetOpen}
+          classId={id}
+          onClose={() => setApplicantSheetOpen(false)}
         />
       )}
     </>

@@ -34,6 +34,15 @@ export default function ConversationList({
   formatDate,
   truncateMessage,
 }: ConversationListProps) {
+  const messageConversations = conversations.filter((conv) => conv.type !== "class");
+  const classConversations = conversations.filter((conv) => conv.type === "class");
+  const visibleConversations =
+    activeMenuTab === "messages"
+      ? messageConversations
+      : activeMenuTab === "my-chat"
+        ? classConversations
+        : [];
+
   return (
     <>
       <div className="flex items-end justify-between px-4 border-b border-[#e5e7eb]">
@@ -72,7 +81,7 @@ export default function ConversationList({
             내근처
           </button>
         </div>
-        {activeMenuTab === "messages" && (
+        {(activeMenuTab === "messages" || activeMenuTab === "my-chat") && (
           <button
             onClick={onRefresh}
             disabled={refreshDisabled && !isSpinning}
@@ -84,9 +93,7 @@ export default function ConversationList({
       </div>
 
       <div className="flex-1 overflow-y-auto">
-        {activeMenuTab === "my-chat" ? (
-          <div className="h-full bg-white" />
-        ) : activeMenuTab === "nearby" ? (
+        {activeMenuTab === "nearby" ? (
           <div className="bg-white">
             <div className="px-4 pt-4 pb-2">
               <p className="text-base font-bold" style={{ color: "#333333" }}>검색범위</p>
@@ -95,13 +102,15 @@ export default function ConversationList({
           </div>
         ) : loading ? (
           <div className="flex items-center justify-center h-32 text-gray-400">로딩 중...</div>
-        ) : conversations.length === 0 ? (
+        ) : visibleConversations.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-32 text-gray-400">
             <p className="text-4xl mb-2">💬</p>
-            <p className="text-sm">대화가 없습니다</p>
+            <p className="text-sm">
+              {activeMenuTab === "my-chat" ? "클래스 대화방이 없습니다" : "대화가 없습니다"}
+            </p>
           </div>
         ) : (
-          conversations.map((conv) => (
+          visibleConversations.map((conv) => (
             <div
               key={conv.id}
               onClick={() => onOpenChat(conv.id)}

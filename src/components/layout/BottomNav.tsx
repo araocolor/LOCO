@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { fetchWithAuthRetry } from "@/lib/auth/fetch-with-auth-retry";
 
-const CONVERSATIONS_CACHE_KEY = "loco_conversations_cache_v2";
+const CHAT_ROOMS_CACHE_KEY = "loco_chat_rooms_cache_v1";
 const MYPAGE_CACHE_KEY = "loco_mypage_cache_local_v2";
 const SEARCH_CACHE_KEY = "search_prefetch_cache";
 const SUGGESTIONS_KEY = "search_suggestions_cache";
@@ -85,7 +85,7 @@ export default function BottomNav({ isLoggedIn }: { isLoggedIn: boolean }) {
 
     async function prefetch() {
       try {
-        const shouldPrefetchConversations = !localStorage.getItem(CONVERSATIONS_CACHE_KEY);
+        const shouldPrefetchConversations = !localStorage.getItem(CHAT_ROOMS_CACHE_KEY);
         const shouldPrefetchMyPage = !localStorage.getItem(MYPAGE_CACHE_KEY);
         const shouldPrefetchSearch = shouldRefreshSearchCache(localStorage.getItem(SEARCH_CACHE_KEY));
         const shouldPrefetchSuggestions = !localStorage.getItem(SUGGESTIONS_KEY);
@@ -100,10 +100,10 @@ export default function BottomNav({ isLoggedIn }: { isLoggedIn: boolean }) {
         ) return;
 
         if (shouldPrefetchConversations) {
-          const convRes = await fetch("/api/conversations");
+          const convRes = await fetch("/api/chat/rooms");
           if (convRes.ok) {
             const json = await convRes.json();
-            if (json.data) localStorage.setItem(CONVERSATIONS_CACHE_KEY, JSON.stringify(json.data.slice(0, 20)));
+            if (json.data) localStorage.setItem(CHAT_ROOMS_CACHE_KEY, JSON.stringify(json.data.slice(0, 20)));
           }
         }
 

@@ -9,6 +9,76 @@ import {
   getRoomDisplayTitle,
 } from "../_lib";
 
+async function ensureOwnerClassRoomMemberships(userId: string) {
+  const admin = createAdminClient();
+  const { data: hostedClasses, error: hostedError } = await admin
+    .from("classes")
+    .select("id, title")
+    .eq("host_id", userId)
+    .returns<Array<{ id: string; title: string }>>();
+
+  if (hostedError) throw hostedError;
+  const classRows = hostedClasses ?? [];
+  if (classRows.length === 0) return;
+
+  const classIds = classRows.map((cls) => cls.id);
+  const { data: existingRooms, error: existingError } = await admin
+    .from("chat_rooms")
+    .select("id, class_id")
+    .eq("type", "class")
+    .eq("status", "active")
+    .in("class_id", classIds)
+    .returns<Array<{ id: string; class_id: string }>>();
+
+  if (existingError) throw existingError;
+  const existingClassIds = new Set((existingRooms ?? []).map((room) => room.class_id));
+  const missingClasses = classRows.filter((cls) => !existingClassIds.has(cls.id));
+
+  for (const cls of missingClasses) {
+    const { error: insertError } = await admin
+      .from("chat_rooms")
+      .insert({
+        type: "class",
+        status: "active",
+        class_id: cls.id,
+        owner_id: userId,
+        title: cls.title,
+      });
+
+    // 중복 생성 경합은 무시하고 다음 단계에서 다시 조회합니다.
+    if (insertError && insertError.code !== "23505") {
+      throw insertError;
+    }
+  }
+
+  const { data: refreshedRooms, error: refreshedError } = await admin
+    .from("chat_rooms")
+    .select("id, class_id")
+    .eq("type", "class")
+    .eq("status", "active")
+    .in("class_id", classIds)
+    .returns<Array<{ id: string; class_id: string }>>();
+
+  if (refreshedError) throw refreshedError;
+  const roomRows = refreshedRooms ?? [];
+  if (roomRows.length === 0) return;
+
+  const { error: upsertMemberError } = await admin
+    .from("chat_room_members")
+    .upsert(
+      roomRows.map((room) => ({
+        room_id: room.id,
+        user_id: userId,
+        role: "owner" as const,
+        status: "active" as const,
+        left_at: null,
+      })),
+      { onConflict: "room_id,user_id" }
+    );
+
+  if (upsertMemberError) throw upsertMemberError;
+}
+
 export async function GET() {
   try {
     const user = await getAuthenticatedUser();
@@ -16,6 +86,8 @@ export async function GET() {
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    await ensureOwnerClassRoomMemberships(user.id);
 
     const admin = createAdminClient();
     const { data: myMemberships, error: membershipError } = await admin

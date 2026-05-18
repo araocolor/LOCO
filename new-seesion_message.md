@@ -2,7 +2,7 @@
 
 작성일: 2026-05-18
 프로젝트: LOCO
-최근 커밋: `8c2cba0 메시지 채팅방 구조 전환`
+최근 커밋: `2dce4de 채팅방 사용자 추가 슬라이드 추가`
 브랜치: `main`
 
 ## 이번 세션에서 완료한 작업
@@ -99,7 +99,36 @@
 - 커밋 완료:
 - `8c2cba0 메시지 채팅방 구조 전환`
 - `origin/main` 푸시 완료.
+- 추가 커밋 완료:
+- `2dce4de 채팅방 사용자 추가 슬라이드 추가`
+- `origin/main` 푸시 완료.
 - 작업 트리 깨끗한 상태 확인.
+
+12. 1:1 대화창 새 사용자 추가 기능 추가
+
+- 더보기 메뉴에 `새 사용자 추가` 항목 추가.
+- 수정 파일:
+- `src/app/(main)/messages/_components/ChatDrawer.tsx`
+- `src/app/(main)/messages/page-client.tsx`
+- 추가 파일:
+- `src/app/(main)/messages/_components/ChatMemberDrawer.tsx`
+- `src/app/api/chat/rooms/[id]/members/route.ts`
+- 동작:
+- 1:1 대화창 더보기 메뉴에서 `새 사용자 추가` 클릭.
+- 오른쪽 슬라이드가 열림.
+- 1차 목록은 `search_prefetch_cache.following` 중 `status === "friend"`인 맞팔 표시.
+- 전체회원 목록은 `search_members_cache_v3`, `search_suggestions_cache`를 먼저 표시.
+- 이후 `/api/users/members?limit=100&offset=0`로 회원 목록을 보강.
+- 이미 방에 있는 사용자는 목록에서 제외.
+- 사용자를 추가하면 기존 1:1 방의 `chat_rooms.type`이 `group`으로 전환됨.
+- 멤버는 `chat_room_members`에 `active` 상태로 추가됨.
+- 차단/블랙 관계는 API에서 양방향으로 검사해 추가 차단.
+- 클래스방에서는 방장/관리자만 멤버 추가 가능하도록 API에서 제한.
+- 검증:
+- `npx tsc --noEmit` 통과.
+- 관련 파일 ESLint 통과.
+- `git diff --check` 통과.
+- 비로그인 상태에서 멤버 추가 API는 `401 Unauthorized` 정상 반환.
 
 ## 현재 상태 요약
 
@@ -109,6 +138,7 @@
 - 메시지 목록은 새 `chat_rooms` 기준으로 표시됨.
 - 기존 `messages`, `conversations` 테이블은 남아 있지만 현재 새 흐름에서는 핵심 경로가 아님.
 - 기존 `src/app/(main)/messages/chat/page.tsx`, `/api/conversations`, `/api/messages/send`, `/api/messages/[id]`는 아직 남아 있음. 당장 삭제하지 말고 의존성 확인 후 정리 권장.
+- 1:1 방에서 사용자를 추가하면 그룹방으로 전환되는 API/슬라이드 UI가 추가됨.
 
 ## 다음 세션에서 우선 확인할 것
 
@@ -135,17 +165,15 @@
 - 클래스 개설자는 방장으로 입장.
 - 승인된 신청자는 자동 멤버인지 확인.
 
-4. 그룹 멤버 추가 슬라이드
+4. 그룹 멤버 추가 슬라이드 보강
 
-- 별도 컴포넌트로 만들 예정.
-- 추천 파일:
-- `src/app/(main)/messages/_components/ChatMemberDrawer.tsx`
-- 기능:
-- 현재 방 멤버 목록 표시
-- `search_prefetch_cache`의 맞팔 목록 우선 표시
-- 전체 사용자 ID 검색 API 연결
-- 클릭으로 사용자 추가/삭제
-- 클래스방에서는 방장만 강퇴 가능
+- 기본 슬라이드는 이미 추가됨.
+- 남은 보강:
+- 현재 방 멤버 목록을 별도 섹션으로 표시.
+- 전체 사용자 ID 검색 API 연결.
+- 추가 후 토스트 또는 완료 피드백 개선.
+- 그룹방에서 멤버 삭제/나가기 기능 추가.
+- 클래스방에서는 방장만 강퇴 가능하도록 UI 노출 제어.
 
 5. 전체 사용자 ID 검색 API
 
@@ -158,11 +186,11 @@
 - 이미 방에 있는 사용자 제외는 프론트에서 처리 가능
 - 차단/블랙 관계 제외 권장
 
-6. 그룹 전환 API
+6. 그룹 전환 API 보강
 
-- 1:1 방에 멤버를 추가하면 `chat_rooms.type`을 `group`으로 변경.
+- 1:1 방에 멤버를 추가하면 `chat_rooms.type`을 `group`으로 변경하는 기본 API는 추가됨.
 - 추천 API:
-- `POST /api/chat/rooms/[id]/members`
+- `POST /api/chat/rooms/[id]/members` 추가 완료.
 - `DELETE` 또는 `PATCH /api/chat/rooms/[id]/members/[userId]`
 - 멤버가 2명만 남아도 DB 타입은 `group` 유지, UI에서만 1:1처럼 표시.
 
@@ -197,8 +225,8 @@
 
 1. 실제 로그인 상태에서 대화방 답장/사진 전송 수동 확인.
 2. 클래스 카드 `대화방입장` 버튼을 새 클래스 채팅방으로 연결.
-3. `ChatMemberDrawer` 추가.
+3. `ChatMemberDrawer` 현재 멤버 섹션 보강.
 4. 사용자 ID 검색 API 추가.
-5. 그룹 멤버 추가/삭제 API 추가.
+5. 그룹 멤버 삭제/나가기 API 추가.
 6. 클래스방 공지/강퇴 API 추가.
 7. 기존 메시지 API와 구버전 채팅 페이지 정리.

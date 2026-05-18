@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { PRESENCE_EVENT } from "@/components/features/PresenceTracker";
 import ConversationList from "./_components/ConversationList";
@@ -54,6 +54,7 @@ interface ChatMessageApiItem {
 
 export default function MessagesPageClient({ userId }: { userId: string }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [onlineIds, setOnlineIds] = useState<Set<string>>(new Set());
@@ -79,6 +80,8 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const activeChatRoomRef = useRef<string | null>(null);
+  const autoOpenedRoomRef = useRef<string | null>(null);
+  const roomIdFromQuery = searchParams.get("roomId");
   const selectedConversation = selectedRoomId
     ? conversations.find((conv) => conv.id === selectedRoomId) ?? null
     : null;
@@ -536,6 +539,21 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
 
     if (!hasCachedMessages) setChatLoading(true);
   }
+
+  useEffect(() => {
+    if (!roomIdFromQuery) return;
+    if (autoOpenedRoomRef.current === roomIdFromQuery) return;
+
+    const target = conversations.find((conv) => conv.id === roomIdFromQuery);
+    if (!target) return;
+
+    autoOpenedRoomRef.current = roomIdFromQuery;
+    queueMicrotask(() => {
+      void openChat(roomIdFromQuery);
+    });
+    // 쿼리로 전달된 roomId는 한 번만 자동 진입합니다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roomIdFromQuery, conversations]);
 
   function closeChat() {
     activeChatRoomRef.current = null;

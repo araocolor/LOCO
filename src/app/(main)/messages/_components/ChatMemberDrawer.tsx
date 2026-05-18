@@ -14,6 +14,7 @@ interface CandidateUser extends OtherUser {
   status?: string;
   is_blocked?: boolean;
   is_hidden?: boolean;
+  member_role?: "owner" | "admin" | "member";
 }
 
 interface ChatMemberDrawerProps {
@@ -55,7 +56,9 @@ export default function ChatMemberDrawer({
   const [mutualFriends, setMutualFriends] = useState<CandidateUser[]>([]);
   const [members, setMembers] = useState<CandidateUser[]>([]);
   const [loadingMembers, setLoadingMembers] = useState(false);
+  const [searchingMembers, setSearchingMembers] = useState(false);
   const [addingId, setAddingId] = useState<string | null>(null);
+  const [searchedMembers, setSearchedMembers] = useState<CandidateUser[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const existingIds = useMemo(
@@ -73,6 +76,7 @@ export default function ChatMemberDrawer({
 
       setMutualFriends(uniqueUsers(following.filter((user) => user.status === "friend")));
       setMembers(uniqueUsers([...cachedMembers, ...suggestions]));
+      setSearchedMembers([]);
       setError(null);
       setLoadingMembers(true);
     });
@@ -90,14 +94,61 @@ export default function ChatMemberDrawer({
       .finally(() => setLoadingMembers(false));
   }, [open]);
 
+  useEffect(() => {
+    if (!open) return;
+
+    const normalizedQuery = query.trim();
+    if (normalizedQuery.length < 2) {
+      queueMicrotask(() => {
+        setSearchedMembers([]);
+        setSearchingMembers(false);
+      });
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      setSearchingMembers(true);
+      fetch(`/api/users/search?q=${encodeURIComponent(normalizedQuery)}&limit=30`)
+        .then((res) => {
+          if (!res.ok) throw new Error();
+          return res.json();
+        })
+        .then((json) => {
+          const incoming = Array.isArray(json.data) ? (json.data as CandidateUser[]) : [];
+          setSearchedMembers(uniqueUsers(incoming));
+        })
+        .catch(() => {
+          setSearchedMembers([]);
+        })
+        .finally(() => setSearchingMembers(false));
+    }, 220);
+
+    return () => clearTimeout(timer);
+  }, [open, query]);
+
+  const currentMemberUsers = useMemo(() => {
+    const roleOrder = { owner: 0, admin: 1, member: 2 } as const;
+    const rows = (currentMembers ?? []).map((member) => ({
+      id: member.user_id,
+      nickname: member.profile?.nickname ?? "알 수 없음",
+      profile_image_url: member.profile?.profile_image_url ?? null,
+      member_role: member.role,
+    }));
+    return rows.sort((a, b) => {
+      const roleDiff = roleOrder[a.member_role] - roleOrder[b.member_role];
+      if (roleDiff !== 0) return roleDiff;
+      return a.nickname.localeCompare(b.nickname, "ko");
+    });
+  }, [currentMembers]);
+
   const filteredMutualFriends = useMemo(
     () => filterCandidates(mutualFriends, query, existingIds),
     [mutualFriends, query, existingIds]
   );
 
   const filteredMembers = useMemo(
-    () => filterCandidates(members, query, existingIds),
-    [members, query, existingIds]
+    () => filterCandidates(uniqueUsers([...members, ...searchedMembers]), query, existingIds),
+    [members, searchedMembers, query, existingIds]
   );
 
   async function handleAddUser(targetId: string) {
@@ -155,6 +206,7 @@ export default function ChatMemberDrawer({
         </div>
 
         <div className="flex-1 overflow-y-auto">
+          <CurrentMemberSection users={currentMemberUsers} />
           <MemberSection
             title="맞팔"
             users={filteredMutualFriends}
@@ -162,7 +214,7 @@ export default function ChatMemberDrawer({
             onAddUser={handleAddUser}
           />
           <MemberSection
-            title={loadingMembers ? "전체회원 불러오는 중" : "전체회원"}
+            title={searchingMembers ? "검색 결과 불러오는 중" : loadingMembers ? "전체회원 불러오는 중" : "전체회원"}
             users={filteredMembers}
             addingId={addingId}
             onAddUser={handleAddUser}
@@ -173,12 +225,50 @@ export default function ChatMemberDrawer({
   );
 }
 
+function CurrentMemberSection({ users }: { users: CandidateUser[] }) {
+  return (
+    <section className="py-3 border-b border-gray-100">
+      <div className="px-4 pb-2 text-xs font-bold text-gray-400">현재 멤버</div>
+      {users.length === 0 ? (
+        <p className="px-4 py-3 text-sm text-gray-400">멤버 정보를 불러올 수 없습니다</p>
+      ) : (
+        users.map((user) => (
+          <div key={user.id} className="flex w-full items-center gap-3 px-4 py-2">
+            {user.profile_image_url ? (
+              <Image
+                src={user.profile_image_url}
+                alt={user.nickname}
+                width={34}
+                height={34}
+                className="h-[34px] w-[34px] rounded-full object-cover"
+              />
+            ) : (
+              <div className="flex h-[34px] w-[34px] items-center justify-center rounded-full bg-gray-200 text-xs font-bold text-gray-500">
+                {user.nickname[0] ?? "?"}
+              </div>
+            )}
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[14px] font-semibold text-gray-900">{user.nickname}</p>
+            </div>
+            <span className="text-[11px] font-semibold text-gray-500">
+              {user.member_role === "owner" ? "방장" : user.member_role === "admin" ? "관리자" : "멤버"}
+            </span>
+          </div>
+        ))
+      )}
+    </section>
+  );
+}
+
 function filterCandidates(users: CandidateUser[], query: string, existingIds: Set<string>) {
   const normalizedQuery = query.trim().toLowerCase();
   return users.filter((user) => {
     if (existingIds.has(user.id)) return false;
     if (!normalizedQuery) return true;
-    return user.nickname.toLowerCase().includes(normalizedQuery);
+    return (
+      user.nickname.toLowerCase().includes(normalizedQuery) ||
+      user.id.toLowerCase().includes(normalizedQuery)
+    );
   });
 }
 
@@ -221,7 +311,7 @@ function MemberSection({
             )}
             <div className="min-w-0 flex-1">
               <p className="truncate text-[15px] font-semibold text-gray-900">{user.nickname}</p>
-              {user.region && <p className="truncate text-xs text-gray-400">{user.region}</p>}
+              <p className="truncate text-xs text-gray-400">{user.region ?? user.id}</p>
             </div>
             <span className="text-xs font-semibold text-gray-500">
               {addingId === user.id ? "추가 중" : "추가"}
