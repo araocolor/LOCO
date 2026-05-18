@@ -803,26 +803,21 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
                                 </span>
                               )}
                             </span>
-                            <span className="flex items-center gap-1 text-gray-400 text-xs flex-shrink-0">
+                            <span className="text-gray-400 text-xs flex-shrink-0">
                               {conv.last_message?.sent_at ? formatDate(conv.last_message.sent_at) : ""}
-                              {conv.unread_count > 0 && (
-                                <span className="h-2 w-2 rounded-full bg-red-500" />
-                              )}
                             </span>
                           </div>
                           {conv.last_text_message && (
                             <p className="line-clamp-1 mt-1 text-gray-900" style={{ fontSize: "16px" }}>
                               {truncateMessage(conv.last_text_message.content)}
-                              {isMine && (
-                                <span
-                                  className={`ml-1 inline-block h-2 w-2 rounded-full align-middle ${
-                                    conv.last_message?.read_at ? "bg-green-500" : "bg-red-500"
-                                  }`}
-                                />
-                              )}
                             </p>
                           )}
                         </div>
+                        {conv.unread_count > 0 && (
+                          <div className="ml-auto flex h-6 min-w-6 shrink-0 items-center justify-center rounded-full bg-red-500 px-1.5 text-xs font-bold leading-none text-white">
+                            {conv.unread_count}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
