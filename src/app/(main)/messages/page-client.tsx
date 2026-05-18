@@ -1,64 +1,55 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { ArrowLeft, Send, Paperclip, Image as ImageIcon, FileText, MapPin, CalendarDays, RefreshCw } from "lucide-react";
 import { PRESENCE_EVENT } from "@/components/features/PresenceTracker";
-import NearbyMap from "@/components/features/NearbyMap";
+import ConversationList from "./_components/ConversationList";
+import ChatDrawer from "./_components/ChatDrawer";
+import type { Conversation, Message, MessageMenuTab, MyProfile, OtherUser, SessionClassItem } from "./_types";
+import {
+  appendMessageCache,
+  readMessageCache,
+  writeMessageCache,
+} from "./_lib/message-cache";
 
-interface Conversation {
+interface ChatRoomApiItem {
   id: string;
-  other_user: {
-    id: string;
-    nickname: string;
-    profile_image_url: string | null;
-  } | null;
+  type: "direct" | "group" | "class";
+  class_id: string | null;
+  owner_id: string | null;
+  title: string | null;
+  notice: string | null;
+  member_count: number;
+  members: Array<{
+    user_id: string;
+    role: "owner" | "admin" | "member";
+    profile: OtherUser | null;
+  }>;
   last_message: {
+    id: string;
+    kind: "text" | "image" | "file" | "system";
     content: string;
-    sent_at: string;
+    sender_id: string;
     is_mine: boolean;
-    read_at: string | null;
+    created_at: string;
   } | null;
-  last_text_message: {
-    content: string;
-    is_mine: boolean;
-  } | null;
-  recent_messages?: Message[];
   unread_count: number;
   updated_at: string;
+  created_at: string;
 }
 
-interface Message {
+interface ChatMessageApiItem {
   id: string;
+  room_id: string;
   sender_id: string;
-  receiver_id: string;
+  kind: "text" | "image" | "file" | "system";
   content: string;
-  sent_at: string;
-  read_at: string | null;
+  deleted_at: string | null;
+  created_at: string;
+  sender?: OtherUser | null;
+  is_mine?: boolean;
 }
-
-interface OtherUser {
-  id: string;
-  nickname: string;
-  profile_image_url: string | null;
-}
-
-interface MyProfile {
-  nickname: string;
-  profile_image_url: string | null;
-}
-
-interface SessionClassItem {
-  id: string;
-  title: string;
-  images: { card_url?: string }[] | null;
-  status?: string;
-  created_at?: string;
-}
-
-type MessageMenuTab = "messages" | "my-chat" | "nearby";
 
 export default function MessagesPageClient({ userId }: { userId: string }) {
   const router = useRouter();
@@ -68,7 +59,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
   const [activeMenuTab, setActiveMenuTab] = useState<MessageMenuTab>("messages");
 
   // 대화창 상태
-  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
   const [chatOpen, setChatOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [otherUser, setOtherUser] = useState<OtherUser | null>(null);
@@ -79,14 +70,13 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
   const [chatMenuOpen, setChatMenuOpen] = useState(false);
   const [attachOpen, setAttachOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [uploadDone, setUploadDone] = useState(false);
   const [refreshDisabled, setRefreshDisabled] = useState(false);
   const [isSpinning, setIsSpinning] = useState(false);
   const [shakingMsgId, setShakingMsgId] = useState<string | null>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const activeChatUserRef = useRef<string | null>(null);
+  const activeChatRoomRef = useRef<string | null>(null);
 
   async function resizeToBlob(bitmap: ImageBitmap, maxW: number): Promise<Blob> {
     const scale = bitmap.width > maxW ? maxW / bitmap.width : 1;
@@ -102,7 +92,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
   }
 
   async function handlePhotoUpload(file: File) {
-    if (!selectedUserId) return;
+    if (!selectedRoomId) return;
 
     setUploading(true);
     try {
@@ -128,20 +118,22 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
       const { data: { publicUrl: url300 } } = supabase.storage.from("message").getPublicUrl(path300);
       const { data: { publicUrl: url1024 } } = supabase.storage.from("message").getPublicUrl(path1024);
 
-      const content = JSON.stringify({ type: "image", thumb: url300, full: url1024 });
+      const res = await fetch(`/api/chat/rooms/${selectedRoomId}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          kind: "image",
+          content: { type: "image", thumb: url300, full: url1024 },
+        }),
+      });
+      const json = await res.json();
+      const message = json.data ? mapChatMessage(json.data as ChatMessageApiItem) : null;
 
-      const { data: message, error } = await supabase
-        .from("messages")
-        .insert({ sender_id: userId, receiver_id: selectedUserId, content })
-        .select()
-        .single();
-
-      if (!error && message) {
+      if (res.ok && message) {
         setMessages((prev) => [...prev, message]);
-        appendMessageCache(selectedUserId, message);
+        appendMessageCache(selectedRoomId, message);
         setAttachOpen(false);
-        setUploadDone(true);
-        setTimeout(() => setUploadDone(false), 2000);
+        patchConversationWithMessage(selectedRoomId, message);
       }
     } catch (e) {
       console.error("업로드 실패", e);
@@ -150,11 +142,80 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
     }
   }
 
-  const CACHE_KEY = "loco_conversations_cache_v2";
-  const CACHE_SINCE_KEY = "loco_conversations_since";
+  const CACHE_KEY = "loco_chat_rooms_cache_v1";
   const CONVERSATIONS_LIMIT = 20;
-  const MESSAGES_CACHE_PREFIX = "loco_messages_cache_";
   const MESSAGE_USER_SESSION_KEY = "message_userid_session";
+
+  function mapChatMessage(item: ChatMessageApiItem): Message {
+    return {
+      id: item.id,
+      room_id: item.room_id,
+      sender_id: item.sender_id,
+      kind: item.kind,
+      content: item.content,
+      sent_at: item.created_at,
+      sender: item.sender ?? null,
+    };
+  }
+
+  function mapChatRoom(item: ChatRoomApiItem): Conversation {
+    const otherMember = item.type === "direct"
+      ? item.members.find((member) => member.user_id !== userId)
+      : undefined;
+    const lastMessage = item.last_message;
+
+    return {
+      id: item.id,
+      type: item.type,
+      title: item.title,
+      member_count: item.member_count,
+      members: item.members,
+      other_user: otherMember?.profile ?? null,
+      last_message: lastMessage
+        ? {
+            id: lastMessage.id,
+            kind: lastMessage.kind,
+            content: lastMessage.content,
+            sent_at: lastMessage.created_at,
+            is_mine: lastMessage.is_mine,
+          }
+        : null,
+      last_text_message: lastMessage && lastMessage.kind !== "image"
+        ? {
+            content: lastMessage.content,
+            is_mine: lastMessage.is_mine,
+          }
+        : null,
+      unread_count: item.unread_count,
+      updated_at: item.updated_at,
+    };
+  }
+
+  function patchConversationWithMessage(roomId: string, message: Message) {
+    setConversations((prev) => {
+      const next = prev.map((conv) =>
+        conv.id === roomId
+          ? {
+              ...conv,
+              last_message: {
+                id: message.id,
+                kind: message.kind,
+                content: message.content,
+                sent_at: message.sent_at,
+                is_mine: message.sender_id === userId,
+              },
+              last_text_message: message.kind !== "image"
+                ? { content: message.content, is_mine: message.sender_id === userId }
+                : conv.last_text_message,
+              updated_at: message.sent_at,
+            }
+          : conv
+      );
+      const sorted = [...next].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+      try { localStorage.setItem(CACHE_KEY, JSON.stringify(sorted.slice(0, CONVERSATIONS_LIMIT))); } catch {}
+      return sorted;
+    });
+  }
 
   async function saveMessageUserSession(convs: Conversation[]) {
     try {
@@ -262,92 +323,6 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
     } catch {}
   }
 
-  function isImageMessage(content: string) {
-    try { return JSON.parse(content)?.type === "image"; } catch { return false; }
-  }
-
-  function limitImageMessages(msgs: Message[]) {
-    let imageCount = 0;
-    return msgs.reduceRight<Message[]>((acc, msg) => {
-      if (isImageMessage(msg.content)) {
-        if (imageCount < 1) {
-          imageCount++;
-          try {
-            const parsed = JSON.parse(msg.content);
-            const { full: _full, ...rest } = parsed;
-            acc.unshift({ ...msg, content: JSON.stringify(rest) });
-          } catch {
-            acc.unshift(msg);
-          }
-        }
-      } else {
-        acc.unshift(msg);
-      }
-      return acc;
-    }, []);
-  }
-
-  function warmImageMessages(msgs: Message[]) {
-    msgs.forEach((msg) => {
-      try {
-        const parsed = JSON.parse(msg.content);
-        if (parsed.type === "image" && parsed.thumb) {
-          const img = new window.Image();
-          img.decoding = "async";
-          img.src = parsed.thumb;
-        }
-      } catch {}
-    });
-  }
-
-  function appendMessageCache(userId: string, message: Message) {
-    const msgs = readMessageCache(userId);
-    writeMessageCache(userId, [...msgs, message]);
-  }
-
-  function patchMessageCache(userId: string, message: Message) {
-    try {
-      const msgs = readMessageCache(userId);
-      if (msgs.length === 0) return;
-      writeMessageCache(userId, msgs.map((msg) => (msg.id === message.id ? { ...msg, ...message } : msg)));
-    } catch {}
-  }
-
-  function getMessageCacheKey(userId: string) {
-    return `${MESSAGES_CACHE_PREFIX}${userId}`;
-  }
-
-  function readMessageCache(userId: string) {
-    try {
-      return JSON.parse(sessionStorage.getItem(getMessageCacheKey(userId)) ?? "[]") as Message[];
-    } catch {
-      return [];
-    }
-  }
-
-  function writeMessageCache(userId: string, msgs: Message[]) {
-    const nextMessages = limitImageMessages(msgs);
-    sessionStorage.setItem(getMessageCacheKey(userId), JSON.stringify(nextMessages));
-    warmImageMessages(nextMessages);
-  }
-
-  function cacheRecentMessagesFromConversations(convs: Conversation[]) {
-    convs.forEach((conv) => {
-      const otherId = conv.other_user?.id;
-      if (!otherId || !conv.recent_messages) return;
-      writeMessageCache(otherId, conv.recent_messages);
-    });
-  }
-
-  function stripRecentMessages(convs: Conversation[]) {
-    return convs.map((conv) => {
-      const next = { ...conv };
-      delete next.recent_messages;
-      return next;
-    });
-  }
-
-
   async function fetchConversations(options?: { force?: boolean; manual?: boolean }) {
     const force = options?.force ?? false;
     const manual = options?.manual ?? false;
@@ -367,33 +342,13 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
       setTimeout(() => setIsSpinning(false), 2000);
     }
     try {
-      const since = manual ? localStorage.getItem(CACHE_SINCE_KEY) : null;
-      const url = since ? `/api/conversations?since=${encodeURIComponent(since)}` : "/api/conversations";
-      const res = await fetch(url);
+      const res = await fetch("/api/chat/rooms");
       const json = await res.json();
       if (json.data) {
-        const incoming = json.data as Conversation[];
-        cacheRecentMessagesFromConversations(incoming);
-        const incomingConversations = stripRecentMessages(incoming);
-        const now = new Date().toISOString();
-        localStorage.setItem(CACHE_SINCE_KEY, now);
-
-        if (manual && since) {
-          if (incomingConversations.length > 0) {
-            // 새 메시지가 있는 대화는 목록 앞에 반영 + 세션에 메시지 저장
-            setConversations((prev) => {
-              const incomingIds = new Set(incomingConversations.map((c) => c.id));
-              const next = [...incomingConversations, ...prev.filter((c) => !incomingIds.has(c.id))].slice(0, CONVERSATIONS_LIMIT);
-              localStorage.setItem(CACHE_KEY, JSON.stringify(next));
-              return next;
-            });
-          }
-          // 신규 없으면 기존 목록 유지
-        } else {
-          setConversations(incomingConversations);
-          localStorage.setItem(CACHE_KEY, JSON.stringify(incomingConversations.slice(0, CONVERSATIONS_LIMIT)));
-          await saveMessageUserSession(incomingConversations);
-        }
+        const incomingConversations = (json.data as ChatRoomApiItem[]).map(mapChatRoom);
+        setConversations(incomingConversations);
+        localStorage.setItem(CACHE_KEY, JSON.stringify(incomingConversations.slice(0, CONVERSATIONS_LIMIT)));
+        await saveMessageUserSession(incomingConversations);
       }
     } catch (error) {
       console.error("Failed to load conversations:", error);
@@ -417,6 +372,8 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
     queueMicrotask(() => {
       void fetchConversations({ force: !cached });
     });
+    // 첫 진입 때 로컬 캐시를 먼저 보여주고, 최신 목록은 한 번만 백그라운드 갱신합니다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -431,45 +388,32 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
   }, []);
 
   useEffect(() => {
-    if (!selectedUserId) return;
+    if (!selectedRoomId) return;
 
     const supabase = createClient();
     const channel = supabase
-      .channel(`chat-${selectedUserId}`)
+      .channel(`chat-room-${selectedRoomId}`)
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "messages" },
+        { event: "INSERT", schema: "public", table: "chat_messages", filter: `room_id=eq.${selectedRoomId}` },
         (payload) => {
-          const newMsg = payload.new as Message;
-          if (newMsg.sender_id === selectedUserId && newMsg.receiver_id === userId) {
-            setMessages((prev) => {
-              if (prev.some((m) => m.id === newMsg.id)) return prev;
-              return [...prev, newMsg];
-            });
-            appendMessageCache(selectedUserId, newMsg);
-          }
-        }
-      )
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "messages" },
-        (payload) => {
-          const updatedMsg = payload.new as Message;
-          const isRelevant =
-            (updatedMsg.sender_id === selectedUserId && updatedMsg.receiver_id === userId) ||
-            (updatedMsg.sender_id === userId && updatedMsg.receiver_id === selectedUserId);
-          if (!isRelevant) return;
+          const newMsg = mapChatMessage(payload.new as ChatMessageApiItem);
+          if (newMsg.sender_id === userId) return;
 
-          setMessages((prev) =>
-            prev.map((msg) => (msg.id === updatedMsg.id ? { ...msg, ...updatedMsg } : msg))
-          );
-          patchMessageCache(selectedUserId, updatedMsg);
+          setMessages((prev) => {
+            if (prev.some((m) => m.id === newMsg.id)) return prev;
+            return [...prev, newMsg];
+          });
+          appendMessageCache(selectedRoomId, newMsg);
+          patchConversationWithMessage(selectedRoomId, newMsg);
         }
       )
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [selectedUserId, userId]);
+    // 실시간 구독은 현재 열린 방과 현재 사용자 기준으로만 다시 연결합니다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedRoomId, userId]);
 
   useEffect(() => {
     if (messages.length > 0) {
@@ -500,30 +444,23 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
     };
   }, [userId]);
 
-  async function openChat(otherId: string) {
-    activeChatUserRef.current = otherId;
-    setSelectedUserId(otherId);
+  async function openChat(roomId: string) {
+    activeChatRoomRef.current = roomId;
+    setSelectedRoomId(roomId);
     setChatOpen(true);
     setChatLoading(true);
 
-    const supabase = createClient();
-    const readAt = new Date().toISOString();
-    const markMessageAsRead = (msg: Message) =>
-      msg.sender_id === otherId && msg.receiver_id === userId && !msg.read_at
-        ? { ...msg, read_at: readAt }
-        : msg;
-    const localOtherUser = conversations.find((conv) => conv.other_user?.id === otherId)?.other_user ?? null;
+    const localConversation = conversations.find((conv) => conv.id === roomId) ?? null;
+    const localOtherUser = localConversation?.other_user ?? null;
     let hasCachedMessages = false;
 
     setOtherUser(localOtherUser);
 
     try {
-      const cachedMessages = readMessageCache(otherId);
+      const cachedMessages = readMessageCache(roomId);
       if (cachedMessages.length > 0) {
-        const nextMessages = cachedMessages.map(markMessageAsRead);
         hasCachedMessages = true;
-        writeMessageCache(otherId, nextMessages);
-        setMessages(nextMessages);
+        setMessages(cachedMessages);
         setChatLoading(false);
       } else {
         setMessages([]);
@@ -534,47 +471,23 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
 
     setConversations((prev) => {
       const next = prev.map((conv) =>
-        conv.other_user?.id === otherId ? { ...conv, unread_count: 0 } : conv
+        conv.id === roomId ? { ...conv, unread_count: 0 } : conv
       );
       try { localStorage.setItem(CACHE_KEY, JSON.stringify(next)); } catch {}
       return next;
     });
 
-    supabase
-      .from("messages")
-      .update({ read_at: readAt })
-      .eq("sender_id", otherId)
-      .eq("receiver_id", userId)
-      .is("read_at", null)
-      .then(({ error }) => {
-        if (error) console.error("Failed to mark messages as read:", error);
-      });
-
-    if (!localOtherUser) {
-      void supabase
-        .from("profiles")
-        .select("id, nickname, profile_image_url")
-        .eq("id", otherId)
-        .single()
-        .then(({ data: profile }) => {
-          if (profile && activeChatUserRef.current === otherId) setOtherUser(profile);
-        });
-    }
-
     void (async () => {
-      const { data: msgs } = await supabase
-        .from("messages")
-        .select("*")
-        .or(`and(sender_id.eq.${userId},receiver_id.eq.${otherId}),and(sender_id.eq.${otherId},receiver_id.eq.${userId})`)
-        .order("sent_at", { ascending: true });
-      if (msgs) {
-        const nextMessages = msgs.map(markMessageAsRead);
-        writeMessageCache(otherId, nextMessages);
-        if (activeChatUserRef.current === otherId) {
-          setMessages(readMessageCache(otherId));
+      const res = await fetch(`/api/chat/rooms/${roomId}/messages`);
+      const json = await res.json();
+      if (res.ok && json.data) {
+        const nextMessages = (json.data as ChatMessageApiItem[]).map(mapChatMessage);
+        writeMessageCache(roomId, nextMessages);
+        if (activeChatRoomRef.current === roomId) {
+          setMessages(nextMessages);
         }
       }
-      if (activeChatUserRef.current === otherId) {
+      if (activeChatRoomRef.current === roomId) {
         setChatLoading(false);
       }
     })();
@@ -583,47 +496,39 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
   }
 
   function closeChat() {
-    activeChatUserRef.current = null;
+    activeChatRoomRef.current = null;
     setChatOpen(false);
     setTimeout(() => {
-      setSelectedUserId(null);
+      setSelectedRoomId(null);
       setMessages([]);
       setOtherUser(null);
     }, 300);
   }
 
   async function handleSendMessage() {
-    if (!newMessage.trim() || !selectedUserId) return;
+    if (!newMessage.trim() || !selectedRoomId) return;
 
     setSending(true);
-    const supabase = createClient();
-
-    const { data: message, error } = await supabase
-      .from("messages")
-      .insert({
-        sender_id: userId,
-        receiver_id: selectedUserId,
-        content: newMessage.trim(),
-      })
-      .select()
-      .single();
-
-    if (!error && message) {
-      setMessages((prev) => [...prev, message]);
-      appendMessageCache(selectedUserId, message);
-      setNewMessage("");
-      setConversations((prev) => {
-        const updated = prev.map((conv) =>
-          conv.other_user?.id === selectedUserId
-            ? { ...conv, last_message: { content: message.content, sent_at: message.sent_at, is_mine: true, read_at: message.read_at }, last_text_message: { content: message.content, is_mine: true } }
-            : conv
-        );
-        try { localStorage.setItem(CACHE_KEY, JSON.stringify(updated)); } catch {}
-        return updated;
+    try {
+      const res = await fetch(`/api/chat/rooms/${selectedRoomId}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind: "text", content: newMessage.trim() }),
       });
-    }
+      const json = await res.json();
+      const message = json.data ? mapChatMessage(json.data as ChatMessageApiItem) : null;
 
-    setSending(false);
+      if (res.ok && message) {
+        setMessages((prev) => [...prev, message]);
+        appendMessageCache(selectedRoomId, message);
+        setNewMessage("");
+        patchConversationWithMessage(selectedRoomId, message);
+      }
+    } catch (error) {
+      console.error("Failed to send chat message:", error);
+    } finally {
+      setSending(false);
+    }
   }
 
   function startLongPress(msgId: string, isMine: boolean) {
@@ -640,10 +545,10 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
   async function deleteMessage(msgId: string) {
     setMessages((prev) => prev.filter((m) => m.id !== msgId));
     setShakingMsgId(null);
-    if (selectedUserId) {
-      writeMessageCache(selectedUserId, readMessageCache(selectedUserId).filter((m) => m.id !== msgId));
+    if (selectedRoomId) {
+      writeMessageCache(selectedRoomId, readMessageCache(selectedRoomId).filter((m) => m.id !== msgId));
     }
-    await fetch(`/api/messages/${msgId}`, { method: "DELETE" });
+    await fetch(`/api/chat/messages/${msgId}`, { method: "DELETE" });
   }
 
   function formatDate(dateStr: string) {
@@ -665,413 +570,72 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
     return content.length > length ? content.substring(0, length) + "..." : content;
   }
 
+  async function handleFriendRequest() {
+    if (!otherUser?.id) return;
+    setChatMenuOpen(false);
+    const res = await fetch("/api/friends", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ target_id: otherUser.id }),
+    });
+    const data = await res.json();
+    alert(res.ok ? "친구 신청 완료!" : (data.error ?? "오류가 발생했습니다"));
+  }
+
   return (
     <div className="max-w-xl mx-auto bg-white flex flex-col" style={{ height: "calc(100vh - 126px)" }}>
-      {/* 메시지 목록 */}
-      <div className="flex items-end justify-between px-4 border-b border-[#e5e7eb]">
-        <div className="flex gap-6">
-          <button
-            onClick={() => setActiveMenuTab("messages")}
-            style={{ fontSize: 17 }}
-            className={`pb-2 font-bold border-b-2 transition-colors ${
-              activeMenuTab === "messages"
-                ? "border-black text-black"
-                : "border-transparent text-gray-400"
-            }`}
-          >
-            메시지
-          </button>
-          <button
-            onClick={() => setActiveMenuTab("my-chat")}
-            style={{ fontSize: 17 }}
-            className={`pb-2 font-bold border-b-2 transition-colors ${
-              activeMenuTab === "my-chat"
-                ? "border-black text-black"
-                : "border-transparent text-gray-400"
-            }`}
-          >
-            클래스
-          </button>
-          <button
-            onClick={() => setActiveMenuTab("nearby")}
-            style={{ fontSize: 17 }}
-            className={`pb-2 font-bold border-b-2 transition-colors ${
-              activeMenuTab === "nearby"
-                ? "border-black text-black"
-                : "border-transparent text-gray-400"
-            }`}
-          >
-            내근처
-          </button>
-        </div>
-        {activeMenuTab === "messages" && (
-          <button
-            onClick={() => { void fetchConversations({ force: true, manual: true }); }}
-            disabled={refreshDisabled && !isSpinning}
-            className={`pb-2 p-1 ${refreshDisabled && !isSpinning ? "text-gray-400 cursor-not-allowed" : "text-gray-800 hover:text-gray-900"}`}
-          >
-            <RefreshCw size={18} className={isSpinning ? "animate-spin" : ""} style={{ animationDuration: "0.8s" }} />
-          </button>
-        )}
-      </div>
+      <ConversationList
+        activeMenuTab={activeMenuTab}
+        conversations={conversations}
+        isSpinning={isSpinning}
+        loading={loading}
+        onlineIds={onlineIds}
+        refreshDisabled={refreshDisabled}
+        onOpenChat={openChat}
+        onOpenProfile={(profileId) => router.push(`/users/${profileId}/view`)}
+        onRefresh={() => {
+          void fetchConversations({ force: true, manual: true });
+        }}
+        setActiveMenuTab={setActiveMenuTab}
+        formatDate={formatDate}
+        truncateMessage={truncateMessage}
+      />
 
-      <div className="flex-1 overflow-y-auto">
-        {activeMenuTab === "my-chat" ? (
-          <div className="h-full bg-white" />
-        ) : activeMenuTab === "nearby" ? (
-          <div className="bg-white">
-            <div className="px-4 pt-4 pb-2">
-              <p className="text-base font-bold" style={{ color: "#333333" }}>검색범위</p>
-            </div>
-            <NearbyMap />
-          </div>
-        ) : loading ? (
-          <div className="flex items-center justify-center h-32 text-gray-400">로딩 중...</div>
-        ) : conversations.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-32 text-gray-400">
-            <p className="text-4xl mb-2">💬</p>
-            <p className="text-sm">대화가 없습니다</p>
-          </div>
-        ) : (
-          conversations.map((conv) => (
-            <div
-              key={conv.id}
-              onClick={() => conv.other_user && openChat(conv.other_user.id)}
-              className="border-b border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors"
-            >
-              {(() => {
-                const isMine = conv.last_message?.is_mine;
-                const lastContent = conv.last_message?.content ?? "";
-                let lastImage: { thumb: string } | null = null;
-                try {
-                  const parsed = JSON.parse(lastContent);
-                  if (parsed.type === "image") lastImage = parsed;
-                } catch {}
-
-                const showOnlineDot =
-                  conv.other_user?.id ? onlineIds.has(conv.other_user.id) : false;
-                const displayNickname = conv.other_user?.nickname ?? "알 수 없음";
-                return (
-                  <div className={`flex items-stretch gap-2`}>
-                    {lastImage && (
-                      <div className="flex-shrink-0 w-[80px] flex items-center justify-center">
-                        <Image
-                          src={lastImage.thumb}
-                          alt="사진"
-                          width={50}
-                          height={50}
-                          className="w-[50px] h-[50px] object-cover rounded-[5px]"
-                        />
-                      </div>
-                    )}
-                    <div className={`flex-1 px-3 py-3`}>
-                      <div className={`flex items-start gap-3`}>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (!conv.other_user?.id) return;
-                            router.push(`/users/${conv.other_user.id}/view`);
-                          }}
-                          className="flex-shrink-0 relative"
-                          aria-label={`${conv.other_user?.nickname ?? "사용자"} 프로필 보기`}
-                        >
-                          {conv.other_user?.profile_image_url ? (
-                            <Image
-                              src={conv.other_user.profile_image_url}
-                              alt={conv.other_user.nickname}
-                              width={40}
-                              height={40}
-                              className="rounded-full object-cover"
-                            />
-                          ) : (
-                            <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 text-xs font-medium">
-                              {conv.other_user?.nickname?.[0] ?? "?"}
-                            </div>
-                          )}
-                          {showOnlineDot && (
-                            <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-green-500 border-2 border-white" />
-                          )}
-                        </button>
-                        <div className={`flex-1 min-w-0`}>
-                          <div className={`flex items-baseline gap-2`}>
-                            <span className="font-bold text-gray-900" style={{ fontSize: "17px" }}>
-                              {displayNickname}
-                              {isMine && (
-                                <span className="font-normal ml-1" style={{ fontSize: "15px" }}>
-                                  에게
-                                </span>
-                              )}
-                            </span>
-                            <span className="text-gray-400 text-xs flex-shrink-0">
-                              {conv.last_message?.sent_at ? formatDate(conv.last_message.sent_at) : ""}
-                            </span>
-                          </div>
-                          {conv.last_text_message && (
-                            <p className="line-clamp-1 mt-1 text-gray-900" style={{ fontSize: "16px" }}>
-                              {truncateMessage(conv.last_text_message.content)}
-                            </p>
-                          )}
-                        </div>
-                        {conv.unread_count > 0 && (
-                          <div className="ml-auto flex h-6 min-w-6 shrink-0 items-center justify-center rounded-full bg-red-500 px-1.5 text-xs font-bold leading-none text-white">
-                            {conv.unread_count}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })()}
-            </div>
-          ))
-        )}
-      </div>
-
-      {/* 대화창 슬라이드 오버레이 */}
-      <div
-        className={`fixed inset-0 z-[60] bg-white flex flex-col transition-transform duration-300 ease-in-out ${
-          chatOpen ? "translate-x-0" : "translate-x-full"
-        }`}
-      >
-        {/* 대화창 헤더 */}
-        <div className="h-14 shrink-0 relative flex items-center justify-between px-4 border-b border-gray-100">
-          <button onClick={closeChat} className="p-1 -ml-1 text-gray-600 hover:text-gray-900">
-            <ArrowLeft size={20} />
-          </button>
-          <div className="absolute left-1/2 -translate-x-1/2">
-            <span className="font-bold text-gray-900" style={{ fontSize: "18px" }}>{otherUser?.nickname ?? "로딩중..."}</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="relative">
-            <button onClick={() => setChatMenuOpen((v) => !v)} className="p-1 text-gray-600 hover:text-gray-900">
-              <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="3" y1="6" x2="21" y2="6" />
-                <line x1="3" y1="12" x2="21" y2="12" />
-                <line x1="3" y1="18" x2="21" y2="18" />
-              </svg>
-            </button>
-            {chatMenuOpen && (
-              <>
-                <div className="fixed inset-0 z-[70]" onClick={() => setChatMenuOpen(false)} />
-                <div className="absolute right-0 top-full z-[80] bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden" style={{ width: 180 }}>
-                  <button
-                    className="flex items-center justify-between w-full px-4 py-3 text-gray-700" style={{ fontSize: "16px" }}
-                    onClick={async () => {
-                      if (!selectedUserId) return;
-                      setChatMenuOpen(false);
-                      const res = await fetch("/api/friends", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ target_id: selectedUserId }),
-                      });
-                      const data = await res.json();
-                      alert(res.ok ? "친구 신청 완료!" : (data.error ?? "오류가 발생했습니다"));
-                    }}
-                  >
-                    <span>친구 신청</span>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500">
-                      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/>
-                    </svg>
-                  </button>
-                  <div className="border-t border-gray-100 mx-3" />
-                  <button className="flex items-center justify-between w-full px-4 py-3 text-gray-700" style={{ fontSize: "16px" }}>
-                    <span>대화 삭제</span>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500">
-                      <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
-                    </svg>
-                  </button>
-                  <div className="border-t border-gray-100 mx-3" />
-                  <button className="flex items-center justify-between w-full px-4 py-3 text-red-500" style={{ fontSize: "16px" }}>
-                    <span>차단하기</span>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-red-400">
-                      <circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
-                    </svg>
-                  </button>
-                </div>
-              </>
-            )}
-            </div>
-          </div>
-        </div>
-
-        {/* 메시지 목록 */}
-        <style>{`
-          @keyframes shake {
-            0%, 100% { transform: rotate(0deg); }
-            25% { transform: rotate(-2deg); }
-            75% { transform: rotate(2deg); }
-          }
-          .msg-shake { animation: shake 0.3s ease-in-out infinite; }
-        `}</style>
-        <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3" style={{ backgroundColor: "#B2C7D9" }} onClick={() => { setAttachOpen(false); setShakingMsgId(null); }}>
-          {chatLoading ? (
-            <div className="flex items-center justify-center h-full text-gray-600">로딩 중...</div>
-          ) : messages.length === 0 ? (
-            <div className="flex items-center justify-center h-full text-gray-600 text-sm">
-              대화 시작하기
-            </div>
-          ) : (
-            messages.map((msg, idx) => {
-              const isMine = msg.sender_id === userId;
-              const prevMsg = idx > 0 ? messages[idx - 1] : null;
-              const isNewGroup = !prevMsg || prevMsg.sender_id !== msg.sender_id;
-              const showSenderName = !isMine && isNewGroup;
-              const showMyAvatar = isMine && isNewGroup;
-              let imageData: { thumb: string; full: string } | null = null;
-              try {
-                const parsed = JSON.parse(msg.content);
-                if (parsed.type === "image") imageData = parsed;
-              } catch {}
-              return (
-                <div key={msg.id}>
-                  {showMyAvatar && (
-                    <div className="flex justify-end mb-2">
-                      {myProfile?.profile_image_url ? (
-                        <Image
-                          src={myProfile.profile_image_url}
-                          alt={myProfile.nickname ?? "나"}
-                          width={40}
-                          height={40}
-                          className="rounded-full object-cover flex-shrink-0"
-                        />
-                      ) : (
-                        <div className="w-[40px] h-[40px] rounded-full bg-gray-200 flex items-center justify-center text-gray-500 text-xs font-medium flex-shrink-0">
-                          {myProfile?.nickname?.[0] ?? "나"}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  {showSenderName && (
-                    <div className="flex items-center gap-2 mb-2">
-                      {otherUser?.profile_image_url ? (
-                        <Image
-                          src={otherUser.profile_image_url}
-                          alt={otherUser.nickname}
-                          width={40}
-                          height={40}
-                          className="rounded-full object-cover flex-shrink-0"
-                        />
-                      ) : (
-                        <div className="w-[40px] h-[40px] rounded-full bg-gray-200 flex items-center justify-center text-gray-500 text-xs font-medium flex-shrink-0">
-                          {otherUser?.nickname?.[0] ?? "?"}
-                        </div>
-                      )}
-                      <span className="text-base text-gray-800">{otherUser?.nickname}</span>
-                    </div>
-                  )}
-                  <div className={`flex ${isMine ? "justify-end" : "justify-start"} gap-2 items-end`}>
-                    {!isMine && <span className="text-xs text-gray-700 flex-shrink-0 order-2">{formatTime(msg.sent_at)}</span>}
-                    <div className={`flex ${isMine ? "flex-col items-end" : ""} gap-1`}>
-                      <div
-                        className={`relative rounded-lg text-base overflow-visible ${
-                          imageData ? "" : "px-3 py-2"
-                        } ${isMine ? "text-gray-900" : "bg-white text-gray-900"} ${isMine && shakingMsgId === msg.id ? "msg-shake" : ""}`}
-                        style={{
-                          ...(isMine ? { maxWidth: "72vw" } : { maxWidth: "270px" }),
-                          ...(isMine && !imageData ? { backgroundColor: "#FEE500" } : {}),
-                        }}
-                        onTouchStart={() => startLongPress(msg.id, isMine)}
-                        onTouchEnd={cancelLongPress}
-                        onMouseDown={() => startLongPress(msg.id, isMine)}
-                        onMouseUp={cancelLongPress}
-                        onMouseLeave={cancelLongPress}
-                      >
-                        {isMine && shakingMsgId === msg.id && (
-                          <button
-                            onClick={(e) => { e.stopPropagation(); void deleteMessage(msg.id); }}
-                            className="absolute -top-2 -left-2 z-10 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center"
-                          >
-                            <span className="text-white text-xs font-bold leading-none">✕</span>
-                          </button>
-                        )}
-                        {imageData ? (
-                          <a href={imageData.full} target="_blank" rel="noreferrer">
-                            <Image src={imageData.thumb} alt="사진" width={200} height={200} className="rounded-lg object-cover" />
-                          </a>
-                        ) : (
-                          <p className="break-words">{msg.content}</p>
-                        )}
-                      </div>
-                      {isMine && (
-                        <span className="flex items-center gap-1 text-xs text-gray-700">
-                          {formatTime(msg.sent_at)}
-                          {msg.read_at ? (
-                            <span className="text-xs font-normal leading-none text-[#595959]">
-                              읽음
-                            </span>
-                          ) : (
-                            <span className="text-xs font-normal leading-none text-red-500">
-                              안읽음
-                            </span>
-                          )}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              );
-            })
-          )}
-          <div ref={messagesEndRef} />
-        </div>
-
-        {/* 입력창 */}
-        <div className="border-t border-gray-100 px-3 pt-3 pb-3 flex gap-2 items-start min-h-[80px]">
-          <button className="text-gray-500 flex-shrink-0 mt-2" onClick={() => setAttachOpen((v) => !v)}>
-            <Paperclip size={22} strokeWidth={2.5} />
-          </button>
-          <input
-            type="text"
-            value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
-            onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
-            placeholder="메시지 입력..."
-            className="flex-1 px-3 py-2 border border-gray-200 rounded-full focus:outline-none focus:ring-2 focus:ring-yellow-400" style={{ fontSize: "16px", color: "#000000cc" }}
-            disabled={sending}
-          />
-          <button
-            onClick={handleSendMessage}
-            disabled={!newMessage.trim() || sending}
-            className="w-9 h-9 flex items-center justify-center bg-yellow-400 text-gray-900 rounded-full hover:bg-yellow-500 disabled:opacity-50 mt-1 flex-shrink-0"
-          >
-            <Send size={16} />
-          </button>
-        </div>
-
-        {/* 첨부 영역 */}
-        <div
-          className="overflow-hidden transition-all duration-300 ease-in-out bg-white"
-          style={{ height: attachOpen ? "140px" : "0px" }}
-        >
-          <input
-            ref={photoInputRef}
-            type="file"
-            accept="image/jpeg,image/png,image/gif"
-            className="hidden"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) handlePhotoUpload(file);
-              e.target.value = "";
-            }}
-          />
-          <div className="grid grid-cols-4 gap-4 px-6 pt-6 pb-6">
-            {[
-              { icon: <ImageIcon size={28} strokeWidth={2} />, label: "사진", onClick: () => photoInputRef.current?.click() },
-              { icon: <FileText size={28} strokeWidth={2} />, label: "파일", onClick: undefined },
-              { icon: <MapPin size={28} strokeWidth={2} />, label: "지도", onClick: undefined },
-              { icon: <CalendarDays size={28} strokeWidth={2} />, label: "클래스", onClick: undefined },
-            ].map(({ icon, label, onClick }) => (
-              <button key={label} onClick={onClick} disabled={uploading} className="flex flex-col items-center gap-2">
-                <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center text-gray-600">
-                  {icon}
-                </div>
-                <span className="text-xs text-gray-500">{label}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
+      <ChatDrawer
+        attachOpen={attachOpen}
+        chatLoading={chatLoading}
+        chatMenuOpen={chatMenuOpen}
+        chatOpen={chatOpen}
+        messages={messages}
+        messagesEndRef={messagesEndRef}
+        myProfile={myProfile}
+        newMessage={newMessage}
+        otherUser={otherUser}
+        photoInputRef={photoInputRef}
+        selectedUserId={selectedRoomId}
+        sending={sending}
+        shakingMsgId={shakingMsgId}
+        uploading={uploading}
+        userId={userId}
+        onCancelLongPress={cancelLongPress}
+        onClose={closeChat}
+        onDeleteMessage={(msgId) => {
+          void deleteMessage(msgId);
+        }}
+        onFriendRequest={() => {
+          void handleFriendRequest();
+        }}
+        onPhotoUpload={handlePhotoUpload}
+        onSendMessage={() => {
+          void handleSendMessage();
+        }}
+        onStartLongPress={startLongPress}
+        setAttachOpen={setAttachOpen}
+        setChatMenuOpen={setChatMenuOpen}
+        setNewMessage={setNewMessage}
+        setShakingMsgId={setShakingMsgId}
+        formatTime={formatTime}
+      />
     </div>
   );
 }

@@ -25,26 +25,39 @@ export default function SendMessageModal({ isOpen, onClose, receiver }: SendMess
 
     setLoading(true);
     try {
-      const res = await fetch("/api/messages/send", {
+      const roomRes = await fetch("/api/chat/rooms/direct", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          receiver_id: receiver.id,
-          content,
-        }),
+        body: JSON.stringify({ target_id: receiver.id }),
       });
 
-      if (!res.ok) {
-        alert("메시지 전송 실패");
+      const roomJson = await roomRes.json();
+      const roomId = roomJson.data?.id;
+      if (!roomRes.ok || !roomId) {
+        alert(roomJson.error ?? "대화방 생성 실패");
         setLoading(false);
         return;
       }
 
+      const messageRes = await fetch(`/api/chat/rooms/${roomId}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind: "text", content }),
+      });
+
+      const messageJson = await messageRes.json();
+      if (!messageRes.ok) {
+        alert(messageJson.error ?? "메시지 전송 실패");
+        setLoading(false);
+        return;
+      }
+
+      localStorage.removeItem("loco_chat_rooms_cache_v1");
       setSuccess(true);
       setContent("");
       setSuccess(false);
       onClose();
-    } catch (error) {
+    } catch {
       alert("오류 발생");
       setLoading(false);
     }
