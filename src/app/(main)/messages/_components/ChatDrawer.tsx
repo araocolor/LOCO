@@ -1,7 +1,7 @@
 "use client";
 
 import type { Dispatch, RefObject, SetStateAction } from "react";
-import { ArrowLeft, Paperclip, Send } from "lucide-react";
+import { ArrowLeft, Paperclip, Send, UserPlus } from "lucide-react";
 import ChatAttachPanel from "./ChatAttachPanel";
 import MessageBubble from "./MessageBubble";
 import type { Message, MyProfile, OtherUser } from "../_types";
@@ -11,6 +11,8 @@ interface ChatDrawerProps {
   chatLoading: boolean;
   chatMenuOpen: boolean;
   chatOpen: boolean;
+  chatTitle: string | null;
+  canAddMembers: boolean;
   messages: Message[];
   messagesEndRef: RefObject<HTMLDivElement | null>;
   myProfile: MyProfile | null;
@@ -26,6 +28,7 @@ interface ChatDrawerProps {
   onClose: () => void;
   onDeleteMessage: (msgId: string) => void;
   onFriendRequest: () => void;
+  onOpenMemberDrawer: () => void;
   onPhotoUpload: (file: File) => void;
   onSendMessage: () => void;
   onStartLongPress: (msgId: string, isMine: boolean) => void;
@@ -41,6 +44,8 @@ export default function ChatDrawer({
   chatLoading,
   chatMenuOpen,
   chatOpen,
+  chatTitle,
+  canAddMembers,
   messages,
   messagesEndRef,
   myProfile,
@@ -56,6 +61,7 @@ export default function ChatDrawer({
   onClose,
   onDeleteMessage,
   onFriendRequest,
+  onOpenMemberDrawer,
   onPhotoUpload,
   onSendMessage,
   onStartLongPress,
@@ -76,7 +82,7 @@ export default function ChatDrawer({
           <ArrowLeft size={20} />
         </button>
         <div className="absolute left-1/2 -translate-x-1/2">
-          <span className="font-bold text-gray-900" style={{ fontSize: "18px" }}>{otherUser?.nickname ?? "로딩중..."}</span>
+          <span className="font-bold text-gray-900" style={{ fontSize: "18px" }}>{chatTitle ?? otherUser?.nickname ?? "로딩중..."}</span>
         </div>
         <div className="flex items-center gap-1">
           <div className="relative">
@@ -91,6 +97,21 @@ export default function ChatDrawer({
               <>
                 <div className="fixed inset-0 z-[70]" onClick={() => setChatMenuOpen(false)} />
                 <div className="absolute right-0 top-full z-[80] bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden" style={{ width: 180 }}>
+                  {canAddMembers && (
+                    <>
+                      <button
+                        className="flex items-center justify-between w-full px-4 py-3 text-gray-700" style={{ fontSize: "16px" }}
+                        onClick={() => {
+                          setChatMenuOpen(false);
+                          onOpenMemberDrawer();
+                        }}
+                      >
+                        <span>새 사용자 추가</span>
+                        <UserPlus size={20} className="text-gray-500" />
+                      </button>
+                      <div className="border-t border-gray-100 mx-3" />
+                    </>
+                  )}
                   <button
                     className="flex items-center justify-between w-full px-4 py-3 text-gray-700" style={{ fontSize: "16px" }}
                     onClick={onFriendRequest}

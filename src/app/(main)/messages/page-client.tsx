@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { PRESENCE_EVENT } from "@/components/features/PresenceTracker";
 import ConversationList from "./_components/ConversationList";
 import ChatDrawer from "./_components/ChatDrawer";
+import ChatMemberDrawer from "./_components/ChatMemberDrawer";
 import type { Conversation, Message, MessageMenuTab, MyProfile, OtherUser, SessionClassItem } from "./_types";
 import {
   appendMessageCache,
@@ -68,6 +69,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
   const [newMessage, setNewMessage] = useState("");
   const [sending, setSending] = useState(false);
   const [chatMenuOpen, setChatMenuOpen] = useState(false);
+  const [memberDrawerOpen, setMemberDrawerOpen] = useState(false);
   const [attachOpen, setAttachOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [refreshDisabled, setRefreshDisabled] = useState(false);
@@ -77,6 +79,18 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const activeChatRoomRef = useRef<string | null>(null);
+  const selectedConversation = selectedRoomId
+    ? conversations.find((conv) => conv.id === selectedRoomId) ?? null
+    : null;
+  const canAddMembers = Boolean(
+    !!selectedConversation &&
+    (
+      selectedConversation.type !== "class" ||
+      selectedConversation.members?.some((member) =>
+        member.user_id === userId && ["owner", "admin"].includes(member.role)
+      )
+    )
+  );
 
   async function resizeToBlob(bitmap: ImageBitmap, maxW: number): Promise<Blob> {
     const scale = bitmap.width > maxW ? maxW / bitmap.width : 1;
@@ -214,6 +228,34 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
       const sorted = [...next].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
       try { localStorage.setItem(CACHE_KEY, JSON.stringify(sorted.slice(0, CONVERSATIONS_LIMIT))); } catch {}
       return sorted;
+    });
+  }
+
+  function patchConversationWithRoom(room: unknown) {
+    if (!room || typeof room !== "object") return;
+    const nextRoom = room as {
+      id?: string;
+      type?: Conversation["type"];
+      title?: string | null;
+      members?: Conversation["members"];
+    };
+    if (!nextRoom.id) return;
+
+    setConversations((prev) => {
+      const next = prev.map((conv) =>
+        conv.id === nextRoom.id
+          ? {
+              ...conv,
+              type: nextRoom.type ?? conv.type,
+              title: nextRoom.title ?? conv.title,
+              members: nextRoom.members ?? conv.members,
+              member_count: nextRoom.members?.length ?? conv.member_count,
+              other_user: nextRoom.type === "direct" ? conv.other_user : null,
+            }
+          : conv
+      );
+      try { localStorage.setItem(CACHE_KEY, JSON.stringify(next.slice(0, CONVERSATIONS_LIMIT))); } catch {}
+      return next;
     });
   }
 
@@ -498,6 +540,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
   function closeChat() {
     activeChatRoomRef.current = null;
     setChatOpen(false);
+    setMemberDrawerOpen(false);
     setTimeout(() => {
       setSelectedRoomId(null);
       setMessages([]);
@@ -603,9 +646,11 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
 
       <ChatDrawer
         attachOpen={attachOpen}
+        canAddMembers={canAddMembers}
         chatLoading={chatLoading}
         chatMenuOpen={chatMenuOpen}
         chatOpen={chatOpen}
+        chatTitle={selectedConversation?.title ?? null}
         messages={messages}
         messagesEndRef={messagesEndRef}
         myProfile={myProfile}
@@ -625,6 +670,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
         onFriendRequest={() => {
           void handleFriendRequest();
         }}
+        onOpenMemberDrawer={() => setMemberDrawerOpen(true)}
         onPhotoUpload={handlePhotoUpload}
         onSendMessage={() => {
           void handleSendMessage();
@@ -635,6 +681,15 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
         setNewMessage={setNewMessage}
         setShakingMsgId={setShakingMsgId}
         formatTime={formatTime}
+      />
+      <ChatMemberDrawer
+        open={memberDrawerOpen}
+        roomId={selectedRoomId}
+        currentMembers={selectedConversation?.members}
+        onClose={() => setMemberDrawerOpen(false)}
+        onMemberAdded={(room) => {
+          patchConversationWithRoom(room);
+        }}
       />
     </div>
   );
