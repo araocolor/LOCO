@@ -84,19 +84,22 @@ export default function MyPageCacheLoader() {
     }
 
     async function load() {
+      let hasCachedData = false;
+
       try {
         // 하이드레이션 불일치 방지를 위해 마운트 이후에만 로컬 캐시를 읽는다.
         await Promise.resolve();
         const raw = localStorage.getItem(cacheKey);
         if (raw) {
-          if (!cancelled) setData(JSON.parse(raw) as MyPageSummaryCache);
-          return;
+          const cachedData = JSON.parse(raw) as MyPageSummaryCache;
+          hasCachedData = true;
+          if (!cancelled) setData(cachedData);
         }
 
         const loaded = await fetchAndUpdate();
-        if (!loaded && !cancelled) setError("마이페이지를 불러오지 못했습니다.");
+        if (!loaded && !hasCachedData && !cancelled) setError("마이페이지를 불러오지 못했습니다.");
       } catch {
-        if (!cancelled) setError("마이페이지를 불러오지 못했습니다.");
+        if (!hasCachedData && !cancelled) setError("마이페이지를 불러오지 못했습니다.");
       }
     }
 
