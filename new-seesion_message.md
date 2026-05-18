@@ -2,7 +2,7 @@
 
 작성일: 2026-05-18
 프로젝트: LOCO
-최근 커밋: `2dce4de 채팅방 사용자 추가 슬라이드 추가`
+최근 커밋: `3a4969b 클래스 신청/승인 바텀시트 및 채팅방 흐름 정리`
 브랜치: `main`
 
 ## 이번 세션에서 완료한 작업
@@ -230,3 +230,103 @@
 5. 그룹 멤버 삭제/나가기 API 추가.
 6. 클래스방 공지/강퇴 API 추가.
 7. 기존 메시지 API와 구버전 채팅 페이지 정리.
+
+---
+
+## 2026-05-19 추가 작업 기록
+
+1. 클래스 채팅방 입장 연결
+
+- `src/components/class/ClassCard.tsx`의 `대화방입장` 버튼을 실제 클래스 채팅방 입장으로 연결.
+- 추가 API: `POST /api/chat/rooms/class/[classId]`
+- 파일:
+- `src/app/api/chat/rooms/class/[classId]/route.ts`
+- `src/components/class/ClassCard.tsx`
+- `src/app/(main)/messages/page-client.tsx` (roomId 쿼리 자동 오픈)
+
+2. `ChatMemberDrawer` 보강
+
+- 현재 멤버 섹션 추가(방장/관리자/멤버 표시)
+- ID 검색 시 `GET /api/users/search?q=...` 연동
+- 파일:
+- `src/app/(main)/messages/_components/ChatMemberDrawer.tsx`
+- `src/app/api/users/search/route.ts`
+
+3. 그룹 멤버 삭제/나가기 API 추가
+
+- 추가 API:
+- `DELETE /api/chat/rooms/[id]/members/[userId]`
+- 클래스방 강퇴 시 `kicked`, 일반 나가기 시 `left` 처리
+- 파일:
+- `src/app/api/chat/rooms/[id]/members/[userId]/route.ts`
+
+4. 클래스방 공지 API 추가
+
+- 추가 API:
+- `PATCH /api/chat/rooms/[id]/notice`
+- owner/admin만 허용, class 타입 방만 허용
+- 파일:
+- `src/app/api/chat/rooms/[id]/notice/route.ts`
+
+5. 구 메시지/대화 API 및 구 채팅 페이지 정리
+
+- 삭제:
+- `src/app/api/conversations/route.ts`
+- `src/app/api/messages/send/route.ts`
+- `src/app/api/messages/[id]/route.ts`
+- `src/app/(main)/messages/chat/page.tsx`
+- `BottomNav` 프리패치 API를 `/api/chat/rooms`로 교체
+- 파일:
+- `src/components/layout/BottomNav.tsx`
+
+6. 클래스 신청/승인 UX 추가
+
+- 클래스 카드(비개설자) 더보기 메뉴에 `수업신청` 추가
+- 클래스 카드(개설자) 더보기 메뉴에 `신청자 목록` 추가
+- 신청자 목록은 바텀시트(`신청 대기/승인됨` 탭, 승인 버튼)로 구현
+- 추가 API: `GET /api/classes/[id]/applications` (개설자 전용)
+- 파일:
+- `src/components/class/ClassCard.tsx`
+- `src/components/class/ClassApplicantSheet.tsx`
+- `src/app/api/classes/[id]/applications/route.ts`
+
+7. 클래스 탭 노출 보강
+
+- 메시지 화면 `클래스` 탭에 class 타입 채팅방만 필터링 표시하도록 수정
+- 개설자 로그인 시 누락된 클래스 채팅방/owner 멤버십 자동 보강 로직 추가
+- 파일:
+- `src/app/(main)/messages/_components/ConversationList.tsx`
+- `src/app/api/chat/rooms/route.ts`
+
+8. 커밋/푸시
+
+- 커밋: `3a4969b 클래스 신청/승인 바텀시트 및 채팅방 흐름 정리`
+- `origin/main` 푸시 완료
+
+## 2026-05-19 기준 미완료 체크
+
+1. 대화방 텍스트 답장/새로고침 유지 수동 검증
+
+- 상태: 미완료(사용자 수동 확인 필요)
+
+2. 사진 전송 + Storage 업로드 + `chat_messages.kind=image` + 썸네일 표시 수동 검증
+
+- 상태: 미완료(사용자 수동 확인 필요)
+
+3. 클래스방 공지/강퇴 UI 연결
+
+- 상태: API만 완료, UI 미완료
+- 완료 API:
+- `PATCH /api/chat/rooms/[id]/notice`
+- `DELETE /api/chat/rooms/[id]/members/[userId]`
+
+4. 그룹방 멤버 삭제/나가기 UI 연결
+
+- 상태: API 완료, UI 미완료
+
+5. 클래스 카드 기준 수업신청/승인 흐름 추가 보강
+
+- 상태: 기본 구현 완료
+- 추가 개선 후보:
+- 승인 후 토스트/실시간 반영 UX 개선
+- 거절 액션(현재는 승인 중심)
