@@ -16,7 +16,7 @@ export async function GET(request: Request) {
     // messages 테이블에서 사용자가 주고받은 모든 메시지 조회
     let query = supabase
       .from("messages")
-      .select("id, sender_id, receiver_id, content, sent_at")
+      .select("id, sender_id, receiver_id, content, sent_at, read_at")
       .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`)
       .order("sent_at", { ascending: false });
 
@@ -61,12 +61,28 @@ export async function GET(request: Request) {
       msg.sender_id === user.id ? msg.receiver_id : msg.sender_id
     );
 
-    const { data: profiles } = await supabase
-      .from("profiles")
-      .select("id, nickname, profile_image_url")
-      .in("id", otherUserIds);
+    const [{ data: profiles }, { data: unreadMessages, error: unreadError }] = await Promise.all([
+      supabase
+        .from("profiles")
+        .select("id, nickname, profile_image_url")
+        .in("id", otherUserIds),
+      supabase
+        .from("messages")
+        .select("sender_id")
+        .eq("receiver_id", user.id)
+        .is("read_at", null)
+        .in("sender_id", otherUserIds),
+    ]);
+
+    if (unreadError) {
+      return NextResponse.json({ error: unreadError.message }, { status: 500 });
+    }
 
     const profileMap = new Map(profiles?.map((p) => [p.id, p]) || []);
+    const unreadCountMap = new Map<string, number>();
+    (unreadMessages ?? []).forEach((msg) => {
+      unreadCountMap.set(msg.sender_id, (unreadCountMap.get(msg.sender_id) ?? 0) + 1);
+    });
 
     // 응답 데이터 구성
     const result = conversations.map((msg) => {
@@ -85,12 +101,13 @@ export async function GET(request: Request) {
           content: msg.content,
           sent_at: msg.sent_at,
           is_mine: msg.sender_id === user.id,
+          read_at: msg.read_at,
         },
         last_text_message: lastText ? {
           content: lastText.content,
           is_mine: lastText.sender_id === user.id,
         } : null,
-        unread_count: 0,
+        unread_count: unreadCountMap.get(otherUserId) ?? 0,
         updated_at: msg.sent_at,
       };
     });
@@ -99,7 +116,7 @@ export async function GET(request: Request) {
     result.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
 
     return NextResponse.json({ data: result });
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

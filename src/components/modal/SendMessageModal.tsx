@@ -42,10 +42,8 @@ export default function SendMessageModal({ isOpen, onClose, receiver }: SendMess
 
       setSuccess(true);
       setContent("");
-      setTimeout(() => {
-        setSuccess(false);
-        onClose();
-      }, 1500);
+      setSuccess(false);
+      onClose();
     } catch (error) {
       alert("오류 발생");
       setLoading(false);

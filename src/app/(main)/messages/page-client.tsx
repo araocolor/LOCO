@@ -19,6 +19,7 @@ interface Conversation {
     content: string;
     sent_at: string;
     is_mine: boolean;
+    read_at: string | null;
   } | null;
   last_text_message: {
     content: string;
@@ -304,6 +305,19 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
     sessionStorage.setItem(cacheKey, JSON.stringify(limitImageMessages([...msgs, message])));
   }
 
+  function patchMessageCache(userId: string, message: Message) {
+    try {
+      const cacheKey = `${MESSAGES_CACHE_PREFIX}${userId}`;
+      const cached = sessionStorage.getItem(cacheKey);
+      if (!cached) return;
+      const msgs = JSON.parse(cached) as Message[];
+      sessionStorage.setItem(
+        cacheKey,
+        JSON.stringify(msgs.map((msg) => (msg.id === message.id ? { ...msg, ...message } : msg)))
+      );
+    } catch {}
+  }
+
 
   async function fetchConversations(options?: { force?: boolean; manual?: boolean }) {
     const force = options?.force ?? false;
@@ -315,7 +329,6 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
         setConversations(JSON.parse(cached) as Conversation[]);
       }
       setLoading(false);
-      return;
     }
 
     if (manual) {
@@ -336,13 +349,12 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
 
         if (manual && since) {
           if (incoming.length > 0) {
-            // 새 대화만 기존 목록 앞에 추가 + 세션에 메시지 저장
+            // 새 메시지가 있는 대화는 목록 앞에 반영 + 세션에 메시지 저장
             setConversations((prev) => {
-              const existingIds = new Set(prev.map((c) => c.id));
-              const newOnes = incoming.filter((c) => !existingIds.has(c.id));
-              const next = [...newOnes, ...prev].slice(0, CONVERSATIONS_LIMIT);
+              const incomingIds = new Set(incoming.map((c) => c.id));
+              const next = [...incoming, ...prev.filter((c) => !incomingIds.has(c.id))].slice(0, CONVERSATIONS_LIMIT);
               localStorage.setItem(CACHE_KEY, JSON.stringify(next));
-              void prefetchMessagesToSession(newOnes);
+              void prefetchMessagesToSession(incoming);
               return next;
             });
           }
@@ -427,6 +439,22 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
           }
         }
       )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "messages" },
+        (payload) => {
+          const updatedMsg = payload.new as Message;
+          const isRelevant =
+            (updatedMsg.sender_id === selectedUserId && updatedMsg.receiver_id === userId) ||
+            (updatedMsg.sender_id === userId && updatedMsg.receiver_id === selectedUserId);
+          if (!isRelevant) return;
+
+          setMessages((prev) =>
+            prev.map((msg) => (msg.id === updatedMsg.id ? { ...msg, ...updatedMsg } : msg))
+          );
+          patchMessageCache(selectedUserId, updatedMsg);
+        }
+      )
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
@@ -469,6 +497,41 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
     setOtherUser(null);
 
     const supabase = createClient();
+    const readAt = new Date().toISOString();
+
+    setConversations((prev) => {
+      const next = prev.map((conv) =>
+        conv.other_user?.id === otherId ? { ...conv, unread_count: 0 } : conv
+      );
+      try { localStorage.setItem(CACHE_KEY, JSON.stringify(next)); } catch {}
+      return next;
+    });
+
+    try {
+      const cacheKey = `${MESSAGES_CACHE_PREFIX}${otherId}`;
+      const cachedMessages = sessionStorage.getItem(cacheKey);
+      if (cachedMessages) {
+        const parsed = JSON.parse(cachedMessages) as Message[];
+        sessionStorage.setItem(
+          cacheKey,
+          JSON.stringify(parsed.map((msg) =>
+            msg.sender_id === otherId && msg.receiver_id === userId && !msg.read_at
+              ? { ...msg, read_at: readAt }
+              : msg
+          ))
+        );
+      }
+    } catch {}
+
+    supabase
+      .from("messages")
+      .update({ read_at: readAt })
+      .eq("sender_id", otherId)
+      .eq("receiver_id", userId)
+      .is("read_at", null)
+      .then(({ error }) => {
+        if (error) console.error("Failed to mark messages as read:", error);
+      });
 
     const { data: profile } = await supabase
       .from("profiles")
@@ -529,7 +592,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
       setConversations((prev) => {
         const updated = prev.map((conv) =>
           conv.other_user?.id === selectedUserId
-            ? { ...conv, last_message: { content: message.content, sent_at: message.sent_at, is_mine: true }, last_text_message: { content: message.content, is_mine: true } }
+            ? { ...conv, last_message: { content: message.content, sent_at: message.sent_at, is_mine: true, read_at: message.read_at }, last_text_message: { content: message.content, is_mine: true } }
             : conv
         );
         try { localStorage.setItem(CACHE_KEY, JSON.stringify(updated)); } catch {}
@@ -714,7 +777,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
                         </button>
                         <div className={`flex-1 min-w-0`}>
                           <div className={`flex items-baseline gap-2`}>
-                            <span className={`font-bold ${isMine ? "text-gray-400" : "text-gray-900"}`} style={{ fontSize: "17px" }}>
+                            <span className="font-bold text-gray-900" style={{ fontSize: "17px" }}>
                               {displayNickname}
                               {isMine && (
                                 <span className="font-normal ml-1" style={{ fontSize: "15px" }}>
@@ -722,21 +785,26 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
                                 </span>
                               )}
                             </span>
-                            <span className="text-gray-400 text-xs flex-shrink-0">
+                            <span className="flex items-center gap-1 text-gray-400 text-xs flex-shrink-0">
                               {conv.last_message?.sent_at ? formatDate(conv.last_message.sent_at) : ""}
+                              {conv.unread_count > 0 && (
+                                <span className="h-2 w-2 rounded-full bg-red-500" />
+                              )}
                             </span>
                           </div>
                           {conv.last_text_message && (
-                            <p className={`line-clamp-1 mt-1 ${isMine ? "text-gray-400" : "text-gray-900"}`} style={{ fontSize: "16px" }}>
+                            <p className="line-clamp-1 mt-1 text-gray-900" style={{ fontSize: "16px" }}>
                               {truncateMessage(conv.last_text_message.content)}
+                              {isMine && (
+                                <span
+                                  className={`ml-1 inline-block h-2 w-2 rounded-full align-middle ${
+                                    conv.last_message?.read_at ? "bg-green-500" : "bg-red-500"
+                                  }`}
+                                />
+                              )}
                             </p>
                           )}
                         </div>
-                        {conv.unread_count > 0 && (
-                          <div className="w-6 h-6 rounded-full bg-yellow-400 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-                            {conv.unread_count}
-                          </div>
-                        )}
                       </div>
                     </div>
                   </div>
@@ -912,7 +980,16 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
                           <p className="break-words">{msg.content}</p>
                         )}
                       </div>
-                      {isMine && <span className="text-xs text-gray-700">{formatTime(msg.sent_at)}</span>}
+                      {isMine && (
+                        <span className="flex items-center gap-1 text-xs text-gray-700">
+                          {formatTime(msg.sent_at)}
+                          <span
+                            className={`h-2 w-2 rounded-full ${
+                              msg.read_at ? "bg-green-500" : "bg-red-500"
+                            }`}
+                          />
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
