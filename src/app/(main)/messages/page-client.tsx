@@ -983,11 +983,15 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
                       {isMine && (
                         <span className="flex items-center gap-1 text-xs text-gray-700">
                           {formatTime(msg.sent_at)}
-                          <span
-                            className={`h-2 w-2 rounded-full ${
-                              msg.read_at ? "bg-green-500" : "bg-red-500"
-                            }`}
-                          />
+                          {msg.read_at ? (
+                            <span className="text-xs font-normal leading-none text-[#595959]">
+                              읽음
+                            </span>
+                          ) : (
+                            <span className="text-xs font-normal leading-none text-red-500">
+                              안읽음
+                            </span>
+                          )}
                         </span>
                       )}
                     </div>
