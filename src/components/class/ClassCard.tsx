@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type TouchEvent } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -102,6 +102,8 @@ export default function ClassCard({ classData }: ClassCardProps) {
   const [bookmarked, setBookmarked] = useState(false);
   const [heartVisible, setHeartVisible] = useState(false);
   const [heartLiked, setHeartLiked] = useState(false);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
   const [messageModalOpen, setMessageModalOpen] = useState(false);
   const [enteringClassRoom, setEnteringClassRoom] = useState(false);
   const [applyingClass, setApplyingClass] = useState(false);
@@ -130,7 +132,12 @@ export default function ClassCard({ classData }: ClassCardProps) {
     };
   }, []);
 
-  async function handleImageClick() {
+  function handleImageClick() {
+    setLightboxIndex(imgIndex);
+    setLightboxOpen(true);
+  }
+
+  async function handleLikeToggle() {
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
@@ -147,6 +154,7 @@ export default function ClassCard({ classData }: ClassCardProps) {
     setHeartVisible(true);
     setTimeout(() => setHeartVisible(false), 900);
   }
+
   function handleBookmark() {
     const rawB = localStorage.getItem(BOOKMARKS_CACHE_KEY);
     const bookmarks = parseBookmarkEntries(rawB);
@@ -238,6 +246,8 @@ export default function ClassCard({ classData }: ClassCardProps) {
   const touchStartY = useRef(0);
   const isHorizontal = useRef<boolean | null>(null);
   const sliderRef = useRef<HTMLDivElement>(null);
+  const lightboxTouchStartX = useRef(0);
+  const lightboxTouchStartY = useRef(0);
 
   const primaryGenre = genres?.[0] ?? "other";
   const imageList = images ?? [];
@@ -277,10 +287,46 @@ export default function ClassCard({ classData }: ClassCardProps) {
       el.removeEventListener("touchend", onTouchEnd);
     };
   }, [totalImages]);
+
+  useEffect(() => {
+    if (!lightboxOpen) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setLightboxOpen(false);
+      if (e.key === "ArrowRight") setLightboxIndex((i) => Math.min(i + 1, totalImages - 1));
+      if (e.key === "ArrowLeft") setLightboxIndex((i) => Math.max(i - 1, 0));
+    }
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [lightboxOpen, totalImages]);
   const genreLabel = genres?.map((g) => DANCE_GENRE_LABELS[g as keyof typeof DANCE_GENRE_LABELS] ?? g).join(" · ") ?? "";
   const levelLabel = CLASS_LEVEL_LABELS[level] ?? level;
   const isHostFriend = !!host?.id && readCachedFollowingIds()?.has(host.id) === true;
   const isOwnClass = currentUserId === host_id;
+  const currentLightboxImageUrl =
+    imageList[lightboxIndex]?.full_url ?? imageList[lightboxIndex]?.card_url ?? null;
+
+  function handleLightboxTouchStart(e: TouchEvent<HTMLDivElement>) {
+    lightboxTouchStartX.current = e.touches[0].clientX;
+    lightboxTouchStartY.current = e.touches[0].clientY;
+  }
+
+  function handleLightboxTouchEnd(e: TouchEvent<HTMLDivElement>) {
+    if (totalImages <= 1) return;
+    const endX = e.changedTouches[0].clientX;
+    const endY = e.changedTouches[0].clientY;
+    const dx = lightboxTouchStartX.current - endX;
+    const dy = lightboxTouchStartY.current - endY;
+    if (Math.abs(dx) <= Math.abs(dy) || Math.abs(dx) < 40) return;
+    if (dx > 0) setLightboxIndex((i) => Math.min(i + 1, totalImages - 1));
+    if (dx < 0) setLightboxIndex((i) => Math.max(i - 1, 0));
+  }
 
   return (
     <>
@@ -581,9 +627,11 @@ export default function ClassCard({ classData }: ClassCardProps) {
         <div className="flex items-center justify-between px-3 pt-3">
           <div className="flex items-center gap-4">
             {/* 좋아요 */}
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill={liked ? "#ff3b5c" : "none"} stroke={liked ? "#ff3b5c" : "currentColor"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-800">
-              <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
-            </svg>
+            <button type="button" onClick={() => void handleLikeToggle()} aria-label="좋아요">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill={liked ? "#ff3b5c" : "none"} stroke={liked ? "#ff3b5c" : "currentColor"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-800">
+                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+              </svg>
+            </button>
             {/* 댓글 */}
             <button onClick={() => setCommentOpen(true)}>
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-800">
@@ -621,6 +669,102 @@ export default function ClassCard({ classData }: ClassCardProps) {
           </div>
         </div>
       </div>
+      {lightboxOpen && totalImages > 0 && (
+        <div
+          className="fixed inset-0 z-[260] bg-black/95 flex items-center justify-center"
+          onClick={() => setLightboxOpen(false)}
+        >
+          {currentLightboxImageUrl && (
+            <a
+              href={currentLightboxImageUrl}
+              download
+              aria-label="사진 다운로드"
+              className="absolute top-4 left-4 z-20 text-white"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+            </a>
+          )}
+          <button
+            type="button"
+            aria-label="닫기"
+            className="absolute top-4 right-4 z-20 text-white"
+            onClick={() => setLightboxOpen(false)}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+          {totalImages > 1 && lightboxIndex > 0 && (
+            <button
+              type="button"
+              aria-label="이전 사진"
+              className="absolute left-3 z-20 text-white/85 hover:text-white"
+              onClick={(e) => {
+                e.stopPropagation();
+                setLightboxIndex((i) => Math.max(i - 1, 0));
+              }}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="15 18 9 12 15 6" />
+              </svg>
+            </button>
+          )}
+          <div
+            className="relative w-[92vw] max-w-[900px] max-h-[88vh] overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+            onTouchStart={handleLightboxTouchStart}
+            onTouchEnd={handleLightboxTouchEnd}
+          >
+            <div
+              className="flex"
+              style={{
+                transform: `translateX(-${lightboxIndex * 100}%)`,
+                transition: "transform 320ms cubic-bezier(0.22, 1, 0.36, 1)",
+                willChange: "transform",
+              }}
+            >
+              {imageList.map((img, index) => (
+                <div key={`${img.full_url ?? img.card_url}-${index}`} className="min-w-full flex items-center justify-center">
+                  <Image
+                    src={img.full_url ?? img.card_url}
+                    alt={title}
+                    width={1200}
+                    height={1600}
+                    className="w-full h-auto max-h-[88vh] object-contain select-none"
+                    draggable={false}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+          {totalImages > 1 && lightboxIndex < totalImages - 1 && (
+            <button
+              type="button"
+              aria-label="다음 사진"
+              className="absolute right-3 z-20 text-white/85 hover:text-white"
+              onClick={(e) => {
+                e.stopPropagation();
+                setLightboxIndex((i) => Math.min(i + 1, totalImages - 1));
+              }}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="9 18 15 12 9 6" />
+              </svg>
+            </button>
+          )}
+          {totalImages > 1 && (
+            <div className="absolute bottom-6 z-20 text-white/85 text-sm">
+              {lightboxIndex + 1} / {totalImages}
+            </div>
+          )}
+        </div>
+      )}
       <CommentSheet open={commentOpen} onClose={() => setCommentOpen(false)} classId={id} />
       {friendMsg && (
         <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[300] bg-gray-800 text-white text-sm px-4 py-2 rounded-full shadow-lg">
