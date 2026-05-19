@@ -468,3 +468,18 @@ body {
   animation: blacklist-avatar-float 2s ease-in-out infinite;
   transform-origin: center;
 }
+
+@keyframes sheet-slide-up {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.animate-sheet-slide-up {
+  animation: sheet-slide-up 300ms ease-out forwards;
+}

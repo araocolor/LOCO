@@ -360,7 +360,7 @@ export default function ClassCommentsPanel({ classId, mode, open = true, onClose
       <div className="loco-comment-font fixed inset-0 z-[70] flex items-end justify-center">
         <button type="button" className="absolute inset-0 bg-black/40" onClick={onClose} aria-label="댓글 닫기" />
         <section
-          className={`relative flex w-full max-w-xl flex-col rounded-t-[24px] bg-white shadow-2xl transition-all duration-300 ${
+          className={`relative flex w-full max-w-xl flex-col rounded-t-[24px] bg-white shadow-2xl transition-all duration-300 animate-sheet-slide-up ${
             sheetFull ? "h-[94dvh]" : "h-[65dvh]"
           }`}
         >
