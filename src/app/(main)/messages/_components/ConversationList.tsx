@@ -1,8 +1,9 @@
 "use client";
 
+import { useCallback, useState } from "react";
 import Image from "next/image";
 import { RefreshCw } from "lucide-react";
-import NearbyMap from "@/components/features/NearbyMap";
+import NearbyMap, { type NearbyRefreshControl } from "@/components/features/NearbyMap";
 import type { Conversation, MessageMenuTab } from "../_types";
 
 interface ConversationListProps {
@@ -36,6 +37,14 @@ export default function ConversationList({
 }: ConversationListProps) {
   const messageConversations = conversations.filter((conv) => conv.type !== "class");
   const classConversations = conversations.filter((conv) => conv.type === "class");
+  const [nearbyRefreshControl, setNearbyRefreshControl] = useState<NearbyRefreshControl>({
+    disabled: true,
+    spinning: false,
+    onRefresh: () => {},
+  });
+  const handleNearbyRefreshControlChange = useCallback((control: NearbyRefreshControl) => {
+    setNearbyRefreshControl(control);
+  }, []);
   const visibleConversations =
     activeMenuTab === "messages"
       ? messageConversations
@@ -81,7 +90,16 @@ export default function ConversationList({
             내근처
           </button>
         </div>
-        {(activeMenuTab === "messages" || activeMenuTab === "my-chat") && (
+        {activeMenuTab === "nearby" ? (
+          <button
+            onClick={nearbyRefreshControl.onRefresh}
+            disabled={nearbyRefreshControl.disabled}
+            className={`pb-2 p-1 ${nearbyRefreshControl.disabled ? "text-gray-400 cursor-not-allowed" : "text-gray-800 hover:text-gray-900"}`}
+            aria-label="내근처 새로고침"
+          >
+            <RefreshCw size={18} className={nearbyRefreshControl.spinning ? "animate-spin" : ""} style={{ animationDuration: "0.8s" }} />
+          </button>
+        ) : (activeMenuTab === "messages" || activeMenuTab === "my-chat") && (
           <button
             onClick={onRefresh}
             disabled={refreshDisabled && !isSpinning}
@@ -98,7 +116,7 @@ export default function ConversationList({
             <div className="px-4 pt-4 pb-2">
               <p className="text-base font-bold" style={{ color: "#333333" }}>검색범위</p>
             </div>
-            <NearbyMap />
+            <NearbyMap onRefreshControlChange={handleNearbyRefreshControlChange} />
           </div>
         ) : loading ? (
           <div className="flex items-center justify-center h-32 text-gray-400">로딩 중...</div>

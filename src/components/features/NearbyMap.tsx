@@ -43,7 +43,6 @@ interface ApiError {
 }
 
 const REFRESH_INTERVAL = 10 * 60 * 1000;
-const RADIUS_KM = 30;
 const RADAR_RADIUS = 130;
 const AVATAR_SIZE = 40;
 const AVATAR_SIZE_WHEN_SPARSE = 50;
@@ -52,15 +51,36 @@ const TOP_SAFE_GAP = 20;
 const BOTTOM_SAFE_GAP = 20;
 const MAX_VISIBLE_USERS = 50;
 const NEARBY_API_CACHE_KEY = "loco_nearby_api_cache_v1";
-const NEARBY_API_TTL_MS = 10 * 1000;
-const NEARBY_API_MAX_CALLS = 2;
+const NEARBY_API_TTL_MS = 60 * 1000;
+const NEARBY_ZERO_RESULT_MAX_CALLS = 3;
+const RIPPLE_DURATION_MS = 2000;
+const RIPPLE_DURATION_SECONDS = RIPPLE_DURATION_MS / 1000;
 
 interface NearbyApiCache {
   startedAt: number;
   count: number;
+  executed: boolean;
   users: NearbyUser[];
   debug: NearbyDebug | null;
 }
+
+interface NearbyFetchResult {
+  users: NearbyUser[];
+  debug: NearbyDebug | null;
+  fromCache: boolean;
+}
+
+export interface NearbyRefreshControl {
+  disabled: boolean;
+  spinning: boolean;
+  onRefresh: () => void;
+}
+
+interface NearbyMapProps {
+  onRefreshControlChange?: (control: NearbyRefreshControl) => void;
+}
+
+let pendingNearbyRequest: Promise<NearbyFetchResult> | null = null;
 
 function getApiErrorMessage(error: ApiError | undefined, fallback: string) {
   if (!error) return fallback;
@@ -199,10 +219,12 @@ function readNearbyApiCache(): NearbyApiCache | null {
     const parsed = JSON.parse(raw) as NearbyApiCache;
     if (!Number.isFinite(parsed.startedAt) || !Number.isFinite(parsed.count)) return null;
     if (Date.now() - parsed.startedAt > NEARBY_API_TTL_MS) return null;
+    const users = Array.isArray(parsed.users) ? parsed.users : [];
     return {
       startedAt: parsed.startedAt,
       count: parsed.count,
-      users: Array.isArray(parsed.users) ? parsed.users : [],
+      executed: parsed.executed === true || parsed.count > 0 || users.length > 0,
+      users,
       debug: parsed.debug ?? null,
     };
   } catch {
@@ -219,25 +241,29 @@ function writeNearbyApiCache(next: NearbyApiCache) {
 function getNearbyApiCacheState() {
   const existing = readNearbyApiCache();
   if (existing) return existing;
-  const fresh: NearbyApiCache = { startedAt: Date.now(), count: 0, users: [], debug: null };
+  const fresh: NearbyApiCache = { startedAt: Date.now(), count: 0, executed: false, users: [], debug: null };
   writeNearbyApiCache(fresh);
   return fresh;
 }
 
-export default function NearbyMap() {
+function getNearbyRefreshLockedUntil(cache: NearbyApiCache | null) {
+  if (!cache?.executed || cache.users.length > 0 || cache.count < NEARBY_ZERO_RESULT_MAX_CALLS) return 0;
+  return cache.startedAt + NEARBY_API_TTL_MS;
+}
+
+export default function NearbyMap({ onRefreshControlChange }: NearbyMapProps) {
   const router = useRouter();
   const radarRef = useRef<HTMLDivElement>(null);
   const layoutRef = useRef<HTMLDivElement>(null);
   const initialCache = readNearbyApiCache();
-  const hasCachedUsers = (initialCache?.users.length ?? 0) > 0;
-  const [phase, setPhase] = useState<"radar" | "result">(hasCachedUsers ? "result" : "radar");
+  const [phase, setPhase] = useState<"radar" | "result">("radar");
   const [error, setError] = useState<string | null>(null);
   const [nearbyUsers, setNearbyUsers] = useState<NearbyUser[]>(initialCache?.users ?? []);
   const [myCoords, setMyCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [menuTarget, setMenuTarget] = useState<MenuTarget | null>(null);
   const [debugPopupOpen, setDebugPopupOpen] = useState(false);
-  const [rippleAnimating, setRippleAnimating] = useState(!hasCachedUsers);
-  const [showMyAvatar, setShowMyAvatar] = useState(hasCachedUsers);
+  const [rippleAnimating, setRippleAnimating] = useState(true);
+  const [showMyAvatar, setShowMyAvatar] = useState(false);
   const [myProfile] = useState<{ nickname: string; profile_image_url: string | null } | null>(() => {
     try {
       const raw = localStorage.getItem("loco_mypage_cache_local_v2");
@@ -249,8 +275,13 @@ export default function NearbyMap() {
     }
   });
   const [debugInfo, setDebugInfo] = useState<NearbyDebug | null>(null);
+  const [nowMs] = useState(() => Date.now());
+  const [refreshLockedUntil, setRefreshLockedUntil] = useState(() => getNearbyRefreshLockedUntil(initialCache));
+  const [nearbyRefreshDisabled, setNearbyRefreshDisabled] = useState(() => getNearbyRefreshLockedUntil(initialCache) > Date.now());
+  const [nearbyRefreshSpinning, setNearbyRefreshSpinning] = useState(false);
   const coordsRef = useRef<{ lat: number; lng: number } | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
+  const resultTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [layoutSize, setLayoutSize] = useState({ width: 0, height: 0 });
   const radarRadius = RADAR_RADIUS;
   const nearbyAvatarSize = nearbyUsers.length < SPARSE_USER_THRESHOLD ? AVATAR_SIZE_WHEN_SPARSE : AVATAR_SIZE;
@@ -296,33 +327,95 @@ export default function NearbyMap() {
   const fetchNearby = useCallback(async (lat: number, lng: number) => {
     const gate = getNearbyApiCacheState();
 
-    // 결과 있으면 캐시 반환, 5분 잠금
+    if (pendingNearbyRequest) {
+      return pendingNearbyRequest;
+    }
+
+    // 사람이 발견된 경우에는 1분 동안 캐시 결과만 반환
     if (gate.users.length > 0) {
-      return { users: gate.users.slice(0, MAX_VISIBLE_USERS), debug: gate.debug };
+      return { users: gate.users.slice(0, MAX_VISIBLE_USERS), debug: gate.debug, fromCache: true };
     }
 
-    // 0명으로 2번 소진 시 잠금
-    if (gate.count >= NEARBY_API_MAX_CALLS) {
-      return { users: [], debug: gate.debug };
+    // 0명 결과로 3회 소진된 경우에는 1분 동안 API 재호출을 막음
+    if (gate.executed && gate.count >= NEARBY_ZERO_RESULT_MAX_CALLS) {
+      return { users: gate.users.slice(0, MAX_VISIBLE_USERS), debug: gate.debug, fromCache: true };
     }
 
-    writeNearbyApiCache({ ...gate, count: gate.count + 1 });
+    pendingNearbyRequest = (async () => {
+      const res = await fetch(`/api/location/nearby?lat=${lat}&lng=${lng}`);
+      const json = await res.json().catch(() => null) as { data?: NearbyUser[]; debug?: NearbyDebug; error?: ApiError } | null;
+      if (!res.ok || json?.error) {
+        throw new Error(getApiErrorMessage(json?.error, "주변 회원 조회에 실패했습니다."));
+      }
+      const users = ((json?.data ?? []) as NearbyUser[]).slice(0, MAX_VISIBLE_USERS);
+      const debug = json?.debug ?? null;
+      const nextCount = users.length > 0 ? 1 : gate.count + 1;
+      const startedAt = users.length > 0 || nextCount >= NEARBY_ZERO_RESULT_MAX_CALLS ? Date.now() : gate.startedAt;
 
-    const res = await fetch(`/api/location/nearby?lat=${lat}&lng=${lng}`);
-    const json = await res.json().catch(() => null) as { data?: NearbyUser[]; debug?: NearbyDebug; error?: ApiError } | null;
-    if (!res.ok || json?.error) {
-      throw new Error(getApiErrorMessage(json?.error, "주변 회원 조회에 실패했습니다."));
+      writeNearbyApiCache({ startedAt, count: nextCount, executed: true, users, debug });
+
+      return { users, debug, fromCache: false };
+    })();
+
+    try {
+      return await pendingNearbyRequest;
+    } finally {
+      pendingNearbyRequest = null;
     }
-    const users = ((json?.data ?? []) as NearbyUser[]).slice(0, MAX_VISIBLE_USERS);
-    const debug = json?.debug ?? null;
-
-    // 결과 있을 때만 캐시 저장 (0명이면 저장 안 함)
-    if (users.length > 0) {
-      writeNearbyApiCache({ startedAt: gate.startedAt, count: gate.count + 1, users, debug });
-    }
-
-    return { users, debug };
   }, []);
+
+  const showNearbyResult = useCallback((result: NearbyFetchResult) => {
+    const nextCache = readNearbyApiCache();
+    setRefreshLockedUntil(getNearbyRefreshLockedUntil(nextCache));
+    setNearbyUsers(result.users);
+    setDebugInfo(result.debug);
+    setError(null);
+
+    if (resultTimerRef.current) {
+      clearTimeout(resultTimerRef.current);
+    }
+
+    const finish = () => {
+      setRippleAnimating(false);
+      setPhase("result");
+      setNearbyRefreshSpinning(false);
+    };
+
+    if (result.fromCache) {
+      resultTimerRef.current = setTimeout(finish, RIPPLE_DURATION_MS);
+      return;
+    }
+
+    finish();
+  }, []);
+
+  const runNearbySearch = useCallback(async (lat: number, lng: number) => {
+    setPhase("radar");
+    setRippleAnimating(true);
+    setShowMyAvatar(false);
+    const result = await fetchNearby(lat, lng);
+    showNearbyResult(result);
+  }, [fetchNearby, showNearbyResult]);
+
+  const handleNearbyRefresh = useCallback(() => {
+    if (nearbyRefreshDisabled || nearbyRefreshSpinning) return;
+    const coords = coordsRef.current;
+    if (!coords) return;
+    setNearbyRefreshSpinning(true);
+    runNearbySearch(coords.lat, coords.lng)
+      .catch((err) => {
+        setNearbyRefreshSpinning(false);
+        setError(err instanceof Error ? err.message : "주변 회원 조회 중 오류가 발생했습니다.");
+      });
+  }, [nearbyRefreshDisabled, nearbyRefreshSpinning, runNearbySearch]);
+
+  useEffect(() => {
+    onRefreshControlChange?.({
+      disabled: !myCoords || nearbyRefreshDisabled || nearbyRefreshSpinning,
+      spinning: nearbyRefreshSpinning,
+      onRefresh: handleNearbyRefresh,
+    });
+  }, [handleNearbyRefresh, myCoords, nearbyRefreshDisabled, nearbyRefreshSpinning, onRefreshControlChange]);
 
   useEffect(() => {
     const node = layoutRef.current;
@@ -343,12 +436,35 @@ export default function NearbyMap() {
   }, []);
 
   useEffect(() => {
+    if (refreshLockedUntil <= 0) {
+      queueMicrotask(() => setNearbyRefreshDisabled(false));
+      return;
+    }
+
+    const remaining = refreshLockedUntil - Date.now();
+    if (remaining <= 0) {
+      queueMicrotask(() => {
+        setNearbyRefreshDisabled(false);
+        setRefreshLockedUntil(0);
+      });
+      return;
+    }
+
+    queueMicrotask(() => setNearbyRefreshDisabled(true));
+    const timer = setTimeout(() => {
+      setNearbyRefreshDisabled(false);
+      setRefreshLockedUntil(0);
+    }, remaining);
+    return () => clearTimeout(timer);
+  }, [refreshLockedUntil]);
+
+  useEffect(() => {
     if (phase !== "radar") return;
     queueMicrotask(() => setRippleAnimating(true));
     queueMicrotask(() => setShowMyAvatar(false));
     const stopTimer = setTimeout(() => {
       setRippleAnimating(false);
-    }, 3000);
+    }, RIPPLE_DURATION_MS);
     playSonarPing();
     const interval = setInterval(playSonarPing, 700);
     return () => {
@@ -364,19 +480,23 @@ export default function NearbyMap() {
   }, [phase]);
 
   useEffect(() => {
+    return () => {
+      if (resultTimerRef.current) {
+        clearTimeout(resultTimerRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     const freshSession = readFreshLocationSession();
     if (freshSession) {
       const { lat, lng } = freshSession;
       coordsRef.current = { lat, lng };
       queueMicrotask(() => setMyCoords({ lat, lng }));
-      fetchNearby(lat, lng)
-        .then((result) => {
-          setNearbyUsers(result.users);
-          setDebugInfo(result.debug);
-          setError(null);
-          setTimeout(() => setPhase("result"), 1000);
-        })
-        .catch((err) => setError(err instanceof Error ? err.message : "주변 회원 조회 중 오류가 발생했습니다."));
+      queueMicrotask(() => {
+        runNearbySearch(lat, lng)
+          .catch((err) => setError(err instanceof Error ? err.message : "주변 회원 조회 중 오류가 발생했습니다."));
+      });
       return;
     }
 
@@ -392,11 +512,7 @@ export default function NearbyMap() {
         setMyCoords({ lat, lng });
         try {
           await saveLocationIfSessionExpired(lat, lng);
-          const result = await fetchNearby(lat, lng);
-          setNearbyUsers(result.users);
-          setDebugInfo(result.debug);
-          setError(null);
-          setTimeout(() => setPhase("result"), 1000);
+          await runNearbySearch(lat, lng);
         } catch (err) {
           setError(err instanceof Error ? err.message : "위치 처리 중 오류가 발생했습니다.");
         }
@@ -405,7 +521,7 @@ export default function NearbyMap() {
         setError(getGeolocationErrorMessage(geoError));
       }
     );
-  }, [fetchNearby]);
+  }, [runNearbySearch]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -425,7 +541,6 @@ export default function NearbyMap() {
 
   return (
     <div className="relative w-full bg-white flex flex-col" style={{ height: "calc(100vh - 160px)" }}>
-
       {/* 레이더 */}
       <div ref={layoutRef} className="relative w-full flex-1 overflow-hidden">
         <div
@@ -451,7 +566,7 @@ export default function NearbyMap() {
               width: radarRadius * 2,
               height: radarRadius * 2,
               border: "2px solid #9ca3af",
-              animation: `ripple 3s ease-out ${delay}s 1 forwards`,
+              animation: `ripple ${RIPPLE_DURATION_SECONDS}s ease-out ${delay}s 1 forwards`,
             }}
           />
         ))}
@@ -546,8 +661,8 @@ export default function NearbyMap() {
         {phase === "radar"
           ? "주변 회원을 탐색 중..."
           : nearbyUsers.length > 0
-          ? `반경 ${RADIUS_KM}km 내 회원 ${nearbyUsers.length}명 발견`
-          : `반경 ${RADIUS_KM}km 내 회원이 없습니다`}
+          ? `내근처 회원 ${nearbyUsers.length}명 발견`
+          : "내 근처 회원이 없습니다."}
       </div>
 
       {/* 아바타 클릭 메뉴 */}
@@ -584,7 +699,7 @@ export default function NearbyMap() {
             {menuTarget.user.updated_at && (
               <div className="px-4 py-3 border-t border-gray-100 text-gray-400" style={{ fontSize: 13 }}>
                 접속시간: {(() => {
-                  const diff = Math.floor((Date.now() - new Date(menuTarget.user.updated_at).getTime()) / 60000);
+                  const diff = Math.floor((nowMs - new Date(menuTarget.user.updated_at).getTime()) / 60000);
                   if (diff < 1) return "방금 전";
                   if (diff < 60) return `${diff}분 전`;
                   const h = Math.floor(diff / 60);
