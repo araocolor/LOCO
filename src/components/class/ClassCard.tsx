@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type TouchEvent } from "react";
+import { useEffect, useRef, useState, type TouchEvent as ReactTouchEvent } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -257,12 +257,12 @@ export default function ClassCard({ classData }: ClassCardProps) {
     const el = sliderRef.current;
     if (!el || totalImages <= 1) return;
 
-    function onTouchStart(e: TouchEvent) {
+    function onTouchStart(e: globalThis.TouchEvent) {
       touchStartX.current = e.touches[0].clientX;
       touchStartY.current = e.touches[0].clientY;
       isHorizontal.current = null;
     }
-    function onTouchMove(e: TouchEvent) {
+    function onTouchMove(e: globalThis.TouchEvent) {
       if (isHorizontal.current === null) {
         const dx = Math.abs(e.touches[0].clientX - touchStartX.current);
         const dy = Math.abs(e.touches[0].clientY - touchStartY.current);
@@ -270,7 +270,7 @@ export default function ClassCard({ classData }: ClassCardProps) {
       }
       if (isHorizontal.current) e.preventDefault();
     }
-    function onTouchEnd(e: TouchEvent) {
+    function onTouchEnd(e: globalThis.TouchEvent) {
       const diff = touchStartX.current - e.changedTouches[0].clientX;
       if (isHorizontal.current) {
         if (diff > 40) setImgIndex((i) => Math.min(i + 1, totalImages - 1));
@@ -312,12 +312,12 @@ export default function ClassCard({ classData }: ClassCardProps) {
   const currentLightboxImageUrl =
     imageList[lightboxIndex]?.full_url ?? imageList[lightboxIndex]?.card_url ?? null;
 
-  function handleLightboxTouchStart(e: TouchEvent<HTMLDivElement>) {
+  function handleLightboxTouchStart(e: ReactTouchEvent<HTMLDivElement>) {
     lightboxTouchStartX.current = e.touches[0].clientX;
     lightboxTouchStartY.current = e.touches[0].clientY;
   }
 
-  function handleLightboxTouchEnd(e: TouchEvent<HTMLDivElement>) {
+  function handleLightboxTouchEnd(e: ReactTouchEvent<HTMLDivElement>) {
     if (totalImages <= 1) return;
     const endX = e.changedTouches[0].clientX;
     const endY = e.changedTouches[0].clientY;
