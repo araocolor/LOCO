@@ -109,6 +109,7 @@ export default function ClassCard({ classData }: ClassCardProps) {
   const [applyingClass, setApplyingClass] = useState(false);
   const [applicantSheetOpen, setApplicantSheetOpen] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [myApplicationStatus, setMyApplicationStatus] = useState<"pending" | "approved" | "cancelled" | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -233,6 +234,7 @@ export default function ClassCard({ classData }: ClassCardProps) {
       });
       const json = await res.json().catch(() => ({}));
       setFriendMsg(res.ok ? "수업 신청 완료!" : (json.error ?? "수업 신청에 실패했습니다."));
+      if (res.ok) setMyApplicationStatus("pending");
       setTimeout(() => setFriendMsg(""), 3000);
     } catch {
       setFriendMsg("수업 신청에 실패했습니다.");
@@ -309,6 +311,7 @@ export default function ClassCard({ classData }: ClassCardProps) {
   const levelLabel = CLASS_LEVEL_LABELS[level] ?? level;
   const isHostFriend = !!host?.id && readCachedFollowingIds()?.has(host.id) === true;
   const isOwnClass = currentUserId === host_id;
+  const isPendingApplication = myApplicationStatus === "pending";
   const currentLightboxImageUrl =
     imageList[lightboxIndex]?.full_url ?? imageList[lightboxIndex]?.card_url ?? null;
 
@@ -327,6 +330,40 @@ export default function ClassCard({ classData }: ClassCardProps) {
     if (dx > 0) setLightboxIndex((i) => Math.min(i + 1, totalImages - 1));
     if (dx < 0) setLightboxIndex((i) => Math.max(i - 1, 0));
   }
+
+  useEffect(() => {
+    if (!menuOpen || isOwnClass) return;
+
+    let cancelled = false;
+    const supabase = createClient();
+
+    async function fetchMyApplicationStatus() {
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (!user || cancelled) {
+          if (!cancelled) setMyApplicationStatus(null);
+          return;
+        }
+
+        const { data } = await supabase
+          .from("applications")
+          .select("status")
+          .eq("class_id", id)
+          .eq("applicant_id", user.id)
+          .neq("status", "cancelled")
+          .maybeSingle<{ status: "pending" | "approved" | "cancelled" }>();
+
+        if (!cancelled) setMyApplicationStatus(data?.status ?? null);
+      } catch {}
+    }
+
+    void fetchMyApplicationStatus();
+    return () => {
+      cancelled = true;
+    };
+  }, [menuOpen, isOwnClass, id]);
 
   return (
     <>
@@ -367,6 +404,17 @@ export default function ClassCard({ classData }: ClassCardProps) {
                     <>
                       <button
                         type="button"
+                        className="flex items-center w-full px-4 py-3 text-sm text-gray-700"
+                        onClick={() => {
+                          setMenuOpen(false);
+                          router.push(`/classes/${id}`);
+                        }}
+                      >
+                        상세보기
+                      </button>
+                      <div className="border-t border-gray-100 mx-3" />
+                      <button
+                        type="button"
                         className="flex items-center w-full px-4 py-3 text-sm text-gray-700 disabled:opacity-60"
                         onClick={() => {
                           void handleEnterClassRoom();
@@ -390,13 +438,23 @@ export default function ClassCard({ classData }: ClassCardProps) {
                       <button type="button" className="flex items-center w-full px-4 py-3 text-sm text-gray-700">
                         클래스 수정
                       </button>
-                      <div className="border-t border-gray-100 mx-3" />
-                      <button type="button" className="flex items-center w-full px-4 py-3 text-sm text-gray-700">
-                        클래스정보
-                      </button>
                     </>
                   ) : (
                     <>
+                      <button
+                        type="button"
+                        className="flex items-center justify-between w-full px-4 py-3 text-sm text-gray-700"
+                        onClick={() => {
+                          setMenuOpen(false);
+                          router.push(`/classes/${id}`);
+                        }}
+                      >
+                        <span>상세보기</span>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500">
+                          <path d="M9 18l6-6-6-6"/>
+                        </svg>
+                      </button>
+                      <div className="border-t border-gray-100 mx-3" />
                       {/* 다운로드 */}
                       <button className="flex items-center justify-between w-full px-4 py-3 text-sm text-gray-700 ">
                         <span>다운로드</span>
@@ -418,10 +476,10 @@ export default function ClassCard({ classData }: ClassCardProps) {
                         onClick={() => {
                           void handleApplyClass();
                         }}
-                        disabled={applyingClass || status !== "recruiting"}
+                        disabled={applyingClass || status !== "recruiting" || isPendingApplication}
                         className="flex items-center justify-between w-full px-4 py-3 text-sm text-gray-700 disabled:opacity-60"
                       >
-                        <span>{applyingClass ? "신청 중..." : "수업신청"}</span>
+                        <span>{isPendingApplication ? "신청확인중" : applyingClass ? "신청 중..." : "수업신청"}</span>
                         <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500">
                           <path d="M4 12h16"/><path d="M12 4v16"/>
                         </svg>
