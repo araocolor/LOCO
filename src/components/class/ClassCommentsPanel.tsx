@@ -87,20 +87,23 @@ function CommentItem({
   const name = displayName(comment);
 
   return (
-    <div className={`flex gap-3 ${compact ? "py-3" : "py-4"}`}>
+    <div className={`flex gap-3 ${compact ? "py-2" : "py-2.5"}`}>
       <Avatar src={comment.profile?.profile_image_url ?? null} nickname={name} size={compact ? 34 : 42} />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <span className="font-semibold text-gray-500 text-sm">{name}</span>
-          <span className="text-xs text-gray-400">{formatCommentTime(comment.created_at)}</span>
+          <span style={{ fontSize: "15px", color: "#808080" }}>{name}</span>
+          <span className="text-xs" style={{ color: "#808080" }}>{formatCommentTime(comment.created_at)}</span>
         </div>
-        <p className="whitespace-pre-wrap leading-relaxed mt-1" style={{ fontSize: "16px", color: "#595959" }}>
+        <p className="whitespace-pre-wrap leading-relaxed" style={{ fontSize: "16px", color: "#333333", marginTop: "0px" }}>
           {comment.is_deleted ? "삭제된 댓글입니다." : comment.content}
         </p>
-        <div className="flex items-center gap-3 text-xs text-gray-500 mt-1.5">
+        <div className="flex items-center gap-3 text-xs text-gray-500" style={{ marginTop: "0px" }}>
           {!comment.is_deleted && (
-            <button type="button" onClick={() => onReply(comment)} className="font-medium">
-              답글 달기
+            <button type="button" onClick={() => onReply(comment)} className="font-medium flex items-center gap-1" style={{ fontSize: "13px" }}>
+              댓글쓰기
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+              </svg>
             </button>
           )}
           {comment.like_count > 0 && (
@@ -265,7 +268,7 @@ export default function ClassCommentsPanel({ classId, mode, open = true, onClose
                 onOpenReplies={setThreadTarget}
               />
               {singleReply && (
-                <div className="ml-10 border-t border-gray-50">
+                <div className="ml-10 border-t border-gray-50 pt-0.5">
                   <CommentItem
                     comment={singleReply}
                     compact
