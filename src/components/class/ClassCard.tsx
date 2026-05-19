@@ -6,13 +6,14 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { parseBookmarkEntries } from "@/lib/bookmarks/local";
 import { DanceClass, DANCE_GENRE_LABELS, CLASS_LEVEL_LABELS } from "@/types/class";
-import CommentSheet from "@/components/class/CommentSheet";
+import ClassCommentsPanel from "@/components/class/ClassCommentsPanel";
 import ClassApplicantSheet from "@/components/class/ClassApplicantSheet";
 import SendMessageModal from "@/components/modal/SendMessageModal";
 
 const LIKES_CACHE_KEY = "loco_liked_posts";
 const BOOKMARKS_CACHE_KEY = "loco_bookmark_ids_v1";
 const SEARCH_CACHE_KEY = "search_prefetch_cache";
+const DESCRIPTION_AUTO_COLLAPSE_OFFSET = 104;
 
 interface ClassHost {
   id: string;
@@ -110,6 +111,8 @@ export default function ClassCard({ classData }: ClassCardProps) {
   const [applicantSheetOpen, setApplicantSheetOpen] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [myApplicationStatus, setMyApplicationStatus] = useState<"pending" | "approved" | "cancelled" | null>(null);
+  const descriptionRef = useRef<HTMLParagraphElement>(null);
+  const shouldScrollToDescription = useRef(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -364,6 +367,42 @@ export default function ClassCard({ classData }: ClassCardProps) {
       cancelled = true;
     };
   }, [menuOpen, isOwnClass, id]);
+
+  useEffect(() => {
+    if (!expanded || !shouldScrollToDescription.current) return;
+    shouldScrollToDescription.current = false;
+    requestAnimationFrame(() => {
+      descriptionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }, [expanded]);
+
+  useEffect(() => {
+    if (!expanded) return;
+
+    let frame = 0;
+    function handleScroll() {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const rect = descriptionRef.current?.getBoundingClientRect();
+        if (rect && rect.bottom <= DESCRIPTION_AUTO_COLLAPSE_OFFSET) {
+          setExpanded(false);
+        }
+      });
+    }
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener("scroll", handleScroll);
+    };
+  }, [expanded]);
+
+  function handleToggleExpanded() {
+    setExpanded((prev) => {
+      if (!prev) shouldScrollToDescription.current = true;
+      return !prev;
+    });
+  }
 
   return (
     <>
@@ -691,7 +730,7 @@ export default function ClassCard({ classData }: ClassCardProps) {
               </svg>
             </button>
             {/* 댓글 */}
-            <button onClick={() => setCommentOpen(true)}>
+            <button type="button" onClick={() => setCommentOpen(true)} aria-label="댓글보기">
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-800">
                 <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
               </svg>
@@ -713,16 +752,34 @@ export default function ClassCard({ classData }: ClassCardProps) {
         <div className="flex items-start gap-2 px-3 pt-2 pb-3">
           <div className="flex flex-col min-w-0 flex-1">
             <button
-              onClick={() => setExpanded((v) => !v)}
+              onClick={handleToggleExpanded}
               className="text-left w-full"
             >
               <p className="text-base text-gray-900 font-semibold line-clamp-1">{title}</p>
               <p className="text-gray-500" style={{ fontSize: "14px" }}>
-                {levelLabel} · {formatDate(datetime)}{!expanded && <span className="text-gray-500 font-bold inline-flex items-center gap-0.5" style={{ fontSize: "14px" }}> ...더 보기 <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>}
+                {levelLabel} · {formatDate(datetime)}
+                {!expanded && (
+                  <span className="text-gray-500 font-bold inline-flex items-center gap-0.5" style={{ fontSize: "14px" }}>
+                    {" ...더 보기"}
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="13"
+                      height="13"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <polyline points="6 9 12 15 18 9" />
+                    </svg>
+                  </span>
+                )}
               </p>
             </button>
             {expanded && description && (
-              <p className="text-sm text-gray-600 mt-2 whitespace-pre-wrap leading-relaxed">{description}</p>
+              <p ref={descriptionRef} className="scroll-mt-[250px] text-sm text-gray-600 mt-2 whitespace-pre-wrap leading-relaxed">{description}</p>
             )}
           </div>
         </div>
@@ -823,7 +880,12 @@ export default function ClassCard({ classData }: ClassCardProps) {
           )}
         </div>
       )}
-      <CommentSheet open={commentOpen} onClose={() => setCommentOpen(false)} classId={id} />
+      <ClassCommentsPanel
+        classId={id}
+        mode="sheet"
+        open={commentOpen}
+        onClose={() => setCommentOpen(false)}
+      />
       {friendMsg && (
         <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[300] bg-gray-800 text-white text-sm px-4 py-2 rounded-full shadow-lg">
           {friendMsg}

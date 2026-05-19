@@ -31,6 +31,28 @@ interface ClassCommentsPanelProps {
 }
 
 const QUICK_REACTIONS = ["❤️", "😍", "🥰", "😊", "😂", "🔥", "✨", "👍", "🎉", "💯"];
+const COMMENTS_SESSION_CACHE_PREFIX = "loco_class_comments_session_v1:";
+
+function getCommentsCacheKey(classId: string) {
+  return `${COMMENTS_SESSION_CACHE_PREFIX}${classId}`;
+}
+
+function readCachedComments(classId: string) {
+  try {
+    const raw = sessionStorage.getItem(getCommentsCacheKey(classId));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as ClassComment[]) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedComments(classId: string, comments: ClassComment[]) {
+  try {
+    sessionStorage.setItem(getCommentsCacheKey(classId), JSON.stringify(comments));
+  } catch {}
+}
 
 function formatCommentTime(value: string) {
   const created = new Date(value).getTime();
@@ -126,11 +148,23 @@ export default function ClassCommentsPanel({ classId, mode, open = true, onClose
 
     let cancelled = false;
     async function loadComments() {
-      setLoading(true);
+      const cachedComments = readCachedComments(classId);
+      if (cachedComments) {
+        setComments(cachedComments);
+        setLoading(false);
+      } else {
+        setComments([]);
+        setLoading(true);
+      }
+
       try {
         const res = await fetch(`/api/classes/${classId}/comments`, { method: "GET" });
         const data = await res.json().catch(() => ({}));
-        if (!cancelled && res.ok) setComments(data.comments ?? []);
+        if (!cancelled && res.ok) {
+          const nextComments = data.comments ?? [];
+          setComments(nextComments);
+          writeCachedComments(classId, nextComments);
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -141,6 +175,16 @@ export default function ClassCommentsPanel({ classId, mode, open = true, onClose
       cancelled = true;
     };
   }, [classId, shouldShow]);
+
+  useEffect(() => {
+    if (mode !== "sheet" || !open) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [mode, open]);
 
   useEffect(() => {
     if (mode !== "sheet") return;
@@ -176,7 +220,11 @@ export default function ClassCommentsPanel({ classId, mode, open = true, onClose
         return;
       }
 
-      setComments((prev) => [...prev, data.comment]);
+      setComments((prev) => {
+        const nextComments = [...prev, data.comment];
+        writeCachedComments(classId, nextComments);
+        return nextComments;
+      });
       setInput("");
       setReplyTarget(null);
     } finally {
@@ -204,16 +252,28 @@ export default function ClassCommentsPanel({ classId, mode, open = true, onClose
     return (
       <div className="divide-y divide-gray-100">
         {rootComments.map((comment) => {
-          const replyCount = repliesByParent.get(comment.id)?.length ?? 0;
+          const replies = repliesByParent.get(comment.id) ?? [];
+          const replyCount = replies.length;
+          const singleReply = replyCount === 1 ? replies[0] : null;
           return (
-            <CommentItem
-              key={comment.id}
-              comment={comment}
-              replyCount={replyCount}
-              compact={compact}
-              onReply={setReplyTarget}
-              onOpenReplies={setThreadTarget}
-            />
+            <div key={comment.id}>
+              <CommentItem
+                comment={comment}
+                replyCount={replyCount > 1 ? replyCount : undefined}
+                compact={compact}
+                onReply={setReplyTarget}
+                onOpenReplies={setThreadTarget}
+              />
+              {singleReply && (
+                <div className="ml-10 border-t border-gray-50">
+                  <CommentItem
+                    comment={singleReply}
+                    compact
+                    onReply={setReplyTarget}
+                  />
+                </div>
+              )}
+            </div>
           );
         })}
       </div>
@@ -294,11 +354,11 @@ export default function ClassCommentsPanel({ classId, mode, open = true, onClose
 
   if (mode === "sheet") {
     return (
-      <div className="fixed inset-0 z-[70] flex items-end justify-center">
+      <div className="loco-comment-font fixed inset-0 z-[70] flex items-end justify-center">
         <button type="button" className="absolute inset-0 bg-black/40" onClick={onClose} aria-label="댓글 닫기" />
         <section
           className={`relative flex w-full max-w-xl flex-col rounded-t-[24px] bg-white shadow-2xl transition-all duration-300 ${
-            sheetFull ? "h-[94dvh]" : "h-[54dvh]"
+            sheetFull ? "h-[94dvh]" : "h-[65dvh]"
           }`}
         >
           <div
@@ -332,7 +392,7 @@ export default function ClassCommentsPanel({ classId, mode, open = true, onClose
   }
 
   return (
-    <section className="flex min-h-[calc(100dvh-110px)] flex-col bg-white">
+    <section className="loco-comment-font flex min-h-[calc(100dvh-110px)] flex-col bg-white">
       <div className="flex items-center border-b border-gray-100 px-4 py-4">
         <h2 className="text-lg font-bold text-gray-900">댓글</h2>
       </div>
