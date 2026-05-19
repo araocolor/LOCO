@@ -94,7 +94,7 @@ function CommentItem({
           <span className="font-semibold text-gray-500 text-sm">{name}</span>
           <span className="text-xs text-gray-400">{formatCommentTime(comment.created_at)}</span>
         </div>
-        <p className={`${compact ? "text-sm" : "text-[15px]"} text-gray-950 whitespace-pre-wrap leading-relaxed mt-1`}>
+        <p className="whitespace-pre-wrap leading-relaxed mt-1" style={{ fontSize: "16px", color: "#595959" }}>
           {comment.is_deleted ? "삭제된 댓글입니다." : comment.content}
         </p>
         <div className="flex items-center gap-3 text-xs text-gray-500 mt-1.5">
