@@ -1,6 +1,5 @@
 import { Suspense } from "react";
-import MainHeader from "@/components/layout/MainHeader";
-import HomeSearchResultsPage from "@/components/features/HomeSearchResultsPage";
+import MainTabbedHomePage from "@/components/features/MainTabbedHomePage";
 import { createClient } from "@/lib/supabase/server";
 import { ClassWithHost } from "@/components/class/ClassCard";
 
@@ -25,11 +24,8 @@ export default async function MainPage() {
   const initialClasses = await fetchInitialClasses();
 
   return (
-    <>
-      <MainHeader />
-      <Suspense>
-        <HomeSearchResultsPage initialClasses={initialClasses} />
-      </Suspense>
-    </>
+    <Suspense>
+      <MainTabbedHomePage initialClasses={initialClasses} />
+    </Suspense>
   );
 }

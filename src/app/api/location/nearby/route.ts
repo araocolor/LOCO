@@ -76,7 +76,7 @@ export async function GET(req: Request) {
   const { data: profiles, error: profilesError } = userIds.length > 0
     ? await supabase
       .from("profiles")
-      .select("id, nickname, profile_image_url")
+      .select("id, nickname, profile_image_url, bio, country, region, member_type")
       .in("id", userIds)
     : { data: [], error: null };
 
@@ -116,6 +116,10 @@ export async function GET(req: Request) {
         lng: l.location.lng,
         nickname: profile?.nickname ?? "",
         profile_image_url: profile?.profile_image_url ?? null,
+        bio: profile?.bio ?? null,
+        country: profile?.country ?? null,
+        region: profile?.region ?? null,
+        member_type: profile?.member_type ?? [],
         updated_at: l.location.updated_at,
       };
     });

@@ -3,7 +3,9 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Avatar from "@/components/ui/Avatar";
+import SendMessageModal from "@/components/modal/SendMessageModal";
 import { readFreshLocationSession, saveLocationIfSessionExpired } from "@/lib/location-session";
+import { formatLocation, getMemberTypeLabel } from "@/app/(main)/search/_lib/search-utils";
 
 interface NearbyUser {
   id: string;
@@ -11,13 +13,11 @@ interface NearbyUser {
   lng: number;
   nickname: string;
   profile_image_url: string | null;
+  bio: string | null;
+  country: string | null;
+  region: string | null;
+  member_type: string[];
   updated_at: string | null;
-}
-
-interface MenuTarget {
-  user: NearbyUser;
-  left: number;
-  top: number;
 }
 
 interface NearbyDebug {
@@ -50,11 +50,12 @@ const SPARSE_USER_THRESHOLD = 20;
 const TOP_SAFE_GAP = 20;
 const BOTTOM_SAFE_GAP = 20;
 const MAX_VISIBLE_USERS = 50;
-const NEARBY_API_CACHE_KEY = "loco_nearby_api_cache_v1";
+const NEARBY_API_CACHE_KEY = "loco_nearby_api_cache_v2";
 const NEARBY_API_TTL_MS = 60 * 1000;
 const NEARBY_ZERO_RESULT_MAX_CALLS = 3;
 const RIPPLE_DURATION_MS = 2000;
 const RIPPLE_DURATION_SECONDS = RIPPLE_DURATION_MS / 1000;
+const RESULT_FALLBACK_DELAY_MS = 2920;
 
 interface NearbyApiCache {
   startedAt: number;
@@ -251,6 +252,30 @@ function getNearbyRefreshLockedUntil(cache: NearbyApiCache | null) {
   return cache.startedAt + NEARBY_API_TTL_MS;
 }
 
+function getDistanceLabel(user: NearbyUser, myCoords: { lat: number; lng: number } | null) {
+  if (!myCoords) return null;
+  const R = 6371;
+  const dLat = ((user.lat - myCoords.lat) * Math.PI) / 180;
+  const dLng = ((user.lng - myCoords.lng) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((myCoords.lat * Math.PI) / 180) *
+      Math.cos((user.lat * Math.PI) / 180) *
+      Math.sin(dLng / 2) ** 2;
+  const km = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return km < 1 ? `${Math.round(km * 1000)}m 이내` : `${km.toFixed(1)}km 이내`;
+}
+
+function getActiveTimeLabel(updatedAt: string | null, nowMs: number) {
+  if (!updatedAt) return null;
+  const diff = Math.floor((nowMs - new Date(updatedAt).getTime()) / 60000);
+  if (diff < 1) return "방금 전";
+  if (diff < 60) return `${diff}분 전`;
+  const h = Math.floor(diff / 60);
+  if (h < 24) return `${h}시간 전`;
+  return `${Math.floor(h / 24)}일 전`;
+}
+
 export default function NearbyMap({ onRefreshControlChange }: NearbyMapProps) {
   const router = useRouter();
   const radarRef = useRef<HTMLDivElement>(null);
@@ -260,7 +285,8 @@ export default function NearbyMap({ onRefreshControlChange }: NearbyMapProps) {
   const [error, setError] = useState<string | null>(null);
   const [nearbyUsers, setNearbyUsers] = useState<NearbyUser[]>(initialCache?.users ?? []);
   const [myCoords, setMyCoords] = useState<{ lat: number; lng: number } | null>(null);
-  const [menuTarget, setMenuTarget] = useState<MenuTarget | null>(null);
+  const [selectedNearbyUser, setSelectedNearbyUser] = useState<NearbyUser | null>(null);
+  const [messageModalTarget, setMessageModalTarget] = useState<NearbyUser | null>(null);
   const [debugPopupOpen, setDebugPopupOpen] = useState(false);
   const [rippleAnimating, setRippleAnimating] = useState(true);
   const [showMyAvatar, setShowMyAvatar] = useState(false);
@@ -282,6 +308,7 @@ export default function NearbyMap({ onRefreshControlChange }: NearbyMapProps) {
   const coordsRef = useRef<{ lat: number; lng: number } | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const resultTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [layoutSize, setLayoutSize] = useState({ width: 0, height: 0 });
   const radarRadius = RADAR_RADIUS;
   const nearbyAvatarSize = nearbyUsers.length < SPARSE_USER_THRESHOLD ? AVATAR_SIZE_WHEN_SPARSE : AVATAR_SIZE;
@@ -365,6 +392,10 @@ export default function NearbyMap({ onRefreshControlChange }: NearbyMapProps) {
   }, []);
 
   const showNearbyResult = useCallback((result: NearbyFetchResult) => {
+    if (fallbackTimerRef.current) {
+      clearTimeout(fallbackTimerRef.current);
+      fallbackTimerRef.current = null;
+    }
     const nextCache = readNearbyApiCache();
     setRefreshLockedUntil(getNearbyRefreshLockedUntil(nextCache));
     setNearbyUsers(result.users);
@@ -393,6 +424,14 @@ export default function NearbyMap({ onRefreshControlChange }: NearbyMapProps) {
     setPhase("radar");
     setRippleAnimating(true);
     setShowMyAvatar(false);
+    if (fallbackTimerRef.current) {
+      clearTimeout(fallbackTimerRef.current);
+    }
+    fallbackTimerRef.current = setTimeout(() => {
+      setRippleAnimating(false);
+      setPhase("result");
+      setNearbyRefreshSpinning(false);
+    }, RESULT_FALLBACK_DELAY_MS);
     const result = await fetchNearby(lat, lng);
     showNearbyResult(result);
   }, [fetchNearby, showNearbyResult]);
@@ -483,6 +522,9 @@ export default function NearbyMap({ onRefreshControlChange }: NearbyMapProps) {
     return () => {
       if (resultTimerRef.current) {
         clearTimeout(resultTimerRef.current);
+      }
+      if (fallbackTimerRef.current) {
+        clearTimeout(fallbackTimerRef.current);
       }
     };
   }, []);
@@ -619,19 +661,7 @@ export default function NearbyMap({ onRefreshControlChange }: NearbyMapProps) {
               key={u.id}
               className="absolute z-20 left-1/2 top-1/2"
               style={{ transform: `translate(${pos.x - nearbyAvatarHalf}px, ${pos.y - nearbyAvatarHalf}px)` }}
-              onClick={(e) => {
-                const rect = e.currentTarget.getBoundingClientRect();
-                const menuWidth = 180;
-                const menuHeight = 96;
-                const gap = 2;
-                const isRightOfCenter = pos.x >= 0;
-                const left = isRightOfCenter
-                  ? Math.max(8, rect.left - menuWidth - gap)
-                  : Math.min(window.innerWidth - menuWidth - 8, rect.right + gap);
-                const centerTop = rect.top + rect.height / 2;
-                const top = Math.min(window.innerHeight - menuHeight / 2 - 8, Math.max(menuHeight / 2 + 8, centerTop));
-                setMenuTarget({ user: u, left, top });
-              }}
+              onClick={() => setSelectedNearbyUser(u)}
             >
               <div
                 style={{
@@ -665,51 +695,84 @@ export default function NearbyMap({ onRefreshControlChange }: NearbyMapProps) {
           : "내 근처 회원이 없습니다."}
       </div>
 
-      {/* 아바타 클릭 메뉴 */}
-      {menuTarget && (
+      {/* 내근처 회원 모달 */}
+      {selectedNearbyUser && (
         <>
-          <div className="fixed inset-0 z-[70]" onClick={() => setMenuTarget(null)} />
-          <div
-            className="fixed z-[80] bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden"
-            style={{ width: 180, top: menuTarget.top, left: menuTarget.left, transform: "translateY(-50%)" }}
-          >
-            <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-100">
-              <Avatar src={menuTarget.user.profile_image_url} nickname={menuTarget.user.nickname} size={32} />
-              <span className="font-semibold text-gray-900 truncate" style={{ fontSize: 15 }}>{menuTarget.user.nickname}</span>
+	          <div
+	            className="fixed inset-0 z-[70] bg-black/50"
+	            onClick={() => setSelectedNearbyUser(null)}
+	          />
+          <div className="fixed inset-0 z-[80] flex items-center justify-center pointer-events-none">
+            <div className="relative w-[270px] bg-white rounded-2xl shadow-lg p-6 pointer-events-auto flex flex-col items-center gap-2">
+              <Avatar
+                src={selectedNearbyUser.profile_image_url}
+                nickname={selectedNearbyUser.nickname}
+                size={80}
+              />
+              <div className="text-center w-full">
+                <p className="font-bold text-gray-900 truncate" style={{ fontSize: 16 }}>
+                  {selectedNearbyUser.nickname}
+                </p>
+                {formatLocation(selectedNearbyUser.country, selectedNearbyUser.region) && (
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    {formatLocation(selectedNearbyUser.country, selectedNearbyUser.region)}
+                  </p>
+                )}
+                {selectedNearbyUser.member_type?.[0] && (
+                  <div className="flex items-center justify-center mt-2">
+                    <span className="px-2.5 py-1 rounded-full bg-gray-800 text-white text-[12px] font-medium">
+                      {getMemberTypeLabel(selectedNearbyUser.member_type[0])}
+                    </span>
+                  </div>
+                )}
+                {selectedNearbyUser.bio && (
+                  <p className="text-[15px] text-gray-600 line-clamp-4 mt-2 whitespace-pre-wrap">
+                    {selectedNearbyUser.bio}
+                  </p>
+                )}
+                <p className="text-xs text-gray-500 mt-2">
+                  {[getDistanceLabel(selectedNearbyUser, myCoords), getActiveTimeLabel(selectedNearbyUser.updated_at, nowMs)]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </p>
+              </div>
+              <div className="flex gap-2 w-full mt-2">
+                <button
+	                  className="flex-1 h-9 rounded-full bg-[#FEE500] text-gray-900 font-semibold text-[14px]"
+	                  onClick={() => {
+	                    setMessageModalTarget(selectedNearbyUser);
+	                    setSelectedNearbyUser(null);
+	                  }}
+                >
+                  메시지 전송
+                </button>
+	                <button
+	                  className="flex-1 h-9 rounded-full bg-[#FEE500] text-gray-900 font-semibold text-[14px]"
+	                  onClick={() => {
+	                    setSelectedNearbyUser(null);
+	                    router.push(`/users/${selectedNearbyUser.id}/view`);
+	                  }}
+                >
+                  회원프로필보기
+                </button>
+              </div>
             </div>
-            <button
-              className="flex items-center w-full px-4 py-3 text-gray-700"
-              style={{ fontSize: 15 }}
-              onClick={() => { setMenuTarget(null); router.push(`/users/${menuTarget.user.id}/view`); }}
-            >
-              프로필 보기
-            </button>
-            {myCoords && (
-              <div className="px-4 py-3 border-t border-gray-100 text-gray-400" style={{ fontSize: 13 }}>
-                {(() => {
-                  const R = 6371;
-                  const dLat = (menuTarget.user.lat - myCoords.lat) * Math.PI / 180;
-                  const dLng = (menuTarget.user.lng - myCoords.lng) * Math.PI / 180;
-                  const a = Math.sin(dLat / 2) ** 2 + Math.cos(myCoords.lat * Math.PI / 180) * Math.cos(menuTarget.user.lat * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
-                  const km = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-                  return km < 1 ? `${Math.round(km * 1000)}m 이내` : `${km.toFixed(1)}km 이내`;
-                })()}
-              </div>
-            )}
-            {menuTarget.user.updated_at && (
-              <div className="px-4 py-3 border-t border-gray-100 text-gray-400" style={{ fontSize: 13 }}>
-                접속시간: {(() => {
-                  const diff = Math.floor((nowMs - new Date(menuTarget.user.updated_at).getTime()) / 60000);
-                  if (diff < 1) return "방금 전";
-                  if (diff < 60) return `${diff}분 전`;
-                  const h = Math.floor(diff / 60);
-                  if (h < 24) return `${h}시간 전`;
-                  return `${Math.floor(h / 24)}일 전`;
-                })()}
-              </div>
-            )}
           </div>
         </>
+      )}
+
+      {messageModalTarget && (
+        <SendMessageModal
+	          isOpen={!!messageModalTarget}
+	          onClose={() => {
+	            setMessageModalTarget(null);
+	          }}
+          receiver={{
+            id: messageModalTarget.id,
+            nickname: messageModalTarget.nickname,
+            profile_image_url: messageModalTarget.profile_image_url,
+          }}
+        />
       )}
 
       {/* 내 아바타 클릭 진단정보 팝업 */}

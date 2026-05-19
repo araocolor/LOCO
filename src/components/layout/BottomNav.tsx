@@ -172,8 +172,7 @@ export default function BottomNav({ isLoggedIn }: { isLoggedIn: boolean }) {
 
   return (
     <nav
-      className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[500px] z-50 h-[70px] flex items-center touch-none overscroll-contain select-none"
-      onTouchMove={(event) => event.preventDefault()}
+      className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[500px] z-50 h-[70px] flex items-center touch-manipulation overscroll-contain select-none"
     >
       {NAV_ITEMS.map(({ href, label, icon }) => {
         const isActive =
