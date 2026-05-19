@@ -374,7 +374,7 @@ export default function NearbyMap() {
           setNearbyUsers(result.users);
           setDebugInfo(result.debug);
           setError(null);
-          setTimeout(() => setPhase("result"), 2000);
+          setTimeout(() => setPhase("result"), 1000);
         })
         .catch((err) => setError(err instanceof Error ? err.message : "주변 회원 조회 중 오류가 발생했습니다."));
       return;
@@ -396,7 +396,7 @@ export default function NearbyMap() {
           setNearbyUsers(result.users);
           setDebugInfo(result.debug);
           setError(null);
-          setTimeout(() => setPhase("result"), 2000);
+          setTimeout(() => setPhase("result"), 1000);
         } catch (err) {
           setError(err instanceof Error ? err.message : "위치 처리 중 오류가 발생했습니다.");
         }
