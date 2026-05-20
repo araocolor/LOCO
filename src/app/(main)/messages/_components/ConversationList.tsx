@@ -65,7 +65,7 @@ export default function ConversationList({
                 : "border-transparent text-gray-400"
             }`}
           >
-            메시지
+            1:1
           </button>
           <button
             onClick={() => setActiveMenuTab("my-chat")}
