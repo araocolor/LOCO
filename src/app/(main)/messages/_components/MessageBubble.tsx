@@ -120,7 +120,7 @@ export default function MessageBubble({
             <div
               className={`relative rounded-lg text-base overflow-visible ${
                 imageData ? "" : "px-3 py-2"
-              } ${isMine ? "text-gray-900" : "bg-white text-gray-900"} ${isMine && shakingMsgId === msg.id ? "msg-shake" : ""}`}
+              } ${isMine ? "text-gray-900" : "bg-white text-gray-900"} ${isMine && shakingMsgId === msg.id ? "msg-shake" : ""} select-none`}
               style={{
                 ...(isMine ? { maxWidth: "72vw" } : { maxWidth: "270px" }),
                 ...(isMine && !imageData ? { backgroundColor: "#FEE500" } : {}),
@@ -130,6 +130,7 @@ export default function MessageBubble({
               onMouseDown={() => onStartLongPress(msg.id, isMine)}
               onMouseUp={onCancelLongPress}
               onMouseLeave={onCancelLongPress}
+              onContextMenu={(e) => e.preventDefault()}
             >
               {isMine && shakingMsgId === msg.id && (
                 <button
@@ -143,7 +144,7 @@ export default function MessageBubble({
                 </button>
               )}
               {!isMine && shakingMsgId === msg.id && (
-                <div className="absolute -top-10 left-0 z-10 flex gap-1 bg-white rounded-full px-2 py-1 shadow-lg">
+                <div className="absolute top-full left-0 mt-1 z-10 flex gap-1 bg-white rounded-full px-2 py-1 shadow-lg">
                   {MESSAGE_REACTIONS.map((reaction) => (
                     <button
                       key={reaction.type}
