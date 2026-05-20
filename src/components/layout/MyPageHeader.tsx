@@ -1,7 +1,7 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
 import {
   Ban,
   BadgeCheck,
@@ -24,8 +24,6 @@ import {
 import { RiVerifiedBadgeFill } from "react-icons/ri";
 import { logoutAction } from "@/actions/auth";
 import type { ReactNode } from "react";
-
-const MY_PAGE_CACHE_KEY = "loco_mypage_cache_local_v2";
 
 type SubItem = { label: string };
 
@@ -50,6 +48,14 @@ type SectionDef = {
   title?: string;
   items: MenuItemDef[];
 };
+
+type MyPageTab = "all" | "my" | "bookmark";
+
+const MY_PAGE_TABS: Array<{ key: MyPageTab; label: string }> = [
+  { key: "all", label: "전체목록" },
+  { key: "my", label: "내클래스" },
+  { key: "bookmark", label: "북마크" },
+];
 
 const SECTIONS: SectionDef[] = [
   {
@@ -187,27 +193,11 @@ const SECTIONS: SectionDef[] = [
   },
 ];
 
-function readMyPageNickname() {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = localStorage.getItem(MY_PAGE_CACHE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    return parsed?.profile?.nickname ?? null;
-  } catch {
-    return null;
-  }
-}
-
-function subscribeMyPageCache(onStoreChange: () => void) {
-  window.addEventListener("storage", onStoreChange);
-  return () => window.removeEventListener("storage", onStoreChange);
-}
-
 export default function MyPageHeader() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const currentTab = (searchParams.get("tab") as MyPageTab | null) ?? "all";
   const [open, setOpen] = useState(false);
-  const nickname = useSyncExternalStore(subscribeMyPageCache, readMyPageNickname, () => null);
   const [openIds, setOpenIds] = useState<Set<string>>(new Set());
   const [toggles, setToggles] = useState<Record<string, boolean>>({
     "bookmark-0": true,
@@ -256,12 +246,27 @@ export default function MyPageHeader() {
 
   return (
     <>
-      <header className="sticky top-0 z-50 bg-white border-b border-[#e5e7eb] h-14 px-4 relative flex items-center">
-        <button type="button" onClick={() => setOpen(true)} className="p-1 -mr-1 ml-auto">
-          <Menu className="w-6 h-6 text-gray-700" />
-        </button>
-        <div className="absolute left-1/2 -translate-x-1/2 font-bold text-[17px] text-[#333333] leading-none">
-          {nickname ?? "MY"}
+      <header className="sticky top-0 z-50 bg-white border-b border-[#e5e7eb]">
+        <div className="h-14 px-4 relative flex items-center">
+          <button type="button" onClick={() => setOpen(true)} className="p-1 -mr-1 ml-auto">
+            <Menu className="w-6 h-6 text-gray-700" />
+          </button>
+          <div className="absolute left-1/2 -translate-x-1/2 font-bold text-xl text-[#4d4d4d] leading-none">
+            XLATIN
+          </div>
+        </div>
+        <div className="flex pl-4 pr-4 gap-5 pb-0 overflow-x-auto scrollbar-hide whitespace-nowrap">
+          {MY_PAGE_TABS.map(({ key, label }) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => router.push(key === "all" ? "/mypage" : `/mypage?tab=${key}`)}
+              className={`pb-2 font-bold transition-colors ${currentTab === key ? "text-black" : "text-gray-400"}`}
+              style={{ fontSize: currentTab === key ? 18 : 17 }}
+            >
+              {label}
+            </button>
+          ))}
         </div>
       </header>
 

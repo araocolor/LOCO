@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import { UserCircle, X, Settings, Check, HeartHandshake, Bookmark, SmilePlus } from "lucide-react";
@@ -106,6 +106,7 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses, soc
   ] as const;
   const MAX_FAVORITE_GENRE = 2;
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [editOpen, setEditOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(profile.profile_image_url);
@@ -124,7 +125,6 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses, soc
   const [favoriteGenres, setFavoriteGenres] = useState<string[]>(profileMeta.favorite_genre ?? []);
   const [memberTypes, setMemberTypes] = useState<string[]>(profileMeta.member_type ?? []);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [activeTab, setActiveTab] = useState<TabType>("all");
   const [myClasses] = useState<GridClass[]>(initialMyClasses);
   const [bookmarkClasses, setBookmarkClasses] = useState<GridClass[]>([]);
   const [nicknameModalOpen, setNicknameModalOpen] = useState(false);
@@ -137,6 +137,12 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses, soc
   const [friendsCount, setFriendsCount] = useState<number>(socialCounts?.friends ?? 0);
   const [followingCount, setFollowingCount] = useState<number>(socialCounts?.following ?? 0);
   const [subscriberCount, setSubscriberCount] = useState<number>(socialCounts?.subscriptionCount ?? 0);
+
+  const activeTab: TabType = (() => {
+    const rawTab = searchParams.get("tab");
+    if (rawTab === "my" || rawTab === "bookmark" || rawTab === "all") return rawTab;
+    return "all";
+  })();
 
   useEffect(() => {
     try {
@@ -459,23 +465,6 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses, soc
 
       {/* 하단 클래스 그리드 */}
       <div className="flex-1 bg-white">
-        {/* 탭 필터 */}
-        <div className="flex gap-2 px-4 py-3">
-          {([["all", "전체목록"], ["my", "내클래스"], ["bookmark", "북마크"]] as const).map(([tab, label]) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`px-4 py-1.5 rounded-full text-[13px] font-medium transition-colors ${
-                activeTab === tab
-                  ? "bg-gray-900 text-white"
-                  : "bg-gray-100 text-gray-500"
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-
         {/* 3x3 그리드 */}
         <div className="grid grid-cols-3 gap-[1px] bg-gray-200">
           {(activeTab === "all"

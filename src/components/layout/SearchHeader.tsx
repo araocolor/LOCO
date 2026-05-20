@@ -1,7 +1,5 @@
 "use client";
 
-import { Shell } from "lucide-react";
-
 type Tab = "friends" | "members" | "followings" | "pending";
 
 interface SearchHeaderProps {
@@ -14,7 +12,7 @@ export default function SearchHeader({ activeTab, onTabChange, myRegionLabel = "
   return (
     <header className="sticky top-0 z-50 bg-white border-b border-[#e5e7eb]">
       <div className="h-14 px-4 flex items-center justify-center">
-        <Shell size={31} className="mt-2 text-[#808080]" />
+        <div className="font-bold text-xl text-[#4d4d4d] leading-none">DANCERS</div>
       </div>
       <div className="flex pl-8 pr-4 gap-5 pb-0 overflow-x-auto scrollbar-hide whitespace-nowrap">
         <button
