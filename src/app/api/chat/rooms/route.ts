@@ -9,6 +9,11 @@ import {
   getRoomDisplayTitle,
 } from "../_lib";
 
+interface ClassImageItem {
+  icon_url?: string;
+  card_url?: string;
+}
+
 async function ensureOwnerClassRoomMemberships(userId: string) {
   const admin = createAdminClient();
   const { data: hostedClasses, error: hostedError } = await admin
@@ -92,7 +97,7 @@ export async function GET() {
     const admin = createAdminClient();
     const { data: myMemberships, error: membershipError } = await admin
       .from("chat_room_members")
-      .select("room_id, user_id, role, status, last_read_at")
+      .select("room_id, user_id, role, status, last_read_at, created_at")
       .eq("user_id", user.id)
       .eq("status", "active")
       .returns<ChatMemberRow[]>();
@@ -114,9 +119,10 @@ export async function GET() {
           .returns<ChatRoomRow[]>(),
         admin
           .from("chat_room_members")
-          .select("room_id, user_id, role, status, last_read_at")
+          .select("room_id, user_id, role, status, last_read_at, created_at")
           .in("room_id", roomIds)
           .eq("status", "active")
+          .order("created_at", { ascending: true })
           .returns<ChatMemberRow[]>(),
       ]);
 
@@ -125,11 +131,18 @@ export async function GET() {
 
     const activeRooms = rooms ?? [];
     const activeRoomIds = activeRooms.map((room) => room.id);
+    const classIds = activeRooms
+      .map((room) => room.class_id)
+      .filter((id): id is string => Boolean(id));
     const lastMessageIds = activeRooms
       .map((room) => room.last_message_id)
       .filter((id): id is string => Boolean(id));
 
-    const [{ data: lastMessages, error: lastMessagesError }, profiles] = await Promise.all([
+    const [
+      { data: lastMessages, error: lastMessagesError },
+      profiles,
+      { data: classRows, error: classRowsError },
+    ] = await Promise.all([
       lastMessageIds.length > 0
         ? admin
             .from("chat_messages")
@@ -138,11 +151,25 @@ export async function GET() {
             .returns<ChatMessageRow[]>()
         : Promise.resolve({ data: [], error: null }),
       getProfiles((members ?? []).map((member) => member.user_id)),
+      classIds.length > 0
+        ? admin
+            .from("classes")
+            .select("id, images")
+            .in("id", classIds)
+            .returns<Array<{ id: string; images: ClassImageItem[] | null }>>()
+        : Promise.resolve({ data: [], error: null }),
     ]);
 
     if (lastMessagesError) throw lastMessagesError;
+    if (classRowsError) throw classRowsError;
 
     const profileMap = new Map(profiles.map((profile) => [profile.id, profile]));
+    const classImageMap = new Map(
+      (classRows ?? []).map((row) => [
+        row.id,
+        row.images?.[0]?.icon_url ?? row.images?.[0]?.card_url ?? null,
+      ])
+    );
     const membershipMap = new Map((myMemberships ?? []).map((membership) => [membership.room_id, membership]));
     const memberMap = new Map<string, ChatMemberRow[]>();
     (members ?? []).forEach((member) => {
@@ -178,6 +205,7 @@ export async function GET() {
           id: room.id,
           type: room.type,
           class_id: room.class_id,
+          class_image_url: room.class_id ? classImageMap.get(room.class_id) ?? null : null,
           owner_id: room.owner_id,
           title: getRoomDisplayTitle(room, roomMembers, profileMap, user.id),
           notice: room.notice,
@@ -185,6 +213,7 @@ export async function GET() {
           members: roomMembers.map((member) => ({
             user_id: member.user_id,
             role: member.role,
+            created_at: member.created_at,
             profile: profileMap.get(member.user_id) ?? null,
           })),
           last_message: lastMessage

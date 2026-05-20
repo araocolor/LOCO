@@ -2,13 +2,14 @@
 
 import { useCallback, useState } from "react";
 import Image from "next/image";
-import { RefreshCw } from "lucide-react";
+import { Bell, BellOff, RefreshCw } from "lucide-react";
 import NearbyMap, { type NearbyRefreshControl } from "@/components/features/NearbyMap";
 import type { Conversation, MessageMenuTab } from "../_types";
 
 interface ConversationListProps {
   activeMenuTab: MessageMenuTab;
   conversations: Conversation[];
+  finderSoundEnabled: boolean;
   isSpinning: boolean;
   loading: boolean;
   onlineIds: Set<string>;
@@ -16,6 +17,7 @@ interface ConversationListProps {
   onOpenChat: (roomId: string) => void;
   onOpenProfile: (userId: string) => void;
   onRefresh: () => void;
+  onToggleFinderSound: () => void;
   setActiveMenuTab: (tab: MessageMenuTab) => void;
   formatDate: (dateStr: string) => string;
   truncateMessage: (content: string, length?: number) => string;
@@ -24,6 +26,7 @@ interface ConversationListProps {
 export default function ConversationList({
   activeMenuTab,
   conversations,
+  finderSoundEnabled,
   isSpinning,
   loading,
   onlineIds,
@@ -31,6 +34,7 @@ export default function ConversationList({
   onOpenChat,
   onOpenProfile,
   onRefresh,
+  onToggleFinderSound,
   setActiveMenuTab,
   formatDate,
   truncateMessage,
@@ -91,14 +95,27 @@ export default function ConversationList({
           </button>
         </div>
         {activeMenuTab === "nearby" ? (
-          <button
-            onClick={nearbyRefreshControl.onRefresh}
-            disabled={nearbyRefreshControl.disabled}
-            className={`pb-2 p-1 ${nearbyRefreshControl.disabled ? "text-gray-400 cursor-not-allowed" : "text-gray-800 hover:text-gray-900"}`}
-            aria-label="내근처 새로고침"
-          >
-            <RefreshCw size={18} className={nearbyRefreshControl.spinning ? "animate-spin" : ""} style={{ animationDuration: "0.8s" }} />
-          </button>
+          <div className="flex items-center gap-2 pb-2">
+            <button
+              type="button"
+              onClick={onToggleFinderSound}
+              className={`p-1 transition-colors ${
+                finderSoundEnabled ? "text-gray-800 hover:text-gray-900" : "text-gray-400 hover:text-gray-500"
+              }`}
+              aria-label={finderSoundEnabled ? "Finder 알림음 끄기" : "Finder 알림음 켜기"}
+              aria-pressed={finderSoundEnabled}
+            >
+              {finderSoundEnabled ? <Bell size={17} /> : <BellOff size={17} />}
+            </button>
+            <button
+              onClick={nearbyRefreshControl.onRefresh}
+              disabled={nearbyRefreshControl.disabled}
+              className={`p-1 ${nearbyRefreshControl.disabled ? "text-gray-400 cursor-not-allowed" : "text-gray-800 hover:text-gray-900"}`}
+              aria-label="내근처 새로고침"
+            >
+              <RefreshCw size={18} className={nearbyRefreshControl.spinning ? "animate-spin" : ""} style={{ animationDuration: "0.8s" }} />
+            </button>
+          </div>
         ) : (activeMenuTab === "messages" || activeMenuTab === "my-chat") && (
           <button
             onClick={onRefresh}
@@ -116,7 +133,7 @@ export default function ConversationList({
             <div className="px-4 pt-4 pb-2">
               <p className="text-base font-bold" style={{ color: "#333333" }}>검색범위</p>
             </div>
-            <NearbyMap onRefreshControlChange={handleNearbyRefreshControlChange} />
+            <NearbyMap soundEnabled={finderSoundEnabled} onRefreshControlChange={handleNearbyRefreshControlChange} />
           </div>
         ) : loading ? (
           <div className="flex items-center justify-center h-32 text-gray-400">로딩 중...</div>
@@ -137,10 +154,11 @@ export default function ConversationList({
               {(() => {
                 const isMine = conv.last_message?.is_mine;
                 const lastContent = conv.last_message?.content ?? "";
+                const classImageUrl = conv.type === "class" ? conv.class_image_url : null;
                 let lastImage: { thumb: string } | null = null;
                 try {
                   const parsed = JSON.parse(lastContent);
-                  if (parsed.type === "image") lastImage = parsed;
+                  if (conv.type !== "class" && parsed.type === "image") lastImage = parsed;
                 } catch {}
 
                 const showOnlineDot =
@@ -173,7 +191,15 @@ export default function ConversationList({
                           aria-label={`${conv.other_user?.nickname ?? "사용자"} 프로필 보기`}
                           disabled={!conv.other_user?.id}
                         >
-                          {conv.other_user?.profile_image_url ? (
+                          {classImageUrl ? (
+                            <Image
+                              src={classImageUrl}
+                              alt={displayNickname}
+                              width={50}
+                              height={50}
+                              className="h-[50px] w-[50px] rounded-[5px] object-cover object-center"
+                            />
+                          ) : conv.other_user?.profile_image_url ? (
                             <Image
                               src={conv.other_user.profile_image_url}
                               alt={conv.other_user.nickname}

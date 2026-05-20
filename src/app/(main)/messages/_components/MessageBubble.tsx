@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import type { Message, MyProfile, OtherUser } from "../_types";
+import type { Message, MessageReactionType, MyProfile, OtherUser } from "../_types";
 
 interface MessageBubbleProps {
   msg: Message;
@@ -13,8 +13,17 @@ interface MessageBubbleProps {
   onStartLongPress: (msgId: string, isMine: boolean) => void;
   onCancelLongPress: () => void;
   onDeleteMessage: (msgId: string) => void;
+  onMessageReaction: (msgId: string, reactionType: MessageReactionType) => void;
   formatTime: (dateStr: string) => string;
 }
+
+const MESSAGE_REACTIONS: Array<{ type: MessageReactionType; label: string }> = [
+  { type: "heart", label: "❤️" },
+  { type: "like", label: "👍" },
+  { type: "laugh", label: "😂" },
+  { type: "wow", label: "😮" },
+  { type: "sad", label: "😢" },
+];
 
 export default function MessageBubble({
   msg,
@@ -26,6 +35,7 @@ export default function MessageBubble({
   onStartLongPress,
   onCancelLongPress,
   onDeleteMessage,
+  onMessageReaction,
   formatTime,
 }: MessageBubbleProps) {
   const isMine = msg.sender_id === userId;
@@ -129,6 +139,37 @@ export default function MessageBubble({
               )}
             </span>
           )}
+          <div className={`flex flex-wrap gap-1 ${isMine ? "justify-end" : "justify-start"}`}>
+            {MESSAGE_REACTIONS.map((reaction) => {
+              const count = msg.reaction_counts?.[reaction.type] ?? 0;
+              const active = msg.my_reaction === reaction.type;
+              if (count === 0 && !active) return null;
+              return (
+                <button
+                  key={reaction.type}
+                  type="button"
+                  onClick={() => onMessageReaction(msg.id, reaction.type)}
+                  className={`rounded-full px-2 py-0.5 text-xs font-bold shadow-sm ${
+                    active ? "bg-black text-white" : "bg-white text-gray-800"
+                  }`}
+                >
+                  {reaction.label} {count}
+                </button>
+              );
+            })}
+            <div className="flex gap-1">
+              {MESSAGE_REACTIONS.filter((reaction) => (msg.reaction_counts?.[reaction.type] ?? 0) === 0 && msg.my_reaction !== reaction.type).map((reaction) => (
+                <button
+                  key={reaction.type}
+                  type="button"
+                  onClick={() => onMessageReaction(msg.id, reaction.type)}
+                  className="rounded-full bg-white/80 px-1.5 py-0.5 text-xs shadow-sm"
+                >
+                  {reaction.label}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     </div>

@@ -1,10 +1,12 @@
 "use client";
 
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Dispatch, RefObject, SetStateAction } from "react";
-import { ArrowLeft, Paperclip, Send, UserPlus } from "lucide-react";
+import { ArrowLeft, Megaphone, Paperclip, Send, UserPlus } from "lucide-react";
+import Avatar from "@/components/ui/Avatar";
 import ChatAttachPanel from "./ChatAttachPanel";
 import MessageBubble from "./MessageBubble";
-import type { Message, MyProfile, OtherUser } from "../_types";
+import type { ChatNotice, Message, MessageReactionType, MyProfile, NoticeKind, NoticeReactionType, NoticeVoteType, OtherUser } from "../_types";
 
 interface ChatDrawerProps {
   attachOpen: boolean;
@@ -17,7 +19,16 @@ interface ChatDrawerProps {
   messagesEndRef: RefObject<HTMLDivElement | null>;
   myProfile: MyProfile | null;
   newMessage: string;
+  notices: ChatNotice[];
   otherUser: OtherUser | null;
+  roomMembers: Array<{
+    user_id: string;
+    role: "owner" | "admin" | "member";
+    created_at?: string | null;
+    profile: OtherUser | null;
+  }> | undefined;
+  roomType: "direct" | "group" | "class" | undefined;
+  classInfoTitle: string | null;
   photoInputRef: RefObject<HTMLInputElement | null>;
   selectedUserId: string | null;
   sending: boolean;
@@ -29,8 +40,13 @@ interface ChatDrawerProps {
   onDeleteMessage: (msgId: string) => void;
   onFriendRequest: () => void;
   onOpenMemberDrawer: () => void;
+  onNoticeReaction: (noticeId: string, reactionType: NoticeReactionType) => void;
+  onNoticeVote: (noticeId: string, voteType: NoticeVoteType) => void;
   onPhotoUpload: (file: File) => void;
+  onSaveNotice: (notice: string, kind: NoticeKind) => Promise<void>;
   onSendMessage: () => void;
+  onMarkNoticeRead: (noticeId: string) => void;
+  onMessageReaction: (messageId: string, reactionType: MessageReactionType) => void;
   onStartLongPress: (msgId: string, isMine: boolean) => void;
   setAttachOpen: Dispatch<SetStateAction<boolean>>;
   setChatMenuOpen: Dispatch<SetStateAction<boolean>>;
@@ -38,6 +54,18 @@ interface ChatDrawerProps {
   setShakingMsgId: Dispatch<SetStateAction<string | null>>;
   formatTime: (dateStr: string) => string;
 }
+
+const NOTICE_REACTIONS: Array<{ type: NoticeReactionType; label: string }> = [
+  { type: "heart", label: "❤️" },
+  { type: "like", label: "👍" },
+  { type: "dislike", label: "👎" },
+];
+
+const NOTICE_VOTES: Array<{ type: NoticeVoteType; label: string }> = [
+  { type: "agree", label: "찬성" },
+  { type: "disagree", label: "반대" },
+  { type: "abstain", label: "무효" },
+];
 
 export default function ChatDrawer({
   attachOpen,
@@ -50,7 +78,11 @@ export default function ChatDrawer({
   messagesEndRef,
   myProfile,
   newMessage,
+  notices,
   otherUser,
+  roomMembers,
+  roomType,
+  classInfoTitle,
   photoInputRef,
   selectedUserId,
   sending,
@@ -62,8 +94,13 @@ export default function ChatDrawer({
   onDeleteMessage,
   onFriendRequest,
   onOpenMemberDrawer,
+  onNoticeReaction,
+  onNoticeVote,
   onPhotoUpload,
+  onSaveNotice,
   onSendMessage,
+  onMarkNoticeRead,
+  onMessageReaction,
   onStartLongPress,
   setAttachOpen,
   setChatMenuOpen,
@@ -71,22 +108,132 @@ export default function ChatDrawer({
   setShakingMsgId,
   formatTime,
 }: ChatDrawerProps) {
+  const [activeTab, setActiveTab] = useState<"all" | "members" | "class">("all");
+  const [noticeDrawerOpen, setNoticeDrawerOpen] = useState(false);
+  const [noticeDraft, setNoticeDraft] = useState("");
+  const [noticeKind, setNoticeKind] = useState<NoticeKind>("notice");
+  const [noticeError, setNoticeError] = useState("");
+  const [noticeSaving, setNoticeSaving] = useState(false);
+  const chatMenuRef = useRef<HTMLDivElement>(null);
+  const chatMenuButtonRef = useRef<HTMLButtonElement>(null);
+  const rawChatTitle = chatTitle ?? otherUser?.nickname ?? "로딩중...";
+  const displayChatTitle =
+    rawChatTitle.length > 13 ? `${rawChatTitle.slice(0, 13)}...` : rawChatTitle;
+
+  const memberProfiles = useMemo(() => {
+    const unique = new Map<
+      string,
+      {
+        userId: string;
+        nickname: string;
+        profileImageUrl: string | null;
+        role: "owner" | "admin" | "member";
+        createdAt: string | null;
+        order: number;
+      }
+    >();
+    (roomMembers ?? []).forEach((member) => {
+      if (unique.has(member.user_id)) return;
+      unique.set(member.user_id, {
+        userId: member.user_id,
+        nickname: member.profile?.nickname ?? "알 수 없음",
+        profileImageUrl: member.profile?.profile_image_url ?? null,
+        role: member.role,
+        createdAt: member.created_at ?? null,
+        order: unique.size,
+      });
+    });
+    return Array.from(unique.values()).sort((a, b) => {
+      if (a.role === "owner" && b.role !== "owner") return -1;
+      if (a.role !== "owner" && b.role === "owner") return 1;
+      const aTime = a.createdAt ? new Date(a.createdAt).getTime() : Number.POSITIVE_INFINITY;
+      const bTime = b.createdAt ? new Date(b.createdAt).getTime() : Number.POSITIVE_INFINITY;
+      if (aTime !== bTime) return aTime - bTime;
+      return a.order - b.order;
+    });
+  }, [roomMembers]);
+
+  const isClassRoom = roomType === "class";
+  const unreadNotice = notices.find((notice) => !notice.read_by_me) ?? null;
+  const isClassOwner = isClassRoom && (roomMembers ?? []).some((member) => member.user_id === userId && member.role === "owner");
+  const classTitle = classInfoTitle ?? chatTitle ?? "클래스 정보";
+
+  function formatNoticeDate(dateStr: string | null) {
+    if (!dateStr) return "";
+    const date = new Date(dateStr);
+    if (Number.isNaN(date.getTime())) return "";
+    return `${date.getMonth() + 1}/${date.getDate()}`;
+  }
+
+  function openNoticeDrawer() {
+    setNoticeDraft("");
+    setNoticeKind("notice");
+    setNoticeError("");
+    setChatMenuOpen(false);
+    setNoticeDrawerOpen(true);
+  }
+
+  async function handleSaveNotice() {
+    setNoticeSaving(true);
+    setNoticeError("");
+    try {
+      await onSaveNotice(noticeDraft, noticeKind);
+      setNoticeDrawerOpen(false);
+    } catch (error) {
+      setNoticeError(error instanceof Error ? error.message : "공지 저장 중 오류가 발생했습니다");
+    } finally {
+      setNoticeSaving(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!chatMenuOpen) return;
+
+    function closeMenuOnOutsideClick(event: PointerEvent) {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (chatMenuRef.current?.contains(target)) return;
+      if (chatMenuButtonRef.current?.contains(target)) return;
+      setChatMenuOpen(false);
+    }
+
+    document.addEventListener("pointerdown", closeMenuOnOutsideClick);
+    return () => document.removeEventListener("pointerdown", closeMenuOnOutsideClick);
+  }, [chatMenuOpen, setChatMenuOpen]);
+
+  function openUnreadNotice() {
+    if (!unreadNotice) return;
+    setActiveTab("class");
+    onMarkNoticeRead(unreadNotice.id);
+  }
+
   return (
     <div
       className={`fixed inset-0 z-[60] bg-white flex flex-col transition-transform duration-300 ease-in-out ${
         chatOpen ? "translate-x-0" : "translate-x-full"
       }`}
     >
-      <div className="h-14 shrink-0 relative flex items-center justify-between px-4 border-b border-gray-100">
-        <button onClick={onClose} className="p-1 -ml-1 text-gray-600 hover:text-gray-900">
+      <header className="sticky top-0 z-50 bg-white h-14 px-4 relative">
+        <button
+          onClick={onClose}
+          className="absolute left-4 top-1/2 -translate-y-1/2 w-[37px] h-[37px] flex items-center justify-center text-gray-600 hover:text-gray-900"
+        >
           <ArrowLeft size={20} />
         </button>
-        <div className="absolute left-1/2 -translate-x-1/2">
-          <span className="font-bold text-gray-900" style={{ fontSize: "18px" }}>{chatTitle ?? otherUser?.nickname ?? "로딩중..."}</span>
+        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[60%] text-center">
+          <span
+            className="block whitespace-nowrap overflow-hidden text-ellipsis font-bold text-xl text-[#4d4d4d] leading-none"
+          >
+            {displayChatTitle}
+          </span>
         </div>
-        <div className="flex items-center gap-1">
+        <div className="absolute right-4 top-1/2 -translate-y-1/2">
           <div className="relative">
-            <button onClick={() => setChatMenuOpen((v) => !v)} className="p-1 text-gray-600 hover:text-gray-900">
+            <button
+              ref={chatMenuButtonRef}
+              onClick={() => setChatMenuOpen((v) => !v)}
+              className="w-[37px] h-[37px] flex items-center justify-center text-gray-600 hover:text-gray-900"
+            >
               <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="3" y1="6" x2="21" y2="6" />
                 <line x1="3" y1="12" x2="21" y2="12" />
@@ -94,51 +241,98 @@ export default function ChatDrawer({
               </svg>
             </button>
             {chatMenuOpen && (
-              <>
-                <div className="fixed inset-0 z-[70]" onClick={() => setChatMenuOpen(false)} />
-                <div className="absolute right-0 top-full z-[80] bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden" style={{ width: 180 }}>
-                  {canAddMembers && (
-                    <>
-                      <button
-                        className="flex items-center justify-between w-full px-4 py-3 text-gray-700" style={{ fontSize: "16px" }}
-                        onClick={() => {
-                          setChatMenuOpen(false);
-                          onOpenMemberDrawer();
-                        }}
-                      >
-                        <span>새 사용자 추가</span>
-                        <UserPlus size={20} className="text-gray-500" />
-                      </button>
-                      <div className="border-t border-gray-100 mx-3" />
-                    </>
-                  )}
-                  <button
-                    className="flex items-center justify-between w-full px-4 py-3 text-gray-700" style={{ fontSize: "16px" }}
-                    onClick={onFriendRequest}
-                  >
-                    <span>친구 신청</span>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500">
-                      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/>
-                    </svg>
-                  </button>
-                  <div className="border-t border-gray-100 mx-3" />
-                  <button className="flex items-center justify-between w-full px-4 py-3 text-gray-700" style={{ fontSize: "16px" }}>
-                    <span>대화 삭제</span>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500">
-                      <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
-                    </svg>
-                  </button>
-                  <div className="border-t border-gray-100 mx-3" />
-                  <button className="flex items-center justify-between w-full px-4 py-3 text-red-500" style={{ fontSize: "16px" }}>
-                    <span>차단하기</span>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-red-400">
-                      <circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
-                    </svg>
-                  </button>
-                </div>
-              </>
+              <div ref={chatMenuRef} className="absolute right-0 top-full z-[80] bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden" style={{ width: 180 }}>
+                {isClassOwner && (
+                  <>
+                    <button
+                      className="flex items-center justify-between w-full px-4 py-3 text-gray-700" style={{ fontSize: "16px" }}
+                      onClick={openNoticeDrawer}
+                    >
+                      <span>공지작성</span>
+                      <Megaphone size={20} className="text-gray-500" />
+                    </button>
+                    <div className="border-t border-gray-100 mx-3" />
+                  </>
+                )}
+                {canAddMembers && (
+                  <>
+                    <button
+                      className="flex items-center justify-between w-full px-4 py-3 text-gray-700" style={{ fontSize: "16px" }}
+                      onClick={() => {
+                        setChatMenuOpen(false);
+                        onOpenMemberDrawer();
+                      }}
+                    >
+                      <span>새 사용자 추가</span>
+                      <UserPlus size={20} className="text-gray-500" />
+                    </button>
+                    <div className="border-t border-gray-100 mx-3" />
+                  </>
+                )}
+                <button
+                  className="flex items-center justify-between w-full px-4 py-3 text-gray-700" style={{ fontSize: "16px" }}
+                  onClick={() => {
+                    setChatMenuOpen(false);
+                    onFriendRequest();
+                  }}
+                >
+                  <span>친구 신청</span>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500">
+                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/>
+                  </svg>
+                </button>
+                <div className="border-t border-gray-100 mx-3" />
+                <button className="flex items-center justify-between w-full px-4 py-3 text-gray-700" style={{ fontSize: "16px" }}>
+                  <span>대화 삭제</span>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500">
+                    <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
+                  </svg>
+                </button>
+                <div className="border-t border-gray-100 mx-3" />
+                <button className="flex items-center justify-between w-full px-4 py-3 text-red-500" style={{ fontSize: "16px" }}>
+                  <span>차단하기</span>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-red-400">
+                    <circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
+                  </svg>
+                </button>
+              </div>
             )}
           </div>
+        </div>
+      </header>
+
+      <div className="shrink-0 flex items-end px-4 border-b border-[#e5e7eb]">
+        <div className="flex gap-6">
+          <button
+            type="button"
+            onClick={() => setActiveTab("all")}
+            style={{ fontSize: 17 }}
+            className={`pb-2 font-bold border-b-2 transition-colors ${
+              activeTab === "all" ? "border-black text-black" : "border-transparent text-gray-400"
+            }`}
+          >
+            전체대화
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("members")}
+            style={{ fontSize: 17 }}
+            className={`pb-2 font-bold border-b-2 transition-colors ${
+              activeTab === "members" ? "border-black text-black" : "border-transparent text-gray-400"
+            }`}
+          >
+            참여회원들
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("class")}
+            style={{ fontSize: 17 }}
+            className={`pb-2 font-bold border-b-2 transition-colors ${
+              activeTab === "class" ? "border-black text-black" : "border-transparent text-gray-400"
+            }`}
+          >
+            공지/투표
+          </button>
         </div>
       </div>
 
@@ -148,71 +342,253 @@ export default function ChatDrawer({
           25% { transform: rotate(-2deg); }
           75% { transform: rotate(2deg); }
         }
+        @keyframes noticeDrawerDown {
+          from { transform: translateY(-100%); }
+          to { transform: translateY(0); }
+        }
+        @keyframes noticeBarDown {
+          from { opacity: 0; transform: translateY(-14px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
         .msg-shake { animation: shake 0.3s ease-in-out infinite; }
       `}</style>
-      <div
-        className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3"
-        style={{ backgroundColor: "#B2C7D9" }}
-        onClick={() => {
-          setAttachOpen(false);
-          setShakingMsgId(null);
-        }}
-      >
-        {chatLoading ? (
-          <div className="flex items-center justify-center h-full text-gray-600">로딩 중...</div>
-        ) : messages.length === 0 ? (
-          <div className="flex items-center justify-center h-full text-gray-600 text-sm">
-            대화 시작하기
+      {activeTab === "all" && (
+        <>
+          <div
+            className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3"
+            style={{ backgroundColor: "#B2C7D9" }}
+            onClick={() => {
+              setAttachOpen(false);
+              setShakingMsgId(null);
+            }}
+          >
+            {isClassRoom && unreadNotice && (
+              <button
+                type="button"
+                onClick={openUnreadNotice}
+                className="sticky top-0 z-10 mb-1 h-[40px] w-full rounded-[20px] bg-yellow-300 px-4 text-left text-sm font-semibold leading-[40px] text-gray-800 shadow-sm animate-[noticeBarDown_220ms_ease-out]"
+              >
+                <span className="flex h-full items-center gap-2">
+                  <Megaphone size={16} className="shrink-0" />
+                  <span className="min-w-0 flex-1 truncate">공지사항을 꼭 읽어주세요</span>
+                  <span className="shrink-0 text-xs font-bold text-gray-700">보기</span>
+                </span>
+              </button>
+            )}
+            {chatLoading ? (
+              <div className="flex items-center justify-center h-full text-gray-600">로딩 중...</div>
+            ) : messages.length === 0 ? (
+              <div className="flex items-center justify-center h-full text-gray-600 text-sm">
+                대화 시작하기
+              </div>
+            ) : (
+              messages.map((msg, idx) => (
+                <MessageBubble
+                  key={msg.id}
+                  msg={msg}
+                  prevMsg={idx > 0 ? messages[idx - 1] : null}
+                  userId={userId}
+                  myProfile={myProfile}
+                  otherUser={otherUser}
+                  shakingMsgId={shakingMsgId}
+                  onStartLongPress={onStartLongPress}
+                  onCancelLongPress={onCancelLongPress}
+                  onDeleteMessage={onDeleteMessage}
+                  onMessageReaction={onMessageReaction}
+                  formatTime={formatTime}
+                />
+              ))
+            )}
+            <div ref={messagesEndRef} />
           </div>
-        ) : (
-          messages.map((msg, idx) => (
-            <MessageBubble
-              key={msg.id}
-              msg={msg}
-              prevMsg={idx > 0 ? messages[idx - 1] : null}
-              userId={userId}
-              myProfile={myProfile}
-              otherUser={otherUser}
-              shakingMsgId={shakingMsgId}
-              onStartLongPress={onStartLongPress}
-              onCancelLongPress={onCancelLongPress}
-              onDeleteMessage={onDeleteMessage}
-              formatTime={formatTime}
+
+          <div className="border-t border-gray-100 px-3 pt-3 pb-3 flex gap-2 items-start min-h-[80px]">
+            <button className="text-gray-500 flex-shrink-0 mt-2" onClick={() => setAttachOpen((v) => !v)}>
+              <Paperclip size={22} strokeWidth={2.5} />
+            </button>
+            <input
+              type="text"
+              value={newMessage}
+              onChange={(e) => setNewMessage(e.target.value)}
+              onKeyPress={(e) => e.key === "Enter" && onSendMessage()}
+              placeholder="메시지 입력..."
+              className="flex-1 px-3 py-2 border border-gray-200 rounded-full focus:outline-none focus:ring-2 focus:ring-yellow-400"
+              style={{ fontSize: "16px", color: "#000000cc" }}
+              disabled={sending}
             />
-          ))
-        )}
-        <div ref={messagesEndRef} />
-      </div>
+            <button
+              onClick={onSendMessage}
+              disabled={!newMessage.trim() || sending || !selectedUserId}
+              className="w-9 h-9 flex items-center justify-center bg-yellow-400 text-gray-900 rounded-full hover:bg-yellow-500 disabled:opacity-50 mt-1 flex-shrink-0"
+            >
+              <Send size={16} />
+            </button>
+          </div>
 
-      <div className="border-t border-gray-100 px-3 pt-3 pb-3 flex gap-2 items-start min-h-[80px]">
-        <button className="text-gray-500 flex-shrink-0 mt-2" onClick={() => setAttachOpen((v) => !v)}>
-          <Paperclip size={22} strokeWidth={2.5} />
-        </button>
-        <input
-          type="text"
-          value={newMessage}
-          onChange={(e) => setNewMessage(e.target.value)}
-          onKeyPress={(e) => e.key === "Enter" && onSendMessage()}
-          placeholder="메시지 입력..."
-          className="flex-1 px-3 py-2 border border-gray-200 rounded-full focus:outline-none focus:ring-2 focus:ring-yellow-400"
-          style={{ fontSize: "16px", color: "#000000cc" }}
-          disabled={sending}
-        />
-        <button
-          onClick={onSendMessage}
-          disabled={!newMessage.trim() || sending || !selectedUserId}
-          className="w-9 h-9 flex items-center justify-center bg-yellow-400 text-gray-900 rounded-full hover:bg-yellow-500 disabled:opacity-50 mt-1 flex-shrink-0"
-        >
-          <Send size={16} />
-        </button>
-      </div>
+          <ChatAttachPanel
+            attachOpen={attachOpen}
+            photoInputRef={photoInputRef}
+            uploading={uploading}
+            onPhotoUpload={onPhotoUpload}
+          />
+        </>
+      )}
 
-      <ChatAttachPanel
-        attachOpen={attachOpen}
-        photoInputRef={photoInputRef}
-        uploading={uploading}
-        onPhotoUpload={onPhotoUpload}
-      />
+      {activeTab === "members" && (
+        <div className="flex-1 overflow-y-auto bg-white px-4 py-4">
+          {memberProfiles.length === 0 ? (
+            <div className="flex h-full items-center justify-center text-sm text-gray-400">참여 회원이 없습니다</div>
+          ) : (
+            <div className="grid grid-cols-5 gap-4">
+              {memberProfiles.map((member) => (
+                <div key={member.userId} className="flex justify-center">
+                  <Avatar
+                    src={member.profileImageUrl}
+                    nickname={member.nickname}
+                    size={50}
+                    className={isClassRoom && member.role === "owner" ? "border-2 border-white shadow-[0_0_0_2px_#ef4444]" : ""}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === "class" && (
+        <div className="flex-1 overflow-y-auto bg-white px-4 py-5">
+          {!isClassRoom ? (
+            <div className="flex h-full items-center justify-center text-sm text-gray-400">공지/투표가 없습니다</div>
+          ) : (
+            <div className="space-y-4">
+              <h3 className="text-base font-bold text-gray-900">{classTitle}</h3>
+              {notices.length > 0 ? (
+                <div className="space-y-4">
+                  {notices.map((notice, index) => {
+                    const dateLabel = formatNoticeDate(notice.created_at);
+                    const prevDateLabel = index > 0 ? formatNoticeDate(notices[index - 1].created_at) : "";
+                    const showDateHeader = index === 0 || dateLabel !== prevDateLabel;
+                    return (
+                      <div key={notice.id} className="space-y-2">
+                        {showDateHeader && (
+                          <p className="text-center text-xs font-bold text-gray-400">{dateLabel}</p>
+                        )}
+                        <article className="rounded-[10px] bg-yellow-300 px-4 py-3 text-gray-900">
+                          <div className="mb-2 flex items-center gap-2">
+                            <Megaphone size={16} className="shrink-0" />
+                            <span className="text-sm font-bold">{notice.kind === "vote" ? "투표" : "공지사항"}</span>
+                            <span className="ml-auto text-xs font-bold text-gray-700">읽음 {notice.read_count}</span>
+                          </div>
+                          <p className="whitespace-pre-wrap break-words text-[16px] font-semibold leading-6">{notice.content}</p>
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            {NOTICE_REACTIONS.map((reaction) => (
+                              <button
+                                key={reaction.type}
+                                type="button"
+                                onClick={() => onNoticeReaction(notice.id, reaction.type)}
+                                className={`rounded-full px-3 py-1 text-sm font-bold ${
+                                  notice.my_reaction === reaction.type ? "bg-black text-white" : "bg-white text-gray-800"
+                                }`}
+                              >
+                                {reaction.label} {notice.reaction_counts[reaction.type]}
+                              </button>
+                            ))}
+                          </div>
+                          {notice.kind === "vote" && (
+                            <div className="mt-3 grid grid-cols-3 gap-2">
+                              {NOTICE_VOTES.map((vote) => (
+                                <button
+                                  key={vote.type}
+                                  type="button"
+                                  onClick={() => onNoticeVote(notice.id, vote.type)}
+                                  className={`rounded-md px-2 py-2 text-sm font-bold ${
+                                    notice.my_vote === vote.type ? "bg-black text-white" : "bg-white text-gray-800"
+                                  }`}
+                                >
+                                  {vote.label} {notice.vote_counts[vote.type]}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </article>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-sm leading-6 text-gray-400">등록된 공지/투표가 없습니다.</p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {noticeDrawerOpen && (
+        <div className="absolute inset-0 z-[90]">
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/20"
+            aria-label="공지 작성 닫기"
+            onClick={() => setNoticeDrawerOpen(false)}
+          />
+          <section className="absolute inset-x-0 top-0 h-[70vh] bg-white shadow-xl border-b border-gray-200 animate-[noticeDrawerDown_180ms_ease-out]">
+            <div className="flex h-full flex-col">
+              <div className="shrink-0 px-4 py-4 border-b border-gray-100">
+                <h2 className="text-lg font-bold text-gray-900">클래스 공지사항</h2>
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  {([
+                    ["notice", "공지"],
+                    ["vote", "투표"],
+                  ] as const).map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setNoticeKind(value)}
+                      className={`rounded-md py-2 text-sm font-bold ${
+                        noticeKind === value ? "bg-yellow-300 text-gray-900" : "bg-gray-100 text-gray-500"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                {noticeKind === "vote" && (
+                  <p className="mt-2 text-xs font-semibold text-gray-500">투표 선택지는 찬성 / 반대 / 무효로 표시됩니다.</p>
+                )}
+              </div>
+              <div className="flex-1 px-4 py-4 flex flex-col">
+                <textarea
+                  value={noticeDraft}
+                  onChange={(event) => setNoticeDraft(event.target.value)}
+                  maxLength={300}
+                  placeholder="공지 내용을 입력하세요"
+                  className="flex-1 w-full resize-none rounded-md border border-gray-200 px-3 py-[10px] text-base leading-6 text-gray-900 focus:outline-none focus:ring-2 focus:ring-yellow-300"
+                />
+                {noticeError && <p className="mt-2 text-sm text-red-500">{noticeError}</p>}
+              </div>
+              <div className="shrink-0 flex gap-2 px-4 py-3 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => setNoticeDrawerOpen(false)}
+                  className="flex-1 rounded-md border border-gray-200 py-3 text-base font-semibold text-gray-700"
+                >
+                  취소
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    void handleSaveNotice();
+                  }}
+                  disabled={noticeSaving}
+                  className="flex-1 rounded-md bg-yellow-300 py-3 text-base font-bold text-gray-900 disabled:opacity-50"
+                >
+                  확인
+                </button>
+              </div>
+            </div>
+          </section>
+        </div>
+      )}
     </div>
   );
 }

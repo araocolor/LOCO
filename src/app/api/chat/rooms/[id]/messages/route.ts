@@ -10,6 +10,18 @@ import {
 } from "../../../_lib";
 
 const MESSAGE_KINDS = new Set<ChatMessageKind>(["text", "image", "file", "system"]);
+const MESSAGE_REACTION_TYPES = ["heart", "like", "laugh", "wow", "sad"] as const;
+type MessageReactionType = (typeof MESSAGE_REACTION_TYPES)[number];
+
+interface MessageReactionRow {
+  message_id: string;
+  user_id: string;
+  reaction_type: MessageReactionType;
+}
+
+function emptyMessageReactionCounts(): Record<MessageReactionType, number> {
+  return { heart: 0, like: 0, laugh: 0, wow: 0, sad: 0 };
+}
 
 export async function GET(
   request: NextRequest,
@@ -49,6 +61,25 @@ export async function GET(
     const messages = (rows ?? []).slice().reverse();
     const profiles = await getProfiles(messages.map((message) => message.sender_id));
     const profileMap = new Map(profiles.map((profile) => [profile.id, profile]));
+    const messageIds = messages.map((message) => message.id);
+    const { data: reactions, error: reactionsError } = messageIds.length > 0
+      ? await admin
+          .from("chat_message_reactions")
+          .select("message_id, user_id, reaction_type")
+          .in("message_id", messageIds)
+          .returns<MessageReactionRow[]>()
+      : { data: [], error: null };
+
+    if (reactionsError) throw reactionsError;
+
+    const reactionCountMap = new Map<string, Record<MessageReactionType, number>>();
+    const myReactionMap = new Map<string, MessageReactionType>();
+    (reactions ?? []).forEach((reaction) => {
+      const counts = reactionCountMap.get(reaction.message_id) ?? emptyMessageReactionCounts();
+      if (MESSAGE_REACTION_TYPES.includes(reaction.reaction_type)) counts[reaction.reaction_type] += 1;
+      reactionCountMap.set(reaction.message_id, counts);
+      if (reaction.user_id === user.id) myReactionMap.set(reaction.message_id, reaction.reaction_type);
+    });
 
     const readAt = new Date().toISOString();
     await admin
@@ -62,6 +93,8 @@ export async function GET(
         ...message,
         sender: profileMap.get(message.sender_id) ?? null,
         is_mine: message.sender_id === user.id,
+        my_reaction: myReactionMap.get(message.id) ?? null,
+        reaction_counts: reactionCountMap.get(message.id) ?? emptyMessageReactionCounts(),
       })),
     });
   } catch (error) {
@@ -118,7 +151,14 @@ export async function POST(
       .eq("room_id", roomId)
       .eq("user_id", user.id);
 
-    return NextResponse.json({ data: { ...message, is_mine: true } });
+    return NextResponse.json({
+      data: {
+        ...message,
+        is_mine: true,
+        my_reaction: null,
+        reaction_counts: emptyMessageReactionCounts(),
+      },
+    });
   } catch (error) {
     console.error("[chat-room-messages:post]", error);
     return NextResponse.json({ error: "서버 오류" }, { status: 500 });

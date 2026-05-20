@@ -7,7 +7,7 @@ import { PRESENCE_EVENT } from "@/components/features/PresenceTracker";
 import ConversationList from "./_components/ConversationList";
 import ChatDrawer from "./_components/ChatDrawer";
 import ChatMemberDrawer from "./_components/ChatMemberDrawer";
-import type { Conversation, Message, MessageMenuTab, MyProfile, OtherUser, SessionClassItem } from "./_types";
+import type { ChatNotice, Conversation, Message, MessageMenuTab, MessageReactionType, MyProfile, NoticeKind, NoticeReactionType, NoticeVoteType, OtherUser, SessionClassItem } from "./_types";
 import {
   appendMessageCache,
   readMessageCache,
@@ -18,6 +18,7 @@ interface ChatRoomApiItem {
   id: string;
   type: "direct" | "group" | "class";
   class_id: string | null;
+  class_image_url: string | null;
   owner_id: string | null;
   title: string | null;
   notice: string | null;
@@ -25,6 +26,7 @@ interface ChatRoomApiItem {
   members: Array<{
     user_id: string;
     role: "owner" | "admin" | "member";
+    created_at?: string | null;
     profile: OtherUser | null;
   }>;
   last_message: {
@@ -50,6 +52,27 @@ interface ChatMessageApiItem {
   created_at: string;
   sender?: OtherUser | null;
   is_mine?: boolean;
+  my_reaction?: MessageReactionType | null;
+  reaction_counts?: Record<MessageReactionType, number>;
+}
+
+const EMPTY_MESSAGE_REACTION_COUNTS: Record<MessageReactionType, number> = {
+  heart: 0,
+  like: 0,
+  laugh: 0,
+  wow: 0,
+  sad: 0,
+};
+
+const FINDER_SOUND_ENABLED_KEY = "loco_finder_sound_enabled";
+
+function readFinderSoundEnabled() {
+  if (typeof window === "undefined") return true;
+  try {
+    return localStorage.getItem(FINDER_SOUND_ENABLED_KEY) !== "false";
+  } catch {
+    return true;
+  }
 }
 
 export default function MessagesPageClient({ userId }: { userId: string }) {
@@ -59,11 +82,13 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
   const [loading, setLoading] = useState(true);
   const [onlineIds, setOnlineIds] = useState<Set<string>>(new Set());
   const [activeMenuTab, setActiveMenuTab] = useState<MessageMenuTab>("messages");
+  const [finderSoundEnabled, setFinderSoundEnabled] = useState(readFinderSoundEnabled);
 
   // 대화창 상태
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
   const [chatOpen, setChatOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [notices, setNotices] = useState<ChatNotice[]>([]);
   const [otherUser, setOtherUser] = useState<OtherUser | null>(null);
   const [myProfile, setMyProfile] = useState<MyProfile | null>(null);
   const [chatLoading, setChatLoading] = useState(false);
@@ -172,6 +197,8 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
       content: item.content,
       sent_at: item.created_at,
       sender: item.sender ?? null,
+      my_reaction: item.my_reaction ?? null,
+      reaction_counts: item.reaction_counts ?? EMPTY_MESSAGE_REACTION_COUNTS,
     };
   }
 
@@ -184,7 +211,10 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
     return {
       id: item.id,
       type: item.type,
+      class_id: item.class_id,
+      class_image_url: item.class_image_url,
       title: item.title,
+      notice: item.notice,
       member_count: item.member_count,
       members: item.members,
       other_user: otherMember?.profile ?? null,
@@ -240,6 +270,8 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
       id?: string;
       type?: Conversation["type"];
       title?: string | null;
+      notice?: string | null;
+      updated_at?: string;
       members?: Conversation["members"];
     };
     if (!nextRoom.id) return;
@@ -251,6 +283,8 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
               ...conv,
               type: nextRoom.type ?? conv.type,
               title: nextRoom.title ?? conv.title,
+              notice: Object.prototype.hasOwnProperty.call(nextRoom, "notice") ? nextRoom.notice ?? null : conv.notice,
+              updated_at: nextRoom.updated_at ?? conv.updated_at,
               members: nextRoom.members ?? conv.members,
               member_count: nextRoom.members?.length ?? conv.member_count,
               other_user: nextRoom.type === "direct" ? conv.other_user : null,
@@ -500,6 +534,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
     let hasCachedMessages = false;
 
     setOtherUser(localOtherUser);
+    setNotices([]);
 
     try {
       const cachedMessages = readMessageCache(roomId);
@@ -523,14 +558,21 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
     });
 
     void (async () => {
-      const res = await fetch(`/api/chat/rooms/${roomId}/messages`);
-      const json = await res.json();
-      if (res.ok && json.data) {
-        const nextMessages = (json.data as ChatMessageApiItem[]).map(mapChatMessage);
+      const [messageRes, noticeRes] = await Promise.all([
+        fetch(`/api/chat/rooms/${roomId}/messages`),
+        fetch(`/api/chat/rooms/${roomId}/notices`),
+      ]);
+      const messageJson = await messageRes.json();
+      const noticeJson = await noticeRes.json();
+      if (messageRes.ok && messageJson.data) {
+        const nextMessages = (messageJson.data as ChatMessageApiItem[]).map(mapChatMessage);
         writeMessageCache(roomId, nextMessages);
         if (activeChatRoomRef.current === roomId) {
           setMessages(nextMessages);
         }
+      }
+      if (noticeRes.ok && noticeJson.data && activeChatRoomRef.current === roomId) {
+        setNotices(noticeJson.data as ChatNotice[]);
       }
       if (activeChatRoomRef.current === roomId) {
         setChatLoading(false);
@@ -562,6 +604,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
     setTimeout(() => {
       setSelectedRoomId(null);
       setMessages([]);
+      setNotices([]);
       setOtherUser(null);
     }, 300);
   }
@@ -643,11 +686,150 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
     alert(res.ok ? "친구 신청 완료!" : (data.error ?? "오류가 발생했습니다"));
   }
 
+  async function saveClassNotice(notice: string, kind: NoticeKind = "notice") {
+    if (!selectedRoomId) return;
+
+    const res = await fetch(`/api/chat/rooms/${selectedRoomId}/notices`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ kind, content: notice }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error ?? "공지 저장 중 오류가 발생했습니다");
+    }
+    if (data.data) setNotices(data.data as ChatNotice[]);
+  }
+
+  async function markNoticeRead(noticeId: string) {
+    const notice = notices.find((item) => item.id === noticeId);
+    if (!notice || notice.read_by_me) return;
+
+    setNotices((prev) =>
+      prev.map((item) =>
+        item.id === noticeId
+          ? { ...item, read_by_me: true, read_count: item.read_count + 1 }
+          : item
+      )
+    );
+
+    try {
+      const res = await fetch(`/api/chat/notices/${noticeId}/read`, { method: "POST" });
+      if (!res.ok) {
+        setNotices((prev) =>
+          prev.map((item) =>
+            item.id === noticeId
+              ? { ...item, read_by_me: false, read_count: Math.max(0, item.read_count - 1) }
+              : item
+          )
+        );
+      }
+    } catch {
+      setNotices((prev) =>
+        prev.map((item) =>
+          item.id === noticeId
+            ? { ...item, read_by_me: false, read_count: Math.max(0, item.read_count - 1) }
+            : item
+        )
+      );
+    }
+  }
+
+  async function reactToNotice(noticeId: string, reactionType: NoticeReactionType) {
+    const prevNotice = notices.find((item) => item.id === noticeId);
+    if (!prevNotice) return;
+    const nextReaction = prevNotice.my_reaction === reactionType ? null : reactionType;
+
+    setNotices((prev) =>
+      prev.map((item) => {
+        if (item.id !== noticeId) return item;
+        const counts = { ...item.reaction_counts };
+        if (item.my_reaction) counts[item.my_reaction] = Math.max(0, counts[item.my_reaction] - 1);
+        if (nextReaction) counts[nextReaction] += 1;
+        return { ...item, my_reaction: nextReaction, reaction_counts: counts };
+      })
+    );
+
+    try {
+      const res = await fetch(`/api/chat/notices/${noticeId}/reaction`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reaction_type: reactionType }),
+      });
+      if (!res.ok) setNotices((prev) => prev.map((item) => item.id === noticeId ? prevNotice : item));
+    } catch {
+      setNotices((prev) => prev.map((item) => item.id === noticeId ? prevNotice : item));
+    }
+  }
+
+  async function voteNotice(noticeId: string, voteType: NoticeVoteType) {
+    const prevNotice = notices.find((item) => item.id === noticeId);
+    if (!prevNotice) return;
+
+    setNotices((prev) =>
+      prev.map((item) => {
+        if (item.id !== noticeId) return item;
+        const counts = { ...item.vote_counts };
+        if (item.my_vote) counts[item.my_vote] = Math.max(0, counts[item.my_vote] - 1);
+        counts[voteType] += 1;
+        return { ...item, my_vote: voteType, vote_counts: counts };
+      })
+    );
+
+    try {
+      const res = await fetch(`/api/chat/notices/${noticeId}/vote`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ vote_type: voteType }),
+      });
+      if (!res.ok) setNotices((prev) => prev.map((item) => item.id === noticeId ? prevNotice : item));
+    } catch {
+      setNotices((prev) => prev.map((item) => item.id === noticeId ? prevNotice : item));
+    }
+  }
+
+  async function reactToMessage(messageId: string, reactionType: MessageReactionType) {
+    const prevMessage = messages.find((item) => item.id === messageId);
+    if (!prevMessage) return;
+    const nextReaction = prevMessage.my_reaction === reactionType ? null : reactionType;
+
+    const patchMessage = (message: Message): Message => {
+      const counts = { ...(message.reaction_counts ?? EMPTY_MESSAGE_REACTION_COUNTS) };
+      if (message.my_reaction) counts[message.my_reaction] = Math.max(0, counts[message.my_reaction] - 1);
+      if (nextReaction) counts[nextReaction] += 1;
+      return { ...message, my_reaction: nextReaction, reaction_counts: counts };
+    };
+
+    setMessages((prev) => prev.map((item) => item.id === messageId ? patchMessage(item) : item));
+
+    try {
+      const res = await fetch(`/api/chat/messages/${messageId}/reactions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reaction_type: reactionType }),
+      });
+      if (!res.ok) setMessages((prev) => prev.map((item) => item.id === messageId ? prevMessage : item));
+    } catch {
+      setMessages((prev) => prev.map((item) => item.id === messageId ? prevMessage : item));
+    }
+  }
+
+  function toggleFinderSound() {
+    setFinderSoundEnabled((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(FINDER_SOUND_ENABLED_KEY, String(next));
+      } catch {}
+      return next;
+    });
+  }
+
   return (
     <div className="max-w-xl mx-auto bg-white flex flex-col" style={{ height: "calc(100vh - 126px)" }}>
       <ConversationList
         activeMenuTab={activeMenuTab}
         conversations={conversations}
+        finderSoundEnabled={finderSoundEnabled}
         isSpinning={isSpinning}
         loading={loading}
         onlineIds={onlineIds}
@@ -657,12 +839,14 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
         onRefresh={() => {
           void fetchConversations({ force: true, manual: true });
         }}
+        onToggleFinderSound={toggleFinderSound}
         setActiveMenuTab={setActiveMenuTab}
         formatDate={formatDate}
         truncateMessage={truncateMessage}
       />
 
       <ChatDrawer
+        key={selectedRoomId ?? "chat-drawer-empty"}
         attachOpen={attachOpen}
         canAddMembers={canAddMembers}
         chatLoading={chatLoading}
@@ -673,7 +857,11 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
         messagesEndRef={messagesEndRef}
         myProfile={myProfile}
         newMessage={newMessage}
+        notices={notices}
         otherUser={otherUser}
+        roomMembers={selectedConversation?.members}
+        roomType={selectedConversation?.type}
+        classInfoTitle={selectedConversation?.title ?? null}
         photoInputRef={photoInputRef}
         selectedUserId={selectedRoomId}
         sending={sending}
@@ -688,8 +876,21 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
         onFriendRequest={() => {
           void handleFriendRequest();
         }}
+        onMarkNoticeRead={(noticeId) => {
+          void markNoticeRead(noticeId);
+        }}
+        onMessageReaction={(messageId, reactionType) => {
+          void reactToMessage(messageId, reactionType);
+        }}
+        onNoticeReaction={(noticeId, reactionType) => {
+          void reactToNotice(noticeId, reactionType);
+        }}
+        onNoticeVote={(noticeId, voteType) => {
+          void voteNotice(noticeId, voteType);
+        }}
         onOpenMemberDrawer={() => setMemberDrawerOpen(true)}
         onPhotoUpload={handlePhotoUpload}
+        onSaveNotice={saveClassNotice}
         onSendMessage={() => {
           void handleSendMessage();
         }}

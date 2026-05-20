@@ -78,6 +78,7 @@ export interface NearbyRefreshControl {
 }
 
 interface NearbyMapProps {
+  soundEnabled?: boolean;
   onRefreshControlChange?: (control: NearbyRefreshControl) => void;
 }
 
@@ -276,7 +277,7 @@ function getActiveTimeLabel(updatedAt: string | null, nowMs: number) {
   return `${Math.floor(h / 24)}일 전`;
 }
 
-export default function NearbyMap({ onRefreshControlChange }: NearbyMapProps) {
+export default function NearbyMap({ soundEnabled = true, onRefreshControlChange }: NearbyMapProps) {
   const router = useRouter();
   const radarRef = useRef<HTMLDivElement>(null);
   const layoutRef = useRef<HTMLDivElement>(null);
@@ -324,7 +325,8 @@ export default function NearbyMap({ onRefreshControlChange }: NearbyMapProps) {
     [nearbyUsers, layoutSize.height, layoutSize.width, nearbyAvatarSize]
   );
 
-  function playSonarPing() {
+  const playSonarPing = useCallback(() => {
+    if (!soundEnabled) return;
     try {
       if (!audioCtxRef.current) {
         audioCtxRef.current = new AudioContext();
@@ -349,7 +351,7 @@ export default function NearbyMap({ onRefreshControlChange }: NearbyMapProps) {
       osc.start(now);
       osc.stop(now + 2.0);
     } catch {}
-  }
+  }, [soundEnabled]);
 
   const fetchNearby = useCallback(async (lat: number, lng: number) => {
     const gate = getNearbyApiCacheState();
@@ -510,7 +512,7 @@ export default function NearbyMap({ onRefreshControlChange }: NearbyMapProps) {
       clearInterval(interval);
       clearTimeout(stopTimer);
     };
-  }, [phase]);
+  }, [phase, playSonarPing]);
 
   useEffect(() => {
     if (phase !== "result") return;

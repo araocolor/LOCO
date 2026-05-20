@@ -44,7 +44,7 @@ export async function PATCH(
 
     const { error: updateError } = await admin
       .from("chat_rooms")
-      .update({ notice: notice.length > 0 ? notice : null })
+      .update({ notice: notice.length > 0 ? notice : null, updated_at: new Date().toISOString() })
       .eq("id", roomId);
 
     if (updateError) throw updateError;

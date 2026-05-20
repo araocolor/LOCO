@@ -25,6 +25,7 @@ export interface ChatMemberRow {
   role: "owner" | "admin" | "member";
   status: "active" | "left" | "kicked";
   last_read_at: string | null;
+  created_at: string | null;
 }
 
 export interface ChatProfileRow {
@@ -62,7 +63,7 @@ export async function requireActiveRoomMember(roomId: string, userId: string) {
   const admin = createAdminClient();
   const { data, error } = await admin
     .from("chat_room_members")
-    .select("room_id, user_id, role, status, last_read_at")
+    .select("room_id, user_id, role, status, last_read_at, created_at")
     .eq("room_id", roomId)
     .eq("user_id", userId)
     .eq("status", "active")
@@ -83,9 +84,10 @@ export async function getRoomSnapshot(roomId: string, userId: string) {
         .maybeSingle<ChatRoomRow>(),
       admin
         .from("chat_room_members")
-        .select("room_id, user_id, role, status, last_read_at")
+        .select("room_id, user_id, role, status, last_read_at, created_at")
         .eq("room_id", roomId)
         .eq("status", "active")
+        .order("created_at", { ascending: true })
         .returns<ChatMemberRow[]>(),
     ]);
 

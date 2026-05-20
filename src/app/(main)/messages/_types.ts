@@ -1,11 +1,15 @@
 export interface Conversation {
   id: string;
   type?: "direct" | "group" | "class";
+  class_id?: string | null;
+  class_image_url?: string | null;
   title?: string | null;
+  notice?: string | null;
   member_count?: number;
   members?: Array<{
     user_id: string;
     role: "owner" | "admin" | "member";
+    created_at?: string | null;
     profile: OtherUser | null;
   }>;
   other_user: {
@@ -30,6 +34,27 @@ export interface Conversation {
   updated_at: string;
 }
 
+export type NoticeKind = "notice" | "vote";
+export type NoticeReactionType = "heart" | "like" | "dislike";
+export type NoticeVoteType = "agree" | "disagree" | "abstain";
+export type MessageReactionType = "heart" | "like" | "laugh" | "wow" | "sad";
+
+export interface ChatNotice {
+  id: string;
+  room_id: string;
+  author_id: string;
+  kind: NoticeKind;
+  content: string;
+  created_at: string;
+  updated_at: string;
+  read_count: number;
+  read_by_me: boolean;
+  my_reaction: NoticeReactionType | null;
+  reaction_counts: Record<NoticeReactionType, number>;
+  my_vote: NoticeVoteType | null;
+  vote_counts: Record<NoticeVoteType, number>;
+}
+
 export interface Message {
   id: string;
   sender_id: string;
@@ -40,6 +65,8 @@ export interface Message {
   sent_at: string;
   read_at?: string | null;
   sender?: OtherUser | null;
+  my_reaction?: MessageReactionType | null;
+  reaction_counts?: Record<MessageReactionType, number>;
 }
 
 export interface OtherUser {
