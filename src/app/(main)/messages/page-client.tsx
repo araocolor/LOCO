@@ -12,6 +12,8 @@ import {
   appendMessageCache,
   readMessageCache,
   writeMessageCache,
+  readNoticeCache,
+  writeNoticeCache,
 } from "./_lib/message-cache";
 
 interface ChatRoomApiItem {
@@ -534,7 +536,13 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
     let hasCachedMessages = false;
 
     setOtherUser(localOtherUser);
-    setNotices([]);
+
+    const cachedNotices = readNoticeCache(roomId);
+    if (cachedNotices.length > 0) {
+      setNotices(cachedNotices);
+    } else {
+      setNotices([]);
+    }
 
     try {
       const cachedMessages = readMessageCache(roomId);
@@ -572,7 +580,9 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
         }
       }
       if (noticeRes.ok && noticeJson.data && activeChatRoomRef.current === roomId) {
-        setNotices(noticeJson.data as ChatNotice[]);
+        const fetchedNotices = noticeJson.data as ChatNotice[];
+        writeNoticeCache(roomId, fetchedNotices);
+        setNotices(fetchedNotices);
       }
       if (activeChatRoomRef.current === roomId) {
         setChatLoading(false);
@@ -685,19 +695,45 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
     alert(res.ok ? "친구 신청 완료!" : (data.error ?? "오류가 발생했습니다"));
   }
 
-  async function saveClassNotice(notice: string, kind: NoticeKind = "notice") {
+  async function saveClassNotice(notice: string, kind: NoticeKind = "notice", closesAt: string | null = null) {
     if (!selectedRoomId) return;
 
     const res = await fetch(`/api/chat/rooms/${selectedRoomId}/notices`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ kind, content: notice }),
+      body: JSON.stringify({ kind, content: notice, closes_at: closesAt }),
     });
     const data = await res.json();
     if (!res.ok) {
       throw new Error(data.error ?? "공지 저장 중 오류가 발생했습니다");
     }
     if (data.data) setNotices(data.data as ChatNotice[]);
+  }
+
+  async function updateClassNotice(noticeId: string, content: string, kind: NoticeKind, closesAt: string | null) {
+    const res = await fetch(`/api/chat/notices/${noticeId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ kind, content, closes_at: closesAt }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error ?? "공지 수정 중 오류가 발생했습니다");
+    }
+    setNotices((prev) =>
+      prev.map((item) =>
+        item.id === noticeId ? { ...item, content, kind, closes_at: closesAt } : item
+      )
+    );
+  }
+
+  async function deleteClassNotice(noticeId: string) {
+    const res = await fetch(`/api/chat/notices/${noticeId}`, { method: "DELETE" });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error ?? "공지 삭제 중 오류가 발생했습니다");
+    }
+    setNotices((prev) => prev.filter((item) => item.id !== noticeId));
   }
 
   async function markNoticeRead(noticeId: string) {
@@ -890,6 +926,8 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
         onOpenMemberDrawer={() => setMemberDrawerOpen(true)}
         onPhotoUpload={handlePhotoUpload}
         onSaveNotice={saveClassNotice}
+        onUpdateNotice={updateClassNotice}
+        onDeleteNotice={deleteClassNotice}
         onSendMessage={() => {
           void handleSendMessage();
         }}

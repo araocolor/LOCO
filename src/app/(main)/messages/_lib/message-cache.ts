@@ -1,6 +1,19 @@
-import type { Message } from "../_types";
+import type { ChatNotice, Message } from "../_types";
 
 export const MESSAGES_CACHE_PREFIX = "loco_messages_cache_";
+export const NOTICES_CACHE_PREFIX = "loco_notices_cache_";
+
+export function readNoticeCache(roomId: string): ChatNotice[] {
+  try {
+    return JSON.parse(sessionStorage.getItem(`${NOTICES_CACHE_PREFIX}${roomId}`) ?? "[]") as ChatNotice[];
+  } catch {
+    return [];
+  }
+}
+
+export function writeNoticeCache(roomId: string, notices: ChatNotice[]) {
+  sessionStorage.setItem(`${NOTICES_CACHE_PREFIX}${roomId}`, JSON.stringify(notices.slice(0, 5)));
+}
 
 export function isImageMessage(content: string) {
   try {
