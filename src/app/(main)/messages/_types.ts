@@ -45,6 +45,7 @@ export interface ChatNotice {
   author_id: string;
   kind: NoticeKind;
   content: string;
+  closes_at: string | null;
   created_at: string;
   updated_at: string;
   read_count: number;

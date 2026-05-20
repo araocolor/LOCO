@@ -12,6 +12,7 @@ interface NoticeRow {
   author_id: string;
   kind: NoticeKind;
   content: string;
+  closes_at: string | null;
   deleted_at: string | null;
   created_at: string;
   updated_at: string;
@@ -50,7 +51,7 @@ async function getNoticePayload(roomId: string, userId: string) {
   const admin = createAdminClient();
   const { data: notices, error: noticesError } = await admin
     .from("chat_room_notices")
-    .select("id, room_id, author_id, kind, content, deleted_at, created_at, updated_at")
+    .select("id, room_id, author_id, kind, content, closes_at, deleted_at, created_at, updated_at")
     .eq("room_id", roomId)
     .is("deleted_at", null)
     .order("created_at", { ascending: false })
@@ -115,6 +116,7 @@ async function getNoticePayload(roomId: string, userId: string) {
     author_id: notice.author_id,
     kind: notice.kind,
     content: notice.content,
+    closes_at: notice.closes_at,
     created_at: notice.created_at,
     updated_at: notice.updated_at,
     read_count: readCountMap.get(notice.id) ?? 0,
@@ -157,19 +159,37 @@ export async function POST(
     const { id: roomId } = await params;
     const membership = await requireActiveRoomMember(roomId, user.id);
     if (!membership) return NextResponse.json({ error: "Not found" }, { status: 404 });
-    if (!["owner", "admin"].includes(membership.role)) {
-      return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 });
-    }
 
     const body = await request.json().catch(() => ({}));
     const kind = (body.kind ?? "notice") as NoticeKind;
     const content = typeof body.content === "string" ? body.content.trim().slice(0, 1000) : "";
+    const rawClosesAt = typeof body.closes_at === "string" ? body.closes_at : null;
 
     if (!NOTICE_KINDS.has(kind)) {
       return NextResponse.json({ error: "지원하지 않는 공지 형식입니다." }, { status: 400 });
     }
+    if (kind === "notice" && !["owner", "admin"].includes(membership.role)) {
+      return NextResponse.json({ error: "공지사항 작성 권한이 없습니다." }, { status: 403 });
+    }
     if (!content) {
       return NextResponse.json({ error: "내용을 입력해주세요." }, { status: 400 });
+    }
+
+    let closesAt: string | null = null;
+    if (kind === "vote") {
+      if (!rawClosesAt) {
+        return NextResponse.json({ error: "투표 마감일을 선택해주세요." }, { status: 400 });
+      }
+      const closesDate = new Date(rawClosesAt);
+      if (Number.isNaN(closesDate.getTime())) {
+        return NextResponse.json({ error: "마감일 형식이 올바르지 않습니다." }, { status: 400 });
+      }
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (closesDate < today) {
+        return NextResponse.json({ error: "오늘 이전 날짜는 선택할 수 없습니다." }, { status: 400 });
+      }
+      closesAt = closesDate.toISOString();
     }
 
     const admin = createAdminClient();
@@ -180,6 +200,7 @@ export async function POST(
         author_id: user.id,
         kind,
         content,
+        closes_at: closesAt,
       });
 
     if (error) throw error;
