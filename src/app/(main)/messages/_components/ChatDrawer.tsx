@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Dispatch, RefObject, SetStateAction } from "react";
-import { ArrowLeft, Megaphone, Paperclip, Send, UserPlus } from "lucide-react";
+import { ArrowLeft, BarChart3, Megaphone, Paperclip, Send, UserPlus } from "lucide-react";
 import Avatar from "@/components/ui/Avatar";
 import ChatAttachPanel from "./ChatAttachPanel";
 import MessageBubble from "./MessageBubble";
@@ -222,7 +222,8 @@ export default function ChatDrawer({
         </button>
         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[60%] text-center">
           <span
-            className="block whitespace-nowrap overflow-hidden text-ellipsis font-bold text-xl text-[#4d4d4d] leading-none"
+            className="block whitespace-nowrap overflow-hidden text-ellipsis font-bold text-[#4d4d4d] leading-none"
+            style={{ fontSize: 18 }}
           >
             {displayChatTitle}
           </span>
@@ -435,7 +436,7 @@ export default function ChatDrawer({
       )}
 
       {activeTab === "members" && (
-        <div className="flex-1 overflow-y-auto bg-white px-4 py-4">
+        <div className="flex-1 overflow-y-auto px-4 py-4" style={{ backgroundColor: "#B2C7D9" }}>
           {memberProfiles.length === 0 ? (
             <div className="flex h-full items-center justify-center text-sm text-gray-400">참여 회원이 없습니다</div>
           ) : (
@@ -456,12 +457,11 @@ export default function ChatDrawer({
       )}
 
       {activeTab === "class" && (
-        <div className="flex-1 overflow-y-auto bg-white px-4 py-5">
+        <div className="flex-1 overflow-y-auto px-4 py-5" style={{ backgroundColor: "#B2C7D9" }}>
           {!isClassRoom ? (
             <div className="flex h-full items-center justify-center text-sm text-gray-400">공지/투표가 없습니다</div>
           ) : (
             <div className="space-y-4">
-              <h3 className="text-base font-bold text-gray-900">{classTitle}</h3>
               {notices.length > 0 ? (
                 <div className="space-y-4">
                   {notices.map((notice, index) => {
@@ -473,13 +473,17 @@ export default function ChatDrawer({
                         {showDateHeader && (
                           <p className="text-center text-xs font-bold text-gray-400">{dateLabel}</p>
                         )}
-                        <article className="rounded-[10px] bg-yellow-300 px-4 py-3 text-gray-900">
-                          <div className="mb-2 flex items-center gap-2">
-                            <Megaphone size={16} className="shrink-0" />
-                            <span className="text-sm font-bold">{notice.kind === "vote" ? "투표" : "공지사항"}</span>
+                        <article className="rounded-[10px] bg-white px-4 py-3 text-gray-900">
+                          <div className="flex items-center gap-2 pb-2 border-b border-gray-200">
+                            {notice.kind === "vote" ? (
+                              <BarChart3 size={17} className="shrink-0" />
+                            ) : (
+                              <Megaphone size={17} className="shrink-0" />
+                            )}
+                            <span className="font-bold" style={{ fontSize: 17 }}>{notice.kind === "vote" ? "투표" : "공지사항"}</span>
                             <span className="ml-auto text-xs font-bold text-gray-700">읽음 {notice.read_count}</span>
                           </div>
-                          <p className="whitespace-pre-wrap break-words text-[16px] font-semibold leading-6">{notice.content}</p>
+                          <p className="mt-2 whitespace-pre-wrap break-words text-[16px] font-semibold leading-6 text-[#595959]">{notice.content}</p>
                           <div className="mt-3 flex flex-wrap gap-2">
                             {NOTICE_REACTIONS.map((reaction) => (
                               <button
