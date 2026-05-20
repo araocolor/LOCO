@@ -52,7 +52,7 @@ type SectionDef = {
 type MyPageTab = "all" | "my" | "bookmark";
 
 const MY_PAGE_TABS: Array<{ key: MyPageTab; label: string }> = [
-  { key: "all", label: "전체목록" },
+  { key: "all", label: "프로필" },
   { key: "my", label: "내클래스" },
   { key: "bookmark", label: "북마크" },
 ];

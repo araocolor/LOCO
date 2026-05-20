@@ -16,6 +16,15 @@ export default function SearchHeader({ activeTab, onTabChange, myRegionLabel = "
       </div>
       <div className="flex pl-8 pr-4 gap-5 pb-0 overflow-x-auto scrollbar-hide whitespace-nowrap">
         <button
+          onClick={() => onTabChange("members")}
+          className={`pb-2 font-bold transition-colors ${
+            activeTab === "members" ? "text-black" : "text-gray-400"
+          }`}
+          style={{ fontSize: activeTab === "members" ? 18 : 17 }}
+        >
+          댄서들
+        </button>
+        <button
           onClick={() => onTabChange("friends")}
           className={`pb-2 font-bold transition-colors ${
             activeTab === "friends" ? "text-black" : "text-gray-400"
@@ -23,15 +32,6 @@ export default function SearchHeader({ activeTab, onTabChange, myRegionLabel = "
           style={{ fontSize: activeTab === "friends" ? 18 : 17 }}
         >
           {myRegionLabel}
-        </button>
-        <button
-          onClick={() => onTabChange("members")}
-          className={`pb-2 font-bold transition-colors ${
-            activeTab === "members" ? "text-black" : "text-gray-400"
-          }`}
-          style={{ fontSize: activeTab === "members" ? 18 : 17 }}
-        >
-          댄서검색
         </button>
         <button
           onClick={() => onTabChange("followings")}

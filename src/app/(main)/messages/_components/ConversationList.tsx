@@ -76,7 +76,7 @@ export default function ConversationList({
                 : "border-transparent text-gray-400"
             }`}
           >
-            클래스
+            Class
           </button>
           <button
             onClick={() => setActiveMenuTab("nearby")}
@@ -87,7 +87,7 @@ export default function ConversationList({
                 : "border-transparent text-gray-400"
             }`}
           >
-            내근처
+            Finder
           </button>
         </div>
         {activeMenuTab === "nearby" ? (

@@ -44,7 +44,7 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
             }`}
             style={{ fontSize: activeTab === "classSearch" ? 18 : 17 }}
           >
-            클래스검색
+            올클래스
           </button>
           <button
             onClick={() => setActiveTab("mySubscriptions")}
@@ -53,7 +53,7 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
             }`}
             style={{ fontSize: activeTab === "mySubscriptions" ? 18 : 17 }}
           >
-            내구독
+            내클래스
           </button>
           <button
             onClick={() => setActiveTab("friendClasses")}
@@ -62,7 +62,7 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
             }`}
             style={{ fontSize: activeTab === "friendClasses" ? 18 : 17 }}
           >
-            친구클래스
+            친클래스
           </button>
           <button type="button" aria-label="썸네일 보기" className="ml-auto pb-2 text-gray-400">
             <Grid3X3 size={18} strokeWidth={1.9} />
