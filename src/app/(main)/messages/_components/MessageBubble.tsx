@@ -90,38 +90,84 @@ export default function MessageBubble({
       <div className={`flex ${isMine ? "justify-end" : "justify-start"} gap-2 items-end`}>
         {!isMine && <span className="text-xs text-gray-700 flex-shrink-0 order-2">{formatTime(msg.sent_at)}</span>}
         <div className={`flex ${isMine ? "flex-col items-end" : ""} gap-1`}>
-          <div
-            className={`relative rounded-lg text-base overflow-visible ${
-              imageData ? "" : "px-3 py-2"
-            } ${isMine ? "text-gray-900" : "bg-white text-gray-900"} ${isMine && shakingMsgId === msg.id ? "msg-shake" : ""}`}
-            style={{
-              ...(isMine ? { maxWidth: "72vw" } : { maxWidth: "270px" }),
-              ...(isMine && !imageData ? { backgroundColor: "#FEE500" } : {}),
-            }}
-            onTouchStart={() => onStartLongPress(msg.id, isMine)}
-            onTouchEnd={onCancelLongPress}
-            onMouseDown={() => onStartLongPress(msg.id, isMine)}
-            onMouseUp={onCancelLongPress}
-            onMouseLeave={onCancelLongPress}
-          >
-            {isMine && shakingMsgId === msg.id && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onDeleteMessage(msg.id);
-                }}
-                className="absolute -top-2 -left-2 z-10 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center"
-              >
-                <span className="text-white text-xs font-bold leading-none">✕</span>
-              </button>
-            )}
-            {imageData ? (
-              <a href={imageData.full} target="_blank" rel="noreferrer">
-                <Image src={imageData.thumb} alt="사진" width={200} height={200} className="rounded-lg object-cover" />
-              </a>
-            ) : (
-              <p className="break-words">{msg.content}</p>
-            )}
+          <div className={`flex items-end gap-1 ${isMine ? "flex-row" : "flex-row-reverse"}`}>
+            {(() => {
+              const activeReactions = MESSAGE_REACTIONS.filter((reaction) => {
+                const count = msg.reaction_counts?.[reaction.type] ?? 0;
+                const active = msg.my_reaction === reaction.type;
+                return count > 0 || active;
+              });
+              if (activeReactions.length === 0) return null;
+              return (
+                <div className="flex flex-col gap-1 flex-shrink-0">
+                  {activeReactions.map((reaction) => {
+                    const count = msg.reaction_counts?.[reaction.type] ?? 0;
+                    const active = msg.my_reaction === reaction.type;
+                    return (
+                      <button
+                        key={reaction.type}
+                        type="button"
+                        onClick={() => onMessageReaction(msg.id, reaction.type)}
+                        className="px-1 text-xs font-bold"
+                      >
+                        {reaction.label} <span className="text-gray-700 font-normal">{count}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+            <div
+              className={`relative rounded-lg text-base overflow-visible ${
+                imageData ? "" : "px-3 py-2"
+              } ${isMine ? "text-gray-900" : "bg-white text-gray-900"} ${isMine && shakingMsgId === msg.id ? "msg-shake" : ""}`}
+              style={{
+                ...(isMine ? { maxWidth: "72vw" } : { maxWidth: "270px" }),
+                ...(isMine && !imageData ? { backgroundColor: "#FEE500" } : {}),
+              }}
+              onTouchStart={() => onStartLongPress(msg.id, isMine)}
+              onTouchEnd={onCancelLongPress}
+              onMouseDown={() => onStartLongPress(msg.id, isMine)}
+              onMouseUp={onCancelLongPress}
+              onMouseLeave={onCancelLongPress}
+            >
+              {isMine && shakingMsgId === msg.id && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDeleteMessage(msg.id);
+                  }}
+                  className="absolute -top-2 -left-2 z-10 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center"
+                >
+                  <span className="text-white text-xs font-bold leading-none">✕</span>
+                </button>
+              )}
+              {!isMine && shakingMsgId === msg.id && (
+                <div className="absolute -top-10 left-0 z-10 flex gap-1 bg-white rounded-full px-2 py-1 shadow-lg">
+                  {MESSAGE_REACTIONS.map((reaction) => (
+                    <button
+                      key={reaction.type}
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onMessageReaction(msg.id, reaction.type);
+                        onCancelLongPress();
+                      }}
+                      className="text-lg hover:scale-125 transition-transform"
+                    >
+                      {reaction.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {imageData ? (
+                <a href={imageData.full} target="_blank" rel="noreferrer">
+                  <Image src={imageData.thumb} alt="사진" width={200} height={200} className="rounded-lg object-cover" />
+                </a>
+              ) : (
+                <p className="break-words">{msg.content}</p>
+              )}
+            </div>
           </div>
           {isMine && (
             <span className="flex items-center gap-1 text-xs text-gray-700">
@@ -139,37 +185,6 @@ export default function MessageBubble({
               )}
             </span>
           )}
-          <div className={`flex flex-wrap gap-1 ${isMine ? "justify-end" : "justify-start"}`}>
-            {MESSAGE_REACTIONS.map((reaction) => {
-              const count = msg.reaction_counts?.[reaction.type] ?? 0;
-              const active = msg.my_reaction === reaction.type;
-              if (count === 0 && !active) return null;
-              return (
-                <button
-                  key={reaction.type}
-                  type="button"
-                  onClick={() => onMessageReaction(msg.id, reaction.type)}
-                  className={`rounded-full px-2 py-0.5 text-xs font-bold shadow-sm ${
-                    active ? "bg-black text-white" : "bg-white text-gray-800"
-                  }`}
-                >
-                  {reaction.label} {count}
-                </button>
-              );
-            })}
-            <div className="flex gap-1">
-              {MESSAGE_REACTIONS.filter((reaction) => (msg.reaction_counts?.[reaction.type] ?? 0) === 0 && msg.my_reaction !== reaction.type).map((reaction) => (
-                <button
-                  key={reaction.type}
-                  type="button"
-                  onClick={() => onMessageReaction(msg.id, reaction.type)}
-                  className="rounded-full bg-white/80 px-1.5 py-0.5 text-xs shadow-sm"
-                >
-                  {reaction.label}
-                </button>
-              ))}
-            </div>
-          </div>
         </div>
       </div>
     </div>

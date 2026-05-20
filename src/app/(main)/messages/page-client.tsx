@@ -635,8 +635,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
     }
   }
 
-  function startLongPress(msgId: string, isMine: boolean) {
-    if (!isMine) return;
+  function startLongPress(msgId: string, _isMine: boolean) {
     longPressTimer.current = setTimeout(() => {
       setShakingMsgId(msgId);
     }, 500);
