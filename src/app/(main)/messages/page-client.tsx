@@ -69,6 +69,7 @@ const EMPTY_MESSAGE_REACTION_COUNTS: Record<MessageReactionType, number> = {
 
 const FINDER_SOUND_ENABLED_KEY = "loco_finder_sound_enabled";
 const MAX_VIDEO_UPLOAD_BYTES = 50 * 1024 * 1024;
+const VIDEO_UPLOAD_TIMEOUT_MS = 180000;
 const ALLOWED_VIDEO_TYPES = new Set(["video/mp4", "video/quicktime", "video/webm"]);
 
 function readFinderSoundEnabled() {
@@ -77,6 +78,36 @@ function readFinderSoundEnabled() {
     return localStorage.getItem(FINDER_SOUND_ENABLED_KEY) !== "false";
   } catch {
     return true;
+  }
+}
+
+async function uploadVideoToSignedUrl(signedUrl: string, file: File) {
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), VIDEO_UPLOAD_TIMEOUT_MS);
+
+  try {
+    const formData = new FormData();
+    formData.append("cacheControl", "3600");
+    formData.append("", file);
+
+    const res = await fetch(signedUrl, {
+      method: "PUT",
+      body: formData,
+      headers: { "x-upsert": "false" },
+      signal: controller.signal,
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(text || "영상 원본 업로드에 실패했습니다.");
+    }
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new Error("영상 업로드 시간이 초과되었습니다. 더 짧거나 작은 영상을 선택해주세요.");
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timer);
   }
 }
 
@@ -203,7 +234,22 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
       return;
     }
 
+    const pendingMessage: Message = {
+      id: `local-video-${Date.now()}`,
+      room_id: selectedRoomId,
+      sender_id: userId,
+      kind: "file",
+      content: JSON.stringify({ type: "video", status: "uploading" }),
+      sent_at: new Date().toISOString(),
+      sender: null,
+      my_reaction: null,
+      reaction_counts: EMPTY_MESSAGE_REACTION_COUNTS,
+    };
+
     setUploading(true);
+    setMessages((prev) => [...prev, pendingMessage]);
+    setAttachOpen(false);
+
     try {
       const uploadUrlRes = await fetch(`/api/chat/rooms/${selectedRoomId}/videos/upload-url`, {
         method: "POST",
@@ -217,14 +263,11 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
       const uploadUrlJson = await uploadUrlRes.json();
       if (!uploadUrlRes.ok) throw new Error(uploadUrlJson.error ?? "영상 업로드 준비에 실패했습니다.");
 
-      const supabase = createClient();
-      const { error: uploadError } = await supabase.storage
-        .from(uploadUrlJson.bucket)
-        .uploadToSignedUrl(uploadUrlJson.path, uploadUrlJson.token, file, {
-          contentType: file.type,
-        });
+      if (typeof uploadUrlJson.signedUrl !== "string") {
+        throw new Error("영상 업로드 주소를 받지 못했습니다.");
+      }
 
-      if (uploadError) throw uploadError;
+      await uploadVideoToSignedUrl(uploadUrlJson.signedUrl, file);
 
       const processRes = await fetch(`/api/chat/rooms/${selectedRoomId}/videos/process`, {
         method: "POST",
@@ -235,11 +278,11 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
       const message = processJson.data ? mapChatMessage(processJson.data as ChatMessageApiItem) : null;
       if (!processRes.ok || !message) throw new Error(processJson.error ?? "영상 처리 요청에 실패했습니다.");
 
-      setMessages((prev) => [...prev, message]);
+      setMessages((prev) => [...prev.filter((item) => item.id !== pendingMessage.id), message]);
       appendMessageCache(selectedRoomId, message);
-      setAttachOpen(false);
       patchConversationWithMessage(selectedRoomId, message);
     } catch (error) {
+      setMessages((prev) => prev.filter((item) => item.id !== pendingMessage.id));
       console.error("영상 업로드 실패", error);
       alert(error instanceof Error ? error.message : "영상 업로드에 실패했습니다.");
     } finally {

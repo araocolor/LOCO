@@ -62,6 +62,7 @@ export async function POST(
     return NextResponse.json({
       bucket: ORIGINAL_VIDEO_BUCKET,
       path: objectPath,
+      signedUrl: data.signedUrl,
       token: data.token,
     });
   } catch (error) {

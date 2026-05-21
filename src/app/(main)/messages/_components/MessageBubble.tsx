@@ -40,7 +40,7 @@ interface ClassShareData {
 
 interface VideoMessageData {
   type: "video";
-  status?: "processing" | "ready" | "failed";
+  status?: "uploading" | "processing" | "ready" | "failed";
   video_url?: string;
   thumbnail_url?: string;
   error?: string;
@@ -217,7 +217,9 @@ export default function MessageBubble({
                       <Play size={18} fill="currentColor" />
                       <Loader2 size={40} className="absolute animate-spin opacity-60" />
                     </div>
-                    <span className="text-sm font-bold">영상 처리중</span>
+                    <span className="text-sm font-bold">
+                      {videoData.status === "uploading" ? "영상 업로드중" : "영상 처리중"}
+                    </span>
                   </div>
                 )
               ) : classShareData?.class?.id ? (
