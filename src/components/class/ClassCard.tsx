@@ -830,12 +830,15 @@ export default function ClassCard({ classData }: ClassCardProps) {
               <span className="text-sm font-semibold text-gray-800">{shareCount}</span>
             </button>
           </div>
-          {/* 북마크 */}
-          <button onClick={handleBookmark}>
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill={bookmarked ? "#1a1a1a" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-800">
-              <polygon points="19 21 12 16 5 21 5 3 19 3" />
-            </svg>
-          </button>
+          <div className="flex items-center gap-1">
+            <span className="text-sm font-semibold text-gray-800">5</span>
+            {/* 북마크 */}
+            <button onClick={handleBookmark}>
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill={bookmarked ? "#1a1a1a" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-800">
+                <polygon points="19 21 12 16 5 21 5 3 19 3" />
+              </svg>
+            </button>
+          </div>
         </div>
 
         {/* 제목/정보 */}
