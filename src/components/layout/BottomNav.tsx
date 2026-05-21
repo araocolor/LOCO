@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { fetchWithAuthRetry } from "@/lib/auth/fetch-with-auth-retry";
+import { useScrollChromeVisibility } from "@/hooks/useScrollChromeVisibility";
 
 const CHAT_ROOMS_CACHE_KEY = "loco_chat_rooms_cache_v1";
 const MYPAGE_CACHE_KEY = "loco_mypage_cache_local_v2";
@@ -80,6 +81,8 @@ const NAV_ITEMS = [
 export default function BottomNav({ isLoggedIn }: { isLoggedIn: boolean }) {
   const pathname = usePathname();
   const [hydrated, setHydrated] = useState(false);
+  const shouldAutoHide = pathname === "/";
+  const isChromeVisible = useScrollChromeVisibility(shouldAutoHide);
 
   useEffect(() => {
     queueMicrotask(() => setHydrated(true));
@@ -173,7 +176,9 @@ export default function BottomNav({ isLoggedIn }: { isLoggedIn: boolean }) {
 
   return (
     <nav
-      className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[500px] z-50 h-[70px] flex items-center touch-manipulation overscroll-contain select-none"
+      className={`fixed bottom-0 left-1/2 w-full max-w-[500px] z-50 h-[70px] flex items-center touch-manipulation overscroll-contain select-none transition-transform duration-200 ease-out motion-reduce:transition-none ${
+        isChromeVisible ? "-translate-x-1/2 translate-y-0" : "-translate-x-1/2 translate-y-full"
+      }`}
     >
       {NAV_ITEMS.map(({ href, label, renderIcon }) => {
         const isActive =

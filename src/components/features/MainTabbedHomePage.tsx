@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Grid3X3, Menu, Search } from "lucide-react";
 import { ClassWithHost } from "@/components/class/ClassCard";
 import HomeSearchResultsPage from "@/components/features/HomeSearchResultsPage";
+import { useScrollChromeVisibility } from "@/hooks/useScrollChromeVisibility";
 
 type MainTab = "classSearch" | "mySubscriptions" | "friendClasses";
 
@@ -13,10 +14,15 @@ interface MainTabbedHomePageProps {
 
 export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePageProps) {
   const [activeTab, setActiveTab] = useState<MainTab>("classSearch");
+  const isChromeVisible = useScrollChromeVisibility(true);
 
   return (
     <>
-      <header className="sticky top-0 z-50 bg-white border-b border-[#e5e7eb]">
+      <header
+        className={`sticky top-0 z-50 bg-white border-b border-[#e5e7eb] transition-transform duration-200 ease-out motion-reduce:transition-none ${
+          isChromeVisible ? "translate-y-0" : "-translate-y-full"
+        }`}
+      >
         <div className="relative h-14 px-4 flex items-center">
           <button
             type="button"
