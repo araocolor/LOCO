@@ -1,0 +1,271 @@
+import { createClient } from "@supabase/supabase-js";
+import express from "express";
+import { spawn } from "node:child_process";
+import { randomUUID } from "node:crypto";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+
+const PORT = Number(process.env.PORT ?? 8080);
+const WORKER_SECRET = process.env.WORKER_SECRET;
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const DEFAULT_ORIGINAL_BUCKET = process.env.ORIGINAL_VIDEO_BUCKET ?? "message-video-originals";
+const DEFAULT_VIDEO_BUCKET = process.env.PROCESSED_VIDEO_BUCKET ?? "message-videos";
+const DEFAULT_THUMBNAIL_BUCKET = process.env.VIDEO_THUMBNAIL_BUCKET ?? "message-video-thumbnails";
+
+if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+  throw new Error("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required.");
+}
+
+if (!WORKER_SECRET) {
+  throw new Error("WORKER_SECRET is required.");
+}
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+  auth: { persistSession: false },
+});
+
+const app = express();
+app.use(express.json({ limit: "1mb" }));
+
+function requireWorkerSecret(req, res, next) {
+  const headerSecret = req.get("x-worker-secret");
+  const bearerSecret = req.get("authorization")?.replace(/^Bearer\s+/i, "");
+
+  if (headerSecret === WORKER_SECRET || bearerSecret === WORKER_SECRET) {
+    next();
+    return;
+  }
+
+  res.status(401).json({ error: "Unauthorized" });
+}
+
+function run(command, args) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, { stdio: ["ignore", "pipe", "pipe"] });
+    let stderr = "";
+
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk.toString();
+    });
+
+    child.on("error", reject);
+    child.on("close", (code) => {
+      if (code === 0) {
+        resolve();
+        return;
+      }
+
+      reject(new Error(`${command} exited with ${code}: ${stderr.slice(-3000)}`));
+    });
+  });
+}
+
+async function ffprobe(filePath) {
+  return new Promise((resolve) => {
+    const child = spawn("ffprobe", [
+      "-v",
+      "error",
+      "-select_streams",
+      "v:0",
+      "-show_entries",
+      "stream=width,height,duration",
+      "-of",
+      "json",
+      filePath,
+    ]);
+    let output = "";
+
+    child.stdout.on("data", (chunk) => {
+      output += chunk.toString();
+    });
+
+    child.on("close", () => {
+      try {
+        const parsed = JSON.parse(output);
+        const stream = parsed.streams?.[0] ?? {};
+        resolve({
+          width: Number(stream.width) || null,
+          height: Number(stream.height) || null,
+          duration: Number(stream.duration) || null,
+        });
+      } catch {
+        resolve({ width: null, height: null, duration: null });
+      }
+    });
+  });
+}
+
+function buildOutputPath(originalPath, suffix) {
+  const parsed = path.posix.parse(originalPath);
+  return path.posix.join(parsed.dir, `${parsed.name}${suffix}`);
+}
+
+async function downloadStorageObject(bucket, objectPath, destination) {
+  const { data, error } = await supabase.storage.from(bucket).download(objectPath);
+  if (error) throw error;
+
+  const buffer = Buffer.from(await data.arrayBuffer());
+  await writeFile(destination, buffer);
+}
+
+async function uploadStorageObject(bucket, objectPath, filePath, contentType) {
+  const buffer = await readFile(filePath);
+  const { error } = await supabase.storage.from(bucket).upload(objectPath, buffer, {
+    contentType,
+    cacheControl: "31536000",
+    upsert: true,
+  });
+
+  if (error) throw error;
+
+  const {
+    data: { publicUrl },
+  } = supabase.storage.from(bucket).getPublicUrl(objectPath);
+
+  return publicUrl;
+}
+
+async function removeOriginal(bucket, objectPath) {
+  const { error } = await supabase.storage.from(bucket).remove([objectPath]);
+  if (error) {
+    console.error("[video-worker] failed to remove original", error);
+  }
+}
+
+app.get("/health", (_req, res) => {
+  res.json({ ok: true });
+});
+
+app.post("/process-video", requireWorkerSecret, async (req, res) => {
+  const messageId = typeof req.body?.messageId === "string" ? req.body.messageId : "";
+  const originalPath = typeof req.body?.originalPath === "string" ? req.body.originalPath : "";
+  const originalBucket = typeof req.body?.originalBucket === "string" ? req.body.originalBucket : DEFAULT_ORIGINAL_BUCKET;
+  const videoBucket = typeof req.body?.videoBucket === "string" ? req.body.videoBucket : DEFAULT_VIDEO_BUCKET;
+  const thumbnailBucket = typeof req.body?.thumbnailBucket === "string" ? req.body.thumbnailBucket : DEFAULT_THUMBNAIL_BUCKET;
+
+  if (!messageId || !originalPath) {
+    res.status(400).json({ error: "messageId and originalPath are required." });
+    return;
+  }
+
+  const workDir = path.join(os.tmpdir(), `loco-video-${randomUUID()}`);
+  const inputPath = path.join(workDir, "original");
+  const outputPath = path.join(workDir, "processed.mp4");
+  const thumbnailPath = path.join(workDir, "thumbnail.webp");
+  const videoPath = buildOutputPath(originalPath, "_480p.mp4");
+  const thumbPath = buildOutputPath(originalPath, "_thumb.webp");
+  let originalDownloaded = false;
+
+  try {
+    await mkdir(workDir, { recursive: true });
+    await downloadStorageObject(originalBucket, originalPath, inputPath);
+    originalDownloaded = true;
+
+    await run("ffmpeg", [
+      "-y",
+      "-i",
+      inputPath,
+      "-map",
+      "0:v:0",
+      "-map",
+      "0:a?",
+      "-vf",
+      "scale=-2:480:force_original_aspect_ratio=decrease,fps=30",
+      "-c:v",
+      "libx264",
+      "-preset",
+      "veryfast",
+      "-profile:v",
+      "main",
+      "-b:v",
+      "900k",
+      "-maxrate",
+      "1200k",
+      "-bufsize",
+      "1800k",
+      "-movflags",
+      "+faststart",
+      "-c:a",
+      "aac",
+      "-b:a",
+      "96k",
+      "-ac",
+      "2",
+      outputPath,
+    ]);
+
+    await run("ffmpeg", [
+      "-y",
+      "-ss",
+      "00:00:01",
+      "-i",
+      outputPath,
+      "-frames:v",
+      "1",
+      "-vf",
+      "scale=480:-2",
+      "-c:v",
+      "libwebp",
+      "-quality",
+      "78",
+      thumbnailPath,
+    ]);
+
+    const metadata = await ffprobe(outputPath);
+    const [videoUrl, thumbnailUrl] = await Promise.all([
+      uploadStorageObject(videoBucket, videoPath, outputPath, "video/mp4"),
+      uploadStorageObject(thumbnailBucket, thumbPath, thumbnailPath, "image/webp"),
+    ]);
+
+    const content = {
+      type: "video",
+      status: "ready",
+      video_url: videoUrl,
+      thumbnail_url: thumbnailUrl,
+      video_path: videoPath,
+      thumbnail_path: thumbPath,
+      duration: metadata.duration,
+      width: metadata.width,
+      height: metadata.height,
+    };
+
+    const { error: updateError } = await supabase
+      .from("chat_messages")
+      .update({ kind: "video", content: JSON.stringify(content) })
+      .eq("id", messageId);
+
+    if (updateError) throw updateError;
+
+    await removeOriginal(originalBucket, originalPath);
+    originalDownloaded = false;
+
+    res.json({ ok: true, messageId, content });
+  } catch (error) {
+    console.error("[video-worker] process failed", error);
+
+    if (originalDownloaded) {
+      await removeOriginal(originalBucket, originalPath);
+    }
+
+    await supabase
+      .from("chat_messages")
+      .update({
+        content: JSON.stringify({
+          type: "video",
+          status: "failed",
+          error: error instanceof Error ? error.message.slice(0, 500) : "video processing failed",
+        }),
+      })
+      .eq("id", messageId);
+
+    res.status(500).json({ error: "video processing failed" });
+  } finally {
+    await rm(workDir, { recursive: true, force: true });
+  }
+});
+
+app.listen(PORT, () => {
+  console.log(`[video-worker] listening on ${PORT}`);
+});
