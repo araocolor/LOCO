@@ -1048,6 +1048,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
         loading={loading}
         onlineIds={onlineIds}
         refreshDisabled={refreshDisabled}
+        userId={userId}
         onOpenChat={openChat}
         onOpenProfile={(profileId) => router.push(`/users/${profileId}/view`)}
         onRefresh={() => {

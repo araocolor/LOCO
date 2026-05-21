@@ -14,6 +14,7 @@ interface ConversationListProps {
   loading: boolean;
   onlineIds: Set<string>;
   refreshDisabled: boolean;
+  userId: string;
   onOpenChat: (roomId: string) => void;
   onOpenProfile: (userId: string) => void;
   onRefresh: () => void;
@@ -31,6 +32,7 @@ export default function ConversationList({
   loading,
   onlineIds,
   refreshDisabled,
+  userId,
   onOpenChat,
   onOpenProfile,
   onRefresh,
@@ -179,6 +181,9 @@ export default function ConversationList({
                   conv.other_user?.id ? onlineIds.has(conv.other_user.id) : false;
                 const displayNickname = conv.title ?? conv.other_user?.nickname ?? "알 수 없음";
                 const avatarText = displayNickname[0] ?? "?";
+                const otherMembers = (conv.members ?? []).filter((m) => m.user_id !== userId);
+                const showGroupAvatars = conv.type === "group";
+                const groupAvatars = showGroupAvatars ? otherMembers.slice(0, 3) : [];
                 return (
                   <div className="flex items-stretch gap-2">
                     <div className="flex-1 px-3 py-3">
@@ -202,6 +207,48 @@ export default function ConversationList({
                               height={50}
                               className="h-[50px] w-[50px] rounded-[5px] object-cover object-center"
                             />
+                          ) : showGroupAvatars ? (
+                            <div className="relative w-10 h-10">
+                              {groupAvatars[0]?.profile?.profile_image_url ? (
+                                <Image
+                                  src={groupAvatars[0].profile.profile_image_url}
+                                  alt={groupAvatars[0].profile?.nickname ?? ""}
+                                  width={28}
+                                  height={28}
+                                  className="absolute left-1/2 top-0 -translate-x-1/2 w-[28px] h-[28px] rounded-full object-cover border border-white"
+                                />
+                              ) : (
+                                <div className="absolute left-1/2 top-0 -translate-x-1/2 w-[28px] h-[28px] rounded-full bg-gray-200 border border-white flex items-center justify-center text-gray-500 text-[11px] font-medium">
+                                  {groupAvatars[0]?.profile?.nickname?.[0] ?? "?"}
+                                </div>
+                              )}
+                              {groupAvatars[1]?.profile?.profile_image_url ? (
+                                <Image
+                                  src={groupAvatars[1].profile.profile_image_url}
+                                  alt={groupAvatars[1].profile?.nickname ?? ""}
+                                  width={28}
+                                  height={28}
+                                  className="absolute left-0 bottom-0 w-[28px] h-[28px] rounded-full object-cover border border-white"
+                                />
+                              ) : (
+                                <div className="absolute left-0 bottom-0 w-[28px] h-[28px] rounded-full bg-gray-200 border border-white flex items-center justify-center text-gray-500 text-[11px] font-medium">
+                                  {groupAvatars[1]?.profile?.nickname?.[0] ?? "?"}
+                                </div>
+                              )}
+                              {groupAvatars[2] && (groupAvatars[2].profile?.profile_image_url ? (
+                                <Image
+                                  src={groupAvatars[2].profile.profile_image_url}
+                                  alt={groupAvatars[2].profile?.nickname ?? ""}
+                                  width={28}
+                                  height={28}
+                                  className="absolute right-0 bottom-0 w-[28px] h-[28px] rounded-full object-cover border border-white"
+                                />
+                              ) : (
+                                <div className="absolute right-0 bottom-0 w-[28px] h-[28px] rounded-full bg-gray-200 border border-white flex items-center justify-center text-gray-500 text-[11px] font-medium">
+                                  {groupAvatars[2].profile?.nickname?.[0] ?? "?"}
+                                </div>
+                              ))}
+                            </div>
                           ) : conv.other_user?.profile_image_url ? (
                             <Image
                               src={conv.other_user.profile_image_url}
