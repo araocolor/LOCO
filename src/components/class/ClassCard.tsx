@@ -9,8 +9,10 @@ import { DanceClass, DANCE_GENRE_LABELS, CLASS_LEVEL_LABELS } from "@/types/clas
 import ClassCommentsPanel from "@/components/class/ClassCommentsPanel";
 import ClassApplicantSheet from "@/components/class/ClassApplicantSheet";
 import SendMessageModal from "@/components/modal/SendMessageModal";
+import ClassShareSheet from "@/components/class/ClassShareSheet";
 
 const LIKES_CACHE_KEY = "loco_liked_posts";
+const LIKE_PENDING_CACHE_KEY = "loco_class_like_pending_v1";
 const BOOKMARKS_CACHE_KEY = "loco_bookmark_ids_v1";
 const SEARCH_CACHE_KEY = "search_prefetch_cache";
 
@@ -99,9 +101,14 @@ export default function ClassCard({ classData }: ClassCardProps) {
   const [commentOpen, setCommentOpen] = useState(false);
   const [userExpanded, setUserExpanded] = useState(false);
   const [liked, setLiked] = useState(false);
+  const [likeCount, setLikeCount] = useState(classData.like_count ?? 0);
+  const [commentCount, setCommentCount] = useState(classData.comment_count ?? 0);
+  const [shareCount, setShareCount] = useState(classData.share_count ?? 0);
   const [bookmarked, setBookmarked] = useState(false);
   const [heartVisible, setHeartVisible] = useState(false);
   const [heartLiked, setHeartLiked] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [shareComplete, setShareComplete] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const [messageModalOpen, setMessageModalOpen] = useState(false);
@@ -112,6 +119,8 @@ export default function ClassCard({ classData }: ClassCardProps) {
   const [myApplicationStatus, setMyApplicationStatus] = useState<"pending" | "approved" | "cancelled" | null>(null);
   const descriptionRef = useRef<HTMLParagraphElement>(null);
   const shouldScrollToDescription = useRef(false);
+  const likeSyncTimerRef = useRef<number | null>(null);
+  const pendingLikeRef = useRef<{ desired: boolean; previousLiked: boolean; previousCount: number } | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -121,7 +130,20 @@ export default function ClassCard({ classData }: ClassCardProps) {
     const rawB = localStorage.getItem(BOOKMARKS_CACHE_KEY);
     const bookmarks = parseBookmarkEntries(rawB);
     queueMicrotask(() => setBookmarked(bookmarks.some((b) => b.id === id)));
-  }, [id]);
+    queueMicrotask(() => {
+      setLikeCount(classData.like_count ?? 0);
+      setCommentCount(classData.comment_count ?? 0);
+      setShareCount(classData.share_count ?? 0);
+    });
+  }, [id, classData.like_count, classData.comment_count, classData.share_count]);
+
+  useEffect(() => {
+    return () => {
+      if (likeSyncTimerRef.current !== null) {
+        window.clearTimeout(likeSyncTimerRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -144,18 +166,75 @@ export default function ClassCard({ classData }: ClassCardProps) {
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
-      router.push("/login");
+      router.push(`/login?next=/classes/${id}`);
       return;
     }
     const raw = localStorage.getItem(LIKES_CACHE_KEY);
     const likes: string[] = raw ? JSON.parse(raw) : [];
     const isLiked = likes.includes(id);
     const next = isLiked ? likes.filter((v) => v !== id) : [...likes, id];
+    const desired = !isLiked;
+
+    pendingLikeRef.current = {
+      desired,
+      previousLiked: isLiked,
+      previousCount: likeCount,
+    };
+
     localStorage.setItem(LIKES_CACHE_KEY, JSON.stringify(next));
-    setLiked(!isLiked);
-    setHeartLiked(!isLiked);
+    try {
+      const rawPending = sessionStorage.getItem(LIKE_PENDING_CACHE_KEY);
+      const pending = rawPending ? JSON.parse(rawPending) : {};
+      sessionStorage.setItem(LIKE_PENDING_CACHE_KEY, JSON.stringify({ ...pending, [id]: desired }));
+    } catch {}
+
+    setLiked(desired);
+    setLikeCount((count) => Math.max(0, count + (desired ? 1 : -1)));
+    setHeartLiked(desired);
     setHeartVisible(true);
     setTimeout(() => setHeartVisible(false), 900);
+
+    if (likeSyncTimerRef.current !== null) {
+      window.clearTimeout(likeSyncTimerRef.current);
+    }
+
+    likeSyncTimerRef.current = window.setTimeout(() => {
+      void syncLikeState();
+    }, 1000);
+  }
+
+  async function syncLikeState() {
+    const pending = pendingLikeRef.current;
+    if (!pending) return;
+
+    try {
+      const res = await fetch(`/api/classes/${id}/like`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ liked: pending.desired }),
+      });
+
+      if (res.status === 401) {
+        router.push(`/login?next=/classes/${id}`);
+        return;
+      }
+
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error ?? "like failed");
+      if (typeof json.like_count === "number") setLikeCount(json.like_count);
+
+      try {
+        const rawPending = sessionStorage.getItem(LIKE_PENDING_CACHE_KEY);
+        const pendingMap = rawPending ? JSON.parse(rawPending) : {};
+        delete pendingMap[id];
+        sessionStorage.setItem(LIKE_PENDING_CACHE_KEY, JSON.stringify(pendingMap));
+      } catch {}
+      pendingLikeRef.current = null;
+    } catch {
+      setLiked(pending.previousLiked);
+      setLikeCount(pending.previousCount);
+      pendingLikeRef.current = null;
+    }
   }
 
   function handleBookmark() {
@@ -380,6 +459,26 @@ export default function ClassCard({ classData }: ClassCardProps) {
       if (!prev) shouldScrollToDescription.current = true;
       return !prev;
     });
+  }
+
+  async function handleOpenShare() {
+    const supabase = createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      router.push(`/login?next=/classes/${id}`);
+      return;
+    }
+
+    setShareOpen(true);
+  }
+
+  function handleShareComplete(sentCount: number) {
+    setShareCount((count) => count + sentCount);
+    setShareComplete(true);
+    window.setTimeout(() => setShareComplete(false), 1000);
   }
 
   return (
@@ -702,21 +801,26 @@ export default function ClassCard({ classData }: ClassCardProps) {
         <div className="flex items-center justify-between px-3 pt-3">
           <div className="flex items-center gap-4">
             {/* 좋아요 */}
-            <button type="button" onClick={() => void handleLikeToggle()} aria-label="좋아요">
+            <button type="button" onClick={() => void handleLikeToggle()} aria-label="좋아요" className="flex items-center gap-1">
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill={liked ? "#ff3b5c" : "none"} stroke={liked ? "#ff3b5c" : "currentColor"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-800">
                 <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
               </svg>
+              <span className="text-sm font-semibold text-gray-800">{likeCount}</span>
             </button>
             {/* 댓글 */}
-            <button type="button" onClick={() => setCommentOpen(true)} aria-label="댓글보기">
+            <button type="button" onClick={() => setCommentOpen(true)} aria-label="댓글보기" className="flex items-center gap-1">
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-800">
                 <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
               </svg>
+              <span className="text-sm font-semibold text-gray-800">{commentCount}</span>
             </button>
-            {/* 메세지 */}
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-800">
-              <line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" />
-            </svg>
+            {/* 공유 */}
+            <button type="button" onClick={() => void handleOpenShare()} aria-label="공유" className="flex items-center gap-1">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-800">
+                <line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" />
+              </svg>
+              <span className="text-sm font-semibold text-gray-800">{shareCount}</span>
+            </button>
           </div>
           {/* 북마크 */}
           <button onClick={handleBookmark}>
@@ -863,7 +967,21 @@ export default function ClassCard({ classData }: ClassCardProps) {
         mode="sheet"
         open={commentOpen}
         onClose={() => setCommentOpen(false)}
+        onCommentCreated={() => setCommentCount((count) => count + 1)}
       />
+      <ClassShareSheet
+        open={shareOpen}
+        classData={classData}
+        onClose={() => setShareOpen(false)}
+        onShared={handleShareComplete}
+      />
+      {shareComplete && (
+        <div className="pointer-events-none fixed inset-0 z-[310] flex items-center justify-center">
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-white text-3xl font-bold text-green-500 shadow-2xl">
+            ✓
+          </div>
+        </div>
+      )}
       {friendMsg && (
         <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[300] bg-gray-800 text-white text-sm px-4 py-2 rounded-full shadow-lg">
           {friendMsg}

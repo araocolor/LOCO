@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Avatar from "@/components/ui/Avatar";
+import { createClient } from "@/lib/supabase/client";
 
 export interface ClassCommentProfile {
   id: string;
@@ -17,10 +18,16 @@ export interface ClassComment {
   parent_id: string | null;
   content: string;
   like_count: number;
+  my_liked?: boolean;
   is_deleted: boolean;
   deleted_at: string | null;
   created_at: string;
   profile: ClassCommentProfile | null;
+}
+
+interface CurrentProfile {
+  nickname: string;
+  profile_image_url: string | null;
 }
 
 interface ClassCommentsPanelProps {
@@ -28,10 +35,12 @@ interface ClassCommentsPanelProps {
   mode: "sheet" | "full";
   open?: boolean;
   onClose?: () => void;
+  onCommentCreated?: () => void;
 }
 
 const QUICK_REACTIONS = ["❤️", "😍", "🥰", "😊", "😂", "🔥", "✨", "👍", "🎉", "💯"];
 const COMMENTS_SESSION_CACHE_PREFIX = "loco_class_comments_session_v1:";
+const COMMENT_LIKE_PENDING_CACHE_KEY = "loco_comment_like_pending_v1:";
 
 function getCommentsCacheKey(classId: string) {
   return `${COMMENTS_SESSION_CACHE_PREFIX}${classId}`;
@@ -73,21 +82,19 @@ function displayName(comment: ClassComment) {
 
 function CommentItem({
   comment,
-  replyCount,
   compact = false,
   onReply,
-  onOpenReplies,
+  onLike,
 }: {
   comment: ClassComment;
-  replyCount?: number;
   compact?: boolean;
   onReply: (comment: ClassComment) => void;
-  onOpenReplies?: (comment: ClassComment) => void;
+  onLike: (comment: ClassComment) => void;
 }) {
   const name = displayName(comment);
 
   return (
-    <div className={`flex gap-3 ${compact ? "py-2" : "py-2.5"}`}>
+    <div className={`flex gap-2 ${compact ? "py-2" : "py-2.5"}`}>
       <Avatar src={comment.profile?.profile_image_url ?? null} nickname={name} size={compact ? 34 : 42} />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
@@ -99,41 +106,50 @@ function CommentItem({
         </p>
         <div className="flex items-center gap-3 text-xs text-gray-500" style={{ marginTop: "0px" }}>
           {!comment.is_deleted && (
-            <button type="button" onClick={() => onReply(comment)} className="font-medium flex items-center gap-1" style={{ fontSize: "13px" }}>
+            <button type="button" onClick={() => onReply(comment)} className="font-bold flex items-center gap-1" style={{ fontSize: "13px" }}>
               댓글쓰기
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            </button>
+          )}
+          {!comment.is_deleted && (
+            <button
+              type="button"
+              onClick={() => onLike(comment)}
+              className="ml-auto flex items-center gap-1 font-semibold text-gray-500"
+            >
+              {comment.like_count > 0 && <span>{comment.like_count}</span>}
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill={comment.my_liked ? "currentColor" : "none"}
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
                 <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
               </svg>
             </button>
           )}
-          {comment.like_count > 0 && (
-            <span className="text-red-500 font-semibold">♥ {comment.like_count}</span>
-          )}
         </div>
-        {!!replyCount && replyCount > 0 && onOpenReplies && (
-          <button
-            type="button"
-            onClick={() => onOpenReplies(comment)}
-            className="mt-3 text-xs font-semibold text-gray-500"
-          >
-            답글 {replyCount}개 보기
-          </button>
-        )}
       </div>
     </div>
   );
 }
 
-export default function ClassCommentsPanel({ classId, mode, open = true, onClose }: ClassCommentsPanelProps) {
+export default function ClassCommentsPanel({ classId, mode, open = true, onClose, onCommentCreated }: ClassCommentsPanelProps) {
   const router = useRouter();
   const [comments, setComments] = useState<ClassComment[]>([]);
   const [loading, setLoading] = useState(false);
   const [input, setInput] = useState("");
   const [replyTarget, setReplyTarget] = useState<ClassComment | null>(null);
-  const [threadTarget, setThreadTarget] = useState<ClassComment | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [sheetFull, setSheetFull] = useState(false);
+  const [currentProfile, setCurrentProfile] = useState<CurrentProfile | null>(null);
   const touchStartY = useRef(0);
+  const likeTimersRef = useRef<Map<string, number>>(new Map());
+  const likePendingRef = useRef<Map<string, { desired: boolean; previousLiked: boolean; previousCount: number }>>(new Map());
   const shouldShow = mode === "full" || open;
 
   const rootComments = useMemo(() => comments.filter((comment) => !comment.parent_id), [comments]);
@@ -180,6 +196,45 @@ export default function ClassCommentsPanel({ classId, mode, open = true, onClose
   }, [classId, shouldShow]);
 
   useEffect(() => {
+    if (!shouldShow) return;
+
+    let cancelled = false;
+    async function loadCurrentProfile() {
+      try {
+        const supabase = createClient();
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (!user) {
+          if (!cancelled) setCurrentProfile(null);
+          return;
+        }
+
+        const { data } = await supabase
+          .from("profiles")
+          .select("nickname, profile_image_url")
+          .eq("id", user.id)
+          .maybeSingle<CurrentProfile>();
+
+        if (!cancelled) {
+          setCurrentProfile({
+            nickname: data?.nickname ?? user.email ?? "나",
+            profile_image_url: data?.profile_image_url ?? null,
+          });
+        }
+      } catch {
+        if (!cancelled) setCurrentProfile(null);
+      }
+    }
+
+    void loadCurrentProfile();
+    return () => {
+      cancelled = true;
+    };
+  }, [shouldShow]);
+
+  useEffect(() => {
     if (mode !== "sheet" || !open) return;
 
     const previousOverflow = document.body.style.overflow;
@@ -195,21 +250,31 @@ export default function ClassCommentsPanel({ classId, mode, open = true, onClose
       queueMicrotask(() => {
         setSheetFull(false);
         setReplyTarget(null);
-        setThreadTarget(null);
       });
     }
   }, [mode, open]);
 
+  useEffect(() => {
+    const likeTimers = likeTimersRef.current;
+    return () => {
+      likeTimers.forEach((timer) => window.clearTimeout(timer));
+      likeTimers.clear();
+    };
+  }, []);
+
   async function submitComment(parentId: string | null = replyTarget?.id ?? null, value = input) {
     const content = value.trim();
     if (!content || submitting) return;
+    const normalizedParentId = parentId
+      ? comments.find((comment) => comment.id === parentId)?.parent_id ?? parentId
+      : null;
 
     setSubmitting(true);
     try {
       const res = await fetch(`/api/classes/${classId}/comments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content, parent_id: parentId }),
+        body: JSON.stringify({ content, parent_id: normalizedParentId }),
       });
 
       if (res.status === 401) {
@@ -230,8 +295,103 @@ export default function ClassCommentsPanel({ classId, mode, open = true, onClose
       });
       setInput("");
       setReplyTarget(null);
+      onCommentCreated?.();
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function handleCommentLike(comment: ClassComment) {
+    const supabase = createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      router.push(`/login?next=/classes/${classId}`);
+      return;
+    }
+
+    const desired = !comment.my_liked;
+    likePendingRef.current.set(comment.id, {
+      desired,
+      previousLiked: !!comment.my_liked,
+      previousCount: comment.like_count,
+    });
+
+    setComments((prev) => {
+      const nextComments = prev.map((item) => (
+        item.id === comment.id
+          ? { ...item, my_liked: desired, like_count: Math.max(0, item.like_count + (desired ? 1 : -1)) }
+          : item
+      ));
+      writeCachedComments(classId, nextComments);
+      return nextComments;
+    });
+
+    try {
+      const raw = sessionStorage.getItem(`${COMMENT_LIKE_PENDING_CACHE_KEY}${classId}`);
+      const pending = raw ? JSON.parse(raw) : {};
+      sessionStorage.setItem(`${COMMENT_LIKE_PENDING_CACHE_KEY}${classId}`, JSON.stringify({ ...pending, [comment.id]: desired }));
+    } catch {}
+
+    const previousTimer = likeTimersRef.current.get(comment.id);
+    if (previousTimer) window.clearTimeout(previousTimer);
+    const nextTimer = window.setTimeout(() => {
+      void syncCommentLike(comment.id);
+    }, 1000);
+    likeTimersRef.current.set(comment.id, nextTimer);
+  }
+
+  async function syncCommentLike(commentId: string) {
+    const pending = likePendingRef.current.get(commentId);
+    if (!pending) return;
+
+    try {
+      const res = await fetch(`/api/classes/${classId}/comments/${commentId}/like`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ liked: pending.desired }),
+      });
+
+      if (res.status === 401) {
+        router.push(`/login?next=/classes/${classId}`);
+        return;
+      }
+
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error ?? "comment like failed");
+
+      if (typeof json.like_count === "number") {
+        setComments((prev) => {
+          const nextComments = prev.map((item) => (
+            item.id === commentId ? { ...item, like_count: json.like_count, my_liked: pending.desired } : item
+          ));
+          writeCachedComments(classId, nextComments);
+          return nextComments;
+        });
+      }
+
+      try {
+        const raw = sessionStorage.getItem(`${COMMENT_LIKE_PENDING_CACHE_KEY}${classId}`);
+        const pendingMap = raw ? JSON.parse(raw) : {};
+        delete pendingMap[commentId];
+        sessionStorage.setItem(`${COMMENT_LIKE_PENDING_CACHE_KEY}${classId}`, JSON.stringify(pendingMap));
+      } catch {}
+      likePendingRef.current.delete(commentId);
+      likeTimersRef.current.delete(commentId);
+    } catch {
+      setComments((prev) => {
+        const nextComments = prev.map((item) => (
+          item.id === commentId
+            ? { ...item, my_liked: pending.previousLiked, like_count: pending.previousCount }
+            : item
+        ));
+        writeCachedComments(classId, nextComments);
+        return nextComments;
+      });
+      likePendingRef.current.delete(commentId);
+      likeTimersRef.current.delete(commentId);
     }
   }
 
@@ -256,24 +416,29 @@ export default function ClassCommentsPanel({ classId, mode, open = true, onClose
       <div className="divide-y divide-gray-100">
         {rootComments.map((comment) => {
           const replies = repliesByParent.get(comment.id) ?? [];
-          const replyCount = replies.length;
-          const singleReply = replyCount === 1 ? replies[0] : null;
           return (
             <div key={comment.id}>
               <CommentItem
                 comment={comment}
-                replyCount={replyCount > 1 ? replyCount : undefined}
                 compact={compact}
                 onReply={setReplyTarget}
-                onOpenReplies={setThreadTarget}
+                onLike={(targetComment) => {
+                  void handleCommentLike(targetComment);
+                }}
               />
-              {singleReply && (
+              {replies.length > 0 && (
                 <div className="ml-10 border-t border-gray-50 pt-0.5">
+                  {replies.map((reply) => (
                   <CommentItem
-                    comment={singleReply}
+                    key={reply.id}
+                    comment={reply}
                     compact
                     onReply={setReplyTarget}
+                    onLike={(targetComment) => {
+                      void handleCommentLike(targetComment);
+                    }}
                   />
+                  ))}
                 </div>
               )}
             </div>
@@ -307,48 +472,27 @@ export default function ClassCommentsPanel({ classId, mode, open = true, onClose
             </button>
           </div>
         )}
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
+          <Avatar
+            src={currentProfile?.profile_image_url ?? null}
+            nickname={currentProfile?.nickname ?? "나"}
+            size={34}
+          />
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder={placeholder}
-            className="min-w-0 flex-1 rounded-2xl border border-gray-200 px-4 py-3 text-sm outline-none focus:border-gray-400"
+            className="h-11 min-w-0 flex-1 rounded-full border border-gray-200 px-4 text-sm outline-none focus:border-gray-400"
           />
           <button
             type="button"
             onClick={() => void submitComment()}
             disabled={submitting || input.trim().length === 0}
-            className="rounded-2xl bg-gray-950 px-5 py-3 text-sm font-semibold text-white disabled:opacity-40"
+            className="h-11 rounded-full bg-gray-950 px-5 text-sm font-semibold text-white disabled:opacity-40"
           >
             등록
           </button>
         </div>
-      </div>
-    );
-  }
-
-  function renderReplyThread() {
-    if (!threadTarget) return null;
-    const replies = repliesByParent.get(threadTarget.id) ?? [];
-
-    return (
-      <div className="fixed inset-0 z-[90] mx-auto flex max-w-xl flex-col bg-white">
-        <div className="flex h-14 items-center border-b border-gray-100 px-4">
-          <button type="button" onClick={() => setThreadTarget(null)} className="text-2xl text-gray-700" aria-label="닫기">
-            ×
-          </button>
-          <h2 className="flex-1 text-center text-lg font-bold text-gray-900">답글</h2>
-          <div className="w-6" />
-        </div>
-        <div className="bg-gray-100 px-4">
-          <CommentItem comment={threadTarget} compact onReply={setReplyTarget} />
-        </div>
-        <div className="flex-1 overflow-y-auto px-4">
-          {replies.length === 0 ? renderEmpty() : replies.map((reply) => (
-            <CommentItem key={reply.id} comment={reply} compact onReply={setReplyTarget} />
-          ))}
-        </div>
-        {renderComposer("답글을 남겨보세요")}
       </div>
     );
   }
@@ -388,7 +532,6 @@ export default function ClassCommentsPanel({ classId, mode, open = true, onClose
           </div>
           <div className="flex-1 overflow-y-auto px-4">{renderCommentList()}</div>
           {renderComposer()}
-          {renderReplyThread()}
         </section>
       </div>
     );
@@ -401,7 +544,6 @@ export default function ClassCommentsPanel({ classId, mode, open = true, onClose
       </div>
       <div className="flex-1 overflow-y-auto px-4">{renderCommentList()}</div>
       <div className="sticky bottom-0">{renderComposer()}</div>
-      {renderReplyThread()}
     </section>
   );
 }

@@ -59,6 +59,9 @@ export interface DanceClass {
   category: ClassCategory | null;
   is_modified: boolean;
   view_count: number;
+  like_count?: number;
+  comment_count?: number;
+  share_count?: number;
   created_at: string;
   updated_at: string;
 }

@@ -49,6 +49,13 @@ export default function ConversationList({
   const handleNearbyRefreshControlChange = useCallback((control: NearbyRefreshControl) => {
     setNearbyRefreshControl(control);
   }, []);
+  const getPreviewText = useCallback((content: string) => {
+    try {
+      const parsed = JSON.parse(content);
+      if (parsed.type === "class_share") return "클래스 공유";
+    } catch {}
+    return truncateMessage(content);
+  }, [truncateMessage]);
   const visibleConversations =
     activeMenuTab === "messages"
       ? messageConversations
@@ -232,7 +239,7 @@ export default function ConversationList({
                           </div>
                           {conv.last_text_message && (
                             <p className="line-clamp-1 mt-1 text-gray-900" style={{ fontSize: "16px" }}>
-                              {truncateMessage(conv.last_text_message.content)}
+                              {getPreviewText(conv.last_text_message.content)}
                             </p>
                           )}
                         </div>

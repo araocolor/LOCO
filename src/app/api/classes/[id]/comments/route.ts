@@ -18,9 +18,10 @@ interface CommentRow {
   deleted_at: string | null;
   created_at: string;
   profile: CommentProfile | null;
+  my_liked?: boolean;
 }
 
-function normalizeComment(row: CommentRow) {
+function normalizeComment(row: CommentRow, likedCommentIds = new Set<string>()) {
   return {
     id: row.id,
     class_id: row.class_id,
@@ -28,6 +29,7 @@ function normalizeComment(row: CommentRow) {
     parent_id: row.parent_id,
     content: row.is_deleted ? "" : row.content,
     like_count: row.like_count,
+    my_liked: likedCommentIds.has(row.id),
     is_deleted: row.is_deleted,
     deleted_at: row.deleted_at,
     created_at: row.created_at,
@@ -41,6 +43,9 @@ export async function GET(
 ) {
   const { id } = await params;
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   const { data, error } = await supabase
     .from("class_comments")
@@ -53,7 +58,20 @@ export async function GET(
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ comments: (data ?? []).map(normalizeComment) });
+  let likedCommentIds = new Set<string>();
+  const commentIds = (data ?? []).map((comment) => comment.id);
+  if (user && commentIds.length > 0) {
+    const { data: likedRows } = await supabase
+      .from("class_comment_likes")
+      .select("comment_id")
+      .eq("user_id", user.id)
+      .in("comment_id", commentIds)
+      .returns<Array<{ comment_id: string }>>();
+
+    likedCommentIds = new Set((likedRows ?? []).map((row) => row.comment_id));
+  }
+
+  return NextResponse.json({ comments: (data ?? []).map((comment) => normalizeComment(comment, likedCommentIds)) });
 }
 
 export async function POST(
@@ -113,5 +131,12 @@ export async function POST(
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ comment: normalizeComment(data) }, { status: 201 });
+  const { count } = await supabase
+    .from("class_comments")
+    .select("id", { count: "exact", head: true })
+    .eq("class_id", id);
+
+  await supabase.from("classes").update({ comment_count: count ?? 0 }).eq("id", id);
+
+  return NextResponse.json({ comment: normalizeComment(data), comment_count: count ?? 0 }, { status: 201 });
 }

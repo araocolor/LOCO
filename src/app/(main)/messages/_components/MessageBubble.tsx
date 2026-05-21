@@ -25,6 +25,25 @@ const MESSAGE_REACTIONS: Array<{ type: MessageReactionType; label: string }> = [
   { type: "sad", label: "😢" },
 ];
 
+interface ClassShareData {
+  type: "class_share";
+  message?: string;
+  class?: {
+    id?: string;
+    title?: string;
+    image_url?: string | null;
+    datetime?: string;
+    region?: string;
+  };
+}
+
+function formatClassDate(value?: string) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return `${date.getMonth() + 1}/${date.getDate()} ${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+}
+
 export default function MessageBubble({
   msg,
   prevMsg,
@@ -44,11 +63,14 @@ export default function MessageBubble({
   const showMyAvatar = isMine && isNewGroup;
   const sender = msg.sender ?? otherUser;
   let imageData: { thumb: string; full: string } | null = null;
+  let classShareData: ClassShareData | null = null;
 
   try {
     const parsed = JSON.parse(msg.content);
     if (parsed.type === "image") imageData = parsed;
+    if (parsed.type === "class_share") classShareData = parsed;
   } catch {}
+  const hasRichContent = Boolean(imageData || classShareData?.class?.id);
 
   return (
     <div>
@@ -102,7 +124,6 @@ export default function MessageBubble({
                 <div className="flex flex-col gap-1 flex-shrink-0">
                   {activeReactions.map((reaction) => {
                     const count = msg.reaction_counts?.[reaction.type] ?? 0;
-                    const active = msg.my_reaction === reaction.type;
                     return (
                       <button
                         key={reaction.type}
@@ -119,11 +140,11 @@ export default function MessageBubble({
             })()}
             <div
               className={`relative rounded-lg text-base overflow-visible ${
-                imageData ? "" : "px-3 py-2"
+                hasRichContent ? "" : "px-3 py-2"
               } ${isMine ? "text-gray-900" : "bg-white text-gray-900"} ${isMine && shakingMsgId === msg.id ? "msg-shake" : ""} select-none`}
               style={{
                 ...(isMine ? { maxWidth: "72vw" } : { maxWidth: "270px" }),
-                ...(isMine && !imageData ? { backgroundColor: "#FEE500" } : {}),
+                ...(isMine && !hasRichContent ? { backgroundColor: "#FEE500" } : {}),
               }}
               onTouchStart={() => onStartLongPress(msg.id, isMine)}
               onTouchEnd={onCancelLongPress}
@@ -165,6 +186,35 @@ export default function MessageBubble({
                 <a href={imageData.full} target="_blank" rel="noreferrer">
                   <Image src={imageData.thumb} alt="사진" width={200} height={200} className="rounded-lg object-cover" />
                 </a>
+              ) : classShareData?.class?.id ? (
+                <div className="w-[270px] overflow-hidden rounded-lg bg-white">
+                  {classShareData.message && (
+                    <p className="px-3 pt-3 text-sm font-medium text-gray-900">{classShareData.message}</p>
+                  )}
+                  <a href={`/classes/${classShareData.class.id}`} className="block p-2">
+                    <div className="flex gap-3 rounded-md border border-gray-100 bg-gray-50 p-2">
+                      {classShareData.class.image_url ? (
+                        <Image
+                          src={classShareData.class.image_url}
+                          alt={classShareData.class.title ?? "클래스"}
+                          width={58}
+                          height={58}
+                          className="h-[58px] w-[58px] rounded-md object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-[58px] w-[58px] shrink-0 items-center justify-center rounded-md bg-gray-200 text-lg">
+                          CLASS
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <p className="line-clamp-2 text-sm font-bold text-gray-900">{classShareData.class.title}</p>
+                        <p className="mt-1 text-xs text-gray-500">
+                          {[classShareData.class.region, formatClassDate(classShareData.class.datetime)].filter(Boolean).join(" · ")}
+                        </p>
+                      </div>
+                    </div>
+                  </a>
+                </div>
               ) : (
                 <p className="break-words">{msg.content}</p>
               )}
