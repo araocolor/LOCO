@@ -8,6 +8,10 @@ function getDirectPair(userA: string, userB: string) {
     : { lowId: userB, highId: userA };
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -22,8 +26,9 @@ export async function POST(
   }
 
   const { id } = await params;
-  const body = await request.json().catch(() => ({}));
-  const targetIds = Array.isArray(body.target_ids)
+  const rawBody: unknown = await request.json().catch(() => ({}));
+  const body = isRecord(rawBody) ? rawBody : {};
+  const targetIds: string[] = Array.isArray(body.target_ids)
     ? Array.from(new Set(body.target_ids.filter((targetId: unknown): targetId is string => typeof targetId === "string" && targetId !== user.id)))
     : [];
   const message = typeof body.message === "string" ? body.message.trim().slice(0, 500) : "";
