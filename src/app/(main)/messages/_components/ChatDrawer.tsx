@@ -401,16 +401,6 @@ export default function ChatDrawer({
           </button>
           <button
             type="button"
-            onClick={() => setActiveTab("members")}
-            style={{ fontSize: 17 }}
-            className={`pb-2 font-bold border-b-2 transition-colors ${
-              activeTab === "members" ? "border-black text-black" : "border-transparent text-gray-400"
-            }`}
-          >
-            참여회원들
-          </button>
-          <button
-            type="button"
             onClick={() => setActiveTab("class")}
             style={{ fontSize: 17 }}
             className={`pb-2 font-bold border-b-2 transition-colors ${
@@ -418,6 +408,16 @@ export default function ChatDrawer({
             }`}
           >
             공지/투표
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("members")}
+            style={{ fontSize: 17 }}
+            className={`pb-2 font-bold border-b-2 transition-colors ${
+              activeTab === "members" ? "border-black text-black" : "border-transparent text-gray-400"
+            }`}
+          >
+            참여회원들
           </button>
         </div>
       </div>
