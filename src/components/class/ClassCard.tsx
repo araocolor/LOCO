@@ -10,6 +10,7 @@ import ClassCommentsPanel from "@/components/class/ClassCommentsPanel";
 import ClassApplicantSheet from "@/components/class/ClassApplicantSheet";
 import SendMessageModal from "@/components/modal/SendMessageModal";
 import ClassShareSheet from "@/components/class/ClassShareSheet";
+import MentionText from "@/components/class/MentionText";
 
 const LIKES_CACHE_KEY = "loco_liked_posts";
 const LIKE_PENDING_CACHE_KEY = "loco_class_like_pending_v1";
@@ -117,7 +118,7 @@ export default function ClassCard({ classData }: ClassCardProps) {
   const [applicantSheetOpen, setApplicantSheetOpen] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [myApplicationStatus, setMyApplicationStatus] = useState<"pending" | "approved" | "cancelled" | null>(null);
-  const descriptionRef = useRef<HTMLParagraphElement>(null);
+  const descriptionRef = useRef<HTMLDivElement>(null);
   const shouldScrollToDescription = useRef(false);
   const likeSyncTimerRef = useRef<number | null>(null);
   const pendingLikeRef = useRef<{ desired: boolean; previousLiked: boolean; previousCount: number } | null>(null);
@@ -551,7 +552,14 @@ export default function ClassCard({ classData }: ClassCardProps) {
                         신청자 목록
                       </button>
                       <div className="border-t border-gray-100 mx-3" />
-                      <button type="button" className="flex items-center w-full px-4 py-3 text-sm text-gray-700">
+                      <button
+                        type="button"
+                        className="flex items-center w-full px-4 py-3 text-sm text-gray-700"
+                        onClick={() => {
+                          setMenuOpen(false);
+                          router.push(`/classes/${id}/edit`);
+                        }}
+                      >
                         클래스 수정
                       </button>
                     </>
@@ -861,7 +869,12 @@ export default function ClassCard({ classData }: ClassCardProps) {
               </p>
             </button>
             {expanded && description && (
-              <p ref={descriptionRef} className="scroll-mt-[250px] text-sm text-gray-600 mt-2 whitespace-pre-wrap leading-relaxed">{description}</p>
+              <div ref={descriptionRef} className="scroll-mt-[250px]">
+                <MentionText
+                  text={description}
+                  className="text-[15px] text-gray-600 mt-2 whitespace-pre-wrap leading-relaxed"
+                />
+              </div>
             )}
           </div>
         </div>

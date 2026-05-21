@@ -8,6 +8,7 @@ import { DANCE_GENRE_LABELS, CLASS_LEVEL_LABELS } from "@/types/class";
 import type { ClassWithHost } from "@/components/class/ClassCard";
 import ClassCommentsPanel from "@/components/class/ClassCommentsPanel";
 import ClassDetailImageGallery from "@/components/class/ClassDetailImageGallery";
+import MentionText from "@/components/class/MentionText";
 
 const HOME_RESULTS_LOCAL_KEY = "loco_home_results_local_v1";
 const LIKES_CACHE_KEY = "loco_liked_posts";
@@ -358,9 +359,11 @@ export default function CachedClassDetailPage() {
 
             <div className="mb-5">
               <h2 className="font-semibold text-sm text-gray-700 mb-2">상세설명</h2>
-              <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
-                {displayClass.description || "등록된 상세설명이 없습니다."}
-              </p>
+              <MentionText
+                text={displayClass.description}
+                emptyText="등록된 상세설명이 없습니다."
+                className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed"
+              />
             </div>
           </div>
         </>

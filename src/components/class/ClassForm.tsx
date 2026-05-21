@@ -88,6 +88,18 @@ interface ClassFormProps {
   userRole: "member" | "pro" | "admin";
 }
 
+interface MentionCandidate {
+  id: string;
+  nickname: string;
+  profile_image_url: string | null;
+  region: string | null;
+}
+
+interface MentionRange {
+  start: number;
+  end: number;
+}
+
 type SubmitModalState =
   | null
   | { kind: "success"; newClassId: string }
@@ -97,6 +109,16 @@ function toCreateFailureMessage(message: string) {
   if (message.includes("classes_genre_check")) return "장르를 선택해주세요.";
   if (message.includes("violates check constraint")) return "입력한 항목을 다시 확인해주세요.";
   return message;
+}
+
+function getMentionRange(value: string, cursor: number): { query: string; range: MentionRange } | null {
+  const beforeCursor = value.slice(0, cursor);
+  const match = beforeCursor.match(/(^|[\s([{])@([\p{L}\p{N}_-]{0,30})$/u);
+  if (!match) return null;
+
+  const query = match[2];
+  const start = cursor - query.length - 1;
+  return { query, range: { start, end: cursor } };
 }
 
 async function loadImage(file: File): Promise<HTMLImageElement> {
@@ -157,6 +179,7 @@ async function resizeImageToWidth(file: File, width: number): Promise<File> {
 export default function ClassForm({ initialData, classId, userRole: _userRole }: ClassFormProps) {
   const router = useRouter();
   const isCreateMode = !classId;
+  const isEditMode = !!classId;
   const [form, setForm] = useState<FormState>(
     initialData ? toFormState(initialData) : EMPTY
   );
@@ -170,9 +193,48 @@ export default function ClassForm({ initialData, classId, userRole: _userRole }:
   const [error, setError] = useState("");
   const [submitModal, setSubmitModal] = useState<SubmitModalState>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const descriptionRef = useRef<HTMLTextAreaElement>(null);
   const preResizeRef = useRef<Map<File, Promise<{ icon: File; card: File; full: File }>>>(new Map());
   const genreSelectedRef = useRef(false);
   const [showDetail, setShowDetail] = useState(!!initialData);
+  const [mentionQuery, setMentionQuery] = useState("");
+  const [mentionRange, setMentionRange] = useState<MentionRange | null>(null);
+  const [mentionCandidates, setMentionCandidates] = useState<MentionCandidate[]>([]);
+
+  useEffect(() => {
+    if (mentionQuery.length === 0) {
+      setMentionCandidates([]);
+      return;
+    }
+
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      const run = async () => {
+        try {
+          const params = new URLSearchParams({ q: mentionQuery, limit: "5" });
+          const res = await fetch(`/api/users/search?${params.toString()}`, { method: "GET" });
+          if (cancelled) return;
+          if (!res.ok) {
+            setMentionCandidates([]);
+            return;
+          }
+
+          const json = (await res.json()) as { data?: MentionCandidate[] };
+          if (cancelled) return;
+          setMentionCandidates(json.data ?? []);
+        } catch {
+          if (!cancelled) setMentionCandidates([]);
+        }
+      };
+
+      void run();
+    }, 300);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [mentionQuery]);
 
   // daum postcode 스크립트 로드
   useEffect(() => {
@@ -204,6 +266,58 @@ export default function ClassForm({ initialData, classId, userRole: _userRole }:
       genreSelectedRef.current = true;
       scheduleResize(newFiles);
     }
+  }
+
+  function updateMentionSearch(value: string, cursor: number | null) {
+    if (!isEditMode || cursor === null) {
+      setMentionQuery("");
+      setMentionRange(null);
+      setMentionCandidates([]);
+      return;
+    }
+
+    const mention = getMentionRange(value, cursor);
+    if (!mention || mention.query.length === 0) {
+      setMentionQuery("");
+      setMentionRange(null);
+      setMentionCandidates([]);
+      return;
+    }
+
+    setMentionQuery(mention.query);
+    setMentionRange(mention.range);
+  }
+
+  function handleDescriptionChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
+    const next = e.target.value;
+    set("description", next);
+    updateMentionSearch(next, e.target.selectionStart);
+  }
+
+  function handleDescriptionCursor() {
+    const textarea = descriptionRef.current;
+    if (!textarea) return;
+    updateMentionSearch(textarea.value, textarea.selectionStart);
+  }
+
+  function selectMention(candidate: MentionCandidate) {
+    if (!mentionRange) return;
+
+    const before = form.description.slice(0, mentionRange.start);
+    const after = form.description.slice(mentionRange.end);
+    const inserted = `@${candidate.nickname} `;
+    const next = `${before}${inserted}${after}`;
+    const nextCursor = before.length + inserted.length;
+
+    set("description", next);
+    setMentionQuery("");
+    setMentionRange(null);
+    setMentionCandidates([]);
+
+    window.requestAnimationFrame(() => {
+      descriptionRef.current?.focus();
+      descriptionRef.current?.setSelectionRange(nextCursor, nextCursor);
+    });
   }
 
   function openAddressSearch() {
@@ -311,7 +425,7 @@ export default function ClassForm({ initialData, classId, userRole: _userRole }:
     const required: (keyof FormState)[] = [
       "title", "level", "region",
     ];
-    if (required.some((k) => !form[k]) || form.genres.length === 0) {
+    if (isCreateMode && (required.some((k) => !form[k]) || form.genres.length === 0)) {
       setError("필수 항목을 모두 입력해주세요.");
       return;
     }
@@ -325,6 +439,24 @@ export default function ClassForm({ initialData, classId, userRole: _userRole }:
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) throw new Error("로그인이 필요합니다.");
+
+      if (isEditMode) {
+        const res = await fetch(`/api/classes/${classId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            description: form.description,
+            is_public: form.is_public,
+          }),
+        });
+
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error ?? "오류가 발생했습니다.");
+
+        router.push(`/classes/${classId}`);
+        router.refresh();
+        return;
+      }
 
       // 삭제된 이미지 Storage에서 제거
       if (deletedImages.length > 0) {
@@ -408,25 +540,29 @@ export default function ClassForm({ initialData, classId, userRole: _userRole }:
               {existingImages.map((img, i) => (
                 <div key={`e-${i}`} className="relative">
                   <Image src={img.card_url} alt="" width={100} height={0} style={{ width: 100, height: "auto" }} className="rounded-[10px]" />
-                  <button type="button" onClick={() => removeExisting(i)} className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-gray-700 text-white rounded-full text-xs leading-none">×</button>
+                  {isCreateMode && (
+                    <button type="button" onClick={() => removeExisting(i)} className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-gray-700 text-white rounded-full text-xs leading-none">×</button>
+                  )}
                 </div>
               ))}
               {previews.map((url, i) => (
                 <div key={`n-${i}`} className="relative">
                   <img src={url} alt="" style={{ width: 100, height: "auto" }} className="rounded-[10px]" />
-                  <button type="button" onClick={() => removeNew(i)} className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-gray-700 text-white rounded-full text-xs leading-none">×</button>
+                  {isCreateMode && (
+                    <button type="button" onClick={() => removeNew(i)} className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-gray-700 text-white rounded-full text-xs leading-none">×</button>
+                  )}
                 </div>
               ))}
             </div>
           )}
           <div className="flex justify-center">
-            {totalImages < 5 && (
+            {isCreateMode && totalImages < 5 && (
               <button type="button" onClick={() => fileInputRef.current?.click()} className="btn-outline text-sm py-2 px-6 w-auto">
                 + 이미지 추가&nbsp;&nbsp;{totalImages}/5
               </button>
             )}
           </div>
-          <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={handleFileChange} className="hidden" />
+          <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={handleFileChange} className="hidden" disabled={isEditMode} />
         </div>
 
         {/* 섹션 2 — 장르 */}
@@ -437,7 +573,8 @@ export default function ClassForm({ initialData, classId, userRole: _userRole }:
               <button
                 key={g.value}
                 type="button"
-                className={`chip ${form.genres.includes(g.value) ? "active" : ""}`}
+                className={`chip disabled:cursor-not-allowed disabled:opacity-60 ${form.genres.includes(g.value) ? "active" : ""}`}
+                disabled={isEditMode}
                 onClick={() => {
                   const exists = form.genres.includes(g.value);
                   const next = exists
@@ -462,7 +599,8 @@ export default function ClassForm({ initialData, classId, userRole: _userRole }:
               <button
                 key={c.value}
                 type="button"
-                className={`chip ${form.category === c.value ? "active" : ""}`}
+                className={`chip disabled:cursor-not-allowed disabled:opacity-60 ${form.category === c.value ? "active" : ""}`}
+                disabled={isEditMode}
                 onClick={() => set("category", form.category === c.value ? "" : c.value)}
               >
                 {c.label}
@@ -493,19 +631,60 @@ export default function ClassForm({ initialData, classId, userRole: _userRole }:
           </div>
           <input
             type="text"
-            className="input-field"
+            className="input-field disabled:bg-gray-100 disabled:text-gray-500"
             placeholder="클래스 제목을 입력하세요"
             value={form.title}
             onChange={(e) => set("title", e.target.value)}
             maxLength={100}
+            disabled={isEditMode}
           />
-          <textarea
-            className="input-field resize-none"
-            placeholder="클래스 상세 내용을 입력하세요"
-            value={form.description}
-            onChange={(e) => set("description", e.target.value)}
-            rows={4}
-          />
+          <div className="relative">
+            <textarea
+              ref={descriptionRef}
+              className="input-field resize-none"
+              placeholder="클래스 상세 내용을 입력하세요"
+              value={form.description}
+              onChange={handleDescriptionChange}
+              onClick={handleDescriptionCursor}
+              onKeyUp={handleDescriptionCursor}
+              rows={4}
+            />
+            {isEditMode && mentionCandidates.length > 0 && (
+              <div className="absolute left-0 right-0 top-full z-40 mt-2 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg">
+                {mentionCandidates.map((candidate) => (
+                  <button
+                    key={candidate.id}
+                    type="button"
+                    className="flex w-full items-center gap-3 px-3 py-2.5 text-left hover:bg-gray-50"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => selectMention(candidate)}
+                  >
+                    {candidate.profile_image_url ? (
+                      <Image
+                        src={candidate.profile_image_url}
+                        alt={candidate.nickname}
+                        width={32}
+                        height={32}
+                        className="h-8 w-8 rounded-full object-cover"
+                      />
+                    ) : (
+                      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 text-xs font-semibold text-gray-500">
+                        {candidate.nickname[0]}
+                      </span>
+                    )}
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-semibold text-gray-900">
+                        @{candidate.nickname}
+                      </span>
+                      {candidate.region && (
+                        <span className="block truncate text-xs text-gray-400">{candidate.region}</span>
+                      )}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* 섹션 4 — 지역 / 레벨 / 비용 */}
@@ -514,21 +693,21 @@ export default function ClassForm({ initialData, classId, userRole: _userRole }:
           <div className="grid grid-cols-3 gap-2">
             <div>
               <label className="field-label">지역 *</label>
-              <select className="input-field" value={form.region} onChange={(e) => set("region", e.target.value)}>
+              <select className="input-field disabled:bg-gray-100 disabled:text-gray-500" value={form.region} onChange={(e) => set("region", e.target.value)} disabled={isEditMode}>
                 <option value="">선택</option>
                 {REGIONS.map((r) => <option key={r} value={r}>{r}</option>)}
               </select>
             </div>
             <div>
               <label className="field-label">레벨 *</label>
-              <select className="input-field" value={form.level} onChange={(e) => set("level", e.target.value)}>
+              <select className="input-field disabled:bg-gray-100 disabled:text-gray-500" value={form.level} onChange={(e) => set("level", e.target.value)} disabled={isEditMode}>
                 <option value="">선택</option>
                 {LEVELS.map((l) => <option key={l.value} value={l.value}>{l.label}</option>)}
               </select>
             </div>
             <div>
               <label className="field-label">비용 *</label>
-              <select className="input-field" value={form.price_type} onChange={(e) => { set("price_type", e.target.value as "free" | "paid"); if (e.target.value === "free") set("price", "0"); }}>
+              <select className="input-field disabled:bg-gray-100 disabled:text-gray-500" value={form.price_type} onChange={(e) => { set("price_type", e.target.value as "free" | "paid"); if (e.target.value === "free") set("price", "0"); }} disabled={isEditMode}>
                 <option value="free">무료</option>
                 <option value="paid">유료</option>
               </select>
@@ -537,7 +716,7 @@ export default function ClassForm({ initialData, classId, userRole: _userRole }:
           {form.price_type === "paid" && (
             <div className="mt-3">
               <label className="field-label">수강료 *</label>
-              <input type="number" className="input-field" placeholder="금액 입력" value={form.price} onChange={(e) => set("price", e.target.value)} min={0} step={1000} />
+              <input type="number" className="input-field disabled:bg-gray-100 disabled:text-gray-500" placeholder="금액 입력" value={form.price} onChange={(e) => set("price", e.target.value)} min={0} step={1000} disabled={isEditMode} />
             </div>
           )}
         </div>
@@ -559,28 +738,28 @@ export default function ClassForm({ initialData, classId, userRole: _userRole }:
               {/* 일시 */}
               <div>
                 <label className="field-label">일시 *</label>
-                <input type="datetime-local" className="input-field" value={form.datetime} onChange={(e) => set("datetime", e.target.value)} />
+                <input type="datetime-local" className="input-field disabled:bg-gray-100 disabled:text-gray-500" value={form.datetime} onChange={(e) => set("datetime", e.target.value)} disabled={isEditMode} />
               </div>
 
               {/* 신청 마감일 */}
               <div>
                 <label className="field-label">신청 마감일 *</label>
-                <input type="date" className="input-field" value={form.deadline} onChange={(e) => set("deadline", e.target.value)} />
+                <input type="date" className="input-field disabled:bg-gray-100 disabled:text-gray-500" value={form.deadline} onChange={(e) => set("deadline", e.target.value)} disabled={isEditMode} />
               </div>
 
               {/* 장소 */}
               <div>
                 <label className="field-label">장소 *</label>
                 <div className="flex gap-2">
-                  <input type="text" className="input-field cursor-pointer" placeholder="주소 검색" value={form.location_address} readOnly onClick={openAddressSearch} />
-                  <button type="button" onClick={openAddressSearch} className="flex-shrink-0 px-4 py-3 bg-gray-100 text-gray-700 text-sm font-medium rounded-[12px] whitespace-nowrap">검색</button>
+                  <input type="text" className="input-field cursor-pointer disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500" placeholder="주소 검색" value={form.location_address} readOnly onClick={isCreateMode ? openAddressSearch : undefined} disabled={isEditMode} />
+                  <button type="button" onClick={openAddressSearch} className="flex-shrink-0 px-4 py-3 bg-gray-100 text-gray-700 text-sm font-medium rounded-[12px] whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-60" disabled={isEditMode}>검색</button>
                 </div>
               </div>
 
               {/* 연락처 */}
               <div>
                 <label className="field-label">연락처 *</label>
-                <input type="tel" className="input-field" placeholder="카카오톡 ID 또는 전화번호" value={form.contact} onChange={(e) => set("contact", e.target.value)} />
+                <input type="tel" className="input-field disabled:bg-gray-100 disabled:text-gray-500" placeholder="카카오톡 ID 또는 전화번호" value={form.contact} onChange={(e) => set("contact", e.target.value)} disabled={isEditMode} />
               </div>
             </>
           )}

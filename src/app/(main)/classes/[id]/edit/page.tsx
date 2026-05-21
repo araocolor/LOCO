@@ -37,8 +37,9 @@ export default async function ClassEditPage({
   return (
     <div data-page-shell className="page-slide-in-from-top">
       <ClassHeader backExitAnimationClass="page-slide-out-to-top" backExitDelayMs={200} />
-      <div className="sticky top-14 z-30 bg-white border-b border-[#e5e7eb] px-4 h-12 flex items-center">
+      <div className="sticky top-14 z-30 bg-white border-b border-[#e5e7eb] px-4 py-3">
         <h1 className="font-semibold text-base">클래스 수정</h1>
+        <p className="mt-1 text-xs text-red-500">* 주의 클래스 정보변경은 내용과 공개 상태만 수정 가능합니다.</p>
       </div>
       <ClassForm initialData={cls as DanceClass} classId={id} userRole={role} />
     </div>
