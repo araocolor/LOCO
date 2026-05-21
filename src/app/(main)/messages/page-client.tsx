@@ -165,6 +165,15 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
       )
     )
   );
+  const canEditTitle = (() => {
+    if (!selectedConversation || selectedConversation.type !== "group") return false;
+    const members = selectedConversation.members;
+    if (!members) return false;
+    const owner = members.find((m) => m.role === "owner");
+    const nonOwners = members.filter((m) => m.role !== "owner");
+    const second = nonOwners[0] ?? null;
+    return userId === owner?.user_id || userId === second?.user_id;
+  })();
 
   async function resizeToBlob(bitmap: ImageBitmap, maxW: number): Promise<Blob> {
     const scale = bitmap.width > maxW ? maxW / bitmap.width : 1;
@@ -1064,6 +1073,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
         key={selectedRoomId ?? "chat-drawer-empty"}
         attachOpen={attachOpen}
         canAddMembers={canAddMembers}
+        canEditTitle={canEditTitle}
         chatLoading={chatLoading}
         chatMenuOpen={chatMenuOpen}
         chatOpen={chatOpen}
@@ -1075,6 +1085,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
         notices={notices}
         otherUser={otherUser}
         roomMembers={selectedConversation?.members}
+        roomId={selectedRoomId}
         roomType={selectedConversation?.type}
         photoInputRef={photoInputRef}
         videoInputRef={videoInputRef}
@@ -1113,6 +1124,9 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
           void handleSendMessage();
         }}
         onStartLongPress={startLongPress}
+        onTitleChanged={(title) => {
+          patchConversationWithRoom({ id: selectedRoomId, title });
+        }}
         setAttachOpen={setAttachOpen}
         setChatMenuOpen={setChatMenuOpen}
         setNewMessage={setNewMessage}

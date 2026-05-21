@@ -15,6 +15,7 @@ interface ChatDrawerProps {
   chatOpen: boolean;
   chatTitle: string | null;
   canAddMembers: boolean;
+  canEditTitle: boolean;
   messages: Message[];
   messagesEndRef: RefObject<HTMLDivElement | null>;
   myProfile: MyProfile | null;
@@ -27,6 +28,7 @@ interface ChatDrawerProps {
     created_at?: string | null;
     profile: OtherUser | null;
   }> | undefined;
+  roomId: string | null;
   roomType: "direct" | "group" | "class" | undefined;
   photoInputRef: RefObject<HTMLInputElement | null>;
   videoInputRef: RefObject<HTMLInputElement | null>;
@@ -51,6 +53,7 @@ interface ChatDrawerProps {
   onMarkNoticeRead: (noticeId: string) => void;
   onMessageReaction: (messageId: string, reactionType: MessageReactionType) => void;
   onStartLongPress: (msgId: string, isMine: boolean) => void;
+  onTitleChanged: (title: string) => void;
   setAttachOpen: Dispatch<SetStateAction<boolean>>;
   setChatMenuOpen: Dispatch<SetStateAction<boolean>>;
   setNewMessage: Dispatch<SetStateAction<string>>;
@@ -77,6 +80,7 @@ export default function ChatDrawer({
   chatOpen,
   chatTitle,
   canAddMembers,
+  canEditTitle,
   messages,
   messagesEndRef,
   myProfile,
@@ -84,6 +88,7 @@ export default function ChatDrawer({
   notices,
   otherUser,
   roomMembers,
+  roomId,
   roomType,
   photoInputRef,
   videoInputRef,
@@ -108,6 +113,7 @@ export default function ChatDrawer({
   onMarkNoticeRead,
   onMessageReaction,
   onStartLongPress,
+  onTitleChanged,
   setAttachOpen,
   setChatMenuOpen,
   setNewMessage,
@@ -149,11 +155,44 @@ export default function ChatDrawer({
     if (minutes > 0) return `${minutes}분 ${seconds}초 남음`;
     return `${seconds}초 남음`;
   }
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState("");
+  const titleInputRef = useRef<HTMLInputElement>(null);
   const chatMenuRef = useRef<HTMLDivElement>(null);
   const chatMenuButtonRef = useRef<HTMLButtonElement>(null);
   const rawChatTitle = chatTitle ?? otherUser?.nickname ?? "로딩중...";
   const displayChatTitle =
     rawChatTitle.length > 13 ? `${rawChatTitle.slice(0, 13)}...` : rawChatTitle;
+
+  function startEditTitle() {
+    if (!canEditTitle) return;
+    setTitleDraft(rawChatTitle);
+    setEditingTitle(true);
+  }
+
+  function commitTitle() {
+    const trimmed = titleDraft.trim();
+    setEditingTitle(false);
+    if (!trimmed || trimmed === rawChatTitle || !roomId) return;
+    onTitleChanged(trimmed);
+    fetch(`/api/chat/rooms/${roomId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: trimmed }),
+    }).catch(() => {});
+  }
+
+  useEffect(() => {
+    if (editingTitle) {
+      requestAnimationFrame(() => {
+        const input = titleInputRef.current;
+        if (input) {
+          input.focus();
+          input.setSelectionRange(input.value.length, input.value.length);
+        }
+      });
+    }
+  }, [editingTitle]);
 
   const memberProfiles = useMemo(() => {
     const unique = new Map<
@@ -295,12 +334,31 @@ export default function ChatDrawer({
           <ArrowLeft size={20} />
         </button>
         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[60%] text-center">
-          <span
-            className="block whitespace-nowrap overflow-hidden text-ellipsis font-bold text-[#4d4d4d] leading-none"
-            style={{ fontSize: 18 }}
-          >
-            {displayChatTitle}
-          </span>
+          {editingTitle ? (
+            <input
+              ref={titleInputRef}
+              value={titleDraft}
+              maxLength={30}
+              onChange={(e) => setTitleDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  commitTitle();
+                }
+              }}
+              onBlur={commitTitle}
+              className="w-full text-center font-bold text-[#4d4d4d] leading-none bg-transparent border-b border-yellow-400 outline-none"
+              style={{ fontSize: 18 }}
+            />
+          ) : (
+            <span
+              onClick={startEditTitle}
+              className={`block whitespace-nowrap overflow-hidden text-ellipsis font-bold text-[#4d4d4d] leading-none ${canEditTitle ? "cursor-pointer" : ""}`}
+              style={{ fontSize: 18 }}
+            >
+              {displayChatTitle}
+            </span>
+          )}
         </div>
         <div className="absolute right-4 top-1/2 -translate-y-1/2">
           <div className="relative">
