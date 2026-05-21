@@ -13,8 +13,6 @@ import SendMessageModal from "@/components/modal/SendMessageModal";
 const LIKES_CACHE_KEY = "loco_liked_posts";
 const BOOKMARKS_CACHE_KEY = "loco_bookmark_ids_v1";
 const SEARCH_CACHE_KEY = "search_prefetch_cache";
-const DESCRIPTION_AUTO_COLLAPSE_OFFSET = 104;
-const DESCRIPTION_AUTO_COLLAPSE_DELAY_MS = 120;
 
 interface ClassHost {
   id: string;
@@ -112,9 +110,7 @@ export default function ClassCard({ classData }: ClassCardProps) {
   const [applicantSheetOpen, setApplicantSheetOpen] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [myApplicationStatus, setMyApplicationStatus] = useState<"pending" | "approved" | "cancelled" | null>(null);
-  const [descriptionHeight, setDescriptionHeight] = useState(0);
   const descriptionRef = useRef<HTMLParagraphElement>(null);
-  const autoCollapseTimerRef = useRef<number | null>(null);
   const shouldScrollToDescription = useRef(false);
   const router = useRouter();
 
@@ -374,66 +370,9 @@ export default function ClassCard({ classData }: ClassCardProps) {
   useEffect(() => {
     if (!expanded || !shouldScrollToDescription.current) return;
     shouldScrollToDescription.current = false;
-    const measuredHeight = descriptionRef.current?.scrollHeight ?? 0;
-    if (measuredHeight > 0) setDescriptionHeight(measuredHeight);
     requestAnimationFrame(() => {
       descriptionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
-  }, [expanded]);
-
-  useEffect(() => {
-    if (!description) return;
-    const node = descriptionRef.current;
-    if (!node) return;
-
-    const syncHeight = () => {
-      setDescriptionHeight(node.scrollHeight);
-    };
-
-    syncHeight();
-    window.addEventListener("resize", syncHeight);
-
-    const resizeObserver = typeof ResizeObserver !== "undefined" ? new ResizeObserver(syncHeight) : null;
-    resizeObserver?.observe(node);
-
-    return () => {
-      window.removeEventListener("resize", syncHeight);
-      resizeObserver?.disconnect();
-    };
-  }, [description]);
-
-  useEffect(() => {
-    if (!expanded) return;
-
-    let frame = 0;
-    function handleScroll() {
-      cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(() => {
-        const rect = descriptionRef.current?.getBoundingClientRect();
-        if (rect && rect.bottom <= DESCRIPTION_AUTO_COLLAPSE_OFFSET) {
-          if (autoCollapseTimerRef.current !== null) return;
-          autoCollapseTimerRef.current = window.setTimeout(() => {
-            setExpanded(false);
-            autoCollapseTimerRef.current = null;
-          }, DESCRIPTION_AUTO_COLLAPSE_DELAY_MS);
-          return;
-        }
-        if (autoCollapseTimerRef.current !== null) {
-          window.clearTimeout(autoCollapseTimerRef.current);
-          autoCollapseTimerRef.current = null;
-        }
-      });
-    }
-
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => {
-      cancelAnimationFrame(frame);
-      if (autoCollapseTimerRef.current !== null) {
-        window.clearTimeout(autoCollapseTimerRef.current);
-        autoCollapseTimerRef.current = null;
-      }
-      window.removeEventListener("scroll", handleScroll);
-    };
   }, [expanded]);
 
   function handleToggleExpanded() {
@@ -817,18 +756,8 @@ export default function ClassCard({ classData }: ClassCardProps) {
                 )}
               </p>
             </button>
-            {description && (
-              <div
-                className="overflow-hidden transition-[max-height,opacity,margin-top] duration-300 ease-out"
-                style={{
-                  maxHeight: expanded ? `${descriptionHeight}px` : "0px",
-                  opacity: expanded ? 1 : 0,
-                  marginTop: expanded ? "8px" : "0px",
-                }}
-                aria-hidden={!expanded}
-              >
-                <p ref={descriptionRef} className="scroll-mt-[250px] text-sm text-gray-600 whitespace-pre-wrap leading-relaxed">{description}</p>
-              </div>
+            {expanded && description && (
+              <p ref={descriptionRef} className="scroll-mt-[250px] text-sm text-gray-600 mt-2 whitespace-pre-wrap leading-relaxed">{description}</p>
             )}
           </div>
         </div>
