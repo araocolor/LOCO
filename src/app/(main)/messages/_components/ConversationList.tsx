@@ -53,6 +53,7 @@ export default function ConversationList({
     try {
       const parsed = JSON.parse(content);
       if (parsed.type === "class_share") return "클래스 공유";
+      if (parsed.type === "video") return parsed.status === "processing" ? "영상 처리중" : "영상";
     } catch {}
     return truncateMessage(content);
   }, [truncateMessage]);
@@ -163,9 +164,14 @@ export default function ConversationList({
                 const lastContent = conv.last_message?.content ?? "";
                 const classImageUrl = conv.type === "class" ? conv.class_image_url : null;
                 let lastImage: { thumb: string } | null = null;
+                let fallbackPreview = "";
                 try {
                   const parsed = JSON.parse(lastContent);
                   if (conv.type !== "class" && parsed.type === "image") lastImage = parsed;
+                  if (conv.type !== "class" && parsed.type === "video" && parsed.thumbnail_url) {
+                    lastImage = { thumb: parsed.thumbnail_url };
+                  }
+                  if (parsed.type === "video") fallbackPreview = getPreviewText(lastContent);
                 } catch {}
 
                 const showOnlineDot =
@@ -240,6 +246,11 @@ export default function ConversationList({
                           {conv.last_text_message && (
                             <p className="line-clamp-1 mt-1 text-gray-900" style={{ fontSize: "16px" }}>
                               {getPreviewText(conv.last_text_message.content)}
+                            </p>
+                          )}
+                          {!conv.last_text_message && fallbackPreview && (
+                            <p className="line-clamp-1 mt-1 text-gray-900" style={{ fontSize: "16px" }}>
+                              {fallbackPreview}
                             </p>
                           )}
                         </div>

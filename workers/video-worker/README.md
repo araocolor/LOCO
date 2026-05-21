@@ -30,6 +30,8 @@ POST /process-video
 }
 ```
 
+응답은 즉시 `202`로 반환됩니다. 실제 ffmpeg 변환은 worker 내부 백그라운드 작업으로 계속 진행됩니다.
+
 ## Railway 환경변수
 
 ```text

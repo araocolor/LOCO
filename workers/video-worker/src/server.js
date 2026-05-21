@@ -138,7 +138,7 @@ app.get("/health", (_req, res) => {
   res.json({ ok: true });
 });
 
-app.post("/process-video", requireWorkerSecret, async (req, res) => {
+app.post("/process-video", requireWorkerSecret, (req, res) => {
   const messageId = typeof req.body?.messageId === "string" ? req.body.messageId : "";
   const originalPath = typeof req.body?.originalPath === "string" ? req.body.originalPath : "";
   const originalBucket = typeof req.body?.originalBucket === "string" ? req.body.originalBucket : DEFAULT_ORIGINAL_BUCKET;
@@ -150,6 +150,8 @@ app.post("/process-video", requireWorkerSecret, async (req, res) => {
     return;
   }
 
+  res.status(202).json({ ok: true, messageId, status: "processing" });
+
   const workDir = path.join(os.tmpdir(), `loco-video-${randomUUID()}`);
   const inputPath = path.join(workDir, "original");
   const outputPath = path.join(workDir, "processed.mp4");
@@ -158,112 +160,111 @@ app.post("/process-video", requireWorkerSecret, async (req, res) => {
   const thumbPath = buildOutputPath(originalPath, "_thumb.webp");
   let originalDownloaded = false;
 
-  try {
-    await mkdir(workDir, { recursive: true });
-    await downloadStorageObject(originalBucket, originalPath, inputPath);
-    originalDownloaded = true;
+  void (async () => {
+    try {
+      await mkdir(workDir, { recursive: true });
+      await downloadStorageObject(originalBucket, originalPath, inputPath);
+      originalDownloaded = true;
 
-    await run("ffmpeg", [
-      "-y",
-      "-i",
-      inputPath,
-      "-map",
-      "0:v:0",
-      "-map",
-      "0:a?",
-      "-vf",
-      "scale=-2:480:force_original_aspect_ratio=decrease,fps=30",
-      "-c:v",
-      "libx264",
-      "-preset",
-      "veryfast",
-      "-profile:v",
-      "main",
-      "-b:v",
-      "900k",
-      "-maxrate",
-      "1200k",
-      "-bufsize",
-      "1800k",
-      "-movflags",
-      "+faststart",
-      "-c:a",
-      "aac",
-      "-b:a",
-      "96k",
-      "-ac",
-      "2",
-      outputPath,
-    ]);
+      await run("ffmpeg", [
+        "-y",
+        "-i",
+        inputPath,
+        "-map",
+        "0:v:0",
+        "-map",
+        "0:a?",
+        "-vf",
+        "scale=-2:480:force_original_aspect_ratio=decrease,fps=30",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "veryfast",
+        "-profile:v",
+        "main",
+        "-b:v",
+        "900k",
+        "-maxrate",
+        "1200k",
+        "-bufsize",
+        "1800k",
+        "-movflags",
+        "+faststart",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "96k",
+        "-ac",
+        "2",
+        outputPath,
+      ]);
 
-    await run("ffmpeg", [
-      "-y",
-      "-ss",
-      "00:00:01",
-      "-i",
-      outputPath,
-      "-frames:v",
-      "1",
-      "-vf",
-      "scale=480:-2",
-      "-c:v",
-      "libwebp",
-      "-quality",
-      "78",
-      thumbnailPath,
-    ]);
+      await run("ffmpeg", [
+        "-y",
+        "-ss",
+        "00:00:01",
+        "-i",
+        outputPath,
+        "-frames:v",
+        "1",
+        "-vf",
+        "scale=480:-2",
+        "-c:v",
+        "libwebp",
+        "-quality",
+        "78",
+        thumbnailPath,
+      ]);
 
-    const metadata = await ffprobe(outputPath);
-    const [videoUrl, thumbnailUrl] = await Promise.all([
-      uploadStorageObject(videoBucket, videoPath, outputPath, "video/mp4"),
-      uploadStorageObject(thumbnailBucket, thumbPath, thumbnailPath, "image/webp"),
-    ]);
+      const metadata = await ffprobe(outputPath);
+      const [videoUrl, thumbnailUrl] = await Promise.all([
+        uploadStorageObject(videoBucket, videoPath, outputPath, "video/mp4"),
+        uploadStorageObject(thumbnailBucket, thumbPath, thumbnailPath, "image/webp"),
+      ]);
 
-    const content = {
-      type: "video",
-      status: "ready",
-      video_url: videoUrl,
-      thumbnail_url: thumbnailUrl,
-      video_path: videoPath,
-      thumbnail_path: thumbPath,
-      duration: metadata.duration,
-      width: metadata.width,
-      height: metadata.height,
-    };
+      const content = {
+        type: "video",
+        status: "ready",
+        video_url: videoUrl,
+        thumbnail_url: thumbnailUrl,
+        video_path: videoPath,
+        thumbnail_path: thumbPath,
+        duration: metadata.duration,
+        width: metadata.width,
+        height: metadata.height,
+      };
 
-    const { error: updateError } = await supabase
-      .from("chat_messages")
-      .update({ kind: "video", content: JSON.stringify(content) })
-      .eq("id", messageId);
+      const { error: updateError } = await supabase
+        .from("chat_messages")
+        .update({ kind: "file", content: JSON.stringify(content) })
+        .eq("id", messageId);
 
-    if (updateError) throw updateError;
+      if (updateError) throw updateError;
 
-    await removeOriginal(originalBucket, originalPath);
-    originalDownloaded = false;
-
-    res.json({ ok: true, messageId, content });
-  } catch (error) {
-    console.error("[video-worker] process failed", error);
-
-    if (originalDownloaded) {
       await removeOriginal(originalBucket, originalPath);
+      originalDownloaded = false;
+    } catch (error) {
+      console.error("[video-worker] process failed", error);
+
+      if (originalDownloaded) {
+        await removeOriginal(originalBucket, originalPath);
+      }
+
+      await supabase
+        .from("chat_messages")
+        .update({
+          kind: "file",
+          content: JSON.stringify({
+            type: "video",
+            status: "failed",
+            error: error instanceof Error ? error.message.slice(0, 500) : "video processing failed",
+          }),
+        })
+        .eq("id", messageId);
+    } finally {
+      await rm(workDir, { recursive: true, force: true });
     }
-
-    await supabase
-      .from("chat_messages")
-      .update({
-        content: JSON.stringify({
-          type: "video",
-          status: "failed",
-          error: error instanceof Error ? error.message.slice(0, 500) : "video processing failed",
-        }),
-      })
-      .eq("id", messageId);
-
-    res.status(500).json({ error: "video processing failed" });
-  } finally {
-    await rm(workDir, { recursive: true, force: true });
-  }
+  })();
 });
 
 app.listen(PORT, () => {

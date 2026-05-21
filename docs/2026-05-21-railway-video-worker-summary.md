@@ -157,6 +157,16 @@ Authorization: Bearer <WORKER_SECRET>
 }
 ```
 
+응답은 즉시 `202`로 반환하고, 실제 ffmpeg 변환은 Railway worker 내부에서 백그라운드로 계속 진행한다.
+
+```json
+{
+  "ok": true,
+  "messageId": "chat message id",
+  "status": "processing"
+}
+```
+
 처리 성공 시 worker가 `chat_messages`를 아래 형태로 업데이트한다.
 
 ```json
@@ -203,25 +213,36 @@ package.json engines를 >=22로 변경
 
 ## 다음 작업
 
-아직 Next 앱과 worker는 연결되지 않았다.
-
-남은 작업:
+Next 앱 연결 작업에서 사용할 기본 흐름:
 
 ```text
-1. 채팅 첨부 패널에서 사진 옆에 lucide 영상 아이콘 추가
-2. 영상 파일 input 추가
-3. 모바일 업로드 전 1차 제한/검사 추가
-4. 원본 영상을 message-video-originals 버킷에 업로드
-5. chat_messages에 processing 상태 메시지 생성
-6. Next 서버 API Route에서 Railway worker 호출
-7. worker 완료 후 video 메시지를 화면에서 렌더링
-8. 실패 상태 UI 처리
+1. Next API가 signed upload URL 생성
+2. 브라우저가 Supabase message-video-originals 버킷에 직접 업로드
+3. Next API가 chat_messages에 처리중 메시지 생성
+4. Next API가 Railway worker 호출
+5. Railway worker가 480p 영상/썸네일 생성
+6. Railway worker가 chat_messages를 최종 상태로 UPDATE
+7. 채팅 화면이 UPDATE 실시간 이벤트로 처리중 메시지를 갱신
 ```
 
-권장 메시지 kind:
+추가로 확인할 작업:
 
 ```text
-video
+1. Vercel Production 환경변수에 VIDEO_WORKER_URL / VIDEO_WORKER_SECRET 추가
+2. 실제 모바일 영상 업로드 테스트
+3. 긴 영상/동시 업로드 시 Railway 비용과 처리 시간 확인
 ```
 
-현재 `src/app/api/chat/_lib.ts`의 `ChatMessageKind`에는 `video`가 아직 없으므로 연결 작업 때 추가해야 한다.
+현재 메시지 저장 방식:
+
+```text
+kind: file
+content.type: video
+```
+
+이유:
+
+```text
+현재 chat_messages.kind DB CHECK 제약이 text/image/file/system만 허용한다.
+DB 마이그레이션 없이 바로 안전하게 적용하기 위해 kind는 file을 사용하고, 실제 영상 여부는 content.type으로 구분한다.
+```

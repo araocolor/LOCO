@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { Loader2, Play, TriangleAlert } from "lucide-react";
 import type { Message, MessageReactionType, MyProfile, OtherUser } from "../_types";
 
 interface MessageBubbleProps {
@@ -37,6 +38,14 @@ interface ClassShareData {
   };
 }
 
+interface VideoMessageData {
+  type: "video";
+  status?: "processing" | "ready" | "failed";
+  video_url?: string;
+  thumbnail_url?: string;
+  error?: string;
+}
+
 function formatClassDate(value?: string) {
   if (!value) return "";
   const date = new Date(value);
@@ -63,14 +72,16 @@ export default function MessageBubble({
   const showMyAvatar = isMine && isNewGroup;
   const sender = msg.sender ?? otherUser;
   let imageData: { thumb: string; full: string } | null = null;
+  let videoData: VideoMessageData | null = null;
   let classShareData: ClassShareData | null = null;
 
   try {
     const parsed = JSON.parse(msg.content);
     if (parsed.type === "image") imageData = parsed;
+    if (parsed.type === "video") videoData = parsed;
     if (parsed.type === "class_share") classShareData = parsed;
   } catch {}
-  const hasRichContent = Boolean(imageData || classShareData?.class?.id);
+  const hasRichContent = Boolean(imageData || videoData || classShareData?.class?.id);
 
   return (
     <div>
@@ -186,6 +197,29 @@ export default function MessageBubble({
                 <a href={imageData.full} target="_blank" rel="noreferrer">
                   <Image src={imageData.thumb} alt="사진" width={200} height={200} className="rounded-lg object-cover" />
                 </a>
+              ) : videoData ? (
+                videoData.status === "ready" && videoData.video_url ? (
+                  <video
+                    src={videoData.video_url}
+                    poster={videoData.thumbnail_url}
+                    controls
+                    preload="metadata"
+                    className="block max-h-[360px] w-[220px] rounded-lg bg-black object-cover"
+                  />
+                ) : videoData.status === "failed" ? (
+                  <div className="flex h-[124px] w-[220px] flex-col items-center justify-center gap-2 rounded-lg bg-white px-4 text-center text-red-500">
+                    <TriangleAlert size={24} />
+                    <span className="text-sm font-bold">영상 처리 실패</span>
+                  </div>
+                ) : (
+                  <div className="flex h-[124px] w-[220px] flex-col items-center justify-center gap-2 rounded-lg bg-gray-900 px-4 text-center text-white">
+                    <div className="relative flex h-10 w-10 items-center justify-center rounded-full bg-white/15">
+                      <Play size={18} fill="currentColor" />
+                      <Loader2 size={40} className="absolute animate-spin opacity-60" />
+                    </div>
+                    <span className="text-sm font-bold">영상 처리중</span>
+                  </div>
+                )
               ) : classShareData?.class?.id ? (
                 <div className="w-[270px] overflow-hidden rounded-lg bg-white">
                   {classShareData.message && (

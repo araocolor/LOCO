@@ -28,8 +28,8 @@ interface ChatDrawerProps {
     profile: OtherUser | null;
   }> | undefined;
   roomType: "direct" | "group" | "class" | undefined;
-  classInfoTitle: string | null;
   photoInputRef: RefObject<HTMLInputElement | null>;
+  videoInputRef: RefObject<HTMLInputElement | null>;
   selectedUserId: string | null;
   sending: boolean;
   shakingMsgId: string | null;
@@ -43,6 +43,7 @@ interface ChatDrawerProps {
   onNoticeReaction: (noticeId: string, reactionType: NoticeReactionType) => void;
   onNoticeVote: (noticeId: string, voteType: NoticeVoteType) => void;
   onPhotoUpload: (file: File) => void;
+  onVideoUpload: (file: File) => void;
   onSaveNotice: (notice: string, kind: NoticeKind, closesAt: string | null) => Promise<void>;
   onUpdateNotice: (noticeId: string, content: string, kind: NoticeKind, closesAt: string | null) => Promise<void>;
   onDeleteNotice: (noticeId: string) => Promise<void>;
@@ -84,8 +85,8 @@ export default function ChatDrawer({
   otherUser,
   roomMembers,
   roomType,
-  classInfoTitle,
   photoInputRef,
+  videoInputRef,
   selectedUserId,
   sending,
   shakingMsgId,
@@ -99,6 +100,7 @@ export default function ChatDrawer({
   onNoticeReaction,
   onNoticeVote,
   onPhotoUpload,
+  onVideoUpload,
   onSaveNotice,
   onUpdateNotice,
   onDeleteNotice,
@@ -189,7 +191,6 @@ export default function ChatDrawer({
   const isClassRoom = roomType === "class";
   const unreadNotice = notices.find((notice) => !notice.read_by_me) ?? null;
   const isClassOwner = isClassRoom && (roomMembers ?? []).some((member) => member.user_id === userId && member.role === "owner");
-  const classTitle = classInfoTitle ?? chatTitle ?? "클래스 정보";
 
   function formatNoticeDate(dateStr: string | null) {
     if (!dateStr) return "";
@@ -596,8 +597,10 @@ export default function ChatDrawer({
           <ChatAttachPanel
             attachOpen={attachOpen}
             photoInputRef={photoInputRef}
+            videoInputRef={videoInputRef}
             uploading={uploading}
             onPhotoUpload={onPhotoUpload}
+            onVideoUpload={onVideoUpload}
           />
         </>
       )}

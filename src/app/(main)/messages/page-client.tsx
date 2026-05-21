@@ -14,6 +14,7 @@ import {
   writeMessageCache,
   readNoticeCache,
   writeNoticeCache,
+  patchMessageCache,
 } from "./_lib/message-cache";
 
 interface ChatRoomApiItem {
@@ -67,6 +68,8 @@ const EMPTY_MESSAGE_REACTION_COUNTS: Record<MessageReactionType, number> = {
 };
 
 const FINDER_SOUND_ENABLED_KEY = "loco_finder_sound_enabled";
+const MAX_VIDEO_UPLOAD_BYTES = 50 * 1024 * 1024;
+const ALLOWED_VIDEO_TYPES = new Set(["video/mp4", "video/quicktime", "video/webm"]);
 
 function readFinderSoundEnabled() {
   if (typeof window === "undefined") return true;
@@ -104,6 +107,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
   const [isSpinning, setIsSpinning] = useState(false);
   const [shakingMsgId, setShakingMsgId] = useState<string | null>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const activeChatRoomRef = useRef<string | null>(null);
@@ -186,6 +190,63 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
     }
   }
 
+  async function handleVideoUpload(file: File) {
+    if (!selectedRoomId) return;
+
+    if (!ALLOWED_VIDEO_TYPES.has(file.type)) {
+      alert("mp4, mov, webm 영상만 업로드할 수 있습니다.");
+      return;
+    }
+
+    if (file.size > MAX_VIDEO_UPLOAD_BYTES) {
+      alert("영상은 최대 50MB까지 업로드할 수 있습니다.");
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const uploadUrlRes = await fetch(`/api/chat/rooms/${selectedRoomId}/videos/upload-url`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fileName: file.name,
+          contentType: file.type,
+          size: file.size,
+        }),
+      });
+      const uploadUrlJson = await uploadUrlRes.json();
+      if (!uploadUrlRes.ok) throw new Error(uploadUrlJson.error ?? "영상 업로드 준비에 실패했습니다.");
+
+      const supabase = createClient();
+      const { error: uploadError } = await supabase.storage
+        .from(uploadUrlJson.bucket)
+        .uploadToSignedUrl(uploadUrlJson.path, uploadUrlJson.token, file, {
+          contentType: file.type,
+        });
+
+      if (uploadError) throw uploadError;
+
+      const processRes = await fetch(`/api/chat/rooms/${selectedRoomId}/videos/process`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path: uploadUrlJson.path }),
+      });
+      const processJson = await processRes.json();
+      const message = processJson.data ? mapChatMessage(processJson.data as ChatMessageApiItem) : null;
+      if (!processRes.ok || !message) throw new Error(processJson.error ?? "영상 처리 요청에 실패했습니다.");
+
+      setMessages((prev) => [...prev, message]);
+      appendMessageCache(selectedRoomId, message);
+      setAttachOpen(false);
+      patchConversationWithMessage(selectedRoomId, message);
+    } catch (error) {
+      console.error("영상 업로드 실패", error);
+      alert(error instanceof Error ? error.message : "영상 업로드에 실패했습니다.");
+    } finally {
+      setUploading(false);
+    }
+  }
+
   const CACHE_KEY = "loco_chat_rooms_cache_v1";
   const CONVERSATIONS_LIMIT = 20;
   const MESSAGE_USER_SESSION_KEY = "message_userid_session";
@@ -202,6 +263,15 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
       my_reaction: item.my_reaction ?? null,
       reaction_counts: item.reaction_counts ?? EMPTY_MESSAGE_REACTION_COUNTS,
     };
+  }
+
+  function isPreviewableTextMessage(message: ChatRoomApiItem["last_message"] | Message | null) {
+    if (!message || message.kind === "image" || message.kind === "system") return false;
+    try {
+      const parsed = JSON.parse(message.content);
+      if (parsed.type === "image" || parsed.type === "video") return false;
+    } catch {}
+    return true;
   }
 
   function mapChatRoom(item: ChatRoomApiItem): Conversation {
@@ -229,7 +299,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
             is_mine: lastMessage.is_mine,
           }
         : null,
-      last_text_message: lastMessage && lastMessage.kind !== "image"
+      last_text_message: lastMessage && isPreviewableTextMessage(lastMessage)
         ? {
             content: lastMessage.content,
             is_mine: lastMessage.is_mine,
@@ -253,7 +323,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
                 sent_at: message.sent_at,
                 is_mine: message.sender_id === userId,
               },
-              last_text_message: message.kind !== "image"
+              last_text_message: isPreviewableTextMessage(message)
                 ? { content: message.content, is_mine: message.sender_id === userId }
                 : conv.last_text_message,
               updated_at: message.sent_at,
@@ -489,6 +559,29 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
           patchConversationWithMessage(selectedRoomId, newMsg);
         }
       )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "chat_messages", filter: `room_id=eq.${selectedRoomId}` },
+        (payload) => {
+          const updatedMsg = mapChatMessage(payload.new as ChatMessageApiItem);
+
+          setMessages((prev) => {
+            const existing = prev.find((message) => message.id === updatedMsg.id);
+            if (!existing) return prev;
+
+            const merged = {
+              ...existing,
+              ...updatedMsg,
+              sender: existing.sender ?? updatedMsg.sender ?? null,
+              my_reaction: existing.my_reaction ?? updatedMsg.my_reaction ?? null,
+              reaction_counts: existing.reaction_counts ?? updatedMsg.reaction_counts,
+            };
+
+            patchMessageCache(selectedRoomId, merged);
+            return prev.map((message) => (message.id === updatedMsg.id ? merged : message));
+          });
+        }
+      )
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
@@ -645,7 +738,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
     }
   }
 
-  function startLongPress(msgId: string, _isMine: boolean) {
+  function startLongPress(msgId: string) {
     longPressTimer.current = setTimeout(() => {
       setShakingMsgId(msgId);
     }, 500);
@@ -896,8 +989,8 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
         otherUser={otherUser}
         roomMembers={selectedConversation?.members}
         roomType={selectedConversation?.type}
-        classInfoTitle={selectedConversation?.title ?? null}
         photoInputRef={photoInputRef}
+        videoInputRef={videoInputRef}
         selectedUserId={selectedRoomId}
         sending={sending}
         shakingMsgId={shakingMsgId}
@@ -925,6 +1018,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
         }}
         onOpenMemberDrawer={() => setMemberDrawerOpen(true)}
         onPhotoUpload={handlePhotoUpload}
+        onVideoUpload={handleVideoUpload}
         onSaveNotice={saveClassNotice}
         onUpdateNotice={updateClassNotice}
         onDeleteNotice={deleteClassNotice}
