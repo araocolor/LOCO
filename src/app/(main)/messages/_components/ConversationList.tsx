@@ -49,11 +49,15 @@ export default function ConversationList({
   const handleNearbyRefreshControlChange = useCallback((control: NearbyRefreshControl) => {
     setNearbyRefreshControl(control);
   }, []);
-  const getPreviewText = useCallback((content: string) => {
+  const getPreviewText = useCallback((content: string, isMine?: boolean) => {
     try {
       const parsed = JSON.parse(content);
       if (parsed.type === "class_share") return "클래스 공유";
-      if (parsed.type === "video") return parsed.status === "processing" ? "영상 처리중" : "영상";
+      if (parsed.type === "image") return isMine ? "사진을 업로드 하였습니다" : "사진이 업로드 되었습니다";
+      if (parsed.type === "video") {
+        if (parsed.status === "processing") return "처리중...";
+        return isMine ? "영상을 업로드 하였습니다" : "영상이 업로드 되었습니다";
+      }
     } catch {}
     return truncateMessage(content);
   }, [truncateMessage]);
@@ -163,15 +167,12 @@ export default function ConversationList({
                 const isMine = conv.last_message?.is_mine;
                 const lastContent = conv.last_message?.content ?? "";
                 const classImageUrl = conv.type === "class" ? conv.class_image_url : null;
-                let lastImage: { thumb: string } | null = null;
                 let fallbackPreview = "";
                 try {
                   const parsed = JSON.parse(lastContent);
-                  if (conv.type !== "class" && parsed.type === "image") lastImage = parsed;
-                  if (conv.type !== "class" && parsed.type === "video" && parsed.thumbnail_url) {
-                    lastImage = { thumb: parsed.thumbnail_url };
+                  if (parsed.type === "image" || parsed.type === "video") {
+                    fallbackPreview = getPreviewText(lastContent, isMine);
                   }
-                  if (parsed.type === "video") fallbackPreview = getPreviewText(lastContent);
                 } catch {}
 
                 const showOnlineDot =
@@ -180,17 +181,6 @@ export default function ConversationList({
                 const avatarText = displayNickname[0] ?? "?";
                 return (
                   <div className="flex items-stretch gap-2">
-                    {lastImage && (
-                      <div className="flex-shrink-0 w-[80px] flex items-center justify-center">
-                        <Image
-                          src={lastImage.thumb}
-                          alt="사진"
-                          width={50}
-                          height={50}
-                          className="w-[50px] h-[50px] object-cover rounded-[5px]"
-                        />
-                      </div>
-                    )}
                     <div className="flex-1 px-3 py-3">
                       <div className="flex items-start gap-3">
                         <button

@@ -72,6 +72,15 @@ const MAX_VIDEO_UPLOAD_BYTES = 50 * 1024 * 1024;
 const VIDEO_UPLOAD_TIMEOUT_MS = 180000;
 const ALLOWED_VIDEO_TYPES = new Set(["video/mp4", "video/quicktime", "video/webm"]);
 
+function isProcessingVideoMessage(message: Message) {
+  try {
+    const parsed = JSON.parse(message.content);
+    return parsed.type === "video" && (parsed.status === "processing" || parsed.status === "uploading");
+  } catch {
+    return false;
+  }
+}
+
 function readFinderSoundEnabled() {
   if (typeof window === "undefined") return true;
   try {
@@ -379,6 +388,25 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
     });
   }
 
+  function patchMessageInView(roomId: string, message: Message) {
+    setMessages((prev) => {
+      const existing = prev.find((item) => item.id === message.id);
+      if (!existing) return prev;
+
+      const merged = {
+        ...existing,
+        ...message,
+        sender: existing.sender ?? message.sender ?? null,
+        my_reaction: existing.my_reaction ?? message.my_reaction ?? null,
+        reaction_counts: existing.reaction_counts ?? message.reaction_counts,
+      };
+
+      patchMessageCache(roomId, merged);
+      patchConversationWithMessage(roomId, merged);
+      return prev.map((item) => (item.id === message.id ? merged : item));
+    });
+  }
+
   function patchConversationWithRoom(room: unknown) {
     if (!room || typeof room !== "object") return;
     const nextRoom = room as {
@@ -607,22 +635,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
         { event: "UPDATE", schema: "public", table: "chat_messages", filter: `room_id=eq.${selectedRoomId}` },
         (payload) => {
           const updatedMsg = mapChatMessage(payload.new as ChatMessageApiItem);
-
-          setMessages((prev) => {
-            const existing = prev.find((message) => message.id === updatedMsg.id);
-            if (!existing) return prev;
-
-            const merged = {
-              ...existing,
-              ...updatedMsg,
-              sender: existing.sender ?? updatedMsg.sender ?? null,
-              my_reaction: existing.my_reaction ?? updatedMsg.my_reaction ?? null,
-              reaction_counts: existing.reaction_counts ?? updatedMsg.reaction_counts,
-            };
-
-            patchMessageCache(selectedRoomId, merged);
-            return prev.map((message) => (message.id === updatedMsg.id ? merged : message));
-          });
+          patchMessageInView(selectedRoomId, updatedMsg);
         }
       )
       .subscribe();
@@ -631,6 +644,36 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
     // 실시간 구독은 현재 열린 방과 현재 사용자 기준으로만 다시 연결합니다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedRoomId, userId]);
+
+  useEffect(() => {
+    if (!selectedRoomId) return;
+    const pendingMessages = messages.filter((message) => !message.id.startsWith("local-video-") && isProcessingVideoMessage(message));
+    if (pendingMessages.length === 0) return;
+
+    let cancelled = false;
+    const interval = window.setInterval(() => {
+      void Promise.all(
+        pendingMessages.map(async (message) => {
+          if (cancelled) return;
+          try {
+            const res = await fetch(`/api/chat/messages/${message.id}`);
+            const json = await res.json();
+            if (!res.ok || !json.data || cancelled) return;
+            patchMessageInView(selectedRoomId, mapChatMessage(json.data as ChatMessageApiItem));
+          } catch (error) {
+            console.error("영상 상태 확인 실패", error);
+          }
+        })
+      );
+    }, 3000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+    // 처리중 영상 메시지가 ready/failed 될 때까지 3초마다 다시 확인합니다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedRoomId, messages]);
 
   useEffect(() => {
     if (messages.length > 0) {
