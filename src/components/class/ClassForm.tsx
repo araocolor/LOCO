@@ -100,6 +100,11 @@ interface MentionRange {
   end: number;
 }
 
+interface MentionMenuPosition {
+  left: number;
+  top: number;
+}
+
 type SubmitModalState =
   | null
   | { kind: "success"; newClassId: string }
@@ -119,6 +124,38 @@ function getMentionRange(value: string, cursor: number): { query: string; range:
   const query = match[2];
   const start = cursor - query.length - 1;
   return { query, range: { start, end: cursor } };
+}
+
+function getTextareaCursorPosition(textarea: HTMLTextAreaElement, cursor: number): MentionMenuPosition {
+  const style = window.getComputedStyle(textarea);
+  const mirror = document.createElement("div");
+  const span = document.createElement("span");
+
+  mirror.style.position = "absolute";
+  mirror.style.visibility = "hidden";
+  mirror.style.whiteSpace = "pre-wrap";
+  mirror.style.wordWrap = "break-word";
+  mirror.style.overflow = "hidden";
+  mirror.style.boxSizing = style.boxSizing;
+  mirror.style.width = `${textarea.clientWidth}px`;
+  mirror.style.font = style.font;
+  mirror.style.letterSpacing = style.letterSpacing;
+  mirror.style.lineHeight = style.lineHeight;
+  mirror.style.padding = style.padding;
+  mirror.style.border = style.border;
+
+  mirror.textContent = textarea.value.slice(0, cursor);
+  span.textContent = textarea.value.slice(cursor, cursor + 1) || ".";
+  mirror.appendChild(span);
+  document.body.appendChild(mirror);
+
+  const position = {
+    left: span.offsetLeft - textarea.scrollLeft,
+    top: span.offsetTop - textarea.scrollTop + span.offsetHeight,
+  };
+
+  document.body.removeChild(mirror);
+  return position;
 }
 
 async function loadImage(file: File): Promise<HTMLImageElement> {
@@ -199,6 +236,7 @@ export default function ClassForm({ initialData, classId, userRole: _userRole }:
   const [showDetail, setShowDetail] = useState(!!initialData);
   const [mentionQuery, setMentionQuery] = useState("");
   const [mentionRange, setMentionRange] = useState<MentionRange | null>(null);
+  const [mentionMenuPosition, setMentionMenuPosition] = useState<MentionMenuPosition | null>(null);
   const [mentionCandidates, setMentionCandidates] = useState<MentionCandidate[]>([]);
 
   useEffect(() => {
@@ -272,6 +310,7 @@ export default function ClassForm({ initialData, classId, userRole: _userRole }:
     if (!isEditMode || cursor === null) {
       setMentionQuery("");
       setMentionRange(null);
+      setMentionMenuPosition(null);
       setMentionCandidates([]);
       return;
     }
@@ -280,12 +319,15 @@ export default function ClassForm({ initialData, classId, userRole: _userRole }:
     if (!mention || mention.query.length === 0) {
       setMentionQuery("");
       setMentionRange(null);
+      setMentionMenuPosition(null);
       setMentionCandidates([]);
       return;
     }
 
     setMentionQuery(mention.query);
     setMentionRange(mention.range);
+    const textarea = descriptionRef.current;
+    setMentionMenuPosition(textarea ? getTextareaCursorPosition(textarea, cursor) : null);
   }
 
   function handleDescriptionChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
@@ -312,6 +354,7 @@ export default function ClassForm({ initialData, classId, userRole: _userRole }:
     set("description", next);
     setMentionQuery("");
     setMentionRange(null);
+    setMentionMenuPosition(null);
     setMentionCandidates([]);
 
     window.requestAnimationFrame(() => {
@@ -647,10 +690,16 @@ export default function ClassForm({ initialData, classId, userRole: _userRole }:
               onChange={handleDescriptionChange}
               onClick={handleDescriptionCursor}
               onKeyUp={handleDescriptionCursor}
-              rows={4}
+              rows={15}
             />
             {isEditMode && mentionCandidates.length > 0 && (
-              <div className="absolute left-0 right-0 top-full z-40 mt-2 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg">
+              <div
+                className="absolute z-40 mt-1 w-[220px] overflow-hidden rounded-xl bg-white shadow-lg"
+                style={{
+                  left: mentionMenuPosition?.left ?? 0,
+                  top: mentionMenuPosition?.top ?? 0,
+                }}
+              >
                 {mentionCandidates.map((candidate) => (
                   <button
                     key={candidate.id}

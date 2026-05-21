@@ -31,11 +31,18 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ data: [] });
     }
 
+    const isUuidQuery =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(safeQuery);
+    const searchFilters = [`nickname.ilike.%${queryPattern}%`];
+    if (isUuidQuery) {
+      searchFilters.push(`id.eq.${safeQuery}`);
+    }
+
     const admin = createAdminClient();
     const { data: rows, error: rowsError } = await admin
       .from("profiles")
       .select("id, nickname, profile_image_url, region, created_at")
-      .or(`nickname.ilike.%${queryPattern}%,id.ilike.%${queryPattern}%`)
+      .or(searchFilters.join(","))
       .neq("id", user.id)
       .order("created_at", { ascending: false })
       .limit(limit)
