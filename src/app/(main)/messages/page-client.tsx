@@ -60,6 +60,11 @@ interface ChatMessageApiItem {
   reaction_counts?: Record<MessageReactionType, number>;
 }
 
+interface ChatRoomPayload {
+  messages: Message[];
+  notices: ChatNotice[];
+}
+
 const EMPTY_MESSAGE_REACTION_COUNTS: Record<MessageReactionType, number> = {
   heart: 0,
   like: 0,
@@ -313,7 +318,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
   const CONVERSATIONS_LIMIT = 20;
   const ROOM_PREFETCH_LIMIT = 5;
   const MESSAGE_USER_SESSION_KEY = "message_userid_session";
-  const roomPrefetchInFlightRef = useRef<Map<string, Promise<void>>>(new Map());
+  const roomPrefetchInFlightRef = useRef<Map<string, Promise<ChatRoomPayload>>>(new Map());
   const recentRoomPrefetchedRef = useRef<Set<string>>(new Set());
 
   function mapChatMessage(item: ChatMessageApiItem): Message {
@@ -401,43 +406,62 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
     });
   }
 
-  async function prefetchChatRoom(roomId: string, options?: { force?: boolean }) {
-    if (!roomId) return;
-    if (!options?.force && hasChatRoomCache(roomId)) return;
-
+  async function fetchChatRoomPayload(roomId: string): Promise<ChatRoomPayload> {
     const inFlight = roomPrefetchInFlightRef.current.get(roomId);
     if (inFlight) return inFlight;
 
     const task = (async () => {
-      try {
-        const [messageRes, noticeRes] = await Promise.all([
-          fetch(`/api/chat/rooms/${roomId}/messages`),
-          fetch(`/api/chat/rooms/${roomId}/notices`),
-        ]);
+      const [messageRes, noticeRes] = await Promise.all([
+        fetch(`/api/chat/rooms/${roomId}/messages`),
+        fetch(`/api/chat/rooms/${roomId}/notices`),
+      ]);
 
-        if (messageRes.ok) {
-          const messageJson = await messageRes.json();
-          if (messageJson.data) {
-            const nextMessages = (messageJson.data as ChatMessageApiItem[]).map(mapChatMessage);
-            writeMessageCache(roomId, nextMessages);
-          }
-        }
+      const messages: Message[] = [];
+      let notices: ChatNotice[] = [];
 
-        if (noticeRes.ok) {
-          const noticeJson = await noticeRes.json();
-          if (noticeJson.data) {
-            writeNoticeCache(roomId, noticeJson.data as ChatNotice[]);
-          }
+      if (messageRes.ok) {
+        const messageJson = await messageRes.json();
+        if (messageJson.data) {
+          messages.push(...(messageJson.data as ChatMessageApiItem[]).map(mapChatMessage));
         }
-      } catch (error) {
-        console.error("Failed to prefetch chat room:", error);
-      } finally {
-        roomPrefetchInFlightRef.current.delete(roomId);
       }
+
+      if (noticeRes.ok) {
+        const noticeJson = await noticeRes.json();
+        if (noticeJson.data) {
+          notices = noticeJson.data as ChatNotice[];
+        }
+      }
+
+      return { messages, notices };
     })();
 
     roomPrefetchInFlightRef.current.set(roomId, task);
+    task.then(
+      () => roomPrefetchInFlightRef.current.delete(roomId),
+      () => roomPrefetchInFlightRef.current.delete(roomId)
+    );
+
     return task;
+  }
+
+  function writeChatRoomPayloadCache(roomId: string, payload: ChatRoomPayload) {
+    writeMessageCache(roomId, payload.messages);
+    writeNoticeCache(roomId, payload.notices);
+  }
+
+  async function prefetchChatRoom(roomId: string, options?: { force?: boolean }) {
+    if (!roomId) return;
+    if (!options?.force && hasChatRoomCache(roomId)) return;
+
+    try {
+      const payload = await fetchChatRoomPayload(roomId);
+      window.setTimeout(() => {
+        writeChatRoomPayloadCache(roomId, payload);
+      }, 0);
+    } catch (error) {
+      console.error("Failed to prefetch chat room:", error);
+    }
   }
 
   function patchMessageInView(roomId: string, message: Message) {
@@ -806,11 +830,19 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
     });
 
     void (async () => {
-      await prefetchChatRoom(roomId, { force: true });
-      if (activeChatRoomRef.current === roomId) {
-        setMessages(readMessageCache(roomId));
-        setNotices(readNoticeCache(roomId));
-        setChatLoading(false);
+      try {
+        const payload = await fetchChatRoomPayload(roomId);
+        if (activeChatRoomRef.current === roomId) {
+          setMessages(payload.messages);
+          setNotices(payload.notices);
+          setChatLoading(false);
+          writeChatRoomPayloadCache(roomId, payload);
+        }
+      } catch (error) {
+        console.error("Failed to load chat room:", error);
+        if (activeChatRoomRef.current === roomId) {
+          setChatLoading(false);
+        }
       }
     })();
 
