@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { Dispatch, RefObject, SetStateAction } from "react";
+import type { Dispatch, RefObject, SetStateAction, UIEvent } from "react";
 import { ArrowLeft, BarChart3, Megaphone, Paperclip, Send, UserPlus } from "lucide-react";
 import Avatar from "@/components/ui/Avatar";
 import ChatAttachPanel from "./ChatAttachPanel";
@@ -38,6 +38,7 @@ interface ChatDrawerProps {
   uploading: boolean;
   userId: string;
   onCancelLongPress: () => void;
+  onChatScroll: (event: UIEvent<HTMLDivElement>) => void;
   onClose: () => void;
   onDeleteMessage: (msgId: string) => void;
   onFriendRequest: () => void;
@@ -98,6 +99,7 @@ export default function ChatDrawer({
   uploading,
   userId,
   onCancelLongPress,
+  onChatScroll,
   onClose,
   onDeleteMessage,
   onFriendRequest,
@@ -502,6 +504,7 @@ export default function ChatDrawer({
           <div
             className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3"
             style={{ backgroundColor: "#B2C7D9" }}
+            onScroll={onChatScroll}
             onClick={() => {
               setAttachOpen(false);
               setShakingMsgId(null);

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
+import type { UIEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { PRESENCE_EVENT } from "@/components/features/PresenceTracker";
@@ -156,6 +157,9 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
   const videoInputRef = useRef<HTMLInputElement>(null);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const shouldStickToBottomRef = useRef(true);
+  const previousScrollRoomRef = useRef<string | null>(null);
+  const previousMessageCountRef = useRef(0);
   const activeChatRoomRef = useRef<string | null>(null);
   const autoOpenedRoomRef = useRef<string | null>(null);
   const roomIdFromQuery = searchParams.get("roomId");
@@ -764,10 +768,22 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
   }, [selectedRoomId, messages]);
 
   useEffect(() => {
-    if (messages.length > 0) {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    const roomChanged = previousScrollRoomRef.current !== selectedRoomId;
+    const messageAdded = messages.length > previousMessageCountRef.current;
+
+    if (roomChanged) {
+      shouldStickToBottomRef.current = true;
     }
-  }, [messages]);
+
+    if (selectedRoomId && messages.length > 0 && (roomChanged || (messageAdded && shouldStickToBottomRef.current))) {
+      window.requestAnimationFrame(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: roomChanged ? "auto" : "smooth" });
+      });
+    }
+
+    previousScrollRoomRef.current = selectedRoomId;
+    previousMessageCountRef.current = messages.length;
+  }, [selectedRoomId, messages.length]);
 
   useEffect(() => {
     let mounted = true;
@@ -910,6 +926,11 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
 
   function cancelLongPress() {
     if (longPressTimer.current) clearTimeout(longPressTimer.current);
+  }
+
+  function handleChatScroll(event: UIEvent<HTMLDivElement>) {
+    const node = event.currentTarget;
+    shouldStickToBottomRef.current = node.scrollHeight - node.scrollTop - node.clientHeight < 120;
   }
 
   async function deleteMessage(msgId: string) {
@@ -1167,6 +1188,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
         uploading={uploading}
         userId={userId}
         onCancelLongPress={cancelLongPress}
+        onChatScroll={handleChatScroll}
         onClose={closeChat}
         onDeleteMessage={(msgId) => {
           void deleteMessage(msgId);
