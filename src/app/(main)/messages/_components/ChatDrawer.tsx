@@ -122,7 +122,7 @@ export default function ChatDrawer({
   setShakingMsgId,
   formatTime,
 }: ChatDrawerProps) {
-  const [activeTab, setActiveTab] = useState<"all" | "members" | "class">("all");
+  const [activeTab, setActiveTab] = useState<"all" | "members" | "class" | "archive">("all");
   const [noticeDrawerOpen, setNoticeDrawerOpen] = useState(false);
   const [noticeDraft, setNoticeDraft] = useState("");
   const [noticeKind, setNoticeKind] = useState<NoticeKind>("notice");
@@ -449,17 +449,7 @@ export default function ChatDrawer({
       </header>
 
       <div className="shrink-0 flex items-end px-4 border-b border-[#e5e7eb]">
-        <div className="flex gap-6">
-          <button
-            type="button"
-            onClick={() => setActiveTab("all")}
-            style={{ fontSize: 17 }}
-            className={`pb-2 font-bold border-b-2 transition-colors ${
-              activeTab === "all" ? "border-black text-black" : "border-transparent text-gray-400"
-            }`}
-          >
-            전체대화
-          </button>
+        <div className="flex gap-5">
           <button
             type="button"
             onClick={() => setActiveTab("class")}
@@ -472,6 +462,16 @@ export default function ChatDrawer({
           </button>
           <button
             type="button"
+            onClick={() => setActiveTab("all")}
+            style={{ fontSize: 17 }}
+            className={`pb-2 font-bold border-b-2 transition-colors ${
+              activeTab === "all" ? "border-black text-black" : "border-transparent text-gray-400"
+            }`}
+          >
+            전체대화
+          </button>
+          <button
+            type="button"
             onClick={() => setActiveTab("members")}
             style={{ fontSize: 17 }}
             className={`pb-2 font-bold border-b-2 transition-colors ${
@@ -479,6 +479,16 @@ export default function ChatDrawer({
             }`}
           >
             참여회원들
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("archive")}
+            style={{ fontSize: 17 }}
+            className={`pb-2 font-bold border-b-2 transition-colors ${
+              activeTab === "archive" ? "border-black text-black" : "border-transparent text-gray-400"
+            }`}
+          >
+            보관함
           </button>
         </div>
       </div>
@@ -803,6 +813,12 @@ export default function ChatDrawer({
               )}
             </div>
           )}
+        </div>
+      )}
+
+      {activeTab === "archive" && (
+        <div className="flex-1 overflow-y-auto px-4 py-4" style={{ backgroundColor: "#B2C7D9" }}>
+          <div className="flex h-full items-center justify-center text-sm text-gray-400">보관된 항목이 없습니다</div>
         </div>
       )}
 

@@ -24,7 +24,7 @@ export default async function MessagesHeader() {
         TALK
       </div>
       {user && (
-        <div className="ml-auto flex items-center justify-end translate-y-[2px]">
+        <div data-messages-header-avatar className="ml-auto flex h-full items-end justify-end pb-1">
           <Avatar src={profileImageUrl} nickname={nickname} size={37} />
         </div>
       )}

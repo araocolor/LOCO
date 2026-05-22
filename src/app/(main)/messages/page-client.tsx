@@ -150,8 +150,6 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
   const [memberDrawerOpen, setMemberDrawerOpen] = useState(false);
   const [attachOpen, setAttachOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [refreshDisabled, setRefreshDisabled] = useState(false);
-  const [isSpinning, setIsSpinning] = useState(false);
   const [shakingMsgId, setShakingMsgId] = useState<string | null>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
@@ -184,6 +182,15 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
     const second = nonOwners[0] ?? null;
     return userId === owner?.user_id || userId === second?.user_id;
   })();
+
+  useEffect(() => {
+    const headerAvatar = document.querySelector<HTMLElement>("[data-messages-header-avatar]");
+    if (!headerAvatar) return;
+    headerAvatar.hidden = activeMenuTab === "nearby";
+    return () => {
+      headerAvatar.hidden = false;
+    };
+  }, [activeMenuTab]);
 
   async function resizeToBlob(bitmap: ImageBitmap, maxW: number): Promise<Blob> {
     const scale = bitmap.width > maxW ? maxW / bitmap.width : 1;
@@ -625,9 +632,8 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
     } catch {}
   }
 
-  async function fetchConversations(options?: { force?: boolean; manual?: boolean }) {
+  async function fetchConversations(options?: { force?: boolean }) {
     const force = options?.force ?? false;
-    const manual = options?.manual ?? false;
     const hasUserSession = Boolean(sessionStorage.getItem(MESSAGE_USER_SESSION_KEY));
     if (!force && hasUserSession) {
       const cached = localStorage.getItem(CACHE_KEY);
@@ -637,12 +643,6 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
       setLoading(false);
     }
 
-    if (manual) {
-      setRefreshDisabled(true);
-      setIsSpinning(true);
-      setTimeout(() => setRefreshDisabled(false), 60000);
-      setTimeout(() => setIsSpinning(false), 2000);
-    }
     try {
       const res = await fetch("/api/chat/rooms");
       const json = await res.json();
@@ -1143,18 +1143,13 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
         activeMenuTab={activeMenuTab}
         conversations={conversations}
         finderSoundEnabled={finderSoundEnabled}
-        isSpinning={isSpinning}
         loading={loading}
         onlineIds={onlineIds}
-        refreshDisabled={refreshDisabled}
         userId={userId}
         onOpenChat={openChat}
         onOpenProfile={(profileId) => router.push(`/users/${profileId}/view`)}
         onPrefetchChat={(roomId) => {
           void prefetchChatRoom(roomId);
-        }}
-        onRefresh={() => {
-          void fetchConversations({ force: true, manual: true });
         }}
         onToggleFinderSound={toggleFinderSound}
         setActiveMenuTab={setActiveMenuTab}

@@ -10,15 +10,12 @@ interface ConversationListProps {
   activeMenuTab: MessageMenuTab;
   conversations: Conversation[];
   finderSoundEnabled: boolean;
-  isSpinning: boolean;
   loading: boolean;
   onlineIds: Set<string>;
-  refreshDisabled: boolean;
   userId: string;
   onOpenChat: (roomId: string) => void;
   onOpenProfile: (userId: string) => void;
   onPrefetchChat: (roomId: string) => void;
-  onRefresh: () => void;
   onToggleFinderSound: () => void;
   setActiveMenuTab: (tab: MessageMenuTab) => void;
   formatDate: (dateStr: string) => string;
@@ -29,21 +26,19 @@ export default function ConversationList({
   activeMenuTab,
   conversations,
   finderSoundEnabled,
-  isSpinning,
   loading,
   onlineIds,
-  refreshDisabled,
   userId,
   onOpenChat,
   onOpenProfile,
   onPrefetchChat,
-  onRefresh,
   onToggleFinderSound,
   setActiveMenuTab,
   formatDate,
   truncateMessage,
 }: ConversationListProps) {
-  const messageConversations = conversations.filter((conv) => conv.type !== "class");
+  const directConversations = conversations.filter((conv) => conv.type === "direct");
+  const groupConversations = conversations.filter((conv) => conv.type === "group");
   const classConversations = conversations.filter((conv) => conv.type === "class");
   const [nearbyRefreshControl, setNearbyRefreshControl] = useState<NearbyRefreshControl>({
     disabled: true,
@@ -67,15 +62,17 @@ export default function ConversationList({
   }, [truncateMessage]);
   const visibleConversations =
     activeMenuTab === "messages"
-      ? messageConversations
-      : activeMenuTab === "my-chat"
-        ? classConversations
-        : [];
+      ? directConversations
+      : activeMenuTab === "groups"
+        ? groupConversations
+        : activeMenuTab === "my-chat"
+          ? classConversations
+          : [];
 
   return (
     <>
       <div className="flex items-end justify-between px-4 border-b border-[#e5e7eb]">
-        <div className="flex gap-6">
+        <div className="flex gap-5">
           <button
             onClick={() => setActiveMenuTab("messages")}
             style={{ fontSize: 17 }}
@@ -88,6 +85,17 @@ export default function ConversationList({
             1:1
           </button>
           <button
+            onClick={() => setActiveMenuTab("groups")}
+            style={{ fontSize: 17 }}
+            className={`pb-2 font-bold border-b-2 transition-colors ${
+              activeMenuTab === "groups"
+                ? "border-black text-black"
+                : "border-transparent text-gray-400"
+            }`}
+          >
+            그룹
+          </button>
+          <button
             onClick={() => setActiveMenuTab("my-chat")}
             style={{ fontSize: 17 }}
             className={`pb-2 font-bold border-b-2 transition-colors ${
@@ -96,7 +104,7 @@ export default function ConversationList({
                 : "border-transparent text-gray-400"
             }`}
           >
-            Class
+            클래스
           </button>
           <button
             onClick={() => setActiveMenuTab("nearby")}
@@ -132,15 +140,7 @@ export default function ConversationList({
               <RefreshCw size={18} className={nearbyRefreshControl.spinning ? "animate-spin" : ""} style={{ animationDuration: "0.8s" }} />
             </button>
           </div>
-        ) : (activeMenuTab === "messages" || activeMenuTab === "my-chat") && (
-          <button
-            onClick={onRefresh}
-            disabled={refreshDisabled && !isSpinning}
-            className={`pb-2 p-1 ${refreshDisabled && !isSpinning ? "text-gray-400 cursor-not-allowed" : "text-gray-800 hover:text-gray-900"}`}
-          >
-            <RefreshCw size={18} className={isSpinning ? "animate-spin" : ""} style={{ animationDuration: "0.8s" }} />
-          </button>
-        )}
+        ) : null}
       </div>
 
       <div className="flex-1 overflow-y-auto">
@@ -157,7 +157,11 @@ export default function ConversationList({
           <div className="flex flex-col items-center justify-center h-32 text-gray-400">
             <p className="text-4xl mb-2">💬</p>
             <p className="text-sm">
-              {activeMenuTab === "my-chat" ? "클래스 대화방이 없습니다" : "대화가 없습니다"}
+              {activeMenuTab === "my-chat"
+                ? "클래스 대화방이 없습니다"
+                : activeMenuTab === "groups"
+                  ? "그룹 대화방이 없습니다"
+                  : "1:1 대화가 없습니다"}
             </p>
           </div>
         ) : (
