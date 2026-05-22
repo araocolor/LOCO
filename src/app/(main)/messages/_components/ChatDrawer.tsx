@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Dispatch, RefObject, SetStateAction, UIEvent } from "react";
-import { ArrowLeft, BarChart3, Megaphone, Paperclip, Send, UserPlus } from "lucide-react";
+import { ArrowLeft, BarChart3, Megaphone, Paperclip, Play, Send, UserPlus } from "lucide-react";
+import Image from "next/image";
 import Avatar from "@/components/ui/Avatar";
 import ChatAttachPanel from "./ChatAttachPanel";
 import MessageBubble from "./MessageBubble";
@@ -73,6 +74,10 @@ const NOTICE_VOTES: Array<{ type: NoticeVoteType; label: string }> = [
   { type: "disagree", label: "반대" },
   { type: "abstain", label: "무효" },
 ];
+
+type ArchiveItem =
+  | { id: string; type: "image"; thumb: string; href: string }
+  | { id: string; type: "video"; thumb: string | null; href: string };
 
 export default function ChatDrawer({
   attachOpen,
@@ -234,6 +239,28 @@ export default function ChatDrawer({
       return a.order - b.order;
     });
   }, [roomMembers]);
+
+  const archiveItems = useMemo<ArchiveItem[]>(() => {
+    return messages.flatMap((message) => {
+      try {
+        const parsed = JSON.parse(message.content) as {
+          type?: string;
+          thumb?: string;
+          full?: string;
+          status?: string;
+          video_url?: string;
+          thumbnail_url?: string | null;
+        };
+        if (parsed.type === "image" && parsed.thumb && parsed.full) {
+          return [{ id: message.id, type: "image", thumb: parsed.thumb, href: parsed.full }];
+        }
+        if (parsed.type === "video" && parsed.status === "ready" && parsed.video_url) {
+          return [{ id: message.id, type: "video", thumb: parsed.thumbnail_url ?? null, href: parsed.video_url }];
+        }
+      } catch {}
+      return [];
+    });
+  }, [messages]);
 
   const isDirectRoom = roomType === "direct";
   const isClassRoom = roomType === "class";
@@ -705,7 +732,7 @@ export default function ChatDrawer({
             <div className="flex h-full items-center justify-center text-sm text-gray-400">공지/투표가 없습니다</div>
           ) : (
             <div className="space-y-4">
-              <div className="flex gap-2">
+              <div className="flex justify-center gap-2">
                 <button
                   type="button"
                   onClick={() => openNoticeDrawer("vote")}
@@ -713,18 +740,15 @@ export default function ChatDrawer({
                 >
                   투표작성
                 </button>
-                <button
-                  type="button"
-                  onClick={() => canWriteClassNotice && openNoticeDrawer("notice")}
-                  disabled={!canWriteClassNotice}
-                  className={`rounded-full px-4 py-2 text-sm font-bold shadow-sm ${
-                    canWriteClassNotice
-                      ? "bg-yellow-300 text-gray-900 hover:bg-yellow-400"
-                      : "bg-yellow-100 text-gray-400"
-                  }`}
-                >
-                  공지작성
-                </button>
+                {canWriteClassNotice && (
+                  <button
+                    type="button"
+                    onClick={() => openNoticeDrawer("notice")}
+                    className="rounded-full bg-yellow-300 px-4 py-2 text-sm font-bold text-gray-900 shadow-sm hover:bg-yellow-400"
+                  >
+                    공지작성
+                  </button>
+                )}
               </div>
               {notices.length > 0 ? (
                 <div className="space-y-4">
@@ -841,7 +865,35 @@ export default function ChatDrawer({
 
       {displayedActiveTab === "archive" && (
         <div className="flex-1 overflow-y-auto px-4 py-4" style={{ backgroundColor: "#B2C7D9" }}>
-          <div className="flex h-full items-center justify-center text-sm text-gray-400">보관된 항목이 없습니다</div>
+          {archiveItems.length === 0 ? (
+            <div className="flex h-full items-center justify-center text-sm text-gray-400">보관된 항목이 없습니다</div>
+          ) : (
+            <div className="grid grid-cols-3 gap-2">
+              {archiveItems.map((item) => (
+                <a
+                  key={item.id}
+                  href={item.href}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="relative aspect-square overflow-hidden rounded-md bg-gray-200"
+                  aria-label={item.type === "video" ? "동영상 열기" : "사진 열기"}
+                >
+                  {item.thumb ? (
+                    <Image src={item.thumb} alt="" fill sizes="33vw" className="object-cover" />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center bg-gray-900" />
+                  )}
+                  {item.type === "video" && (
+                    <span className="absolute inset-0 flex items-center justify-center bg-black/20 text-white">
+                      <span className="flex h-9 w-9 items-center justify-center rounded-full bg-black/50">
+                        <Play size={18} fill="currentColor" />
+                      </span>
+                    </span>
+                  )}
+                </a>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
