@@ -39,7 +39,7 @@ export default function SocialSection({
 }: SocialSectionProps) {
   return (
     <div className="px-4 pt-0 bg-white">
-      <div className="h-[120px] -mx-4 bg-gray-100 flex items-center justify-center px-4">
+      <div className="h-[120px] -mx-4 bg-sky-100/70 flex items-center justify-center px-4">
         <div className="flex flex-col items-center gap-y-2 overflow-hidden">
           {SOCIAL_LIST_ROWS.map((row, rowIndex) => (
             <div key={rowIndex} className="flex items-center justify-center gap-x-2">
@@ -52,8 +52,8 @@ export default function SocialSection({
                     key={option.value}
                     type="button"
                     onClick={() => setSocialListMode(option.value)}
-                    className={`h-8 rounded-full px-3 text-[16px] font-semibold leading-tight transition-colors ${
-                      active ? "bg-gray-900 text-lime-100" : "bg-white/90 text-[#595959]"
+                    className={`h-8 rounded-full px-3 text-[16px] leading-tight transition-colors ${
+                      active ? "bg-gray-900 text-lime-100 font-bold" : "bg-white/90 text-[#595959] font-semibold"
                     }`}
                   >
                     {option.label}

@@ -19,7 +19,7 @@ export function useSearchMembersData(activeTab: Tab) {
   const [memberRegion, setMemberRegion] = useState("전체");
   const [memberGenres, setMemberGenres] = useState<string[]>([]);
   const [memberGender, setMemberGender] = useState<"" | "로" | "라">("");
-  const [memberSearchMode, setMemberSearchMode] = useState<"basic" | "memberType">("basic");
+  const [memberSearchMode, setMemberSearchMode] = useState<"basic" | "memberType">("memberType");
   const [selectedMemberTypes, setSelectedMemberTypes] = useState<string[]>([]);
   const [memberViewMode, setMemberViewMode] = useState<"list" | "grid">("grid");
 
@@ -81,6 +81,20 @@ export function useSearchMembersData(activeTab: Tab) {
     const nextMode = node.scrollLeft > node.clientWidth / 2 ? "memberType" : "basic";
     setMemberSearchMode((current) => (current === nextMode ? current : nextMode));
   }, []);
+
+  useEffect(() => {
+    if (activeTab !== "members") return;
+
+    const frame = window.requestAnimationFrame(() => {
+      const node = memberSearchPanelRef.current;
+      if (!node) return;
+
+      node.scrollLeft = node.clientWidth;
+      setMemberSearchMode("memberType");
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [activeTab]);
 
   const toggleMemberTypeFilter = useCallback((type: string) => {
     setSelectedMemberTypes((prev) => {

@@ -66,14 +66,14 @@ export default function MembersSection({
 }: MembersSectionProps) {
   return (
     <div className="px-4 pt-0 bg-white">
-      <div className="h-[120px] -mx-4 bg-yellow-200 relative">
+      <div className="h-[120px] -mx-4 bg-sky-100/70 relative">
         <div
           ref={memberSearchPanelRef}
           onScroll={onMemberSearchPanelScroll}
           className="flex h-full overflow-x-auto snap-x snap-mandatory scrollbar-hide"
           style={{ WebkitOverflowScrolling: "touch", touchAction: "pan-x" }}
         >
-          <div className="h-full min-w-full snap-start flex flex-col justify-center px-4 gap-2 bg-yellow-200">
+          <div className="h-full min-w-full snap-start flex flex-col justify-center px-4 gap-2 bg-sky-100/70">
             <div className="flex items-center gap-2 justify-center">
               <select
                 value={memberRegion}
@@ -137,7 +137,7 @@ export default function MembersSection({
             </div>
           </div>
 
-          <div className="h-full min-w-full snap-start flex flex-col justify-center px-4 gap-2 bg-yellow-200">
+          <div className="h-full min-w-full snap-start flex flex-col justify-center px-4 gap-2 bg-sky-100/70">
             <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 overflow-hidden">
               {MEMBER_TYPES.map((type) => {
                 const active = selectedMemberTypes.includes(type);
@@ -146,11 +146,11 @@ export default function MembersSection({
                     key={type}
                     type="button"
                     onClick={() => onToggleMemberTypeFilter(type)}
-                    className={`rounded-full border px-2.5 py-1 text-[16px] font-semibold leading-tight transition-colors ${
+                    className={`rounded-full border px-2.5 py-1 text-[16px] leading-tight transition-colors ${
                       active
-                        ? "bg-gray-900 border-gray-900 text-yellow-200"
-                        : "bg-white/90 border-yellow-300 text-[#595959]"
-                    } hover:border-gray-700`}
+                        ? "bg-sky-100/70 border-sky-100 text-gray-950 font-bold"
+                        : "bg-white border-white text-[#595959] font-semibold"
+                    } hover:border-sky-100`}
                   >
                     {getMemberTypeLabel(type)}
                   </button>
