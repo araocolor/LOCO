@@ -51,7 +51,7 @@ export default function FriendsSection({
 }: FriendsSectionProps) {
   return (
     <div className="px-4 pt-0 bg-white">
-      <div className={`mb-0 -mx-4 py-3 h-[120px] ${!suggestionsLoading && suggestions.length === 0 ? "bg-white" : "bg-sky-100/70"}`}>
+      <div className="mb-0 -mx-4 py-3 h-[120px] bg-gray-100">
         {suggestionsLoading ? (
           <div className="flex gap-7 overflow-x-auto pb-1 pt-3 scrollbar-hide">
             {Array.from({ length: 8 }).map((_, index) => (

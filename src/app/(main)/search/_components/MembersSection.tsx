@@ -66,14 +66,14 @@ export default function MembersSection({
 }: MembersSectionProps) {
   return (
     <div className="px-4 pt-0 bg-white">
-      <div className="h-[120px] -mx-4 bg-sky-100/70 relative">
+      <div className="h-[120px] -mx-4 bg-gray-100 relative">
         <div
           ref={memberSearchPanelRef}
           onScroll={onMemberSearchPanelScroll}
           className="flex h-full overflow-x-auto snap-x snap-mandatory scrollbar-hide"
           style={{ WebkitOverflowScrolling: "touch", touchAction: "pan-x" }}
         >
-          <div className="h-full min-w-full snap-start flex flex-col justify-center px-4 gap-2 bg-sky-100/70">
+          <div className="h-full min-w-full snap-start flex flex-col justify-center px-4 gap-2 bg-gray-100">
             <div className="flex items-center gap-2 justify-center">
               <select
                 value={memberRegion}
@@ -137,7 +137,7 @@ export default function MembersSection({
             </div>
           </div>
 
-          <div className="h-full min-w-full snap-start flex flex-col justify-center px-4 gap-2 bg-sky-100/70">
+          <div className="h-full min-w-full snap-start flex flex-col justify-center px-4 gap-2 bg-gray-100">
             <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 overflow-hidden">
               {MEMBER_TYPES.map((type) => {
                 const active = selectedMemberTypes.includes(type);

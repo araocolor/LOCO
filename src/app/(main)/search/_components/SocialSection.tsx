@@ -39,7 +39,7 @@ export default function SocialSection({
 }: SocialSectionProps) {
   return (
     <div className="px-4 pt-0 bg-white">
-      <div className="h-[120px] -mx-4 bg-sky-100/70 flex items-center justify-center px-4">
+      <div className="h-[120px] -mx-4 bg-gray-100 flex items-center justify-center px-4">
         <div className="flex flex-col items-center gap-y-2 overflow-hidden">
           {SOCIAL_LIST_ROWS.map((row, rowIndex) => (
             <div key={rowIndex} className="flex items-center justify-center gap-x-2">
