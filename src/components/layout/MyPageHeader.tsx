@@ -237,11 +237,11 @@ export default function MyPageHeader() {
     });
   }
 
-  async function handleLogout() {
-    await logoutAction();
+  function handleLogout() {
     localStorage.clear();
     sessionStorage.clear();
     router.replace("/login");
+    void logoutAction();
   }
 
   return (
