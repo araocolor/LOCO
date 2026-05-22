@@ -1,18 +1,89 @@
 import type { ChatNotice, Message } from "../_types";
 
-export const MESSAGES_CACHE_PREFIX = "loco_messages_cache_";
-export const NOTICES_CACHE_PREFIX = "loco_notices_cache_";
+export const CHAT_ROOM_CACHE_PREFIX = "loco_chat_room_cache_";
+
+const LEGACY_MESSAGES_CACHE_PREFIX = "loco_messages_cache_";
+const LEGACY_NOTICES_CACHE_PREFIX = "loco_notices_cache_";
+
+interface ChatRoomCache {
+  messages: Message[];
+  notices: ChatNotice[];
+}
+
+function getChatRoomCacheKey(roomId: string) {
+  return `${CHAT_ROOM_CACHE_PREFIX}${roomId}`;
+}
+
+function emptyRoomCache(): ChatRoomCache {
+  return { messages: [], notices: [] };
+}
+
+function removeLegacyRoomCache(roomId: string) {
+  sessionStorage.removeItem(`${LEGACY_MESSAGES_CACHE_PREFIX}${roomId}`);
+  sessionStorage.removeItem(`${LEGACY_NOTICES_CACHE_PREFIX}${roomId}`);
+}
+
+function readLegacyRoomCache(roomId: string): ChatRoomCache {
+  const next = emptyRoomCache();
+
+  try {
+    next.messages = JSON.parse(sessionStorage.getItem(`${LEGACY_MESSAGES_CACHE_PREFIX}${roomId}`) ?? "[]") as Message[];
+  } catch {}
+
+  try {
+    next.notices = JSON.parse(sessionStorage.getItem(`${LEGACY_NOTICES_CACHE_PREFIX}${roomId}`) ?? "[]") as ChatNotice[];
+  } catch {}
+
+  return next;
+}
+
+export function hasChatRoomCache(roomId: string) {
+  try {
+    if (sessionStorage.getItem(getChatRoomCacheKey(roomId))) return true;
+    if (sessionStorage.getItem(`${LEGACY_MESSAGES_CACHE_PREFIX}${roomId}`)) return true;
+    if (sessionStorage.getItem(`${LEGACY_NOTICES_CACHE_PREFIX}${roomId}`)) return true;
+  } catch {}
+  return false;
+}
+
+function readRoomCache(roomId: string): ChatRoomCache {
+  try {
+    const cached = JSON.parse(sessionStorage.getItem(getChatRoomCacheKey(roomId)) ?? "null") as Partial<ChatRoomCache> | null;
+    if (cached) {
+      return {
+        messages: Array.isArray(cached.messages) ? cached.messages : [],
+        notices: Array.isArray(cached.notices) ? cached.notices : [],
+      };
+    }
+  } catch {}
+
+  const legacy = readLegacyRoomCache(roomId);
+  if (legacy.messages.length > 0 || legacy.notices.length > 0) {
+    writeRoomCache(roomId, legacy);
+  }
+  return legacy;
+}
+
+function writeRoomCache(roomId: string, cache: ChatRoomCache) {
+  const nextMessages = limitImageMessages(cache.messages);
+  sessionStorage.setItem(
+    getChatRoomCacheKey(roomId),
+    JSON.stringify({
+      messages: nextMessages,
+      notices: cache.notices.slice(0, 5),
+    })
+  );
+  removeLegacyRoomCache(roomId);
+  warmImageMessages(nextMessages);
+}
 
 export function readNoticeCache(roomId: string): ChatNotice[] {
-  try {
-    return JSON.parse(sessionStorage.getItem(`${NOTICES_CACHE_PREFIX}${roomId}`) ?? "[]") as ChatNotice[];
-  } catch {
-    return [];
-  }
+  return readRoomCache(roomId).notices;
 }
 
 export function writeNoticeCache(roomId: string, notices: ChatNotice[]) {
-  sessionStorage.setItem(`${NOTICES_CACHE_PREFIX}${roomId}`, JSON.stringify(notices.slice(0, 5)));
+  const cache = readRoomCache(roomId);
+  writeRoomCache(roomId, { ...cache, notices });
 }
 
 export function isImageMessage(content: string) {
@@ -58,33 +129,28 @@ export function warmImageMessages(msgs: Message[]) {
   });
 }
 
-export function getMessageCacheKey(userId: string) {
-  return `${MESSAGES_CACHE_PREFIX}${userId}`;
+export function getMessageCacheKey(roomId: string) {
+  return getChatRoomCacheKey(roomId);
 }
 
-export function readMessageCache(userId: string) {
+export function readMessageCache(roomId: string) {
+  return readRoomCache(roomId).messages;
+}
+
+export function writeMessageCache(roomId: string, msgs: Message[]) {
+  const cache = readRoomCache(roomId);
+  writeRoomCache(roomId, { ...cache, messages: msgs });
+}
+
+export function appendMessageCache(roomId: string, message: Message) {
+  const msgs = readMessageCache(roomId);
+  writeMessageCache(roomId, [...msgs, message]);
+}
+
+export function patchMessageCache(roomId: string, message: Message) {
   try {
-    return JSON.parse(sessionStorage.getItem(getMessageCacheKey(userId)) ?? "[]") as Message[];
-  } catch {
-    return [];
-  }
-}
-
-export function writeMessageCache(userId: string, msgs: Message[]) {
-  const nextMessages = limitImageMessages(msgs);
-  sessionStorage.setItem(getMessageCacheKey(userId), JSON.stringify(nextMessages));
-  warmImageMessages(nextMessages);
-}
-
-export function appendMessageCache(userId: string, message: Message) {
-  const msgs = readMessageCache(userId);
-  writeMessageCache(userId, [...msgs, message]);
-}
-
-export function patchMessageCache(userId: string, message: Message) {
-  try {
-    const msgs = readMessageCache(userId);
+    const msgs = readMessageCache(roomId);
     if (msgs.length === 0) return;
-    writeMessageCache(userId, msgs.map((msg) => (msg.id === message.id ? { ...msg, ...message } : msg)));
+    writeMessageCache(roomId, msgs.map((msg) => (msg.id === message.id ? { ...msg, ...message } : msg)));
   } catch {}
 }

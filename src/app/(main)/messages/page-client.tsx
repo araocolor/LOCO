@@ -10,6 +10,7 @@ import ChatMemberDrawer from "./_components/ChatMemberDrawer";
 import type { ChatNotice, Conversation, Message, MessageMenuTab, MessageReactionType, MyProfile, NoticeKind, NoticeReactionType, NoticeVoteType, OtherUser, SessionClassItem } from "./_types";
 import {
   appendMessageCache,
+  hasChatRoomCache,
   readMessageCache,
   writeMessageCache,
   readNoticeCache,
@@ -310,7 +311,10 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
 
   const CACHE_KEY = "loco_chat_rooms_cache_v1";
   const CONVERSATIONS_LIMIT = 20;
+  const ROOM_PREFETCH_LIMIT = 5;
   const MESSAGE_USER_SESSION_KEY = "message_userid_session";
+  const roomPrefetchInFlightRef = useRef<Map<string, Promise<void>>>(new Map());
+  const recentRoomPrefetchedRef = useRef<Set<string>>(new Set());
 
   function mapChatMessage(item: ChatMessageApiItem): Message {
     return {
@@ -395,6 +399,45 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
       try { localStorage.setItem(CACHE_KEY, JSON.stringify(sorted.slice(0, CONVERSATIONS_LIMIT))); } catch {}
       return sorted;
     });
+  }
+
+  async function prefetchChatRoom(roomId: string, options?: { force?: boolean }) {
+    if (!roomId) return;
+    if (!options?.force && hasChatRoomCache(roomId)) return;
+
+    const inFlight = roomPrefetchInFlightRef.current.get(roomId);
+    if (inFlight) return inFlight;
+
+    const task = (async () => {
+      try {
+        const [messageRes, noticeRes] = await Promise.all([
+          fetch(`/api/chat/rooms/${roomId}/messages`),
+          fetch(`/api/chat/rooms/${roomId}/notices`),
+        ]);
+
+        if (messageRes.ok) {
+          const messageJson = await messageRes.json();
+          if (messageJson.data) {
+            const nextMessages = (messageJson.data as ChatMessageApiItem[]).map(mapChatMessage);
+            writeMessageCache(roomId, nextMessages);
+          }
+        }
+
+        if (noticeRes.ok) {
+          const noticeJson = await noticeRes.json();
+          if (noticeJson.data) {
+            writeNoticeCache(roomId, noticeJson.data as ChatNotice[]);
+          }
+        }
+      } catch (error) {
+        console.error("Failed to prefetch chat room:", error);
+      } finally {
+        roomPrefetchInFlightRef.current.delete(roomId);
+      }
+    })();
+
+    roomPrefetchInFlightRef.current.set(roomId, task);
+    return task;
   }
 
   function patchMessageInView(roomId: string, message: Message) {
@@ -608,6 +651,18 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
   }, []);
 
   useEffect(() => {
+    if (conversations.length === 0) return;
+
+    conversations.slice(0, ROOM_PREFETCH_LIMIT).forEach((conv) => {
+      if (recentRoomPrefetchedRef.current.has(conv.id)) return;
+      recentRoomPrefetchedRef.current.add(conv.id);
+      void prefetchChatRoom(conv.id);
+    });
+    // 최근 대화방 본문을 백그라운드에서 미리 받아 첫 클릭 대기 시간을 줄입니다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversations]);
+
+  useEffect(() => {
     queueMicrotask(() => {
       if (window.__onlineIds) setOnlineIds(window.__onlineIds);
     });
@@ -721,7 +776,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
 
     const localConversation = conversations.find((conv) => conv.id === roomId) ?? null;
     const localOtherUser = localConversation?.other_user ?? null;
-    let hasCachedMessages = false;
+    const hasCachedRoom = hasChatRoomCache(roomId);
 
     setOtherUser(localOtherUser);
 
@@ -734,12 +789,9 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
 
     try {
       const cachedMessages = readMessageCache(roomId);
-      if (cachedMessages.length > 0) {
-        hasCachedMessages = true;
-        setMessages(cachedMessages);
+      setMessages(cachedMessages);
+      if (hasCachedRoom) {
         setChatLoading(false);
-      } else {
-        setMessages([]);
       }
     } catch {
       setMessages([]);
@@ -754,30 +806,15 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
     });
 
     void (async () => {
-      const [messageRes, noticeRes] = await Promise.all([
-        fetch(`/api/chat/rooms/${roomId}/messages`),
-        fetch(`/api/chat/rooms/${roomId}/notices`),
-      ]);
-      const messageJson = await messageRes.json();
-      const noticeJson = await noticeRes.json();
-      if (messageRes.ok && messageJson.data) {
-        const nextMessages = (messageJson.data as ChatMessageApiItem[]).map(mapChatMessage);
-        writeMessageCache(roomId, nextMessages);
-        if (activeChatRoomRef.current === roomId) {
-          setMessages(nextMessages);
-        }
-      }
-      if (noticeRes.ok && noticeJson.data && activeChatRoomRef.current === roomId) {
-        const fetchedNotices = noticeJson.data as ChatNotice[];
-        writeNoticeCache(roomId, fetchedNotices);
-        setNotices(fetchedNotices);
-      }
+      await prefetchChatRoom(roomId, { force: true });
       if (activeChatRoomRef.current === roomId) {
+        setMessages(readMessageCache(roomId));
+        setNotices(readNoticeCache(roomId));
         setChatLoading(false);
       }
     })();
 
-    if (!hasCachedMessages) setChatLoading(true);
+    if (!hasCachedRoom) setChatLoading(true);
   }
 
   useEffect(() => {
@@ -1060,6 +1097,9 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
         userId={userId}
         onOpenChat={openChat}
         onOpenProfile={(profileId) => router.push(`/users/${profileId}/view`)}
+        onPrefetchChat={(roomId) => {
+          void prefetchChatRoom(roomId);
+        }}
         onRefresh={() => {
           void fetchConversations({ force: true, manual: true });
         }}

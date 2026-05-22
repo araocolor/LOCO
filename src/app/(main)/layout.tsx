@@ -1,3 +1,4 @@
+import AppPrefetcher from "@/components/layout/AppPrefetcher";
 import BottomNav from "@/components/layout/BottomNav";
 import MainContentShell from "@/components/layout/MainContentShell";
 import SearchSheet from "@/components/features/SearchSheet";
@@ -16,8 +17,9 @@ export default async function MainLayout({
       <div className="relative flex flex-col w-full max-w-[500px] min-h-screen bg-white">
         <MainContentShell>{children}</MainContentShell>
         <PresenceTracker />
+        <AppPrefetcher isLoggedIn={!!user} />
         <SearchSheet />
-        <BottomNav isLoggedIn={!!user} />
+        <BottomNav />
       </div>
     </div>
   );
