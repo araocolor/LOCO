@@ -164,7 +164,13 @@ export default function ChatDrawer({
   const chatMenuButtonRef = useRef<HTMLButtonElement>(null);
   const rawChatTitle = chatTitle ?? otherUser?.nickname ?? "로딩중...";
   const displayChatTitle =
-    rawChatTitle.length > 13 ? `${rawChatTitle.slice(0, 13)}...` : rawChatTitle;
+    rawChatTitle.length > 17 ? `${rawChatTitle.slice(0, 17)}...` : rawChatTitle;
+  const roomTypeBadge =
+    roomType === "group"
+      ? { label: "그룹", className: "bg-lime-100 text-lime-700" }
+      : roomType === "class"
+        ? { label: "클래스", className: "bg-red-100 text-red-600" }
+        : null;
 
   function startEditTitle() {
     if (!canEditTitle) return;
@@ -229,9 +235,17 @@ export default function ChatDrawer({
     });
   }, [roomMembers]);
 
+  const isDirectRoom = roomType === "direct";
   const isClassRoom = roomType === "class";
   const unreadNotice = notices.find((notice) => !notice.read_by_me) ?? null;
-  const isClassOwner = isClassRoom && (roomMembers ?? []).some((member) => member.user_id === userId && member.role === "owner");
+  const classNoticeWriters = isClassRoom
+    ? [
+        memberProfiles.find((member) => member.role === "owner"),
+        memberProfiles.filter((member) => member.role !== "owner")[0],
+      ].filter(Boolean)
+    : [];
+  const canWriteClassNotice = classNoticeWriters.some((member) => member?.userId === userId);
+  const displayedActiveTab = isDirectRoom && (activeTab === "class" || activeTab === "members") ? "all" : activeTab;
 
   function formatNoticeDate(dateStr: string | null) {
     if (!dateStr) return "";
@@ -355,10 +369,18 @@ export default function ChatDrawer({
           ) : (
             <span
               onClick={startEditTitle}
-              className={`block whitespace-nowrap overflow-hidden text-ellipsis font-bold text-[#4d4d4d] leading-none ${canEditTitle ? "cursor-pointer" : ""}`}
+              className={`flex min-w-0 items-center justify-center gap-2 whitespace-nowrap font-bold text-[#4d4d4d] leading-none ${canEditTitle ? "cursor-pointer" : ""}`}
               style={{ fontSize: 18 }}
             >
-              {displayChatTitle}
+              {roomTypeBadge && (
+                <span
+                  className={`shrink-0 rounded-full px-2 py-1 font-normal leading-none ${roomTypeBadge.className}`}
+                  style={{ fontSize: 15 }}
+                >
+                  {roomTypeBadge.label}
+                </span>
+              )}
+              <span className="min-w-0 overflow-hidden text-ellipsis">{displayChatTitle}</span>
             </span>
           )}
         </div>
@@ -377,30 +399,6 @@ export default function ChatDrawer({
             </button>
             {chatMenuOpen && (
               <div ref={chatMenuRef} className="absolute right-0 top-full z-[80] bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden" style={{ width: 180 }}>
-                {isClassOwner && (
-                  <>
-                    <button
-                      className="flex items-center justify-between w-full px-4 py-3 text-gray-700" style={{ fontSize: "16px" }}
-                      onClick={() => openNoticeDrawer("notice")}
-                    >
-                      <span>공지작성</span>
-                      <Megaphone size={20} className="text-gray-500" />
-                    </button>
-                    <div className="border-t border-gray-100 mx-3" />
-                  </>
-                )}
-                {isClassRoom && (
-                  <>
-                    <button
-                      className="flex items-center justify-between w-full px-4 py-3 text-gray-700" style={{ fontSize: "16px" }}
-                      onClick={() => openNoticeDrawer("vote")}
-                    >
-                      <span>투표작성</span>
-                      <BarChart3 size={20} className="text-gray-500" />
-                    </button>
-                    <div className="border-t border-gray-100 mx-3" />
-                  </>
-                )}
                 {canAddMembers && (
                   <>
                     <button
@@ -450,42 +448,46 @@ export default function ChatDrawer({
 
       <div className="shrink-0 flex items-end px-4 border-b border-[#e5e7eb]">
         <div className="flex gap-5">
-          <button
-            type="button"
-            onClick={() => setActiveTab("class")}
-            style={{ fontSize: 17 }}
-            className={`pb-2 font-bold border-b-2 transition-colors ${
-              activeTab === "class" ? "border-black text-black" : "border-transparent text-gray-400"
-            }`}
-          >
-            공지/투표
-          </button>
+          {!isDirectRoom && (
+            <button
+              type="button"
+              onClick={() => setActiveTab("class")}
+              style={{ fontSize: 17 }}
+              className={`pb-2 font-bold border-b-2 transition-colors ${
+                displayedActiveTab === "class" ? "border-black text-black" : "border-transparent text-gray-400"
+              }`}
+            >
+              공지/투표
+            </button>
+          )}
           <button
             type="button"
             onClick={() => setActiveTab("all")}
             style={{ fontSize: 17 }}
             className={`pb-2 font-bold border-b-2 transition-colors ${
-              activeTab === "all" ? "border-black text-black" : "border-transparent text-gray-400"
+              displayedActiveTab === "all" ? "border-black text-black" : "border-transparent text-gray-400"
             }`}
           >
-            전체대화
+            {isDirectRoom ? "1:1 대화" : "전체대화"}
           </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab("members")}
-            style={{ fontSize: 17 }}
-            className={`pb-2 font-bold border-b-2 transition-colors ${
-              activeTab === "members" ? "border-black text-black" : "border-transparent text-gray-400"
-            }`}
-          >
-            참여회원들
-          </button>
+          {!isDirectRoom && (
+            <button
+              type="button"
+              onClick={() => setActiveTab("members")}
+              style={{ fontSize: 17 }}
+              className={`pb-2 font-bold border-b-2 transition-colors ${
+                displayedActiveTab === "members" ? "border-black text-black" : "border-transparent text-gray-400"
+              }`}
+            >
+              참여회원들
+            </button>
+          )}
           <button
             type="button"
             onClick={() => setActiveTab("archive")}
             style={{ fontSize: 17 }}
             className={`pb-2 font-bold border-b-2 transition-colors ${
-              activeTab === "archive" ? "border-black text-black" : "border-transparent text-gray-400"
+              displayedActiveTab === "archive" ? "border-black text-black" : "border-transparent text-gray-400"
             }`}
           >
             보관함
@@ -509,7 +511,7 @@ export default function ChatDrawer({
         }
         .msg-shake { animation: shake 0.3s ease-in-out infinite; }
       `}</style>
-      {activeTab === "all" && (
+      {displayedActiveTab === "all" && (
         <>
           <div
             className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3"
@@ -676,7 +678,7 @@ export default function ChatDrawer({
         </>
       )}
 
-      {activeTab === "members" && (
+      {displayedActiveTab === "members" && (
         <div className="flex-1 overflow-y-auto px-4 py-4" style={{ backgroundColor: "#B2C7D9" }}>
           {memberProfiles.length === 0 ? (
             <div className="flex h-full items-center justify-center text-sm text-gray-400">참여 회원이 없습니다</div>
@@ -697,12 +699,33 @@ export default function ChatDrawer({
         </div>
       )}
 
-      {activeTab === "class" && (
+      {displayedActiveTab === "class" && (
         <div className="flex-1 overflow-y-auto px-4 py-5" style={{ backgroundColor: "#B2C7D9" }}>
           {!isClassRoom ? (
             <div className="flex h-full items-center justify-center text-sm text-gray-400">공지/투표가 없습니다</div>
           ) : (
             <div className="space-y-4">
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => openNoticeDrawer("vote")}
+                  className="rounded-full bg-yellow-300 px-4 py-2 text-sm font-bold text-gray-900 shadow-sm hover:bg-yellow-400"
+                >
+                  투표작성
+                </button>
+                <button
+                  type="button"
+                  onClick={() => canWriteClassNotice && openNoticeDrawer("notice")}
+                  disabled={!canWriteClassNotice}
+                  className={`rounded-full px-4 py-2 text-sm font-bold shadow-sm ${
+                    canWriteClassNotice
+                      ? "bg-yellow-300 text-gray-900 hover:bg-yellow-400"
+                      : "bg-yellow-100 text-gray-400"
+                  }`}
+                >
+                  공지작성
+                </button>
+              </div>
               {notices.length > 0 ? (
                 <div className="space-y-4">
                   {notices.map((notice, index) => {
@@ -816,7 +839,7 @@ export default function ChatDrawer({
         </div>
       )}
 
-      {activeTab === "archive" && (
+      {displayedActiveTab === "archive" && (
         <div className="flex-1 overflow-y-auto px-4 py-4" style={{ backgroundColor: "#B2C7D9" }}>
           <div className="flex h-full items-center justify-center text-sm text-gray-400">보관된 항목이 없습니다</div>
         </div>

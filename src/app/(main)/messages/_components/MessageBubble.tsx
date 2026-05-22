@@ -150,7 +150,7 @@ export default function MessageBubble({
               );
             })()}
             <div
-              className={`relative rounded-lg text-base overflow-visible ${
+              className={`relative rounded-lg overflow-visible ${
                 hasRichContent ? "" : "px-3 py-2"
               } ${isMine ? "text-gray-900" : "bg-white text-gray-900"} ${isMine && shakingMsgId === msg.id ? "msg-shake" : ""} select-none`}
               style={{
