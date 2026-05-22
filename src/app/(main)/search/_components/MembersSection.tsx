@@ -148,7 +148,7 @@ export default function MembersSection({
                     onClick={() => onToggleMemberTypeFilter(type)}
                     className={`rounded-full border px-2.5 py-1 text-[16px] leading-tight transition-colors ${
                       active
-                        ? "bg-gray-900 border-gray-900 text-lime-100 font-bold"
+                        ? "bg-gray-900 border-gray-900 text-white font-bold"
                         : "bg-white border-white text-[#595959] font-semibold"
                     } hover:border-gray-900`}
                   >

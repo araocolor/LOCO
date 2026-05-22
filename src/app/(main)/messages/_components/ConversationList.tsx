@@ -72,10 +72,10 @@ export default function ConversationList({
   return (
     <>
       <div className="flex items-end justify-between px-4 border-b border-[#e5e7eb]">
-        <div className="flex gap-5">
+        <div className="ml-2 flex gap-5">
           <button
             onClick={() => setActiveMenuTab("messages")}
-            style={{ fontSize: 17 }}
+            style={{ fontSize: activeMenuTab === "messages" ? 18 : 17 }}
             className={`pb-2 font-bold border-b-2 transition-colors ${
               activeMenuTab === "messages"
                 ? "border-black text-black"
@@ -86,7 +86,7 @@ export default function ConversationList({
           </button>
           <button
             onClick={() => setActiveMenuTab("groups")}
-            style={{ fontSize: 17 }}
+            style={{ fontSize: activeMenuTab === "groups" ? 18 : 17 }}
             className={`pb-2 font-bold border-b-2 transition-colors ${
               activeMenuTab === "groups"
                 ? "border-black text-black"
@@ -97,7 +97,7 @@ export default function ConversationList({
           </button>
           <button
             onClick={() => setActiveMenuTab("my-chat")}
-            style={{ fontSize: 17 }}
+            style={{ fontSize: activeMenuTab === "my-chat" ? 18 : 17 }}
             className={`pb-2 font-bold border-b-2 transition-colors ${
               activeMenuTab === "my-chat"
                 ? "border-black text-black"
@@ -108,7 +108,7 @@ export default function ConversationList({
           </button>
           <button
             onClick={() => setActiveMenuTab("nearby")}
-            style={{ fontSize: 17 }}
+            style={{ fontSize: activeMenuTab === "nearby" ? 18 : 17 }}
             className={`pb-2 font-bold border-b-2 transition-colors ${
               activeMenuTab === "nearby"
                 ? "border-black text-black"
@@ -189,9 +189,19 @@ export default function ConversationList({
                   conv.other_user?.id ? onlineIds.has(conv.other_user.id) : false;
                 const displayNickname = conv.title ?? conv.other_user?.nickname ?? "알 수 없음";
                 const avatarText = displayNickname[0] ?? "?";
-                const otherMembers = (conv.members ?? []).filter((m) => m.user_id !== userId);
                 const showGroupAvatars = conv.type === "group";
-                const groupAvatars = showGroupAvatars ? otherMembers.slice(0, 3) : [];
+                const groupAvatarSlots = showGroupAvatars
+                  ? (() => {
+                      const members = conv.members ?? [];
+                      const owner = members.find((member) => member.role === "owner");
+                      const others = members.filter((member) => member.user_id !== owner?.user_id);
+                      return {
+                        top: others[0],
+                        left: others[1],
+                        right: owner ?? others[2],
+                      };
+                    })()
+                  : { top: undefined, left: undefined, right: undefined };
                 return (
                   <div className="flex items-stretch gap-2">
                     <div className="flex-1 px-3 py-3">
@@ -213,47 +223,47 @@ export default function ConversationList({
                               alt={displayNickname}
                               width={50}
                               height={50}
-                              className="h-[50px] w-[50px] rounded-[5px] object-cover object-center"
+                              className="h-[50px] w-[50px] rounded-none object-cover object-center"
                             />
                           ) : showGroupAvatars ? (
                             <div className="relative w-10 h-10">
-                              {groupAvatars[0]?.profile?.profile_image_url ? (
+                              {groupAvatarSlots.top?.profile?.profile_image_url ? (
                                 <Image
-                                  src={groupAvatars[0].profile.profile_image_url}
-                                  alt={groupAvatars[0].profile?.nickname ?? ""}
+                                  src={groupAvatarSlots.top.profile.profile_image_url}
+                                  alt={groupAvatarSlots.top.profile?.nickname ?? ""}
                                   width={28}
                                   height={28}
                                   className="absolute left-1/2 top-0 -translate-x-1/2 w-[28px] h-[28px] rounded-full object-cover border border-white"
                                 />
                               ) : (
                                 <div className="absolute left-1/2 top-0 -translate-x-1/2 w-[28px] h-[28px] rounded-full bg-gray-200 border border-white flex items-center justify-center text-gray-500 text-[11px] font-medium">
-                                  {groupAvatars[0]?.profile?.nickname?.[0] ?? "?"}
+                                  {groupAvatarSlots.top?.profile?.nickname?.[0] ?? "?"}
                                 </div>
                               )}
-                              {groupAvatars[1]?.profile?.profile_image_url ? (
+                              {groupAvatarSlots.left?.profile?.profile_image_url ? (
                                 <Image
-                                  src={groupAvatars[1].profile.profile_image_url}
-                                  alt={groupAvatars[1].profile?.nickname ?? ""}
+                                  src={groupAvatarSlots.left.profile.profile_image_url}
+                                  alt={groupAvatarSlots.left.profile?.nickname ?? ""}
                                   width={28}
                                   height={28}
                                   className="absolute left-0 bottom-0 w-[28px] h-[28px] rounded-full object-cover border border-white"
                                 />
                               ) : (
                                 <div className="absolute left-0 bottom-0 w-[28px] h-[28px] rounded-full bg-gray-200 border border-white flex items-center justify-center text-gray-500 text-[11px] font-medium">
-                                  {groupAvatars[1]?.profile?.nickname?.[0] ?? "?"}
+                                  {groupAvatarSlots.left?.profile?.nickname?.[0] ?? "?"}
                                 </div>
                               )}
-                              {groupAvatars[2] && (groupAvatars[2].profile?.profile_image_url ? (
+                              {groupAvatarSlots.right && (groupAvatarSlots.right.profile?.profile_image_url ? (
                                 <Image
-                                  src={groupAvatars[2].profile.profile_image_url}
-                                  alt={groupAvatars[2].profile?.nickname ?? ""}
+                                  src={groupAvatarSlots.right.profile.profile_image_url}
+                                  alt={groupAvatarSlots.right.profile?.nickname ?? ""}
                                   width={28}
                                   height={28}
                                   className="absolute right-0 bottom-0 w-[28px] h-[28px] rounded-full object-cover border border-white"
                                 />
                               ) : (
                                 <div className="absolute right-0 bottom-0 w-[28px] h-[28px] rounded-full bg-gray-200 border border-white flex items-center justify-center text-gray-500 text-[11px] font-medium">
-                                  {groupAvatars[2].profile?.nickname?.[0] ?? "?"}
+                                  {groupAvatarSlots.right.profile?.nickname?.[0] ?? "?"}
                                 </div>
                               ))}
                             </div>
@@ -261,12 +271,12 @@ export default function ConversationList({
                             <Image
                               src={conv.other_user.profile_image_url}
                               alt={conv.other_user.nickname}
-                              width={40}
-                              height={40}
-                              className="rounded-full object-cover"
+                              width={43}
+                              height={43}
+                              className="h-[43px] w-[43px] rounded-[15px] object-cover"
                             />
                           ) : (
-                            <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 text-xs font-medium">
+                            <div className="flex h-[43px] w-[43px] items-center justify-center rounded-[15px] bg-gray-200 text-xs font-medium text-gray-500">
                               {avatarText}
                             </div>
                           )}
