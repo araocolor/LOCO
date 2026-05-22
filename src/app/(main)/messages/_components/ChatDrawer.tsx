@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Dispatch, RefObject, SetStateAction, UIEvent } from "react";
-import { ArrowLeft, BarChart3, Megaphone, Paperclip, Play, Send, UserPlus } from "lucide-react";
+import { ArrowLeft, BarChart3, Megaphone, Paperclip, Send, UserPlus } from "lucide-react";
 import Image from "next/image";
 import Avatar from "@/components/ui/Avatar";
 import ChatAttachPanel from "./ChatAttachPanel";
@@ -241,7 +241,7 @@ export default function ChatDrawer({
   }, [roomMembers]);
 
   const archiveItems = useMemo<ArchiveItem[]>(() => {
-    return messages.flatMap((message) => {
+    return messages.flatMap<ArchiveItem>((message) => {
       try {
         const parsed = JSON.parse(message.content) as {
           type?: string;
@@ -252,10 +252,10 @@ export default function ChatDrawer({
           thumbnail_url?: string | null;
         };
         if (parsed.type === "image" && parsed.thumb && parsed.full) {
-          return [{ id: message.id, type: "image", thumb: parsed.thumb, href: parsed.full }];
+          return [{ id: message.id, type: "image", thumb: parsed.thumb, href: parsed.full } satisfies ArchiveItem];
         }
         if (parsed.type === "video" && parsed.status === "ready" && parsed.video_url) {
-          return [{ id: message.id, type: "video", thumb: parsed.thumbnail_url ?? null, href: parsed.video_url }];
+          return [{ id: message.id, type: "video", thumb: parsed.thumbnail_url ?? null, href: parsed.video_url } satisfies ArchiveItem];
         }
       } catch {}
       return [];
@@ -869,29 +869,29 @@ export default function ChatDrawer({
             <div className="flex h-full items-center justify-center text-sm text-gray-400">보관된 항목이 없습니다</div>
           ) : (
             <div className="grid grid-cols-3 gap-2">
-              {archiveItems.map((item) => (
-                <a
-                  key={item.id}
-                  href={item.href}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="relative aspect-square overflow-hidden rounded-md bg-gray-200"
-                  aria-label={item.type === "video" ? "동영상 열기" : "사진 열기"}
-                >
-                  {item.thumb ? (
+              {archiveItems.map((item) =>
+                item.type === "video" ? (
+                  <video
+                    key={item.id}
+                    src={item.href}
+                    poster={item.thumb ?? undefined}
+                    controls
+                    preload="metadata"
+                    className="aspect-square w-full rounded-md bg-black object-cover"
+                  />
+                ) : (
+                  <a
+                    key={item.id}
+                    href={item.href}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="relative aspect-square overflow-hidden rounded-md bg-gray-200"
+                    aria-label="사진 열기"
+                  >
                     <Image src={item.thumb} alt="" fill sizes="33vw" className="object-cover" />
-                  ) : (
-                    <div className="flex h-full w-full items-center justify-center bg-gray-900" />
-                  )}
-                  {item.type === "video" && (
-                    <span className="absolute inset-0 flex items-center justify-center bg-black/20 text-white">
-                      <span className="flex h-9 w-9 items-center justify-center rounded-full bg-black/50">
-                        <Play size={18} fill="currentColor" />
-                      </span>
-                    </span>
-                  )}
-                </a>
-              ))}
+                  </a>
+                )
+              )}
             </div>
           )}
         </div>
@@ -920,7 +920,7 @@ export default function ChatDrawer({
                     ["vote", "투표"],
                   ] as const).map(([value, label]) => {
                     const lockedByEdit = editingNoticeId !== null && noticeKind !== value;
-                    const lockedByRole = value === "notice" && !isClassOwner;
+                    const lockedByRole = value === "notice" && !canWriteClassNotice;
                     const disabled = lockedByEdit || lockedByRole;
                     return (
                       <button
