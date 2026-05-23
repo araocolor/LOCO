@@ -156,6 +156,7 @@ export default function MessageBubble({
               style={{
                 ...(isMine ? { maxWidth: "72vw" } : { maxWidth: "270px" }),
                 ...(isMine && !hasRichContent ? { backgroundColor: "#FEE500" } : {}),
+                fontFamily: 'Roboto, -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif',
               }}
               onTouchStart={() => onStartLongPress(msg.id, isMine)}
               onTouchEnd={onCancelLongPress}
