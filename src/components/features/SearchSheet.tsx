@@ -2,14 +2,16 @@
 import { useState, useEffect, useRef } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { GENRES, VENUES } from "@/lib/constants";
-import { Globe2, SlidersHorizontal } from "lucide-react";
+import { GENRES } from "@/lib/constants";
+import { LockOpen, Lock } from "lucide-react";
 import {
   DEFAULT_SEARCH_OPTIONS,
   SEARCH_DEFAULTS_STORAGE_KEY,
-  buildSearchQuery,
   type SearchOptions,
 } from "@/lib/search-defaults";
+import SearchKeywordTab from "@/components/features/SearchKeywordTab";
+
+type SheetTab = "keyword" | "filter";
 
 const STATUS_OPTIONS = [
   { value: "전체", label: "전체" },
@@ -43,64 +45,28 @@ function readLocalSearchOptions(): SearchOptions | null {
   }
 }
 
-function isDefaultOptions(opts: SearchOptions) {
-  return (
-    opts.region === DEFAULT_SEARCH_OPTIONS.region &&
-    opts.status === DEFAULT_SEARCH_OPTIONS.status &&
-    opts.venue === DEFAULT_SEARCH_OPTIONS.venue &&
-    opts.genre.length === 0
-  );
-}
-
 export default function SearchSheet() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const isOpen = searchParams.get("search") === "open";
-
+  const [isOpen, setIsOpen] = useState(false);
+  const [sheetTab, setSheetTab] = useState<SheetTab>("keyword");
   const [opts, setOpts] = useState<SearchOptions>(DEFAULT_SEARCH_OPTIONS);
   const [isMySetting, setIsMySetting] = useState(false);
   const [dragY, setDragY] = useState(0);
   const touchStartY = useRef(0);
 
   useEffect(() => {
-    async function syncDefaultFromProfileToLocal() {
-      const local = readLocalSearchOptions();
-      if (local) return;
-
-      const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data } = await supabase
-        .from("profiles")
-        .select("default_search_options")
-        .eq("id", user.id)
-        .maybeSingle();
-
-      const profileOptions = data?.default_search_options;
-      if (!profileOptions) return;
-
-      try {
-        const normalized = normalizeSearchOptions(profileOptions as SearchOptions);
-        localStorage.setItem(SEARCH_DEFAULTS_STORAGE_KEY, JSON.stringify(normalized));
-      } catch {}
+    function handleOpen() {
+      setIsOpen(true);
+      const stored = readLocalSearchOptions();
+      setOpts(stored ?? DEFAULT_SEARCH_OPTIONS);
+      setIsMySetting(false);
+      document.body.style.overflow = "hidden";
     }
-
-    void syncDefaultFromProfileToLocal();
+    window.addEventListener("open-search-sheet", handleOpen);
+    return () => window.removeEventListener("open-search-sheet", handleOpen);
   }, []);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    const stored = readLocalSearchOptions();
-    const next = stored ?? DEFAULT_SEARCH_OPTIONS;
-    setOpts(next);
-    setIsMySetting(!isDefaultOptions(next));
-    document.body.style.overflow = "hidden";
-    return () => { document.body.style.overflow = ""; };
-  }, [isOpen]);
 
   function onTouchStart(e: React.TouchEvent) {
     touchStartY.current = e.touches[0].clientY;
@@ -116,38 +82,32 @@ export default function SearchSheet() {
   }
 
   function close() {
+    setIsOpen(false);
+    setSheetTab("keyword");
+    document.body.style.overflow = "";
     const params = new URLSearchParams(searchParams.toString());
     params.delete("search");
     const next = params.toString();
-    router.replace(next ? `${pathname}?${next}` : pathname);
+    window.history.replaceState(null, "", next ? `${pathname}?${next}` : pathname);
   }
 
-  async function handleSearch() {
-    localStorage.setItem(SEARCH_DEFAULTS_STORAGE_KEY, JSON.stringify(opts));
-
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      await supabase.from("profiles").update({ default_search_options: opts }).eq("id", user.id);
-    }
-
-    const qs = buildSearchQuery(opts);
+  function handleSearch() {
     close();
-    router.push(`/?${qs}`);
   }
 
   function set(key: "region" | "status" | "venue", value: string) {
-    setIsMySetting(true);
-
+    let next: SearchOptions;
     if (key === "region" && value === "전체") {
-      setOpts((prev) => ({ ...prev, region: "전체", venue: "전체" }));
+      next = { ...opts, region: "전체", venue: "전체" };
     } else if (key === "region" && value !== "전체") {
-      setOpts((prev) => ({ ...prev, region: value, venue: "전체" }));
+      next = { ...opts, region: value, venue: "전체" };
     } else if (key === "venue" && value !== "전체") {
-      setOpts((prev) => ({ ...prev, venue: value, region: "없음" }));
+      next = { ...opts, venue: value, region: "없음" };
     } else {
-      setOpts((prev) => ({ ...prev, [key]: value }));
+      next = { ...opts, [key]: value };
     }
+    setOpts(next);
+    localStorage.setItem(SEARCH_DEFAULTS_STORAGE_KEY, JSON.stringify(next));
 
     if (key === "region" && pathname === "/") {
       const params = new URLSearchParams(searchParams.toString());
@@ -161,15 +121,10 @@ export default function SearchSheet() {
   }
 
   function toggleGenre(value: string) {
-    setIsMySetting(true);
-    const exists = opts.genre.includes(value);
-    const nextGenres = exists
-      ? opts.genre.filter((g) => g !== value)
-      : opts.genre.length >= 3
-      ? [...opts.genre.slice(1), value]
-      : [...opts.genre, value];
-
-    setOpts((prev) => ({ ...prev, genre: nextGenres }));
+    const nextGenres = opts.genre.includes(value) ? [] : [value];
+    const next = { ...opts, genre: nextGenres };
+    setOpts(next);
+    localStorage.setItem(SEARCH_DEFAULTS_STORAGE_KEY, JSON.stringify(next));
 
     if (pathname === "/") {
       const params = new URLSearchParams(searchParams.toString());
@@ -182,8 +137,9 @@ export default function SearchSheet() {
   }
 
   function selectAllGenres() {
-    setIsMySetting(true);
-    setOpts((prev) => ({ ...prev, genre: [] }));
+    const next = { ...opts, genre: [] as string[] };
+    setOpts(next);
+    localStorage.setItem(SEARCH_DEFAULTS_STORAGE_KEY, JSON.stringify(next));
 
     if (pathname === "/") {
       const params = new URLSearchParams(searchParams.toString());
@@ -199,15 +155,22 @@ export default function SearchSheet() {
     setIsMySetting(false);
   }
 
-  function selectMyDisplay() {
+  async function selectMyDisplay() {
     setIsMySetting(true);
+    localStorage.setItem(SEARCH_DEFAULTS_STORAGE_KEY, JSON.stringify(opts));
+
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      await supabase.from("profiles").update({ default_search_options: opts }).eq("id", user.id);
+    }
   }
 
   if (!isOpen) return null;
 
   return (
     <>
-      <div className="fixed inset-0 z-[9998]" />
+      <div className="fixed inset-0 z-[9998]" onClick={close} />
       <div
         className="search-slide-in search-half-panel px-4 pb-36"
         style={{ transform: dragY > 0 ? `translateY(${dragY}px)` : undefined, transition: dragY > 0 ? "none" : "transform 0.2s ease" }}
@@ -220,15 +183,52 @@ export default function SearchSheet() {
         >
           <div className="w-10 h-1 rounded-full bg-[#d2d2d7]" />
         </div>
-        <h1 className="text-lg font-bold mb-6">클래스 찾기</h1>
+        {/* 탭 메뉴 */}
+        <div className="flex items-center gap-4 mb-5">
+          <button
+            type="button"
+            onClick={() => setSheetTab("keyword")}
+            className={`text-base font-bold pb-1 ${sheetTab === "keyword" ? "text-black border-b-2 border-black" : "text-gray-400"}`}
+          >
+            검색어
+          </button>
+          <button
+            type="button"
+            onClick={() => setSheetTab("filter")}
+            className={`text-base font-bold pb-1 ${sheetTab === "filter" ? "text-black border-b-2 border-black" : "text-gray-400"}`}
+          >
+            클래스찾기
+          </button>
+          {sheetTab === "filter" && (
+            <button
+              type="button"
+              onClick={() => isMySetting ? selectAllDisplay() : selectMyDisplay()}
+              className={`ml-auto ${isMySetting ? "text-black font-bold" : "text-gray-500"}`}
+            >
+              {isMySetting ? <Lock size={20} strokeWidth={2.5} /> : <LockOpen size={20} />}
+            </button>
+          )}
+        </div>
 
+        {sheetTab === "keyword" && (
+          <SearchKeywordTab
+            onClose={close}
+            onSearch={(kw) => {
+              close();
+              router.push(`/?keyword=${encodeURIComponent(kw)}`);
+            }}
+          />
+        )}
+
+        {sheetTab === "filter" && <>
         {/* 지역 / 클래스구분 / 상태 */}
-        <div className="mb-5 grid grid-cols-3 gap-2 items-end text-center">
+        <div className="mb-5 grid grid-cols-2 gap-2 items-end text-center">
           <div>
             <label className="field-label">지역선택</label>
             <div>
               <select
-                className={`w-full h-11 rounded-xl border px-3 text-sm appearance-auto font-semibold ${opts.venue === "전체" ? "bg-[#fee500] border-[#e6cf00] text-[#1d1d1f]" : "bg-white border-[#d2d2d7] text-gray-400"}`}
+                disabled={isMySetting}
+                className={`w-full h-11 rounded-xl border px-3 text-sm appearance-auto font-semibold ${isMySetting ? "opacity-50" : ""} ${opts.venue === "전체" ? "bg-[#fee500] border-[#e6cf00] text-[#1d1d1f]" : "bg-white border-[#d2d2d7] text-gray-400"}`}
                 value={opts.region}
                 onChange={(e) => set("region", e.target.value)}
               >
@@ -246,22 +246,11 @@ export default function SearchSheet() {
             </div>
           </div>
           <div>
-            <label className="field-label">라틴바</label>
-            <div>
-              <select
-                className={`w-full h-11 rounded-xl border px-3 text-sm appearance-auto ${opts.venue !== "전체" ? "bg-[#fee500] border-[#e6cf00] text-[#1d1d1f] font-semibold" : "bg-white border-[#d2d2d7] text-[#1d1d1f]"}`}
-                value={opts.venue}
-                onChange={(e) => set("venue", e.target.value)}
-              >
-                {VENUES.map((v) => <option key={v.value} value={v.value}>{v.label}</option>)}
-              </select>
-            </div>
-          </div>
-          <div>
             <label className="field-label">상태</label>
             <div>
               <select
-                className="w-full h-11 rounded-xl border border-[#d2d2d7] bg-white px-3 text-sm text-[#1d1d1f] appearance-auto"
+                disabled={isMySetting}
+                className={`w-full h-11 rounded-xl border border-[#d2d2d7] bg-white px-3 text-sm text-[#1d1d1f] appearance-auto ${isMySetting ? "opacity-50" : ""}`}
                 value={opts.status}
                 onChange={(e) => set("status", e.target.value)}
               >
@@ -277,8 +266,9 @@ export default function SearchSheet() {
           <div className="flex gap-2 flex-wrap">
             <button
               type="button"
+              disabled={isMySetting}
               onClick={selectAllGenres}
-              className={`chip ${opts.genre.length === 0 ? "active" : ""}`}
+              className={`chip ${opts.genre.length === 0 ? "active" : ""} ${isMySetting ? "opacity-50" : ""}`}
             >
               전체
             </button>
@@ -286,8 +276,9 @@ export default function SearchSheet() {
               <button
                 key={g.value}
                 type="button"
+                disabled={isMySetting}
                 onClick={() => toggleGenre(g.value)}
-                className={`chip ${opts.genre.includes(g.value) ? "active" : ""}`}
+                className={`chip ${opts.genre.includes(g.value) ? "active" : ""} ${isMySetting ? "opacity-50" : ""}`}
               >
                 {g.label}
               </button>
@@ -295,36 +286,11 @@ export default function SearchSheet() {
           </div>
         </div>
 
-        {/* 표시 방식 */}
-        <div className="mb-1">
-          <label className="field-label">표시 방식</label>
-          <div className="flex gap-2 flex-wrap">
-            <button
-              type="button"
-              onClick={selectAllDisplay}
-              className={`chip ${!isMySetting ? "active" : ""}`}
-            >
-              <span className="inline-flex items-center gap-1.5">
-                <Globe2 size={14} />
-                전체표시
-              </span>
-            </button>
-            <button
-              type="button"
-              onClick={selectMyDisplay}
-              className={`chip ${isMySetting ? "active" : ""}`}
-            >
-              <span className="inline-flex items-center gap-1.5">
-                <SlidersHorizontal size={14} />
-                내설정표시
-              </span>
-            </button>
-          </div>
-        </div>
+        </>}
       </div>
 
-      {/* 하단 고정 영역 */}
-      <div className="fixed bottom-0 left-0 right-0 z-[10000] bg-white border-t border-[#e5e7eb] px-4 pt-3 pb-4">
+      {/* 하단 고정 영역 - 필터 탭에서만 표시 */}
+      {sheetTab === "filter" && <div className="fixed bottom-0 left-0 right-0 z-[10000] bg-white border-t border-[#e5e7eb] px-4 pt-3 pb-4">
         {/* 검색하기 */}
         <div className="flex gap-2 mb-2">
           <button
@@ -336,20 +302,13 @@ export default function SearchSheet() {
           </button>
           <button
             type="button"
-            onClick={close}
-            className="flex-1 h-11 rounded-xl border border-gray-300 text-gray-700 font-semibold text-sm"
-          >
-            닫기
-          </button>
-          <button
-            type="button"
             onClick={handleSearch}
             className="flex-1 h-11 rounded-xl bg-[#FEE500] text-gray-900 font-semibold text-sm"
           >
             확인
           </button>
         </div>
-      </div>
+      </div>}
     </>
   );
 }

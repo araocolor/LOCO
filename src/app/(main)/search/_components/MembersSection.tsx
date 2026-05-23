@@ -1,6 +1,6 @@
 "use client";
 
-import { Binoculars, ChevronLeft, ChevronRight, LayoutGrid, LayoutList, MoreVertical } from "lucide-react";
+import { Binoculars, ChevronLeft, ChevronRight, LayoutGrid, LayoutList, Lock, LockOpen, MoreVertical } from "lucide-react";
 import Avatar from "@/components/ui/Avatar";
 import type { Dispatch, MouseEvent, RefObject, SetStateAction } from "react";
 import { MEMBER_TYPES } from "@/lib/constants";
@@ -25,6 +25,8 @@ interface MembersSectionProps {
   selectedMemberTypes: string[];
   onToggleMemberTypeFilter: (type: string) => void;
   memberResultCount: number;
+  basicFilterLocked: boolean;
+  setBasicFilterLocked: Dispatch<SetStateAction<boolean>>;
   memberViewMode: "list" | "grid";
   setMemberViewMode: Dispatch<SetStateAction<"list" | "grid">>;
   membersLoaded: boolean;
@@ -53,6 +55,8 @@ export default function MembersSection({
   selectedMemberTypes,
   onToggleMemberTypeFilter,
   memberResultCount,
+  basicFilterLocked,
+  setBasicFilterLocked,
   memberViewMode,
   setMemberViewMode,
   membersLoaded,
@@ -73,12 +77,21 @@ export default function MembersSection({
           className="flex h-full overflow-x-auto snap-x snap-mandatory scrollbar-hide"
           style={{ WebkitOverflowScrolling: "touch", touchAction: "pan-x" }}
         >
-          <div className="h-full min-w-full snap-start flex flex-col justify-center px-4 gap-2 bg-gray-100">
+          <div className="h-full min-w-full snap-start flex flex-col justify-center px-4 gap-2 bg-gray-100 relative">
+            <button
+              type="button"
+              onClick={() => setBasicFilterLocked((prev) => !prev)}
+              className="absolute left-5 top-1/2 -translate-y-1/2"
+              aria-label={basicFilterLocked ? "검색 조건 잠금 해제" : "검색 조건 잠금"}
+            >
+              {basicFilterLocked ? <Lock size={20} strokeWidth={3} className="text-gray-700" /> : <LockOpen size={20} className="text-gray-400" />}
+            </button>
             <div className="flex items-center gap-2 justify-center">
               <select
                 value={memberRegion}
                 onChange={(e) => setMemberRegion(e.target.value)}
-                className="h-8 w-[88px] flex-shrink-0 rounded-full border border-transparent bg-white px-3 text-[16px] text-gray-800 focus:outline-none focus:border-transparent"
+                disabled={basicFilterLocked}
+                className={`h-8 w-[88px] flex-shrink-0 rounded-full border border-transparent px-3 text-[16px] focus:outline-none focus:border-transparent ${basicFilterLocked ? "bg-gray-200 text-gray-400" : "bg-white text-gray-800"}`}
               >
                 {availableMemberRegions.map((region) => (
                   <option key={region} value={region}>
@@ -92,7 +105,8 @@ export default function MembersSection({
                   placeholder="아이디"
                   value={memberSearch}
                   onChange={(e) => setMemberSearch(e.target.value)}
-                  className="w-full h-8 pl-3 pr-8 border border-transparent rounded-full bg-white focus:outline-none focus:border-transparent"
+                  disabled={basicFilterLocked}
+                  className={`w-full h-8 pl-3 pr-8 border border-transparent rounded-full focus:outline-none focus:border-transparent ${basicFilterLocked ? "bg-gray-200 text-gray-400" : "bg-white"}`}
                   style={{ fontSize: 16 }}
                 />
                 {memberSearch && (
@@ -107,7 +121,8 @@ export default function MembersSection({
               <select
                 value={memberGender}
                 onChange={(e) => setMemberGender(e.target.value as "" | "로" | "라")}
-                className="h-8 w-[64px] flex-shrink-0 rounded-full border border-transparent bg-white px-2 text-[16px] text-gray-800 focus:outline-none focus:border-transparent"
+                disabled={basicFilterLocked}
+                className={`h-8 w-[64px] flex-shrink-0 rounded-full border border-transparent px-2 text-[16px] focus:outline-none focus:border-transparent ${basicFilterLocked ? "bg-gray-200 text-gray-400" : "bg-white text-gray-800"}`}
               >
                 <option value="">로/라</option>
                 <option value="로">로</option>
@@ -123,12 +138,13 @@ export default function MembersSection({
                   <button
                     key={genre.value}
                     type="button"
+                    disabled={basicFilterLocked}
                     onClick={() => onToggleMemberGenre(genre.value)}
                     className={`h-8 flex-shrink-0 rounded-full px-3 text-[16px] font-semibold transition-colors ${
-                      active
-                        ? "bg-yellow-300 text-gray-950 border border-transparent"
-                        : "bg-white text-gray-500 border border-transparent"
-                    } ${faded ? "opacity-40" : ""}`}
+                      basicFilterLocked
+                        ? active ? "bg-gray-300 text-gray-500 border border-transparent" : "bg-gray-200 text-gray-400 border border-transparent"
+                        : active ? "bg-yellow-300 text-gray-950 border border-transparent" : "bg-white text-gray-500 border border-transparent"
+                    } ${faded && !basicFilterLocked ? "opacity-40" : ""}`}
                   >
                     {genre.label}
                   </button>
@@ -190,10 +206,13 @@ export default function MembersSection({
               {memberResultCount}
             </span>
           </div>
+          <span className="flex-1 text-center text-black font-bold" style={{ fontSize: 17, marginRight: 40 }}>
+            {memberRegion === "전체" ? "한국" : memberRegion}
+          </span>
           <button
             type="button"
             onClick={() => setMemberViewMode((mode) => mode === "list" ? "grid" : "list")}
-            className="ml-auto h-9 w-9 flex items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors"
+            className="h-9 w-9 flex items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors"
             aria-label={memberViewMode === "list" ? "그리드 보기" : "리스트 보기"}
             title={memberViewMode === "list" ? "그리드 보기" : "리스트 보기"}
           >

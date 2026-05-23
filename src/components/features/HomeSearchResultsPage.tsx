@@ -23,21 +23,27 @@ function getLastLoadedPage(itemCount: number) {
 
 interface Props {
   initialClasses?: ClassWithHost[];
+  regionOverride?: string | null;
 }
 
-export default function HomeSearchResultsPage({ initialClasses = [] }: Props) {
+const EMPTY_CLASSES: ClassWithHost[] = [];
+
+export default function HomeSearchResultsPage({ initialClasses, regionOverride }: Props) {
+  const stableInitial = initialClasses ?? EMPTY_CLASSES;
   const router = useRouter();
   const searchParams = useSearchParams();
-  const region = searchParams.get("region") ?? "전체";
+  const region = regionOverride ?? searchParams.get("region") ?? "전체";
   const genres = searchParams.getAll("genre");
   const isBookmarkMode = searchParams.get("bookmark") === "true";
 
-  const [loading, setLoading] = useState(initialClasses.length === 0);
-  const [classes, setClasses] = useState<ClassWithHost[]>(initialClasses);
-  const [page, setPage] = useState(getLastLoadedPage(initialClasses.length));
-  const [hasMore, setHasMore] = useState(initialClasses.length >= PAGE_SIZE);
+  const [loading, setLoading] = useState(stableInitial.length === 0);
+  const [classes, setClasses] = useState<ClassWithHost[]>(stableInitial);
+  const [page, setPage] = useState(getLastLoadedPage(stableInitial.length));
+  const [hasMore, setHasMore] = useState(stableInitial.length >= PAGE_SIZE);
   const [loadingMore, setLoadingMore] = useState(false);
   const [bookmarkVersion, setBookmarkVersion] = useState(0);
+
+  const regionParam = region && region !== "전체" ? `&region=${encodeURIComponent(region)}` : "";
 
   const warmedImageUrlsRef = useRef<Set<string>>(new Set());
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -89,7 +95,7 @@ export default function HomeSearchResultsPage({ initialClasses = [] }: Props) {
   }, []);
 
   const warmPageImages = useCallback((pageNumber: number) => {
-    fetch(`/api/classes/search?page=${pageNumber}&limit=${PAGE_SIZE}`)
+    fetch(`/api/classes/search?page=${pageNumber}&limit=${PAGE_SIZE}${regionParam}`)
       .then((r) => r.json())
       .then((j) => { if (j.data) warmImages(j.data); })
       .catch(() => {});
@@ -114,7 +120,7 @@ export default function HomeSearchResultsPage({ initialClasses = [] }: Props) {
     setLoadingMore(true);
     try {
       const nextPage = page + 1;
-      const res = await fetch(`/api/classes/search?page=${nextPage}&limit=${PAGE_SIZE}`);
+      const res = await fetch(`/api/classes/search?page=${nextPage}&limit=${PAGE_SIZE}${regionParam}`);
       const json = await res.json();
       if (json.error) return;
       const incoming = (json.data ?? []) as ClassWithHost[];
@@ -155,9 +161,9 @@ export default function HomeSearchResultsPage({ initialClasses = [] }: Props) {
     let cancelled = false;
 
     async function load() {
-      // 1. 서버에서 받은 initialClasses가 있으면 즉시 표시
-      if (initialClasses.length > 0) {
-        warmImages(initialClasses);
+      // 1. 서버에서 받은 stableInitial가 있으면 즉시 표시
+      if (stableInitial.length > 0) {
+        warmImages(stableInitial);
         void fetchAndUpdate(cancelled);
         void fetchBookmarkIds();
         return;
@@ -189,7 +195,7 @@ export default function HomeSearchResultsPage({ initialClasses = [] }: Props) {
 
     async function fetchAndUpdate(cancelled: boolean) {
       try {
-        const res = await fetch(`/api/classes/search?page=0&limit=${PAGE_SIZE}`);
+        const res = await fetch(`/api/classes/search?page=0&limit=${PAGE_SIZE}${regionParam}`);
         const json = await res.json();
         if (json.error) { if (!cancelled) setLoading(false); return; }
         const incoming = (json.data ?? []) as ClassWithHost[];
@@ -240,7 +246,7 @@ export default function HomeSearchResultsPage({ initialClasses = [] }: Props) {
 
     void load();
     return () => { cancelled = true; };
-  }, [initialClasses, warmImages, warmPageImages, writeHomeCache]);
+  }, [stableInitial, warmImages, warmPageImages, writeHomeCache]);
 
   return (
     <div className="max-w-xl mx-auto bg-white relative">

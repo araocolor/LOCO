@@ -19,7 +19,6 @@ export const REGIONS_WITH_ALL = ["전체", ...REGIONS] as const;
 export const GENRES = [
   { value: "salsa", label: "살사" },
   { value: "bachata", label: "바차타" },
-  { value: "kizomba", label: "키좀바" },
   { value: "other", label: "기타" },
 ] as const;
 

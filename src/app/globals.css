@@ -270,7 +270,7 @@ body {
 }
 
 .search-slide-out {
-  animation: search-slide-out-to-left 180ms ease-in both;
+  animation: search-slide-out-to-bottom 180ms ease-in both;
 }
 
 .search-half-panel::-webkit-scrollbar {
@@ -285,8 +285,8 @@ body {
   left: 0;
   right: 0;
   z-index: 9999;
-  height: auto;
-  max-height: 70vh;
+  height: 55vh;
+  max-height: 55vh;
   overflow-y: auto;
   background: #ffffff;
   border-top-left-radius: 16px;
@@ -321,6 +321,15 @@ body {
 }
 
 .page-slide-in-from-right {
+  animation: page-slide-in-from-right 240ms ease-out both;
+}
+
+::view-transition-old(root) {
+  animation: none;
+  opacity: 0;
+}
+
+::view-transition-new(root) {
   animation: page-slide-in-from-right 240ms ease-out both;
 }
 

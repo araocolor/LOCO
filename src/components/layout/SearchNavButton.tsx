@@ -1,17 +1,10 @@
 "use client";
 
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
-
 export default function SearchNavButton({ isLoggedIn }: { isLoggedIn: boolean }) {
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
   void isLoggedIn;
 
   function handleClick() {
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("search", "open");
-    router.push(`${pathname}?${params.toString()}`);
+    window.dispatchEvent(new CustomEvent("open-search-sheet"));
   }
 
   return (

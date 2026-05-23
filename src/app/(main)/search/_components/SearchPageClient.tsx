@@ -152,6 +152,8 @@ export default function SearchPage() {
           selectedMemberTypes={membersData.selectedMemberTypes}
           onToggleMemberTypeFilter={membersData.toggleMemberTypeFilter}
           memberResultCount={membersData.memberResultCount}
+          basicFilterLocked={membersData.basicFilterLocked}
+          setBasicFilterLocked={membersData.setBasicFilterLocked}
           memberViewMode={membersData.memberViewMode}
           setMemberViewMode={membersData.setMemberViewMode}
           membersLoaded={membersData.membersLoaded}

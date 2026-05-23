@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 import { Grid3X3, Menu, Search } from "lucide-react";
 import { ClassWithHost } from "@/components/class/ClassCard";
 import HomeSearchResultsPage from "@/components/features/HomeSearchResultsPage";
@@ -14,7 +16,25 @@ interface MainTabbedHomePageProps {
 
 export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePageProps) {
   const [activeTab, setActiveTab] = useState<MainTab>("classSearch");
+  const [userRegion, setUserRegion] = useState<string | null>(null);
   const isChromeVisible = useScrollChromeVisibility(true);
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    async function loadRegion() {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data } = await supabase
+        .from("profiles")
+        .select("region")
+        .eq("id", user.id)
+        .maybeSingle();
+      if (data?.region) setUserRegion(data.region);
+    }
+    loadRegion();
+  }, []);
 
   return (
     <>
@@ -28,6 +48,9 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
             type="button"
             aria-label="찾기"
             className="w-10 h-10 -ml-1 flex items-center justify-center text-gray-700"
+            onClick={() => {
+              window.dispatchEvent(new CustomEvent("open-search-sheet"));
+            }}
           >
             <Search size={20} strokeWidth={2.2} />
           </button>
@@ -77,7 +100,8 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
       </header>
 
       {activeTab === "classSearch" && <HomeSearchResultsPage initialClasses={initialClasses} />}
-      {activeTab !== "classSearch" && <div className="max-w-xl mx-auto bg-white min-h-[40vh]" />}
+      {activeTab === "friendClasses" && <HomeSearchResultsPage regionOverride={userRegion} />}
+      {activeTab === "mySubscriptions" && <div className="max-w-xl mx-auto bg-white min-h-[40vh]" />}
     </>
   );
 }

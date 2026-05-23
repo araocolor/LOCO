@@ -250,15 +250,16 @@ export default function CachedClassDetailPage() {
     <div
       className={`relative max-w-xl mx-auto pb-32 ${animateFromHome ? "page-slide-in-from-left" : ""}`}
     >
-      <div className="sticky top-0 z-30 bg-white border-b border-gray-100">
-        <div className="grid grid-cols-3">
+      <div className="sticky top-0 z-30 bg-white border-b border-[#e5e7eb]">
+        <div className="flex gap-5 px-4 ml-2">
           {tabs.map((tab) => (
             <button
               key={tab.key}
               type="button"
               onClick={() => setActiveTab(tab.key)}
-              className={`py-3 text-sm font-semibold ${
-                activeTab === tab.key ? "text-gray-950 border-b-2 border-gray-950" : "text-gray-400"
+              style={{ fontSize: activeTab === tab.key ? 18 : 17 }}
+              className={`pb-2 font-bold border-b-2 transition-colors ${
+                activeTab === tab.key ? "border-black text-black" : "border-transparent text-gray-400"
               }`}
             >
               {tab.label}

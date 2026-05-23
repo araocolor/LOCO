@@ -22,6 +22,7 @@ export function useSearchMembersData(activeTab: Tab) {
   const [memberSearchMode, setMemberSearchMode] = useState<"basic" | "memberType">("memberType");
   const [selectedMemberTypes, setSelectedMemberTypes] = useState<string[]>([]);
   const [memberViewMode, setMemberViewMode] = useState<"list" | "grid">("grid");
+  const [basicFilterLocked, setBasicFilterLocked] = useState(false);
 
   const availableMemberRegions = useMemo(() => {
     const regionSet = new Set<string>();
@@ -34,18 +35,9 @@ export function useSearchMembersData(activeTab: Tab) {
     return ["전체", ...Array.from(regionSet)];
   }, [memberRegions]);
 
-  const visibleMembers = useMemo(() => {
-    if (memberSearchMode === "memberType") {
-      if (selectedMemberTypes.length === 0) return members;
-
-      return members.filter((member) =>
-        selectedMemberTypes.some((type) => member.member_type?.includes(type))
-      );
-    }
-
+  const applyBasicFilter = useCallback((list: DancerMember[]) => {
     const search = memberSearch.trim().toLowerCase();
-
-    return members.filter((member) => {
+    return list.filter((member) => {
       const matchesSearch = search === "" || member.nickname.toLowerCase().includes(search);
       const matchesRegion = memberRegion === "전체" || member.region === memberRegion;
       const selectedSalsaBachata = memberGenres.filter((genre) => genre === "salsa" || genre === "bachata");
@@ -59,18 +51,31 @@ export function useSearchMembersData(activeTab: Tab) {
       const matchesGender = memberGender === "" || member.gender === memberGender;
       return matchesSearch && matchesRegion && matchesGenre && matchesGender;
     });
-  }, [members, memberSearch, memberRegion, memberGenres, memberGender, memberSearchMode, selectedMemberTypes]);
+  }, [memberSearch, memberRegion, memberGenres, memberGender]);
+
+  const visibleMembers = useMemo(() => {
+    if (memberSearchMode === "memberType") {
+      let filtered = selectedMemberTypes.length === 0 ? members : members.filter((member) =>
+        selectedMemberTypes.some((type) => member.member_type?.includes(type))
+      );
+      if (basicFilterLocked) filtered = applyBasicFilter(filtered);
+      return filtered;
+    }
+
+    return applyBasicFilter(members);
+  }, [members, memberSearchMode, selectedMemberTypes, basicFilterLocked, applyBasicFilter]);
+
+  const hasBasicFilter =
+    memberSearch.trim() !== "" ||
+    memberRegion !== "전체" ||
+    memberGenres.length > 0 ||
+    memberGender !== "";
 
   const hasMemberFilter = useMemo(() => {
-    if (memberSearchMode === "memberType") return selectedMemberTypes.length > 0;
+    if (memberSearchMode === "memberType") return selectedMemberTypes.length > 0 || (basicFilterLocked && hasBasicFilter);
 
-    return (
-      memberSearch.trim() !== "" ||
-      memberRegion !== "전체" ||
-      memberGenres.length > 0 ||
-      memberGender !== ""
-    );
-  }, [memberSearch, memberRegion, memberGenres, memberGender, memberSearchMode, selectedMemberTypes]);
+    return hasBasicFilter;
+  }, [memberSearchMode, selectedMemberTypes, basicFilterLocked, hasBasicFilter]);
 
   const memberResultCount = hasMemberFilter ? visibleMembers.length : Math.max(memberTotalCount, visibleMembers.length);
 
@@ -79,8 +84,17 @@ export function useSearchMembersData(activeTab: Tab) {
     if (!node) return;
 
     const nextMode = node.scrollLeft > node.clientWidth / 2 ? "memberType" : "basic";
-    setMemberSearchMode((current) => (current === nextMode ? current : nextMode));
-  }, []);
+    setMemberSearchMode((current) => {
+      if (current === nextMode) return current;
+      if (nextMode === "memberType" && !basicFilterLocked) {
+        setMemberSearch("");
+        setMemberRegion("전체");
+        setMemberGenres([]);
+        setMemberGender("");
+      }
+      return nextMode;
+    });
+  }, [basicFilterLocked]);
 
   useEffect(() => {
     if (activeTab !== "members") return;
@@ -294,6 +308,8 @@ export function useSearchMembersData(activeTab: Tab) {
     handleMemberSearchPanelScroll,
     toggleMemberGenre,
     toggleMemberTypeFilter,
+    basicFilterLocked,
+    setBasicFilterLocked,
     writeMembersCache,
     removeMemberFromMemberList,
   };
