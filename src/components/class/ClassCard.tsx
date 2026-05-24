@@ -16,7 +16,6 @@ import MentionText from "@/components/class/MentionText";
 const LIKES_CACHE_KEY = "loco_liked_posts";
 const LIKE_PENDING_CACHE_KEY = "loco_class_like_pending_v1";
 const BOOKMARKS_CACHE_KEY = "loco_bookmark_ids_v1";
-const SEARCH_CACHE_KEY = "search_prefetch_cache";
 
 interface ClassHost {
   id: string;
@@ -51,35 +50,6 @@ function formatDate(dateStr: string) {
   return `${m}/${dd}(${day}) ${hh}:${mm}`;
 }
 
-function readCachedFollowingIds() {
-  try {
-    const raw = localStorage.getItem(SEARCH_CACHE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed.following)) return null;
-    return new Set<string>(parsed.following.map((item: { id: string }) => item.id));
-  } catch {
-    return null;
-  }
-}
-
-function writeFriendToSearchCache(host: ClassHost) {
-  try {
-    const raw = localStorage.getItem(SEARCH_CACHE_KEY);
-    const parsed = raw ? JSON.parse(raw) : {};
-    const following = Array.isArray(parsed.following) ? parsed.following : [];
-    if (following.some((item: { id: string }) => item.id === host.id)) return;
-    localStorage.setItem(
-      SEARCH_CACHE_KEY,
-      JSON.stringify({
-        ...parsed,
-        following: [{ ...host, status: "approved" }, ...following],
-        ts: Date.now(),
-      })
-    );
-  } catch {}
-}
-
 export default function ClassCard({ classData }: ClassCardProps) {
   const { id, host_id, title, genres, level, datetime, region, status, images, host, description } =
     classData;
@@ -88,7 +58,6 @@ export default function ClassCard({ classData }: ClassCardProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [friendMsg, setFriendMsg] = useState("");
   const [commentOpen, setCommentOpen] = useState(false);
-  const [userExpanded, setUserExpanded] = useState(false);
   const [liked, setLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(classData.like_count ?? 0);
   const [commentCount, setCommentCount] = useState(classData.comment_count ?? 0);
@@ -106,11 +75,17 @@ export default function ClassCard({ classData }: ClassCardProps) {
   const [applicantSheetOpen, setApplicantSheetOpen] = useState(false);
   const { user: authUser } = useAuth();
   const currentUserId = authUser?.id ?? null;
-  const [myApplicationStatus, setMyApplicationStatus] = useState<"pending" | "approved" | "cancelled" | null>(null);
+  const [myApplicationStatus, setMyApplicationStatus] = useState<
+    "pending" | "approved" | "cancelled" | null
+  >(null);
   const descriptionRef = useRef<HTMLDivElement>(null);
   const shouldScrollToDescription = useRef(false);
   const likeSyncTimerRef = useRef<number | null>(null);
-  const pendingLikeRef = useRef<{ desired: boolean; previousLiked: boolean; previousCount: number } | null>(null);
+  const pendingLikeRef = useRef<{
+    desired: boolean;
+    previousLiked: boolean;
+    previousCount: number;
+  } | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -135,7 +110,6 @@ export default function ClassCard({ classData }: ClassCardProps) {
     };
   }, []);
 
-
   function handleImageClick() {
     setLightboxIndex(imgIndex);
     setLightboxOpen(true);
@@ -143,7 +117,9 @@ export default function ClassCard({ classData }: ClassCardProps) {
 
   async function handleLikeToggle() {
     const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
     if (!user) {
       router.push(`/login?next=/classes/${id}`);
       return;
@@ -221,11 +197,17 @@ export default function ClassCard({ classData }: ClassCardProps) {
     const bookmarks = parseBookmarkEntries(rawB);
     const isBookmarked = bookmarks.some((b) => b.id === id);
     if (isBookmarked) {
-      localStorage.setItem(BOOKMARKS_CACHE_KEY, JSON.stringify(bookmarks.filter((b) => b.id !== id)));
+      localStorage.setItem(
+        BOOKMARKS_CACHE_KEY,
+        JSON.stringify(bookmarks.filter((b) => b.id !== id))
+      );
       setBookmarked(false);
     } else {
       const now = new Date().toISOString();
-      localStorage.setItem(BOOKMARKS_CACHE_KEY, JSON.stringify([...bookmarks, { id, created_at: now }]));
+      localStorage.setItem(
+        BOOKMARKS_CACHE_KEY,
+        JSON.stringify([...bookmarks, { id, created_at: now }])
+      );
       setBookmarked(true);
     }
     window.dispatchEvent(new CustomEvent("bookmarkChanged"));
@@ -244,7 +226,9 @@ export default function ClassCard({ classData }: ClassCardProps) {
 
     try {
       const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) {
         router.push("/login");
         return;
@@ -281,7 +265,9 @@ export default function ClassCard({ classData }: ClassCardProps) {
 
     try {
       const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) {
         router.push(`/login?next=/classes/${id}`);
         return;
@@ -367,9 +353,10 @@ export default function ClassCard({ classData }: ClassCardProps) {
       window.removeEventListener("keydown", onKeyDown);
     };
   }, [lightboxOpen, totalImages]);
-  const genreLabel = genres?.map((g) => DANCE_GENRE_LABELS[g as keyof typeof DANCE_GENRE_LABELS] ?? g).join(" · ") ?? "";
+  const genreLabel =
+    genres?.map((g) => DANCE_GENRE_LABELS[g as keyof typeof DANCE_GENRE_LABELS] ?? g).join(" · ") ??
+    "";
   const levelLabel = CLASS_LEVEL_LABELS[level] ?? level;
-  const isHostFriend = !!host?.id && readCachedFollowingIds()?.has(host.id) === true;
   const isOwnClass = currentUserId === host_id;
   const isPendingApplication = myApplicationStatus === "pending";
   const currentLightboxImageUrl =
@@ -467,15 +454,23 @@ export default function ClassCard({ classData }: ClassCardProps) {
           type="button"
           aria-label="더보기"
           className={buttonClassName}
-          onClick={() => { setMenuOpen((v) => !v); setUserExpanded(false); }}
+          onClick={() => setMenuOpen((v) => !v)}
         >
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-            <circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/>
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="currentColor"
+          >
+            <circle cx="5" cy="12" r="2" />
+            <circle cx="12" cy="12" r="2" />
+            <circle cx="19" cy="12" r="2" />
           </svg>
         </button>
         {menuOpen && (
           <>
-            <div className="fixed inset-0 z-40" onClick={() => { setMenuOpen(false); setUserExpanded(false); }} />
+            <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
             <div
               className="absolute right-0 top-full z-50 max-h-[70vh] overflow-y-auto rounded-xl border border-gray-100 bg-white text-gray-900 shadow-lg"
               style={{ width: 180 }}
@@ -537,22 +532,19 @@ export default function ClassCard({ classData }: ClassCardProps) {
                     }}
                   >
                     <span>상세보기</span>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500">
-                      <path d="M9 18l6-6-6-6"/>
-                    </svg>
-                  </button>
-                  <div className="mx-3 border-t border-gray-100" />
-                  <button className="flex w-full items-center justify-between px-4 py-3 text-sm text-gray-700">
-                    <span>다운로드</span>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500">
-                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
-                    </svg>
-                  </button>
-                  <div className="mx-3 border-t border-gray-100" />
-                  <button className="flex w-full items-center justify-between px-4 py-3 text-sm text-gray-700">
-                    <span>북마크저장</span>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500">
-                      <polygon points="19 21 12 16 5 21 5 3 19 3"/>
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="17"
+                      height="17"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="text-gray-500"
+                    >
+                      <path d="M9 18l6-6-6-6" />
                     </svg>
                   </button>
                   <div className="mx-3 border-t border-gray-100" />
@@ -564,41 +556,26 @@ export default function ClassCard({ classData }: ClassCardProps) {
                     disabled={applyingClass || status !== "recruiting" || isPendingApplication}
                     className="flex w-full items-center justify-between px-4 py-3 text-sm text-gray-700 disabled:opacity-60"
                   >
-                    <span>{isPendingApplication ? "신청확인중" : applyingClass ? "신청 중..." : "수업신청"}</span>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500">
-                      <path d="M4 12h16"/><path d="M12 4v16"/>
+                    <span>{applyingClass ? "신청 중..." : "수업신청"}</span>
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="17"
+                      height="17"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="text-gray-500"
+                    >
+                      <path d="M4 12h16" />
+                      <path d="M12 4v16" />
                     </svg>
                   </button>
-                  {!isHostFriend && (
-                    <>
-                      <div className="mx-3 border-t border-gray-100" />
-                      <button
-                        onClick={async () => {
-                          if (!host?.id) return;
-                          setMenuOpen(false);
-                          const res = await fetch("/api/friends", {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ target_id: host.id }),
-                          });
-                          const data = await res.json();
-                          if (res.ok) {
-                            writeFriendToSearchCache(host);
-                          }
-                          setFriendMsg(res.ok ? "친구등록 완료!" : (data.error ?? "오류가 발생했습니다"));
-                          setTimeout(() => setFriendMsg(""), 3000);
-                        }}
-                        className="flex w-full items-center justify-between px-4 py-3 text-sm text-gray-700"
-                      >
-                        <span>친구등록</span>
-                        <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500">
-                          <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/>
-                        </svg>
-                      </button>
-                    </>
-                  )}
                   <div className="mx-3 border-t border-gray-100" />
                   <button
+                    type="button"
                     onClick={() => {
                       setMenuOpen(false);
                       setMessageModalOpen(true);
@@ -606,41 +583,69 @@ export default function ClassCard({ classData }: ClassCardProps) {
                     className="flex w-full items-center justify-between px-4 py-3 text-sm text-gray-700"
                   >
                     <span>메세지전송</span>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500">
-                      <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="17"
+                      height="17"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="text-gray-500"
+                    >
+                      <line x1="22" y1="2" x2="11" y2="13" />
+                      <polygon points="22 2 15 22 11 13 2 9 22 2" />
                     </svg>
                   </button>
                   <div className="mx-3 border-t border-gray-100" />
-                  <div>
-                    <button
-                      className="flex w-full items-center justify-between px-4 py-3 text-sm text-gray-700"
-                      onClick={() => setUserExpanded((v) => !v)}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      handleBookmark();
+                    }}
+                    className="flex w-full items-center justify-between px-4 py-3 text-sm text-gray-700"
+                  >
+                    <span>북마크저장</span>
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="17"
+                      height="17"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="text-gray-500"
                     >
-                      <span className="font-bold">{host?.nickname ?? "사용자"}</span>
-                      <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-400" style={{ transform: userExpanded ? "rotate(90deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>
-                        <polyline points="9 18 15 12 9 6"/>
-                      </svg>
-                    </button>
-                    {userExpanded && (
-                      <div>
-                        {[
-                          { icon: "flag", label: "게시물 신고" },
-                          { icon: "slash", label: "블랙등록" },
-                        ].map(({ icon, label }, idx) => (
-                          <div key={label}>
-                            {idx > 0 && <div className="mx-3 border-t border-gray-200" />}
-                            <button className="flex w-full items-center justify-between px-4 py-2.5 text-sm text-gray-700">
-                              <span>{label}</span>
-                              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                {icon === "flag" && <><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></>}
-                                {icon === "slash" && <><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></>}
-                              </svg>
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                      <polygon points="19 21 12 16 5 21 5 3 19 3" />
+                    </svg>
+                  </button>
+                  <div className="mx-3 border-t border-gray-100" />
+                  <button
+                    type="button"
+                    className="flex w-full items-center justify-between px-4 py-3 text-sm text-gray-700"
+                  >
+                    <span>게시물신고</span>
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="17"
+                      height="17"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="text-gray-500"
+                    >
+                      <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
+                      <line x1="4" y1="22" x2="4" y2="15" />
+                    </svg>
+                  </button>
                 </>
               )}
             </div>
@@ -666,7 +671,13 @@ export default function ClassCard({ classData }: ClassCardProps) {
                 {imageList.map((img, i) => (
                   <div
                     key={i}
-                    style={{ minWidth: "100%", maxHeight: "calc(100vw * 4 / 3)", overflow: "hidden", display: "flex", alignItems: "flex-end" }}
+                    style={{
+                      minWidth: "100%",
+                      maxHeight: "calc(100vw * 4 / 3)",
+                      overflow: "hidden",
+                      display: "flex",
+                      alignItems: "flex-end",
+                    }}
                   >
                     <Image
                       src={img.card_url}
@@ -695,6 +706,11 @@ export default function ClassCard({ classData }: ClassCardProps) {
           <div className="pointer-events-none absolute inset-x-0 top-0 z-20 h-[100px]">
             <div className="absolute inset-0 bg-gradient-to-b from-black/70 to-transparent" />
             <div className="relative h-full px-3 pt-3 text-white">
+              <div className="pointer-events-auto absolute right-3 top-2 z-30">
+                {renderMoreMenu(
+                  "flex h-9 w-9 items-center justify-center rounded-full text-white drop-shadow-sm"
+                )}
+              </div>
               <button
                 type="button"
                 onClick={(e) => {
@@ -706,7 +722,10 @@ export default function ClassCard({ classData }: ClassCardProps) {
                 <p className="flex min-w-0 items-center gap-1.5 text-base font-semibold leading-tight text-white drop-shadow-sm">
                   <span className="min-w-0 truncate">{title}</span>
                   {status === "recruiting" && (
-                    <span className="h-2 w-2 flex-shrink-0 rounded-full bg-green-400" aria-label="모집중" />
+                    <span
+                      className="h-2 w-2 flex-shrink-0 rounded-full bg-green-400"
+                      aria-label="모집중"
+                    />
                   )}
                 </p>
                 <p className="mt-0.5 truncate text-sm leading-tight text-white/85 drop-shadow-sm">
@@ -729,7 +748,7 @@ export default function ClassCard({ classData }: ClassCardProps) {
                 className="drop-shadow-lg"
                 style={{ width: 80, height: 80, animation: "heartPop 0.9s ease forwards" }}
               >
-                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
               </svg>
             </div>
           )}
@@ -755,15 +774,47 @@ export default function ClassCard({ classData }: ClassCardProps) {
         <div className="flex items-center justify-between px-3 pt-2">
           <div className="flex items-center gap-4">
             {/* 북마크 */}
-            <button type="button" onClick={handleBookmark} aria-label="북마크" className="flex items-center gap-1">
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill={bookmarked ? "#1a1a1a" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-800">
+            <button
+              type="button"
+              onClick={handleBookmark}
+              aria-label="북마크"
+              className="flex items-center gap-1"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill={bookmarked ? "#1a1a1a" : "none"}
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="text-gray-800"
+              >
                 <polygon points="19 21 12 16 5 21 5 3 19 3" />
               </svg>
               <span className="text-sm font-semibold text-gray-800">5</span>
             </button>
             {/* 좋아요 */}
-            <button type="button" onClick={() => void handleLikeToggle()} aria-label="좋아요" className="flex items-center gap-1">
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill={liked ? "#ff3b5c" : "none"} stroke={liked ? "#ff3b5c" : "currentColor"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-800">
+            <button
+              type="button"
+              onClick={() => void handleLikeToggle()}
+              aria-label="좋아요"
+              className="flex items-center gap-1"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill={liked ? "#ff3b5c" : "none"}
+                stroke={liked ? "#ff3b5c" : "currentColor"}
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="text-gray-800"
+              >
                 <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
               </svg>
               <span className="text-sm font-semibold text-gray-800">{likeCount}</span>
@@ -771,16 +822,49 @@ export default function ClassCard({ classData }: ClassCardProps) {
           </div>
           <div className="flex items-center gap-4">
             {/* 댓글 */}
-            <button type="button" onClick={() => setCommentOpen(true)} aria-label="댓글보기" className="flex items-center gap-1">
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-800">
+            <button
+              type="button"
+              onClick={() => setCommentOpen(true)}
+              aria-label="댓글보기"
+              className="flex items-center gap-1"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="text-gray-800"
+              >
                 <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
               </svg>
               <span className="text-sm font-semibold text-gray-800">{commentCount}</span>
             </button>
             {/* 공유 */}
-            <button type="button" onClick={() => void handleOpenShare()} aria-label="공유" className="flex items-center gap-1">
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-800">
-                <line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" />
+            <button
+              type="button"
+              onClick={() => void handleOpenShare()}
+              aria-label="공유"
+              className="flex items-center gap-1"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="text-gray-800"
+              >
+                <line x1="22" y1="2" x2="11" y2="13" />
+                <polygon points="22 2 15 22 11 13 2 9 22 2" />
               </svg>
               <span className="text-sm font-semibold text-gray-800">{shareCount}</span>
             </button>
@@ -803,7 +887,9 @@ export default function ClassCard({ classData }: ClassCardProps) {
             </div>
           )}
           <div className="min-w-0 flex-1">
-            <span className="block truncate text-[15px] font-bold leading-tight text-gray-900">{host?.nickname ?? ""}</span>
+            <span className="block truncate text-[15px] font-bold leading-tight text-gray-900">
+              {host?.nickname ?? ""}
+            </span>
             <button
               type="button"
               onClick={handleToggleExpanded}
@@ -830,7 +916,6 @@ export default function ClassCard({ classData }: ClassCardProps) {
               )}
             </button>
           </div>
-          {renderMoreMenu("flex h-9 w-9 items-center justify-center rounded-full text-gray-400")}
         </div>
         {description && (
           <div className={expanded ? "px-3 pb-3" : "hidden"}>
@@ -856,7 +941,17 @@ export default function ClassCard({ classData }: ClassCardProps) {
               className="absolute top-4 left-4 z-20 text-white"
               onClick={(e) => e.stopPropagation()}
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="26"
+                height="26"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
                 <polyline points="7 10 12 15 17 10" />
                 <line x1="12" y1="15" x2="12" y2="3" />
@@ -869,7 +964,17 @@ export default function ClassCard({ classData }: ClassCardProps) {
             className="absolute top-4 right-4 z-20 text-white"
             onClick={() => setLightboxOpen(false)}
           >
-            <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="28"
+              height="28"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
               <line x1="18" y1="6" x2="6" y2="18" />
               <line x1="6" y1="6" x2="18" y2="18" />
             </svg>
@@ -884,7 +989,17 @@ export default function ClassCard({ classData }: ClassCardProps) {
                 setLightboxIndex((i) => Math.max(i - 1, 0));
               }}
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="34"
+                height="34"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
                 <polyline points="15 18 9 12 15 6" />
               </svg>
             </button>
@@ -904,7 +1019,10 @@ export default function ClassCard({ classData }: ClassCardProps) {
               }}
             >
               {imageList.map((img, index) => (
-                <div key={`${img.full_url ?? img.card_url}-${index}`} className="min-w-full flex items-center justify-center">
+                <div
+                  key={`${img.full_url ?? img.card_url}-${index}`}
+                  className="min-w-full flex items-center justify-center"
+                >
                   <Image
                     src={img.full_url ?? img.card_url}
                     alt={title}
@@ -927,7 +1045,17 @@ export default function ClassCard({ classData }: ClassCardProps) {
                 setLightboxIndex((i) => Math.min(i + 1, totalImages - 1));
               }}
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="34"
+                height="34"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
                 <polyline points="9 18 15 12 9 6" />
               </svg>
             </button>

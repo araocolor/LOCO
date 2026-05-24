@@ -95,18 +95,32 @@ function CommentItem({
 
   return (
     <div className={`flex gap-2 ${compact ? "py-2" : "py-2.5"}`}>
-      <Avatar src={comment.profile?.profile_image_url ?? null} nickname={name} size={compact ? 34 : 42} />
+      <Avatar
+        src={comment.profile?.profile_image_url ?? null}
+        nickname={name}
+        size={compact ? 34 : 42}
+      />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <span style={{ fontSize: "15px", color: "#808080" }}>{name}</span>
-          <span className="text-xs" style={{ color: "#808080" }}>{formatCommentTime(comment.created_at)}</span>
+          <span className="text-xs" style={{ color: "#808080" }}>
+            {formatCommentTime(comment.created_at)}
+          </span>
         </div>
-        <p className="whitespace-pre-wrap leading-relaxed" style={{ fontSize: "16px", color: "#333333", marginTop: "0px" }}>
+        <p
+          className="whitespace-pre-wrap leading-relaxed"
+          style={{ fontSize: "16px", color: "#333333", marginTop: "0px" }}
+        >
           {comment.is_deleted ? "삭제된 댓글입니다." : comment.content}
         </p>
         <div className="flex items-center gap-3 text-xs text-gray-500" style={{ marginTop: "0px" }}>
           {!comment.is_deleted && (
-            <button type="button" onClick={() => onReply(comment)} className="font-bold flex items-center gap-1" style={{ fontSize: "13px" }}>
+            <button
+              type="button"
+              onClick={() => onReply(comment)}
+              className="font-bold flex items-center gap-1"
+              style={{ fontSize: "13px" }}
+            >
               댓글쓰기
             </button>
           )}
@@ -138,7 +152,13 @@ function CommentItem({
   );
 }
 
-export default function ClassCommentsPanel({ classId, mode, open = true, onClose, onCommentCreated }: ClassCommentsPanelProps) {
+export default function ClassCommentsPanel({
+  classId,
+  mode,
+  open = true,
+  onClose,
+  onCommentCreated,
+}: ClassCommentsPanelProps) {
   const router = useRouter();
   const [comments, setComments] = useState<ClassComment[]>([]);
   const [loading, setLoading] = useState(false);
@@ -149,7 +169,9 @@ export default function ClassCommentsPanel({ classId, mode, open = true, onClose
   const [currentProfile, setCurrentProfile] = useState<CurrentProfile | null>(null);
   const touchStartY = useRef(0);
   const likeTimersRef = useRef<Map<string, number>>(new Map());
-  const likePendingRef = useRef<Map<string, { desired: boolean; previousLiked: boolean; previousCount: number }>>(new Map());
+  const likePendingRef = useRef<
+    Map<string, { desired: boolean; previousLiked: boolean; previousCount: number }>
+  >(new Map());
   const shouldShow = mode === "full" || open;
 
   const rootComments = useMemo(() => comments.filter((comment) => !comment.parent_id), [comments]);
@@ -266,7 +288,7 @@ export default function ClassCommentsPanel({ classId, mode, open = true, onClose
     const content = value.trim();
     if (!content || submitting) return;
     const normalizedParentId = parentId
-      ? comments.find((comment) => comment.id === parentId)?.parent_id ?? parentId
+      ? (comments.find((comment) => comment.id === parentId)?.parent_id ?? parentId)
       : null;
 
     setSubmitting(true);
@@ -320,11 +342,15 @@ export default function ClassCommentsPanel({ classId, mode, open = true, onClose
     });
 
     setComments((prev) => {
-      const nextComments = prev.map((item) => (
+      const nextComments = prev.map((item) =>
         item.id === comment.id
-          ? { ...item, my_liked: desired, like_count: Math.max(0, item.like_count + (desired ? 1 : -1)) }
+          ? {
+              ...item,
+              my_liked: desired,
+              like_count: Math.max(0, item.like_count + (desired ? 1 : -1)),
+            }
           : item
-      ));
+      );
       writeCachedComments(classId, nextComments);
       return nextComments;
     });
@@ -332,7 +358,10 @@ export default function ClassCommentsPanel({ classId, mode, open = true, onClose
     try {
       const raw = sessionStorage.getItem(`${COMMENT_LIKE_PENDING_CACHE_KEY}${classId}`);
       const pending = raw ? JSON.parse(raw) : {};
-      sessionStorage.setItem(`${COMMENT_LIKE_PENDING_CACHE_KEY}${classId}`, JSON.stringify({ ...pending, [comment.id]: desired }));
+      sessionStorage.setItem(
+        `${COMMENT_LIKE_PENDING_CACHE_KEY}${classId}`,
+        JSON.stringify({ ...pending, [comment.id]: desired })
+      );
     } catch {}
 
     const previousTimer = likeTimersRef.current.get(comment.id);
@@ -364,9 +393,11 @@ export default function ClassCommentsPanel({ classId, mode, open = true, onClose
 
       if (typeof json.like_count === "number") {
         setComments((prev) => {
-          const nextComments = prev.map((item) => (
-            item.id === commentId ? { ...item, like_count: json.like_count, my_liked: pending.desired } : item
-          ));
+          const nextComments = prev.map((item) =>
+            item.id === commentId
+              ? { ...item, like_count: json.like_count, my_liked: pending.desired }
+              : item
+          );
           writeCachedComments(classId, nextComments);
           return nextComments;
         });
@@ -376,17 +407,20 @@ export default function ClassCommentsPanel({ classId, mode, open = true, onClose
         const raw = sessionStorage.getItem(`${COMMENT_LIKE_PENDING_CACHE_KEY}${classId}`);
         const pendingMap = raw ? JSON.parse(raw) : {};
         delete pendingMap[commentId];
-        sessionStorage.setItem(`${COMMENT_LIKE_PENDING_CACHE_KEY}${classId}`, JSON.stringify(pendingMap));
+        sessionStorage.setItem(
+          `${COMMENT_LIKE_PENDING_CACHE_KEY}${classId}`,
+          JSON.stringify(pendingMap)
+        );
       } catch {}
       likePendingRef.current.delete(commentId);
       likeTimersRef.current.delete(commentId);
     } catch {
       setComments((prev) => {
-        const nextComments = prev.map((item) => (
+        const nextComments = prev.map((item) =>
           item.id === commentId
             ? { ...item, my_liked: pending.previousLiked, like_count: pending.previousCount }
             : item
-        ));
+        );
         writeCachedComments(classId, nextComments);
         return nextComments;
       });
@@ -429,15 +463,15 @@ export default function ClassCommentsPanel({ classId, mode, open = true, onClose
               {replies.length > 0 && (
                 <div className="ml-10 border-t border-gray-50 pt-0.5">
                   {replies.map((reply) => (
-                  <CommentItem
-                    key={reply.id}
-                    comment={reply}
-                    compact
-                    onReply={setReplyTarget}
-                    onLike={(targetComment) => {
-                      void handleCommentLike(targetComment);
-                    }}
-                  />
+                    <CommentItem
+                      key={reply.id}
+                      comment={reply}
+                      compact
+                      onReply={setReplyTarget}
+                      onLike={(targetComment) => {
+                        void handleCommentLike(targetComment);
+                      }}
+                    />
                   ))}
                 </div>
               )}
@@ -502,12 +536,13 @@ export default function ClassCommentsPanel({ classId, mode, open = true, onClose
   if (mode === "sheet") {
     return (
       <div className="loco-comment-font fixed inset-0 z-[70] flex items-end justify-center">
-        <button type="button" className="absolute inset-0 bg-black/40" onClick={onClose} aria-label="댓글 닫기" />
-        <section
-          className={`relative flex w-full max-w-xl flex-col rounded-t-[24px] bg-white shadow-2xl transition-all duration-300 animate-sheet-slide-up ${
-            sheetFull ? "h-[94dvh]" : "h-[65dvh]"
-          }`}
-        >
+        <button
+          type="button"
+          className="absolute inset-0 bg-black/40"
+          onClick={onClose}
+          aria-label="댓글 닫기"
+        />
+        <section className="relative flex h-[100dvh] w-full max-w-xl flex-col bg-white shadow-2xl transition-all duration-300 animate-sheet-slide-up">
           <div
             className="flex-shrink-0"
             onTouchStart={(e) => {
@@ -524,7 +559,12 @@ export default function ClassCommentsPanel({ classId, mode, open = true, onClose
               <span className="h-1 w-14 rounded-full bg-gray-300" />
             </button>
             <div className="flex items-center border-b border-gray-100 px-4 pb-4">
-              <button type="button" onClick={onClose} className="mr-3 text-2xl text-gray-800" aria-label="닫기">
+              <button
+                type="button"
+                onClick={onClose}
+                className="mr-3 text-2xl text-gray-800"
+                aria-label="닫기"
+              >
                 ‹
               </button>
               <h2 className="text-lg font-bold text-gray-900">댓글</h2>

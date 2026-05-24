@@ -2,17 +2,20 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useEffect, useRef, useState } from "react";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useParams, useSearchParams } from "next/navigation";
 import { DANCE_GENRE_LABELS, CLASS_LEVEL_LABELS } from "@/types/class";
 import type { ClassWithHost } from "@/components/class/ClassCard";
+import type { ClassComment } from "@/components/class/ClassCommentsPanel";
 import ClassCommentsPanel from "@/components/class/ClassCommentsPanel";
 import ClassDetailImageGallery from "@/components/class/ClassDetailImageGallery";
 import MentionText from "@/components/class/MentionText";
+import Avatar from "@/components/ui/Avatar";
 
 const HOME_RESULTS_LOCAL_KEY = "loco_home_results_local_v1";
 const LIKES_CACHE_KEY = "loco_liked_posts";
 const BOOKMARKS_CACHE_KEY = "loco_bookmark_ids_v1";
+const COMMENT_PREVIEW_LIMIT = 8;
 
 interface CachedHomeResult {
   data: ClassWithHost[];
@@ -32,13 +35,31 @@ function formatDate(dateStr: string) {
   return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, "0")}.${String(d.getDate()).padStart(2, "0")}`;
 }
 
+function formatPrice(price: number) {
+  if (price <= 0) return "무료";
+  return `${price.toLocaleString()}원`;
+}
+
+function formatCommentTime(value: string) {
+  const created = new Date(value).getTime();
+  const diffMinutes = Math.max(0, Math.floor((Date.now() - created) / 60000));
+
+  if (diffMinutes < 1) return "방금";
+  if (diffMinutes < 60) return `${diffMinutes}분전`;
+  if (diffMinutes < 60 * 24) return `${Math.floor(diffMinutes / 60)}시간전`;
+  if (diffMinutes < 60 * 24 * 30) return `${Math.floor(diffMinutes / (60 * 24))}일전`;
+
+  const d = new Date(value);
+  return `${String(d.getMonth() + 1).padStart(2, "0")}.${String(d.getDate()).padStart(2, "0")}`;
+}
+
 function InfoRow({ icon, label, value }: { icon: string; label: string; value: string }) {
   return (
-    <div className="flex gap-3 text-sm">
-      <span className="w-5 text-center flex-shrink-0">{icon}</span>
-      <span className="text-gray-500 w-16 flex-shrink-0">{label}</span>
-      <span className="text-gray-900 flex-1">{value}</span>
-    </div>
+    <p className="text-[15px] leading-snug text-gray-800">
+      <span className="mr-1.5 text-[17px]">{icon}</span>
+      <span>{label}: </span>
+      <span>{value}</span>
+    </p>
   );
 }
 
@@ -66,20 +87,60 @@ function StatusBadge({ status }: { status: ClassWithHost["status"] }) {
   );
 }
 
+function CommentPreviewItem({ comment }: { comment: ClassComment }) {
+  const name = comment.profile?.nickname ?? "사용자";
+
+  return (
+    <div className="flex gap-2 py-3">
+      <Avatar src={comment.profile?.profile_image_url ?? null} nickname={name} size={34} />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <span className="text-[14px] font-medium text-gray-600">{name}</span>
+          <span className="text-xs text-gray-400">{formatCommentTime(comment.created_at)}</span>
+        </div>
+        <p className="mt-0.5 line-clamp-2 whitespace-pre-wrap text-[15px] leading-relaxed text-gray-800">
+          {comment.is_deleted ? "삭제된 댓글입니다." : comment.content}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function CommentPreviewThread({
+  comment,
+  replies,
+}: {
+  comment: ClassComment;
+  replies: ClassComment[];
+}) {
+  return (
+    <div>
+      <CommentPreviewItem comment={comment} />
+      {replies.length > 0 && (
+        <div className="ml-10 border-t border-gray-50 pt-0.5">
+          {replies.map((reply) => (
+            <CommentPreviewItem key={reply.id} comment={reply} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function CachedClassDetailPage() {
   const params = useParams<{ id: string }>();
-  const router = useRouter();
   const searchParams = useSearchParams();
   const classId = params?.id;
   const animateFromHome = searchParams.get("from") === "home";
   const [loaded, setLoaded] = useState(false);
   const [displayClass, setDisplayClass] = useState<ClassWithHost | null>(null);
-  const [activeTab, setActiveTab] = useState<"info" | "apply" | "comments">("info");
   const [liked, setLiked] = useState(false);
   const [bookmarked, setBookmarked] = useState(false);
   const [likeCount, setLikeCount] = useState(0);
   const [applying, setApplying] = useState(false);
   const [commentSheetOpen, setCommentSheetOpen] = useState(false);
+  const [comments, setComments] = useState<ClassComment[]>([]);
+  const [commentsLoading, setCommentsLoading] = useState(false);
   const requestedRef = useRef(false);
 
   useEffect(() => {
@@ -143,7 +204,9 @@ export default function CachedClassDetailPage() {
       const rawBookmarks = localStorage.getItem(BOOKMARKS_CACHE_KEY);
       const parsedBookmarks: unknown = rawBookmarks ? JSON.parse(rawBookmarks) : [];
       const bookmarkIds = Array.isArray(parsedBookmarks)
-        ? parsedBookmarks.map((item) => (typeof item === "string" ? item : (item as { id?: string }).id))
+        ? parsedBookmarks.map((item) =>
+            typeof item === "string" ? item : (item as { id?: string }).id
+          )
         : [];
       queueMicrotask(() => {
         setLiked(isLiked);
@@ -152,6 +215,25 @@ export default function CachedClassDetailPage() {
       });
     } catch {}
   }, [classId]);
+
+  const loadCommentPreview = useCallback(async () => {
+    if (!classId) return;
+
+    queueMicrotask(() => setCommentsLoading(true));
+    try {
+      const res = await fetch(`/api/classes/${classId}/comments`, { method: "GET" });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setComments(Array.isArray(data.comments) ? data.comments : []);
+      }
+    } finally {
+      setCommentsLoading(false);
+    }
+  }, [classId]);
+
+  useEffect(() => {
+    void loadCommentPreview();
+  }, [loadCommentPreview]);
 
   if (!loaded) {
     return <div className="max-w-xl mx-auto px-4 py-6 text-sm text-gray-400">불러오는 중...</div>;
@@ -171,11 +253,6 @@ export default function CachedClassDetailPage() {
   const levelLabel =
     CLASS_LEVEL_LABELS[displayClass.level as keyof typeof CLASS_LEVEL_LABELS] ?? displayClass.level;
   const chipCls = GENRE_CHIP[primaryGenre] ?? GENRE_CHIP.other;
-  const tabs = [
-    { key: "info", label: "클래스 정보" },
-    { key: "apply", label: "신청하기" },
-    { key: "comments", label: "댓글보기" },
-  ] as const;
 
   function handleLikeToggle() {
     if (!classId) return;
@@ -201,7 +278,9 @@ export default function CachedClassDetailPage() {
         typeof item === "string" ? item === classId : (item as { id?: string }).id === classId
       );
       const next = isSaved
-        ? bookmarks.filter((item) => (typeof item === "string" ? item !== classId : (item as { id?: string }).id !== classId))
+        ? bookmarks.filter((item) =>
+            typeof item === "string" ? item !== classId : (item as { id?: string }).id !== classId
+          )
         : [...bookmarks, { id: classId, created_at: new Date().toISOString() }];
       localStorage.setItem(BOOKMARKS_CACHE_KEY, JSON.stringify(next));
       setBookmarked(!isSaved);
@@ -232,11 +311,6 @@ export default function CachedClassDetailPage() {
         body: JSON.stringify({ class_id: classId }),
       });
 
-      if (res.status === 401) {
-        router.push(`/login?next=/classes/${classId}`);
-        return;
-      }
-
       const data = await res.json().catch(() => ({}));
       alert(res.ok ? "신청이 완료되었습니다." : (data.error ?? "신청에 실패했습니다."));
     } catch {
@@ -246,159 +320,253 @@ export default function CachedClassDetailPage() {
     }
   }
 
+  const rootComments = comments.filter((comment) => !comment.parent_id);
+  const repliesByParent = comments.reduce((map, comment) => {
+    if (!comment.parent_id) return map;
+    map.set(comment.parent_id, [...(map.get(comment.parent_id) ?? []), comment]);
+    return map;
+  }, new Map<string, ClassComment[]>());
+  const sortedThreads = rootComments
+    .map((comment) => ({
+      comment,
+      replies: (repliesByParent.get(comment.id) ?? []).sort(
+        (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+      ),
+      latestAt: Math.max(
+        new Date(comment.created_at).getTime(),
+        ...(repliesByParent.get(comment.id) ?? []).map((reply) =>
+          new Date(reply.created_at).getTime()
+        )
+      ),
+    }))
+    .sort((a, b) => b.latestAt - a.latestAt);
+  const previewThreads: Array<{
+    comment: ClassComment;
+    replies: ClassComment[];
+    latestAt: number;
+  }> = [];
+  let remainingPreviewCount = COMMENT_PREVIEW_LIMIT;
+
+  for (const thread of sortedThreads) {
+    if (remainingPreviewCount <= 0) break;
+
+    const replySlots = Math.max(0, remainingPreviewCount - 1);
+    const visibleReplies =
+      thread.replies.length > replySlots
+        ? thread.replies.slice(thread.replies.length - replySlots)
+        : thread.replies;
+
+    previewThreads.push({
+      comment: thread.comment,
+      replies: visibleReplies,
+      latestAt: thread.latestAt,
+    });
+    remainingPreviewCount -= 1 + visibleReplies.length;
+  }
+
+  previewThreads.sort((a, b) => a.latestAt - b.latestAt);
+
+  const previewCommentCount = COMMENT_PREVIEW_LIMIT - remainingPreviewCount;
+  const hasMoreComments = comments.length > previewCommentCount;
+  const applyLabel =
+    displayClass.status !== "recruiting" ? "신청 마감" : applying ? "신청 중..." : "신청하기";
+
   return (
     <div
-      className={`relative max-w-xl mx-auto pb-32 ${animateFromHome ? "page-slide-in-from-left" : ""}`}
+      className={`relative max-w-xl mx-auto pb-10 ${animateFromHome ? "page-slide-in-from-left" : ""}`}
     >
-      <div className="sticky top-0 z-30 bg-white border-b border-[#e5e7eb]">
-        <div className="flex gap-5 px-4 ml-2">
-          {tabs.map((tab) => (
-            <button
-              key={tab.key}
-              type="button"
-              onClick={() => setActiveTab(tab.key)}
-              style={{ fontSize: activeTab === tab.key ? 18 : 17 }}
-              className={`pb-2 font-bold border-b-2 transition-colors ${
-                activeTab === tab.key ? "border-black text-black" : "border-transparent text-gray-400"
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
+      {images.length > 0 ? (
+        <ClassDetailImageGallery images={images} />
+      ) : (
+        <div className="w-full h-[160px] bg-gray-100 flex items-center justify-center text-5xl opacity-30">
+          🎵
         </div>
-      </div>
-
-      {activeTab === "info" && (
-        <>
-          {images.length > 0 ? (
-            <ClassDetailImageGallery images={images} />
-          ) : (
-            <div className="w-full h-[160px] bg-gray-100 flex items-center justify-center text-5xl opacity-30">
-              🎵
-            </div>
-          )}
-
-          <div className="px-4 pt-4">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-5">
-                <button
-                  type="button"
-                  onClick={handleLikeToggle}
-                  className="flex items-center gap-1.5 text-gray-900"
-                  aria-label="좋아요"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill={liked ? "#ff3b5c" : "none"} stroke={liked ? "#ff3b5c" : "currentColor"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
-                  </svg>
-                  <span className="text-sm font-semibold">{likeCount}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCommentSheetOpen(true)}
-                  className="text-gray-900"
-                  aria-label="댓글보기"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                  </svg>
-                </button>
-                <button
-                  type="button"
-                  onClick={handleShare}
-                  className="text-gray-900"
-                  aria-label="공유"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <line x1="22" y1="2" x2="11" y2="13" />
-                    <polygon points="22 2 15 22 11 13 2 9 22 2" />
-                  </svg>
-                </button>
-              </div>
-              <button
-                type="button"
-                onClick={handleBookmarkToggle}
-                className="text-gray-900"
-                aria-label="북마크"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill={bookmarked ? "#1a1a1a" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <polygon points="19 21 12 16 5 21 5 3 19 3" />
-                </svg>
-              </button>
-            </div>
-
-            <div className="flex items-center gap-2 flex-wrap mb-3">
-              <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${chipCls}`}>
-                {genreLabel}
-              </span>
-              {displayClass.is_modified && (
-                <span className="text-xs font-medium text-orange-500">수정됨</span>
-              )}
-            </div>
-
-            <h1 className="text-xl font-bold text-gray-900 mb-3">{displayClass.title}</h1>
-
-            {host && (
-              <Link href={`/users/${host.id}`} className="flex items-center gap-2 mb-5">
-                {host.profile_image_url ? (
-                  <Image
-                    src={host.profile_image_url}
-                    alt={host.nickname}
-                    width={36}
-                    height={36}
-                    className="rounded-full object-cover"
-                  />
-                ) : (
-                  <div className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center text-sm font-medium text-gray-500">
-                    {host.nickname[0]}
-                  </div>
-                )}
-                <span className="text-sm font-medium text-gray-700">{host.nickname}</span>
-                <span className="text-gray-300" aria-hidden="true">|</span>
-                <StatusBadge status={displayClass.status} />
-              </Link>
-            )}
-
-            <div className="mb-5">
-              <h2 className="font-semibold text-sm text-gray-700 mb-2">상세설명</h2>
-              <MentionText
-                text={displayClass.description}
-                emptyText="등록된 상세설명이 없습니다."
-                className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed"
-              />
-            </div>
-          </div>
-        </>
       )}
 
-      {activeTab === "apply" && (
-        <div className="px-4 pt-5">
-          <div className="card p-4 space-y-3 mb-5">
-            <InfoRow icon="•" label="제목" value={displayClass.title} />
-            <InfoRow icon="⏰" label="마감일자" value={formatDate(displayClass.deadline)} />
-            <InfoRow icon="📍" label="장소" value={displayClass.location_address} />
-            <InfoRow icon="🎯" label="레벨" value={levelLabel} />
-            <InfoRow icon="👥" label="정원" value={`${displayClass.capacity}명`} />
-            <InfoRow icon="📞" label="연락처" value={displayClass.contact} />
+      <section className="px-4 pt-4">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-5">
+            <button
+              type="button"
+              onClick={handleLikeToggle}
+              className="flex items-center gap-1.5 text-gray-900"
+              aria-label="좋아요"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill={liked ? "#ff3b5c" : "none"}
+                stroke={liked ? "#ff3b5c" : "currentColor"}
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+              </svg>
+              <span className="text-sm font-semibold">{likeCount}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setCommentSheetOpen(true)}
+              className="text-gray-900"
+              aria-label="댓글보기"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              </svg>
+            </button>
+            <button type="button" onClick={handleShare} className="text-gray-900" aria-label="공유">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <line x1="22" y1="2" x2="11" y2="13" />
+                <polygon points="22 2 15 22 11 13 2 9 22 2" />
+              </svg>
+            </button>
           </div>
           <button
             type="button"
-            onClick={handleApply}
-            disabled={applying || displayClass.status !== "recruiting"}
-            className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+            onClick={handleBookmarkToggle}
+            className="text-gray-900"
+            aria-label="북마크"
           >
-            {displayClass.status !== "recruiting" ? "신청 마감" : applying ? "신청 중..." : "신청하기"}
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill={bookmarked ? "#1a1a1a" : "none"}
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <polygon points="19 21 12 16 5 21 5 3 19 3" />
+            </svg>
           </button>
         </div>
-      )}
 
-      {activeTab === "comments" && (
-        <ClassCommentsPanel classId={displayClass.id} mode="full" />
-      )}
+        <div className="flex items-center gap-2 flex-wrap mb-3">
+          <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${chipCls}`}>
+            {genreLabel}
+          </span>
+          {displayClass.is_modified && (
+            <span className="text-xs font-medium text-orange-500">수정됨</span>
+          )}
+        </div>
+
+        <h1 className="text-xl font-bold text-gray-900 mb-3">{displayClass.title}</h1>
+
+        {host && (
+          <Link href={`/users/${host.id}`} className="flex items-center gap-2 mb-5">
+            {host.profile_image_url ? (
+              <Image
+                src={host.profile_image_url}
+                alt={host.nickname}
+                width={36}
+                height={36}
+                className="rounded-full object-cover"
+              />
+            ) : (
+              <div className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center text-sm font-medium text-gray-500">
+                {host.nickname[0]}
+              </div>
+            )}
+            <span className="text-sm font-medium text-gray-700">{host.nickname}</span>
+            <span className="text-gray-300" aria-hidden="true">
+              |
+            </span>
+            <StatusBadge status={displayClass.status} />
+          </Link>
+        )}
+
+        <div>
+          <h2 className="font-semibold text-[15px] text-gray-700 mb-2">상세설명</h2>
+          <MentionText
+            text={displayClass.description}
+            emptyText="등록된 상세설명이 없습니다."
+            className="text-[15px] text-gray-700 whitespace-pre-wrap leading-relaxed"
+          />
+        </div>
+      </section>
+
+      <section className="mt-6 border-t border-gray-100 px-4 pt-5">
+        <div className="space-y-1.5">
+          <InfoRow icon="🎁" label="제목" value={displayClass.title} />
+          <InfoRow icon="📆" label="마감일자" value={formatDate(displayClass.deadline)} />
+          <InfoRow icon="📍" label="장소" value={displayClass.location_address} />
+          <InfoRow icon="💊" label="레벨" value={levelLabel} />
+          <InfoRow icon="🫵" label="정원" value={`${displayClass.capacity}명`} />
+          <InfoRow icon="📞" label="연락처" value={displayClass.contact} />
+          <InfoRow icon="💰" label="비용" value={formatPrice(displayClass.price)} />
+        </div>
+      </section>
+
+      <section className="mt-6 border-t border-gray-100 px-4 pt-5">
+        <div className="mb-1 flex items-center justify-between">
+          <h2 className="text-base font-bold text-gray-900">댓글</h2>
+          {hasMoreComments && (
+            <button
+              type="button"
+              onClick={() => setCommentSheetOpen(true)}
+              className="rounded-full bg-gray-950 px-3.5 py-1.5 text-sm font-semibold text-white"
+            >
+              댓글 전체보기
+            </button>
+          )}
+        </div>
+        {commentsLoading ? (
+          <p className="py-8 text-center text-sm text-gray-400">댓글을 불러오는 중...</p>
+        ) : previewThreads.length > 0 ? (
+          <div className="divide-y divide-gray-100">
+            {previewThreads.map(({ comment, replies }) => (
+              <CommentPreviewThread key={comment.id} comment={comment} replies={replies} />
+            ))}
+          </div>
+        ) : (
+          <p className="py-8 text-center text-sm text-gray-400">아직 댓글이 없습니다.</p>
+        )}
+      </section>
+
+      <div className="flex justify-center px-4 pb-[max(16px,env(safe-area-inset-bottom))] pt-6">
+        <button
+          type="button"
+          onClick={handleApply}
+          disabled={applying || displayClass.status !== "recruiting"}
+          className="inline-flex h-12 items-center justify-center rounded-full bg-[#fee500] px-7 text-[15px] font-bold text-[#191600] shadow-sm transition-colors hover:bg-[#f5dc00] disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {applyLabel}
+        </button>
+      </div>
+
       <ClassCommentsPanel
         classId={displayClass.id}
         mode="sheet"
         open={commentSheetOpen}
         onClose={() => setCommentSheetOpen(false)}
+        onCommentCreated={() => {
+          void loadCommentPreview();
+        }}
       />
     </div>
   );
