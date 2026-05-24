@@ -45,4 +45,5 @@ next-env.d.ts
 .playwright-mcp/
 
 # local agent worktrees
-.claude/
+.claude/settings.json
+.claude/settings.local.json
