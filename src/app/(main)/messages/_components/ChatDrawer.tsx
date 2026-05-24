@@ -674,15 +674,19 @@ export default function ChatDrawer({
             <button className="text-gray-500 flex-shrink-0 mt-2" onClick={() => setAttachOpen((v) => !v)}>
               <Paperclip size={22} strokeWidth={2.5} />
             </button>
-            <input
-              type="text"
+            <textarea
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
-              onKeyPress={(e) => e.key === "Enter" && onSendMessage()}
               placeholder="메시지 입력..."
-              className="flex-1 px-3 py-2 border border-gray-200 rounded-full focus:outline-none focus:ring-2 focus:ring-yellow-400"
+              rows={1}
+              className="flex-1 px-3 py-2 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-yellow-400 resize-none max-h-[120px] overflow-y-auto"
               style={{ fontSize: "16px", color: "#000000cc" }}
               disabled={sending}
+              onInput={(e) => {
+                const target = e.currentTarget;
+                target.style.height = "auto";
+                target.style.height = `${target.scrollHeight}px`;
+              }}
             />
             <button
               onClick={onSendMessage}
