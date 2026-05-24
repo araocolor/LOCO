@@ -12,6 +12,8 @@ interface MessageBubbleProps {
   myProfile: MyProfile | null;
   otherUser: OtherUser | null;
   shakingMsgId: string | null;
+  isSelfChat?: boolean;
+  messageIndex?: number;
   onStartLongPress: (msgId: string, isMine: boolean) => void;
   onCancelLongPress: () => void;
   onDeleteMessage: (msgId: string) => void;
@@ -61,13 +63,15 @@ export default memo(function MessageBubble({
   myProfile,
   otherUser,
   shakingMsgId,
+  isSelfChat = false,
+  messageIndex = 0,
   onStartLongPress,
   onCancelLongPress,
   onDeleteMessage,
   onMessageReaction,
   formatTime,
 }: MessageBubbleProps) {
-  const isMine = msg.sender_id === userId;
+  const isMine = isSelfChat ? messageIndex % 2 === 0 : msg.sender_id === userId;
   const isNewGroup = !prevMsg || prevMsg.sender_id !== msg.sender_id;
   const showSenderName = !isMine && isNewGroup;
   const showMyAvatar = isMine && isNewGroup;

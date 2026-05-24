@@ -70,7 +70,7 @@ export default function BottomNav() {
 
   return (
     <nav
-      className={`fixed bottom-0 left-1/2 grid w-full max-w-[500px] z-50 h-[65px] grid-cols-4 bg-white shadow-[0_-8px_24px_rgba(0,0,0,0.08)] touch-manipulation overscroll-contain select-none transition-transform duration-200 ease-out motion-reduce:transition-none ${
+      className={`fixed bottom-0 left-1/2 grid w-full max-w-[500px] z-50 h-[60px] grid-cols-4 bg-white shadow-[0_-8px_24px_rgba(0,0,0,0.08)] touch-manipulation overscroll-contain select-none transition-transform duration-200 ease-out motion-reduce:transition-none ${
         isChromeVisible ? "-translate-x-1/2 translate-y-0" : "-translate-x-1/2 translate-y-full"
       }`}
     >
@@ -78,7 +78,7 @@ export default function BottomNav() {
         const isActive =
           href === "/" ? activeHref === "/" : activeHref.startsWith(href);
         const className =
-          "h-full min-w-0 flex flex-col items-center justify-center gap-0.5 text-black/60 transition-colors";
+          "h-full min-w-0 flex flex-col items-center justify-start pt-3 gap-0.5 text-black/60 transition-colors";
 
         return (
           <Link

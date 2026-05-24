@@ -20,10 +20,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Missing target_id" }, { status: 400 });
     }
 
-    if (target_id === user.id) {
-      return NextResponse.json({ error: "자기 자신과는 대화방을 만들 수 없습니다." }, { status: 400 });
-    }
-
     const admin = createAdminClient();
     const { data: targetProfile, error: targetError } = await admin
       .from("profiles")

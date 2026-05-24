@@ -4,16 +4,18 @@ import { useCallback, useState } from "react";
 import Image from "next/image";
 import { Bell, BellOff, RefreshCw } from "lucide-react";
 import NearbyMap, { type NearbyRefreshControl } from "@/components/features/NearbyMap";
-import type { Conversation, MessageMenuTab } from "../_types";
+import type { Conversation, MessageMenuTab, MyProfile } from "../_types";
 
 interface ConversationListProps {
   activeMenuTab: MessageMenuTab;
   conversations: Conversation[];
   finderSoundEnabled: boolean;
   loading: boolean;
+  myProfile: MyProfile | null;
   onlineIds: Set<string>;
   userId: string;
   onOpenChat: (roomId: string) => void;
+  onOpenSelfChat: () => void;
   onOpenProfile: (userId: string) => void;
   onPrefetchChat: (roomId: string) => void;
   onToggleFinderSound: () => void;
@@ -27,17 +29,20 @@ export default function ConversationList({
   conversations,
   finderSoundEnabled,
   loading,
+  myProfile,
   onlineIds,
   userId,
   onOpenChat,
   onOpenProfile,
+  onOpenSelfChat,
   onPrefetchChat,
   onToggleFinderSound,
   setActiveMenuTab,
   formatDate,
   truncateMessage,
 }: ConversationListProps) {
-  const directConversations = conversations.filter((conv) => conv.type === "direct");
+  const selfChat = conversations.find((conv) => conv.type === "direct" && conv.other_user?.id === userId);
+  const directConversations = conversations.filter((conv) => conv.type === "direct" && conv.other_user?.id !== userId);
   const groupConversations = conversations.filter((conv) => conv.type === "group");
   const classConversations = conversations.filter((conv) => conv.type === "class");
   const [nearbyRefreshControl, setNearbyRefreshControl] = useState<NearbyRefreshControl>({
@@ -153,7 +158,7 @@ export default function ConversationList({
           </div>
         ) : loading ? (
           <div className="flex items-center justify-center h-32 text-gray-400">로딩 중...</div>
-        ) : visibleConversations.length === 0 ? (
+        ) : visibleConversations.length === 0 && activeMenuTab !== "messages" ? (
           <div className="flex flex-col items-center justify-center h-32 text-gray-400">
             <p className="text-4xl mb-2">💬</p>
             <p className="text-sm">
@@ -165,7 +170,53 @@ export default function ConversationList({
             </p>
           </div>
         ) : (
-          visibleConversations.map((conv) => (
+          <>
+          {activeMenuTab === "messages" && (
+            <div
+              onClick={() => selfChat ? onOpenChat(selfChat.id) : onOpenSelfChat()}
+              className="border-b border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors"
+            >
+              <div className="flex items-stretch gap-2">
+                <div className="flex-1 px-3 py-3">
+                  <div className="flex items-start gap-3">
+                    <div className="flex-shrink-0 relative">
+                      {myProfile?.profile_image_url ? (
+                        <Image
+                          src={myProfile.profile_image_url}
+                          alt="나"
+                          width={43}
+                          height={43}
+                          className="h-[43px] w-[43px] rounded-[19px] object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-[43px] w-[43px] items-center justify-center rounded-[19px] bg-gray-200 text-xs font-medium text-gray-500">
+                          {myProfile?.nickname?.[0] ?? "나"}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0 pt-0.5">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-gray-900" style={{ fontSize: 15 }}>
+                          나와의 채팅
+                        </span>
+                        {selfChat?.last_message?.sent_at && (
+                          <span className="text-xs text-gray-400 ml-2 whitespace-nowrap">
+                            {formatDate(selfChat.last_message.sent_at)}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-sm text-gray-500 truncate mt-0.5">
+                        {selfChat?.last_message?.content
+                          ? truncateMessage(selfChat.last_message.content)
+                          : "나만의 메모 공간"}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+          {visibleConversations.map((conv) => (
             <div
               key={conv.id}
               onPointerDown={() => onPrefetchChat(conv.id)}
@@ -273,10 +324,10 @@ export default function ConversationList({
                               alt={conv.other_user.nickname}
                               width={43}
                               height={43}
-                              className="h-[43px] w-[43px] rounded-[15px] object-cover"
+                              className="h-[43px] w-[43px] rounded-[19px] object-cover"
                             />
                           ) : (
-                            <div className="flex h-[43px] w-[43px] items-center justify-center rounded-[15px] bg-gray-200 text-xs font-medium text-gray-500">
+                            <div className="flex h-[43px] w-[43px] items-center justify-center rounded-[19px] bg-gray-200 text-xs font-medium text-gray-500">
                               {avatarText}
                             </div>
                           )}
@@ -320,7 +371,8 @@ export default function ConversationList({
                 );
               })()}
             </div>
-          ))
+          ))}
+          </>
         )}
       </div>
     </>

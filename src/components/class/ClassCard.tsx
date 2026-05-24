@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type TouchEvent as ReactTouchEvent } from 
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { useAuth } from "@/lib/auth-context";
 import { parseBookmarkEntries } from "@/lib/bookmarks/local";
 import { DanceClass, DANCE_GENRE_LABELS, CLASS_LEVEL_LABELS } from "@/types/class";
 import ClassCommentsPanel from "@/components/class/ClassCommentsPanel";
@@ -103,7 +104,8 @@ export default function ClassCard({ classData }: ClassCardProps) {
   const [enteringClassRoom, setEnteringClassRoom] = useState(false);
   const [applyingClass, setApplyingClass] = useState(false);
   const [applicantSheetOpen, setApplicantSheetOpen] = useState(false);
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const { user: authUser } = useAuth();
+  const currentUserId = authUser?.id ?? null;
   const [myApplicationStatus, setMyApplicationStatus] = useState<"pending" | "approved" | "cancelled" | null>(null);
   const descriptionRef = useRef<HTMLDivElement>(null);
   const shouldScrollToDescription = useRef(false);
@@ -133,17 +135,6 @@ export default function ClassCard({ classData }: ClassCardProps) {
     };
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    createClient().auth.getUser().then(({ data: { user } }) => {
-      if (!cancelled) setCurrentUserId(user?.id ?? null);
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   function handleImageClick() {
     setLightboxIndex(imgIndex);

@@ -12,7 +12,6 @@ import type { ChatNotice, Message, MessageReactionType, MyProfile, NoticeKind, N
 interface ChatDrawerProps {
   attachOpen: boolean;
   chatLoading: boolean;
-  chatMenuOpen: boolean;
   chatOpen: boolean;
   chatTitle: string | null;
   canAddMembers: boolean;
@@ -41,7 +40,6 @@ interface ChatDrawerProps {
   onChatScroll: (event: UIEvent<HTMLDivElement>) => void;
   onClose: () => void;
   onDeleteMessage: (msgId: string) => void;
-  onFriendRequest: () => void;
   onOpenMemberDrawer: () => void;
   onNoticeReaction: (noticeId: string, reactionType: NoticeReactionType) => void;
   onNoticeVote: (noticeId: string, voteType: NoticeVoteType) => void;
@@ -56,7 +54,6 @@ interface ChatDrawerProps {
   onStartLongPress: (msgId: string, isMine: boolean) => void;
   onTitleChanged: (title: string) => void;
   setAttachOpen: Dispatch<SetStateAction<boolean>>;
-  setChatMenuOpen: Dispatch<SetStateAction<boolean>>;
   setNewMessage: Dispatch<SetStateAction<string>>;
   setShakingMsgId: Dispatch<SetStateAction<string | null>>;
   formatTime: (dateStr: string) => string;
@@ -81,7 +78,6 @@ type ArchiveItem =
 export default function ChatDrawer({
   attachOpen,
   chatLoading,
-  chatMenuOpen,
   chatOpen,
   chatTitle,
   canAddMembers,
@@ -105,7 +101,6 @@ export default function ChatDrawer({
   onChatScroll,
   onClose,
   onDeleteMessage,
-  onFriendRequest,
   onOpenMemberDrawer,
   onNoticeReaction,
   onNoticeVote,
@@ -120,7 +115,6 @@ export default function ChatDrawer({
   onStartLongPress,
   onTitleChanged,
   setAttachOpen,
-  setChatMenuOpen,
   setNewMessage,
   setShakingMsgId,
   formatTime,
@@ -163,8 +157,6 @@ export default function ChatDrawer({
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
   const titleInputRef = useRef<HTMLInputElement>(null);
-  const chatMenuRef = useRef<HTMLDivElement>(null);
-  const chatMenuButtonRef = useRef<HTMLButtonElement>(null);
   const rawChatTitle = chatTitle ?? otherUser?.nickname ?? "로딩중...";
   const displayChatTitle =
     rawChatTitle.length > 17 ? `${rawChatTitle.slice(0, 17)}...` : rawChatTitle;
@@ -293,7 +285,6 @@ export default function ChatDrawer({
     setNoticeKind(initialKind);
     setVoteClosesAt("");
     setNoticeError("");
-    setChatMenuOpen(false);
     setNoticeDrawerOpen(true);
   }
 
@@ -348,20 +339,6 @@ export default function ChatDrawer({
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   })();
 
-  useEffect(() => {
-    if (!chatMenuOpen) return;
-
-    function closeMenuOnOutsideClick(event: PointerEvent) {
-      const target = event.target;
-      if (!(target instanceof Node)) return;
-      if (chatMenuRef.current?.contains(target)) return;
-      if (chatMenuButtonRef.current?.contains(target)) return;
-      setChatMenuOpen(false);
-    }
-
-    document.addEventListener("pointerdown", closeMenuOnOutsideClick);
-    return () => document.removeEventListener("pointerdown", closeMenuOnOutsideClick);
-  }, [chatMenuOpen, setChatMenuOpen]);
 
   function openUnreadNotice() {
     if (!unreadNotice) return;
@@ -416,66 +393,6 @@ export default function ChatDrawer({
               <span className="min-w-0 overflow-hidden text-ellipsis">{displayChatTitle}</span>
             </span>
           )}
-        </div>
-        <div className="absolute right-4 top-1/2 -translate-y-1/2">
-          <div className="relative">
-            <button
-              ref={chatMenuButtonRef}
-              onClick={() => setChatMenuOpen((v) => !v)}
-              className="w-[37px] h-[37px] flex items-center justify-center text-gray-600 hover:text-gray-900"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="3" y1="6" x2="21" y2="6" />
-                <line x1="3" y1="12" x2="21" y2="12" />
-                <line x1="3" y1="18" x2="21" y2="18" />
-              </svg>
-            </button>
-            {chatMenuOpen && (
-              <div ref={chatMenuRef} className="absolute right-0 top-full z-[80] bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden" style={{ width: 180 }}>
-                {canAddMembers && (
-                  <>
-                    <button
-                      className="flex items-center justify-between w-full px-4 py-3 text-gray-700" style={{ fontSize: "16px" }}
-                      onClick={() => {
-                        setChatMenuOpen(false);
-                        onOpenMemberDrawer();
-                      }}
-                    >
-                      <span>새 사용자 추가</span>
-                      <UserPlus size={20} className="text-gray-500" />
-                    </button>
-                    <div className="border-t border-gray-100 mx-3" />
-                  </>
-                )}
-                <button
-                  className="flex items-center justify-between w-full px-4 py-3 text-gray-700" style={{ fontSize: "16px" }}
-                  onClick={() => {
-                    setChatMenuOpen(false);
-                    onFriendRequest();
-                  }}
-                >
-                  <span>친구 신청</span>
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500">
-                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/>
-                  </svg>
-                </button>
-                <div className="border-t border-gray-100 mx-3" />
-                <button className="flex items-center justify-between w-full px-4 py-3 text-gray-700" style={{ fontSize: "16px" }}>
-                  <span>대화 삭제</span>
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500">
-                    <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
-                  </svg>
-                </button>
-                <div className="border-t border-gray-100 mx-3" />
-                <button className="flex items-center justify-between w-full px-4 py-3 text-red-500" style={{ fontSize: "16px" }}>
-                  <span>차단하기</span>
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-red-400">
-                    <circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
-                  </svg>
-                </button>
-              </div>
-            )}
-          </div>
         </div>
       </header>
 
@@ -589,6 +506,8 @@ export default function ChatDrawer({
                       myProfile={myProfile}
                       otherUser={otherUser}
                       shakingMsgId={shakingMsgId}
+                      isSelfChat={otherUser?.id === userId}
+                      messageIndex={messages.indexOf(item.msg)}
                       onStartLongPress={onStartLongPress}
                       onCancelLongPress={onCancelLongPress}
                       onDeleteMessage={onDeleteMessage}
@@ -712,18 +631,31 @@ export default function ChatDrawer({
           {memberProfiles.length === 0 ? (
             <div className="flex h-full items-center justify-center text-sm text-gray-400">참여 회원이 없습니다</div>
           ) : (
-            <div className="grid grid-cols-5 gap-4">
-              {memberProfiles.map((member) => (
-                <div key={member.userId} className="flex justify-center">
-                  <Avatar
-                    src={member.profileImageUrl}
-                    nickname={member.nickname}
-                    size={50}
-                    className={isClassRoom && member.role === "owner" ? "border-2 border-white shadow-[0_0_0_2px_#ef4444]" : ""}
-                  />
+            <>
+              {canAddMembers && (
+                <div className="flex justify-center mb-4">
+                  <button
+                    type="button"
+                    onClick={onOpenMemberDrawer}
+                    className="rounded-full bg-yellow-300 px-5 py-2 text-sm font-bold text-gray-900 shadow-sm hover:bg-yellow-400"
+                  >
+                    회원초대하기
+                  </button>
                 </div>
-              ))}
-            </div>
+              )}
+              <div className="grid grid-cols-5 gap-4">
+                {memberProfiles.map((member) => (
+                  <div key={member.userId} className="flex justify-center">
+                    <Avatar
+                      src={member.profileImageUrl}
+                      nickname={member.nickname}
+                      size={50}
+                      className={isClassRoom && member.role === "owner" ? "border-2 border-white shadow-[0_0_0_2px_#ef4444]" : ""}
+                    />
+                  </div>
+                ))}
+              </div>
+            </>
           )}
         </div>
       )}

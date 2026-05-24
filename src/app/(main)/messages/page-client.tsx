@@ -146,7 +146,6 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
   const [chatLoading, setChatLoading] = useState(false);
   const [newMessage, setNewMessage] = useState("");
   const [sending, setSending] = useState(false);
-  const [chatMenuOpen, setChatMenuOpen] = useState(false);
   const [memberDrawerOpen, setMemberDrawerOpen] = useState(false);
   const [attachOpen, setAttachOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -788,6 +787,27 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
     };
   }, [userId]);
 
+  async function openSelfChat() {
+    try {
+      const res = await fetch("/api/chat/rooms/direct", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ target_id: userId }),
+      });
+      const json = await res.json();
+      if (res.ok && json.data?.id) {
+        const room = json.data;
+        setConversations((prev) => {
+          if (prev.some((c) => c.id === room.id)) return prev;
+          return [room, ...prev];
+        });
+        void openChat(room.id);
+      }
+    } catch (error) {
+      console.error("Failed to create self chat:", error);
+    }
+  }
+
   async function openChat(roomId: string) {
     activeChatRoomRef.current = roomId;
     setSelectedRoomId(roomId);
@@ -956,18 +976,6 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
 
   function truncateMessage(content: string, length: number = 20) {
     return content.length > length ? content.substring(0, length) + "..." : content;
-  }
-
-  async function handleFriendRequest() {
-    if (!otherUser?.id) return;
-    setChatMenuOpen(false);
-    const res = await fetch("/api/friends", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ target_id: otherUser.id }),
-    });
-    const data = await res.json();
-    alert(res.ok ? "친구 신청 완료!" : (data.error ?? "오류가 발생했습니다"));
   }
 
   async function saveClassNotice(notice: string, kind: NoticeKind = "notice", closesAt: string | null = null) {
@@ -1141,10 +1149,12 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
         conversations={conversations}
         finderSoundEnabled={finderSoundEnabled}
         loading={loading}
+        myProfile={myProfile}
         onlineIds={onlineIds}
         userId={userId}
         onOpenChat={openChat}
         onOpenProfile={(profileId) => router.push(`/users/${profileId}/view`)}
+        onOpenSelfChat={() => { void openSelfChat(); }}
         onPrefetchChat={(roomId) => {
           void prefetchChatRoom(roomId);
         }}
@@ -1160,7 +1170,6 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
         canAddMembers={canAddMembers}
         canEditTitle={canEditTitle}
         chatLoading={chatLoading}
-        chatMenuOpen={chatMenuOpen}
         chatOpen={chatOpen}
         chatTitle={selectedConversation?.title ?? null}
         messages={messages}
@@ -1183,9 +1192,6 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
         onClose={closeChat}
         onDeleteMessage={(msgId) => {
           void deleteMessage(msgId);
-        }}
-        onFriendRequest={() => {
-          void handleFriendRequest();
         }}
         onMarkNoticeRead={(noticeId) => {
           void markNoticeRead(noticeId);
@@ -1213,7 +1219,6 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
           patchConversationWithRoom({ id: selectedRoomId, title });
         }}
         setAttachOpen={setAttachOpen}
-        setChatMenuOpen={setChatMenuOpen}
         setNewMessage={setNewMessage}
         setShakingMsgId={setShakingMsgId}
         formatTime={formatTime}
