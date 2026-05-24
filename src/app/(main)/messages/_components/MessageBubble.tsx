@@ -4,6 +4,13 @@ import { memo } from "react";
 import Image from "next/image";
 import { Loader2, Play, TriangleAlert } from "lucide-react";
 import type { Message, MessageReactionType, MyProfile, OtherUser } from "../_types";
+import {
+  formatClassShareDate,
+  getClassShareData,
+  getImageMessageData,
+  getVideoMessageData,
+  hasRichMessageContent,
+} from "../_lib/message-content";
 
 interface MessageBubbleProps {
   msg: Message;
@@ -29,33 +36,6 @@ const MESSAGE_REACTIONS: Array<{ type: MessageReactionType; label: string }> = [
   { type: "sad", label: "😢" },
 ];
 
-interface ClassShareData {
-  type: "class_share";
-  message?: string;
-  class?: {
-    id?: string;
-    title?: string;
-    image_url?: string | null;
-    datetime?: string;
-    region?: string;
-  };
-}
-
-interface VideoMessageData {
-  type: "video";
-  status?: "uploading" | "processing" | "ready" | "failed";
-  video_url?: string;
-  thumbnail_url?: string;
-  error?: string;
-}
-
-function formatClassDate(value?: string) {
-  if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  return `${date.getMonth() + 1}/${date.getDate()} ${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
-}
-
 export default memo(function MessageBubble({
   msg,
   prevMsg,
@@ -76,17 +56,10 @@ export default memo(function MessageBubble({
   const showSenderName = !isMine && isNewGroup;
   const showMyAvatar = isMine && isNewGroup;
   const sender = msg.sender ?? otherUser;
-  let imageData: { thumb: string; full: string } | null = null;
-  let videoData: VideoMessageData | null = null;
-  let classShareData: ClassShareData | null = null;
-
-  try {
-    const parsed = JSON.parse(msg.content);
-    if (parsed.type === "image") imageData = parsed;
-    if (parsed.type === "video") videoData = parsed;
-    if (parsed.type === "class_share") classShareData = parsed;
-  } catch {}
-  const hasRichContent = Boolean(imageData || videoData || classShareData?.class?.id);
+  const imageData = getImageMessageData(msg.content);
+  const videoData = getVideoMessageData(msg.content);
+  const classShareData = getClassShareData(msg.content);
+  const hasRichContent = hasRichMessageContent(msg.content);
 
   return (
     <div>
@@ -207,7 +180,7 @@ export default memo(function MessageBubble({
                 videoData.status === "ready" && videoData.video_url ? (
                   <video
                     src={videoData.video_url}
-                    poster={videoData.thumbnail_url}
+                    poster={videoData.thumbnail_url ?? undefined}
                     controls
                     preload="metadata"
                     className="block max-h-[360px] w-[220px] rounded-lg bg-black object-cover"
@@ -251,7 +224,7 @@ export default memo(function MessageBubble({
                       <div className="min-w-0 flex-1">
                         <p className="line-clamp-2 text-sm font-bold text-gray-900">{classShareData.class.title}</p>
                         <p className="mt-1 text-xs text-gray-500">
-                          {[classShareData.class.region, formatClassDate(classShareData.class.datetime)].filter(Boolean).join(" · ")}
+                          {[classShareData.class.region, formatClassShareDate(classShareData.class.datetime)].filter(Boolean).join(" · ")}
                         </p>
                       </div>
                     </div>

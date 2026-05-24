@@ -8,7 +8,8 @@ import { PRESENCE_EVENT } from "@/components/features/PresenceTracker";
 import ConversationList from "./_components/ConversationList";
 import ChatDrawer from "./_components/ChatDrawer";
 import ChatMemberDrawer from "./_components/ChatMemberDrawer";
-import type { ChatNotice, Conversation, Message, MessageMenuTab, MessageReactionType, MyProfile, NoticeKind, NoticeReactionType, NoticeVoteType, OtherUser, SessionClassItem } from "./_types";
+import type { ChatNotice, Conversation, Message, MessageMenuTab, MessageReactionType, MyProfile, OtherUser, SessionClassItem } from "./_types";
+import { useChatNotices } from "./_hooks/useChatNotices";
 import {
   appendMessageCache,
   hasChatRoomCache,
@@ -18,6 +19,7 @@ import {
   writeNoticeCache,
   patchMessageCache,
 } from "./_lib/message-cache";
+import { isPreviewableTextMessage, isProcessingVideoMessage } from "./_lib/message-content";
 
 interface ChatRoomApiItem {
   id: string;
@@ -79,15 +81,6 @@ const MAX_VIDEO_UPLOAD_BYTES = 50 * 1024 * 1024;
 const VIDEO_UPLOAD_TIMEOUT_MS = 180000;
 const ALLOWED_VIDEO_TYPES = new Set(["video/mp4", "video/quicktime", "video/webm"]);
 
-function isProcessingVideoMessage(message: Message) {
-  try {
-    const parsed = JSON.parse(message.content);
-    return parsed.type === "video" && (parsed.status === "processing" || parsed.status === "uploading");
-  } catch {
-    return false;
-  }
-}
-
 function readFinderSoundEnabled() {
   if (typeof window === "undefined") return true;
   try {
@@ -145,7 +138,6 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
   const [myProfile, setMyProfile] = useState<MyProfile | null>(null);
   const [chatLoading, setChatLoading] = useState(false);
   const [newMessage, setNewMessage] = useState("");
-  const [sending, setSending] = useState(false);
   const [memberDrawerOpen, setMemberDrawerOpen] = useState(false);
   const [attachOpen, setAttachOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -181,6 +173,14 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
     const second = nonOwners[0] ?? null;
     return userId === owner?.user_id || userId === second?.user_id;
   })();
+  const {
+    saveClassNotice,
+    updateClassNotice,
+    deleteClassNotice,
+    markNoticeRead,
+    reactToNotice,
+    voteNotice,
+  } = useChatNotices({ selectedRoomId, notices, setNotices });
 
   useEffect(() => {
     const headerAvatar = document.querySelector<HTMLElement>("[data-messages-header-avatar]");
@@ -343,15 +343,6 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
       my_reaction: item.my_reaction ?? null,
       reaction_counts: item.reaction_counts ?? EMPTY_MESSAGE_REACTION_COUNTS,
     };
-  }
-
-  function isPreviewableTextMessage(message: ChatRoomApiItem["last_message"] | Message | null) {
-    if (!message || message.kind === "image" || message.kind === "system") return false;
-    try {
-      const parsed = JSON.parse(message.content);
-      if (parsed.type === "image" || parsed.type === "video") return false;
-    } catch {}
-    return true;
   }
 
   function mapChatRoom(item: ChatRoomApiItem): Conversation {
@@ -1002,134 +993,6 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
     return content.length > length ? content.substring(0, length) + "..." : content;
   }
 
-  async function saveClassNotice(notice: string, kind: NoticeKind = "notice", closesAt: string | null = null) {
-    if (!selectedRoomId) return;
-
-    const res = await fetch(`/api/chat/rooms/${selectedRoomId}/notices`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ kind, content: notice, closes_at: closesAt }),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      throw new Error(data.error ?? "공지 저장 중 오류가 발생했습니다");
-    }
-    if (data.data) setNotices(data.data as ChatNotice[]);
-  }
-
-  async function updateClassNotice(noticeId: string, content: string, kind: NoticeKind, closesAt: string | null) {
-    const res = await fetch(`/api/chat/notices/${noticeId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ kind, content, closes_at: closesAt }),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      throw new Error(data.error ?? "공지 수정 중 오류가 발생했습니다");
-    }
-    setNotices((prev) =>
-      prev.map((item) =>
-        item.id === noticeId ? { ...item, content, kind, closes_at: closesAt } : item
-      )
-    );
-  }
-
-  async function deleteClassNotice(noticeId: string) {
-    const res = await fetch(`/api/chat/notices/${noticeId}`, { method: "DELETE" });
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      throw new Error(data.error ?? "공지 삭제 중 오류가 발생했습니다");
-    }
-    setNotices((prev) => prev.filter((item) => item.id !== noticeId));
-  }
-
-  async function markNoticeRead(noticeId: string) {
-    const notice = notices.find((item) => item.id === noticeId);
-    if (!notice || notice.read_by_me) return;
-
-    setNotices((prev) =>
-      prev.map((item) =>
-        item.id === noticeId
-          ? { ...item, read_by_me: true, read_count: item.read_count + 1 }
-          : item
-      )
-    );
-
-    try {
-      const res = await fetch(`/api/chat/notices/${noticeId}/read`, { method: "POST" });
-      if (!res.ok) {
-        setNotices((prev) =>
-          prev.map((item) =>
-            item.id === noticeId
-              ? { ...item, read_by_me: false, read_count: Math.max(0, item.read_count - 1) }
-              : item
-          )
-        );
-      }
-    } catch {
-      setNotices((prev) =>
-        prev.map((item) =>
-          item.id === noticeId
-            ? { ...item, read_by_me: false, read_count: Math.max(0, item.read_count - 1) }
-            : item
-        )
-      );
-    }
-  }
-
-  async function reactToNotice(noticeId: string, reactionType: NoticeReactionType) {
-    const prevNotice = notices.find((item) => item.id === noticeId);
-    if (!prevNotice) return;
-    const nextReaction = prevNotice.my_reaction === reactionType ? null : reactionType;
-
-    setNotices((prev) =>
-      prev.map((item) => {
-        if (item.id !== noticeId) return item;
-        const counts = { ...item.reaction_counts };
-        if (item.my_reaction) counts[item.my_reaction] = Math.max(0, counts[item.my_reaction] - 1);
-        if (nextReaction) counts[nextReaction] += 1;
-        return { ...item, my_reaction: nextReaction, reaction_counts: counts };
-      })
-    );
-
-    try {
-      const res = await fetch(`/api/chat/notices/${noticeId}/reaction`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reaction_type: reactionType }),
-      });
-      if (!res.ok) setNotices((prev) => prev.map((item) => item.id === noticeId ? prevNotice : item));
-    } catch {
-      setNotices((prev) => prev.map((item) => item.id === noticeId ? prevNotice : item));
-    }
-  }
-
-  async function voteNotice(noticeId: string, voteType: NoticeVoteType) {
-    const prevNotice = notices.find((item) => item.id === noticeId);
-    if (!prevNotice) return;
-
-    setNotices((prev) =>
-      prev.map((item) => {
-        if (item.id !== noticeId) return item;
-        const counts = { ...item.vote_counts };
-        if (item.my_vote) counts[item.my_vote] = Math.max(0, counts[item.my_vote] - 1);
-        counts[voteType] += 1;
-        return { ...item, my_vote: voteType, vote_counts: counts };
-      })
-    );
-
-    try {
-      const res = await fetch(`/api/chat/notices/${noticeId}/vote`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ vote_type: voteType }),
-      });
-      if (!res.ok) setNotices((prev) => prev.map((item) => item.id === noticeId ? prevNotice : item));
-    } catch {
-      setNotices((prev) => prev.map((item) => item.id === noticeId ? prevNotice : item));
-    }
-  }
-
   async function reactToMessage(messageId: string, reactionType: MessageReactionType) {
     const prevMessage = messages.find((item) => item.id === messageId);
     if (!prevMessage) return;
@@ -1175,7 +1038,6 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
         loading={loading}
         myProfile={myProfile}
         onlineIds={onlineIds}
-        userId={userId}
         onOpenChat={openChat}
         onOpenProfile={(profileId) => router.push(`/users/${profileId}/view`)}
         onOpenSelfChat={() => { void openSelfChat(); }}
@@ -1208,7 +1070,6 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
         photoInputRef={photoInputRef}
         videoInputRef={videoInputRef}
         selectedUserId={selectedRoomId}
-        sending={sending}
         shakingMsgId={shakingMsgId}
         uploading={uploading}
         userId={userId}

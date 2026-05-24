@@ -5,6 +5,7 @@ import Image from "next/image";
 import { Bell, BellOff, RefreshCw } from "lucide-react";
 import NearbyMap, { type NearbyRefreshControl } from "@/components/features/NearbyMap";
 import type { Conversation, MessageMenuTab, MyProfile } from "../_types";
+import { getMessagePreviewText, parseMessageContent } from "../_lib/message-content";
 
 interface ConversationListProps {
   activeMenuTab: MessageMenuTab;
@@ -13,7 +14,6 @@ interface ConversationListProps {
   loading: boolean;
   myProfile: MyProfile | null;
   onlineIds: Set<string>;
-  userId: string;
   onOpenChat: (roomId: string) => void;
   onOpenSelfChat: () => void;
   onOpenProfile: (userId: string) => void;
@@ -31,7 +31,6 @@ export default function ConversationList({
   loading,
   myProfile,
   onlineIds,
-  userId,
   onOpenChat,
   onOpenProfile,
   onOpenSelfChat,
@@ -54,16 +53,7 @@ export default function ConversationList({
     setNearbyRefreshControl(control);
   }, []);
   const getPreviewText = useCallback((content: string, isMine?: boolean) => {
-    try {
-      const parsed = JSON.parse(content);
-      if (parsed.type === "class_share") return "클래스 공유";
-      if (parsed.type === "image") return isMine ? "사진을 업로드 하였습니다" : "사진이 업로드 되었습니다";
-      if (parsed.type === "video") {
-        if (parsed.status === "processing") return "처리중...";
-        return isMine ? "영상을 업로드 하였습니다" : "영상이 업로드 되었습니다";
-      }
-    } catch {}
-    return truncateMessage(content);
+    return getMessagePreviewText(content, { isMine, truncate: truncateMessage });
   }, [truncateMessage]);
   const visibleConversations =
     activeMenuTab === "messages"
@@ -229,12 +219,10 @@ export default function ConversationList({
                 const lastContent = conv.last_message?.content ?? "";
                 const classImageUrl = conv.type === "class" ? conv.class_image_url : null;
                 let fallbackPreview = "";
-                try {
-                  const parsed = JSON.parse(lastContent);
-                  if (parsed.type === "image" || parsed.type === "video") {
-                    fallbackPreview = getPreviewText(lastContent, isMine);
-                  }
-                } catch {}
+                const parsed = parseMessageContent(lastContent);
+                if (parsed?.type === "image" || parsed?.type === "video") {
+                  fallbackPreview = getPreviewText(lastContent, isMine);
+                }
 
                 const showOnlineDot =
                   conv.other_user?.id ? onlineIds.has(conv.other_user.id) : false;

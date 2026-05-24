@@ -1,13 +1,21 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Dispatch, RefObject, SetStateAction, UIEvent } from "react";
-import { ArrowLeft, BarChart3, Megaphone, Paperclip, Send, UserPlus } from "lucide-react";
-import Image from "next/image";
-import Avatar from "@/components/ui/Avatar";
+import { Megaphone } from "lucide-react";
 import ChatAttachPanel from "./ChatAttachPanel";
-import MessageBubble from "./MessageBubble";
+import ArchiveGrid from "./chat/ArchiveGrid";
+import ChatComposer from "./chat/ChatComposer";
+import ChatDrawerHeader from "./chat/ChatDrawerHeader";
+import ChatDrawerTabs, { type ChatDrawerTab } from "./chat/ChatDrawerTabs";
+import ChatTimeline from "./chat/ChatTimeline";
+import MemberGrid, { type ChatMemberProfile } from "./chat/MemberGrid";
+import ToastOverlay from "./chat/ToastOverlay";
+import ClassNoticePanel from "./notices/ClassNoticePanel";
+import NoticeDeleteDialog from "./notices/NoticeDeleteDialog";
+import NoticeEditorDrawer from "./notices/NoticeEditorDrawer";
 import type { ChatNotice, Message, MessageReactionType, MyProfile, NoticeKind, NoticeReactionType, NoticeVoteType, OtherUser } from "../_types";
+import { buildTimeline, getArchiveItems } from "../_lib/message-content";
 
 interface ChatDrawerProps {
   attachOpen: boolean;
@@ -33,7 +41,6 @@ interface ChatDrawerProps {
   photoInputRef: RefObject<HTMLInputElement | null>;
   videoInputRef: RefObject<HTMLInputElement | null>;
   selectedUserId: string | null;
-  sending: boolean;
   shakingMsgId: string | null;
   uploading: boolean;
   userId: string;
@@ -72,10 +79,6 @@ const NOTICE_VOTES: Array<{ type: NoticeVoteType; label: string }> = [
   { type: "abstain", label: "무효" },
 ];
 
-type ArchiveItem =
-  | { id: string; type: "image"; thumb: string; href: string }
-  | { id: string; type: "video"; thumb: string | null; href: string };
-
 export default function ChatDrawer({
   attachOpen,
   chatLoading,
@@ -95,7 +98,6 @@ export default function ChatDrawer({
   photoInputRef,
   videoInputRef,
   selectedUserId,
-  sending,
   shakingMsgId,
   uploading,
   userId,
@@ -121,7 +123,7 @@ export default function ChatDrawer({
   setShakingMsgId,
   formatTime,
 }: ChatDrawerProps) {
-  const [activeTab, setActiveTab] = useState<"all" | "members" | "class" | "archive">("all");
+  const [activeTab, setActiveTab] = useState<ChatDrawerTab>("all");
   const [noticeDrawerOpen, setNoticeDrawerOpen] = useState(false);
   const [noticeDraft, setNoticeDraft] = useState("");
   const [noticeKind, setNoticeKind] = useState<NoticeKind>("notice");
@@ -133,10 +135,51 @@ export default function ChatDrawer({
   const [toastMessage, setToastMessage] = useState("");
   const [now, setNow] = useState(() => Date.now());
 
+  const isDirectRoom = roomType === "direct" || roomType === "self";
+  const isClassRoom = roomType === "class";
+  const displayedActiveTab: ChatDrawerTab = isDirectRoom && (activeTab === "class" || activeTab === "members") ? "all" : activeTab;
+  const unreadNotice = notices.find((notice) => !notice.read_by_me) ?? null;
+
+  const memberProfiles = useMemo<ChatMemberProfile[]>(() => {
+    const unique = new Map<string, ChatMemberProfile>();
+    (roomMembers ?? []).forEach((member) => {
+      if (unique.has(member.user_id)) return;
+      unique.set(member.user_id, {
+        userId: member.user_id,
+        nickname: member.profile?.nickname ?? "알 수 없음",
+        profileImageUrl: member.profile?.profile_image_url ?? null,
+        role: member.role,
+        createdAt: member.created_at ?? null,
+        order: unique.size,
+      });
+    });
+    return Array.from(unique.values()).sort((a, b) => {
+      if (a.role === "owner" && b.role !== "owner") return -1;
+      if (a.role !== "owner" && b.role === "owner") return 1;
+      const aTime = a.createdAt ? new Date(a.createdAt).getTime() : Number.POSITIVE_INFINITY;
+      const bTime = b.createdAt ? new Date(b.createdAt).getTime() : Number.POSITIVE_INFINITY;
+      if (aTime !== bTime) return aTime - bTime;
+      return a.order - b.order;
+    });
+  }, [roomMembers]);
+
+  const archiveItems = useMemo(() => getArchiveItems(messages), [messages]);
+  const timeline = useMemo(() => buildTimeline(messages, notices, isClassRoom), [messages, notices, isClassRoom]);
   const hasActiveVote = useMemo(
     () => notices.some((n) => n.kind === "vote" && n.closes_at && new Date(n.closes_at).getTime() > now),
     [notices, now]
   );
+  const classNoticeWriters = isClassRoom
+    ? [
+        memberProfiles.find((member) => member.role === "owner"),
+        memberProfiles.filter((member) => member.role !== "owner")[0],
+      ].filter(Boolean)
+    : [];
+  const canWriteClassNotice = classNoticeWriters.some((member) => member?.userId === userId);
+  const todayDateStr = (() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  })();
 
   useEffect(() => {
     if (activeTab !== "class" || !hasActiveVote) return;
@@ -170,123 +213,6 @@ export default function ChatDrawer({
     if (minutes > 0) return `${minutes}분 ${seconds}초 남음`;
     return `${seconds}초 남음`;
   }
-  const [editingTitle, setEditingTitle] = useState(false);
-  const [titleDraft, setTitleDraft] = useState("");
-  const titleInputRef = useRef<HTMLInputElement>(null);
-  const rawChatTitle = chatTitle ?? otherUser?.nickname ?? "로딩중...";
-  const displayChatTitle =
-    rawChatTitle.length > 17 ? `${rawChatTitle.slice(0, 17)}...` : rawChatTitle;
-  const roomTypeBadge =
-    roomType === "group"
-      ? { label: "그룹", className: "bg-lime-100 text-lime-700" }
-      : roomType === "class"
-        ? { label: "클래스", className: "bg-red-100 text-red-600" }
-        : null;
-
-  function startEditTitle() {
-    if (!canEditTitle) return;
-    setTitleDraft(rawChatTitle);
-    setEditingTitle(true);
-  }
-
-  function commitTitle() {
-    const trimmed = titleDraft.trim();
-    setEditingTitle(false);
-    if (!trimmed || trimmed === rawChatTitle || !roomId) return;
-    onTitleChanged(trimmed);
-    fetch(`/api/chat/rooms/${roomId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title: trimmed }),
-    }).catch(() => {});
-  }
-
-  useEffect(() => {
-    if (editingTitle) {
-      requestAnimationFrame(() => {
-        const input = titleInputRef.current;
-        if (input) {
-          input.focus();
-          input.setSelectionRange(input.value.length, input.value.length);
-        }
-      });
-    }
-  }, [editingTitle]);
-
-  const memberProfiles = useMemo(() => {
-    const unique = new Map<
-      string,
-      {
-        userId: string;
-        nickname: string;
-        profileImageUrl: string | null;
-        role: "owner" | "admin" | "member";
-        createdAt: string | null;
-        order: number;
-      }
-    >();
-    (roomMembers ?? []).forEach((member) => {
-      if (unique.has(member.user_id)) return;
-      unique.set(member.user_id, {
-        userId: member.user_id,
-        nickname: member.profile?.nickname ?? "알 수 없음",
-        profileImageUrl: member.profile?.profile_image_url ?? null,
-        role: member.role,
-        createdAt: member.created_at ?? null,
-        order: unique.size,
-      });
-    });
-    return Array.from(unique.values()).sort((a, b) => {
-      if (a.role === "owner" && b.role !== "owner") return -1;
-      if (a.role !== "owner" && b.role === "owner") return 1;
-      const aTime = a.createdAt ? new Date(a.createdAt).getTime() : Number.POSITIVE_INFINITY;
-      const bTime = b.createdAt ? new Date(b.createdAt).getTime() : Number.POSITIVE_INFINITY;
-      if (aTime !== bTime) return aTime - bTime;
-      return a.order - b.order;
-    });
-  }, [roomMembers]);
-
-  const archiveItems = useMemo<ArchiveItem[]>(() => {
-    return messages.flatMap<ArchiveItem>((message) => {
-      try {
-        const parsed = JSON.parse(message.content) as {
-          type?: string;
-          thumb?: string;
-          full?: string;
-          status?: string;
-          video_url?: string;
-          thumbnail_url?: string | null;
-        };
-        if (parsed.type === "image" && parsed.thumb && parsed.full) {
-          return [{ id: message.id, type: "image", thumb: parsed.thumb, href: parsed.full } satisfies ArchiveItem];
-        }
-        if (parsed.type === "video" && parsed.status === "ready" && parsed.video_url) {
-          return [{ id: message.id, type: "video", thumb: parsed.thumbnail_url ?? null, href: parsed.video_url } satisfies ArchiveItem];
-        }
-      } catch {}
-      return [];
-    });
-  }, [messages]);
-
-  const isDirectRoom = roomType === "direct" || roomType === "self";
-  const isClassRoom = roomType === "class";
-
-  const timeline = useMemo(() => {
-    const items: Array<{ kind: "msg"; at: string; msg: Message } | { kind: "notice"; at: string; notice: ChatNotice }> = [
-      ...messages.map((msg) => ({ kind: "msg" as const, at: msg.sent_at, msg })),
-      ...(isClassRoom ? notices.map((notice) => ({ kind: "notice" as const, at: notice.created_at, notice })) : []),
-    ];
-    return items.sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime());
-  }, [messages, notices, isClassRoom]);
-  const unreadNotice = notices.find((notice) => !notice.read_by_me) ?? null;
-  const classNoticeWriters = isClassRoom
-    ? [
-        memberProfiles.find((member) => member.role === "owner"),
-        memberProfiles.filter((member) => member.role !== "owner")[0],
-      ].filter(Boolean)
-    : [];
-  const canWriteClassNotice = classNoticeWriters.some((member) => member?.userId === userId);
-  const displayedActiveTab = isDirectRoom && (activeTab === "class" || activeTab === "members") ? "all" : activeTab;
 
   function formatNoticeDate(dateStr: string | null) {
     if (!dateStr) return "";
@@ -350,12 +276,6 @@ export default function ChatDrawer({
     }
   }
 
-  const todayDateStr = (() => {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  })();
-
-
   function openUnreadNotice() {
     if (!unreadNotice) return;
     setActiveTab("class");
@@ -368,98 +288,22 @@ export default function ChatDrawer({
         chatOpen ? "translate-x-0" : "translate-x-full"
       }`}
     >
-      <header className="sticky top-0 z-50 bg-white h-14 px-4 relative">
-        <button
-          onClick={onClose}
-          className="absolute left-4 top-1/2 -translate-y-1/2 w-[37px] h-[37px] flex items-center justify-center text-gray-600 hover:text-gray-900"
-        >
-          <ArrowLeft size={20} />
-        </button>
-        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[60%] text-center">
-          {editingTitle ? (
-            <input
-              ref={titleInputRef}
-              value={titleDraft}
-              maxLength={30}
-              onChange={(e) => setTitleDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  commitTitle();
-                }
-              }}
-              onBlur={commitTitle}
-              className="w-full text-center font-bold text-[#4d4d4d] leading-none bg-transparent border-b border-yellow-400 outline-none"
-              style={{ fontSize: 18 }}
-            />
-          ) : (
-            <span
-              onClick={startEditTitle}
-              className={`flex min-w-0 items-center justify-center gap-2 whitespace-nowrap font-bold text-[#4d4d4d] leading-none ${canEditTitle ? "cursor-pointer" : ""}`}
-              style={{ fontSize: 18 }}
-            >
-              {roomTypeBadge && (
-                <span
-                  className={`shrink-0 rounded-full px-2 py-1 font-normal leading-none ${roomTypeBadge.className}`}
-                  style={{ fontSize: 15 }}
-                >
-                  {roomTypeBadge.label}
-                </span>
-              )}
-              <span className="min-w-0 overflow-hidden text-ellipsis">{displayChatTitle}</span>
-            </span>
-          )}
-        </div>
-      </header>
+      <ChatDrawerHeader
+        canEditTitle={canEditTitle}
+        chatTitle={chatTitle}
+        otherUser={otherUser}
+        roomId={roomId}
+        roomType={roomType}
+        onClose={onClose}
+        onTitleChanged={onTitleChanged}
+      />
 
-      <div className="shrink-0 flex items-end px-4 border-b border-[#e5e7eb]">
-        <div className="flex gap-5">
-          {!isDirectRoom && (
-            <button
-              type="button"
-              onClick={() => setActiveTab("class")}
-              style={{ fontSize: 17 }}
-              className={`pb-2 font-bold border-b-2 transition-colors ${
-                displayedActiveTab === "class" ? "border-black text-black" : "border-transparent text-gray-400"
-              }`}
-            >
-              공지/투표
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={() => setActiveTab("all")}
-            style={{ fontSize: 17 }}
-            className={`pb-2 font-bold border-b-2 transition-colors ${
-              displayedActiveTab === "all" ? "border-black text-black" : "border-transparent text-gray-400"
-            }`}
-          >
-            {isDirectRoom ? "1:1 대화" : isClassRoom ? "클래스" : "전체대화"}
-          </button>
-          {!isDirectRoom && (
-            <button
-              type="button"
-              onClick={() => setActiveTab("members")}
-              style={{ fontSize: 17 }}
-              className={`pb-2 font-bold border-b-2 transition-colors ${
-                displayedActiveTab === "members" ? "border-black text-black" : "border-transparent text-gray-400"
-              }`}
-            >
-              참여회원들
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={() => setActiveTab("archive")}
-            style={{ fontSize: 17 }}
-            className={`pb-2 font-bold border-b-2 transition-colors ${
-              displayedActiveTab === "archive" ? "border-black text-black" : "border-transparent text-gray-400"
-            }`}
-          >
-            보관함
-          </button>
-        </div>
-      </div>
+      <ChatDrawerTabs
+        displayedActiveTab={displayedActiveTab}
+        isClassRoom={isClassRoom}
+        isDirectRoom={isDirectRoom}
+        onTabChange={setActiveTab}
+      />
 
       <style>{`
         @keyframes shake {
@@ -482,6 +326,7 @@ export default function ChatDrawer({
           touch-action: pan-y;
         }
       `}</style>
+
       {displayedActiveTab === "all" && isClassRoom && unreadNotice && (
         <div className="shrink-0 px-4 pt-3 pb-1" style={{ backgroundColor: "#B2C7D9" }}>
           <button
@@ -498,344 +343,77 @@ export default function ChatDrawer({
         </div>
       )}
 
-      <div
-        className={`chat-drawer-scroll flex-1 min-h-0 overflow-y-auto px-4 ${
-          displayedActiveTab === "class" ? "py-5" : "py-4"
-        } ${displayedActiveTab === "all" ? "flex flex-col gap-3" : ""}`}
-        style={{ backgroundColor: "#B2C7D9" }}
-        onScroll={displayedActiveTab === "all" ? onChatScroll : undefined}
-        onClick={() => {
-          if (displayedActiveTab !== "all") return;
-          setAttachOpen(false);
-          setShakingMsgId(null);
-        }}
-      >
-        {displayedActiveTab === "all" ? (
-          chatLoading ? (
-            <div className="flex items-center justify-center h-full text-gray-600">로딩 중...</div>
-          ) : messages.length === 0 && notices.length === 0 ? (
-            <div className="flex items-center justify-center h-full text-gray-600 text-sm">
-              대화 시작하기
-            </div>
-          ) : (() => {
-            let prevMsgItem: Message | null = null;
-            return timeline.map((item) => {
-              if (item.kind === "msg") {
-                const prev = prevMsgItem;
-                prevMsgItem = item.msg;
-                return (
-                  <MessageBubble
-                    key={`m-${item.msg.id}`}
-                    msg={item.msg}
-                    prevMsg={prev}
-                    userId={userId}
-                    myProfile={myProfile}
-                    otherUser={otherUser}
-                    shakingMsgId={shakingMsgId}
-                    isSelfChat={otherUser?.id === userId}
-                    messageIndex={messages.indexOf(item.msg)}
-                    onStartLongPress={onStartLongPress}
-                    onCancelLongPress={onCancelLongPress}
-                    onDeleteMessage={onDeleteMessage}
-                    onMessageReaction={onMessageReaction}
-                    formatTime={formatTime}
-                  />
-                );
-              }
-              prevMsgItem = null;
-              const notice = item.notice;
-              const author = (roomMembers ?? []).find((m) => m.user_id === notice.author_id)?.profile ?? null;
-              return (
-                <div key={`n-${notice.id}`} className="flex items-start gap-2">
-                  <Avatar src={author?.profile_image_url ?? null} nickname={author?.nickname ?? "?"} size={40} />
-                  <div className="flex flex-col gap-1 min-w-0">
-                    <span className="text-base text-gray-800">{author?.nickname ?? "알 수 없음"}</span>
-                    <div className="relative">
-                      <article
-                        className="rounded-lg bg-white px-3 py-2 max-w-[270px] select-none"
-                        onContextMenu={(e) => e.preventDefault()}
-                        onTouchStart={() => onStartLongPress(notice.id, false)}
-                        onTouchEnd={onCancelLongPress}
-                        onMouseDown={() => onStartLongPress(notice.id, false)}
-                        onMouseUp={onCancelLongPress}
-                        onMouseLeave={onCancelLongPress}
-                      >
-                        <div className="flex items-center gap-2">
-                          {notice.kind === "vote" ? <BarChart3 size={14} /> : <Megaphone size={14} />}
-                          <span className="text-xs font-bold text-gray-700">{notice.kind === "vote" ? "투표" : "공지사항"}</span>
-                        </div>
-                        <p className="mt-1 whitespace-pre-wrap break-words text-base text-gray-900">{notice.content}</p>
-                      </article>
-                      {shakingMsgId === notice.id && (
-                        <div className="absolute top-full left-0 mt-1 z-10 flex gap-1 bg-white rounded-full px-2 py-1 shadow-lg">
-                          {NOTICE_REACTIONS.map((reaction) => (
-                            <button
-                              key={reaction.type}
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onNoticeReaction(notice.id, reaction.type);
-                                onCancelLongPress();
-                                setShakingMsgId(null);
-                              }}
-                              className="text-lg hover:scale-125 transition-transform"
-                            >
-                              {reaction.label}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                    {(() => {
-                      const activeReactions = NOTICE_REACTIONS.filter((r) => (notice.reaction_counts?.[r.type] ?? 0) > 0 || notice.my_reaction === r.type);
-                      if (activeReactions.length === 0) return null;
-                      return (
-                        <div className="flex flex-wrap gap-1">
-                          {activeReactions.map((reaction) => {
-                            const count = notice.reaction_counts?.[reaction.type] ?? 0;
-                            const active = notice.my_reaction === reaction.type;
-                            return (
-                              <button
-                                key={reaction.type}
-                                type="button"
-                                onClick={() => onNoticeReaction(notice.id, reaction.type)}
-                                className={`px-1 text-xs font-bold ${active ? "opacity-100" : "opacity-70"}`}
-                              >
-                                {reaction.label} <span className="text-gray-700 font-normal">{count}</span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      );
-                    })()}
-                    <span className="text-xs text-gray-700">{formatTime(notice.created_at)}</span>
-                  </div>
-                </div>
-              );
-            });
-          })()
-        ) : displayedActiveTab === "members" ? (
-          memberProfiles.length === 0 ? (
-            <div className="flex h-full items-center justify-center text-sm text-gray-400">참여 회원이 없습니다</div>
+      {displayedActiveTab === "all" ? (
+        <ChatTimeline
+          chatLoading={chatLoading}
+          messages={messages}
+          messagesEndRef={messagesEndRef}
+          myProfile={myProfile}
+          noticeReactions={NOTICE_REACTIONS}
+          notices={notices}
+          otherUser={otherUser}
+          roomMembers={roomMembers}
+          shakingMsgId={shakingMsgId}
+          timeline={timeline}
+          userId={userId}
+          onCancelLongPress={onCancelLongPress}
+          onChatScroll={onChatScroll}
+          onDeleteMessage={onDeleteMessage}
+          onMessageReaction={onMessageReaction}
+          onNoticeReaction={onNoticeReaction}
+          onStartLongPress={onStartLongPress}
+          setAttachOpen={setAttachOpen}
+          setShakingMsgId={setShakingMsgId}
+          formatTime={formatTime}
+        />
+      ) : (
+        <div
+          className={`chat-drawer-scroll flex-1 min-h-0 overflow-y-auto px-4 ${
+            displayedActiveTab === "class" ? "py-5" : "py-4"
+          }`}
+          style={{ backgroundColor: "#B2C7D9" }}
+        >
+          {displayedActiveTab === "members" ? (
+            <MemberGrid
+              canAddMembers={canAddMembers}
+              isClassRoom={isClassRoom}
+              members={memberProfiles}
+              onOpenMemberDrawer={onOpenMemberDrawer}
+            />
+          ) : displayedActiveTab === "class" ? (
+            <ClassNoticePanel
+              canWriteClassNotice={canWriteClassNotice}
+              isClassRoom={isClassRoom}
+              notices={notices}
+              noticeReactions={NOTICE_REACTIONS}
+              noticeVotes={NOTICE_VOTES}
+              now={now}
+              roomMembers={roomMembers}
+              userId={userId}
+              formatNoticeDate={formatNoticeDate}
+              formatRemaining={formatRemaining}
+              formatTime={formatTime}
+              onNoticeReaction={onNoticeReaction}
+              onNoticeVote={onNoticeVote}
+              openNoticeDrawer={openNoticeDrawer}
+              openEditNotice={openEditNotice}
+              setDeleteTargetId={setDeleteTargetId}
+            />
           ) : (
-            <>
-              {canAddMembers && (
-                <div className="flex justify-center mb-4">
-                  <button
-                    type="button"
-                    onClick={onOpenMemberDrawer}
-                    className="rounded-full bg-yellow-300 px-5 py-2 text-sm font-bold text-gray-900 shadow-sm hover:bg-yellow-400"
-                  >
-                    회원초대하기
-                  </button>
-                </div>
-              )}
-              <div className="grid grid-cols-5 gap-4">
-                {memberProfiles.map((member) => (
-                  <div key={member.userId} className="flex justify-center">
-                    <Avatar
-                      src={member.profileImageUrl}
-                      nickname={member.nickname}
-                      size={50}
-                      className={isClassRoom && member.role === "owner" ? "border-2 border-white shadow-[0_0_0_2px_#ef4444]" : ""}
-                    />
-                  </div>
-                ))}
-              </div>
-            </>
-          )
-        ) : displayedActiveTab === "class" ? (
-          !isClassRoom ? (
-            <div className="flex h-full items-center justify-center text-sm text-gray-400">공지/투표가 없습니다</div>
-          ) : (
-            <div className="space-y-4">
-              <div className="flex justify-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => openNoticeDrawer("vote")}
-                  className="rounded-full bg-yellow-300 px-4 py-2 text-sm font-bold text-gray-900 shadow-sm hover:bg-yellow-400"
-                >
-                  투표작성
-                </button>
-                {canWriteClassNotice && (
-                  <button
-                    type="button"
-                    onClick={() => openNoticeDrawer("notice")}
-                    className="rounded-full bg-yellow-300 px-4 py-2 text-sm font-bold text-gray-900 shadow-sm hover:bg-yellow-400"
-                  >
-                    공지작성
-                  </button>
-                )}
-              </div>
-              {notices.length > 0 ? (
-                <div className="space-y-4">
-                  {notices.map((notice, index) => {
-                    const dateLabel = formatNoticeDate(notice.created_at);
-                    const prevDateLabel = index > 0 ? formatNoticeDate(notices[index - 1].created_at) : "";
-                    const showDateHeader = index === 0 || dateLabel !== prevDateLabel;
-                    const author = (roomMembers ?? []).find((m) => m.user_id === notice.author_id)?.profile ?? null;
-                    return (
-                      <div key={notice.id} className="space-y-2">
-                        {showDateHeader && (
-                          <p className="text-center text-xs font-bold text-gray-400">{dateLabel}</p>
-                        )}
-                        <div className="flex items-center gap-2">
-                          <Avatar src={author?.profile_image_url ?? null} nickname={author?.nickname ?? "?"} size={36} />
-                          <div className="flex flex-col">
-                            <span className="text-sm font-bold text-gray-800">{author?.nickname ?? "알 수 없음"}</span>
-                            <span className="text-xs text-gray-600">{formatTime(notice.created_at)}</span>
-                          </div>
-                        </div>
-                        <article className="rounded-[10px] bg-white px-4 py-3 text-gray-900">
-                          <div className="flex items-center gap-2 pb-2 border-b border-gray-200">
-                            {notice.kind === "vote" ? (
-                              <BarChart3 size={17} className="shrink-0" />
-                            ) : (
-                              <Megaphone size={17} className="shrink-0" />
-                            )}
-                            <span className="font-bold" style={{ fontSize: 17 }}>{notice.kind === "vote" ? "투표" : "공지사항"}</span>
-                            {notice.kind === "vote" && (() => {
-                              const closed = notice.closes_at ? new Date(notice.closes_at).getTime() <= now : false;
-                              return closed ? (
-                                <span className="rounded-full bg-gray-400 px-2 py-0.5 text-xs font-bold text-white">투표마감</span>
-                              ) : (
-                                <span className="rounded-full bg-yellow-400 px-2 py-0.5 text-xs font-bold text-white">진행중</span>
-                              );
-                            })()}
-                            <span className="ml-auto text-xs font-bold text-gray-700">읽음 {notice.read_count}</span>
-                            {notice.author_id === userId && (
-                              <>
-                                <button
-                                  type="button"
-                                  onClick={() => openEditNotice(notice)}
-                                  className="text-xs font-bold text-gray-500 hover:text-gray-800"
-                                >
-                                  수정
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => setDeleteTargetId(notice.id)}
-                                  className="text-xs font-bold text-red-500 hover:text-red-700"
-                                >
-                                  삭제
-                                </button>
-                              </>
-                            )}
-                          </div>
-                          <p className="mt-2 whitespace-pre-wrap break-words text-[16px] font-semibold leading-6 text-[#595959]">{notice.content}</p>
-                          {notice.kind !== "vote" && (
-                            <div className="mt-3 flex flex-wrap gap-2">
-                              {NOTICE_REACTIONS.map((reaction) => (
-                                <button
-                                  key={reaction.type}
-                                  type="button"
-                                  onClick={() => onNoticeReaction(notice.id, reaction.type)}
-                                  className="px-1 text-sm font-bold"
-                                >
-                                  {reaction.label} <span className="text-gray-700 font-normal">{notice.reaction_counts[reaction.type]}</span>
-                                </button>
-                              ))}
-                            </div>
-                          )}
-                          {notice.kind === "vote" && (() => {
-                            const isClosed = notice.closes_at ? new Date(notice.closes_at).getTime() <= now : false;
-                            const showResults = isClosed || notice.my_vote !== null;
-                            return (
-                              <>
-                                <div className="mt-3 flex flex-wrap gap-2">
-                                  {NOTICE_VOTES.map((vote) => (
-                                    <button
-                                      key={vote.type}
-                                      type="button"
-                                      onClick={() => !isClosed && onNoticeVote(notice.id, vote.type)}
-                                      disabled={isClosed}
-                                      className={`rounded-full px-4 py-1.5 text-sm font-bold border ${
-                                        notice.my_vote === vote.type ? "border-black bg-gray-900 text-white" : "border-gray-300 bg-white text-gray-800"
-                                      } ${isClosed ? "opacity-60" : ""}`}
-                                    >
-                                      {vote.label}{showResults ? ` ${notice.vote_counts[vote.type]}` : ""}
-                                    </button>
-                                  ))}
-                                </div>
-                                {notice.closes_at && (
-                                  <p className="mt-2 text-gray-500" style={{ fontSize: 16 }}>
-                                    {isClosed
-                                      ? `마감됨 · ${formatNoticeDate(notice.closes_at)}`
-                                      : `${formatNoticeDate(notice.closes_at)} 마감 · ${formatRemaining(notice.closes_at)}`}
-                                  </p>
-                                )}
-                              </>
-                            );
-                          })()}
-                        </article>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <p className="text-sm leading-6 text-gray-400">등록된 공지/투표가 없습니다.</p>
-              )}
-            </div>
-          )
-        ) : archiveItems.length === 0 ? (
-          <div className="flex h-full items-center justify-center text-sm text-gray-400">보관된 항목이 없습니다</div>
-        ) : (
-          <div className="grid grid-cols-3 gap-2">
-            {archiveItems.map((item) =>
-              item.type === "video" ? (
-                <video
-                  key={item.id}
-                  src={item.href}
-                  poster={item.thumb ?? undefined}
-                  controls
-                  preload="metadata"
-                  className="aspect-square w-full rounded-md bg-black object-cover"
-                />
-              ) : (
-                <a
-                  key={item.id}
-                  href={item.href}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="relative aspect-square overflow-hidden rounded-md bg-gray-200"
-                  aria-label="사진 열기"
-                >
-                  <Image src={item.thumb} alt="" fill sizes="33vw" className="object-cover" />
-                </a>
-              )
-            )}
-          </div>
-        )}
-        {displayedActiveTab === "all" && <div ref={messagesEndRef} />}
-      </div>
+            <ArchiveGrid items={archiveItems} />
+          )}
+        </div>
+      )}
 
       {displayedActiveTab === "all" && (
         <>
-          <div className="border-t border-gray-100 px-3 pt-3 pb-3 flex gap-2 items-start min-h-[80px]">
-            <button className="text-gray-500 flex-shrink-0 mt-2" onClick={() => setAttachOpen((v) => !v)}>
-              <Paperclip size={22} strokeWidth={2.5} />
-            </button>
-            <textarea
-              value={newMessage}
-              onChange={(e) => setNewMessage(e.target.value)}
-              placeholder="메시지 입력..."
-              rows={1}
-              className="flex-1 px-3 py-2 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-yellow-400 resize-none max-h-[120px] overflow-y-auto"
-              style={{ fontSize: "16px", color: "#000000cc" }}
-              onInput={(e) => {
-                const target = e.currentTarget;
-                target.style.height = "auto";
-                target.style.height = `${target.scrollHeight}px`;
-              }}
-            />
-            <button
-              onClick={onSendMessage}
-              disabled={!newMessage.trim() || !selectedUserId}
-              className="w-9 h-9 flex items-center justify-center bg-yellow-400 text-gray-900 rounded-full hover:bg-yellow-500 disabled:opacity-50 mt-1 flex-shrink-0"
-            >
-              <Send size={16} />
-            </button>
-          </div>
+          <ChatComposer
+            newMessage={newMessage}
+            selectedUserId={selectedUserId}
+            setAttachOpen={setAttachOpen}
+            setNewMessage={setNewMessage}
+            onSendMessage={onSendMessage}
+          />
 
           <ChatAttachPanel
             attachOpen={attachOpen}
@@ -849,133 +427,35 @@ export default function ChatDrawer({
       )}
 
       {noticeDrawerOpen && (
-        <div className="absolute inset-0 z-[90]">
-          <button
-            type="button"
-            className="absolute inset-0 bg-black/20"
-            aria-label="공지 작성 닫기"
-            onClick={() => setNoticeDrawerOpen(false)}
-          />
-          <section className="absolute inset-x-0 top-0 h-[70vh] bg-white shadow-xl border-b border-gray-200 animate-[noticeDrawerDown_180ms_ease-out]">
-            <div className="flex h-full flex-col">
-              <div className="shrink-0 px-4 py-4 border-b border-gray-100">
-                <h2 className="flex items-center gap-2 text-lg font-bold text-gray-900">
-                  {noticeKind === "vote" ? <BarChart3 size={20} /> : <Megaphone size={20} />}
-                  {editingNoticeId
-                    ? noticeKind === "vote" ? "투표 수정" : "공지 수정"
-                    : noticeKind === "vote" ? "투표 작성" : "클래스 공지사항"}
-                </h2>
-                <div className="mt-3 grid grid-cols-2 gap-2">
-                  {([
-                    ["notice", "공지"],
-                    ["vote", "투표"],
-                  ] as const).map(([value, label]) => {
-                    const lockedByEdit = editingNoticeId !== null && noticeKind !== value;
-                    const lockedByRole = value === "notice" && !canWriteClassNotice;
-                    const disabled = lockedByEdit || lockedByRole;
-                    return (
-                      <button
-                        key={value}
-                        type="button"
-                        onClick={() => setNoticeKind(value)}
-                        disabled={disabled}
-                        className={`rounded-md py-2 text-sm font-bold ${
-                          noticeKind === value ? "bg-yellow-300 text-gray-900" : "bg-gray-100 text-gray-500"
-                        } ${disabled ? "opacity-40 cursor-not-allowed" : ""}`}
-                      >
-                        {label}
-                      </button>
-                    );
-                  })}
-                </div>
-                {noticeKind === "vote" && (
-                  <>
-                    <p className="mt-2 font-semibold text-gray-500" style={{ fontSize: 14 }}>투표 선택지는 찬성 / 반대 / 무효로 표시됩니다.</p>
-                    <div className="mt-3">
-                      <label className="block font-bold text-gray-700 mb-1" style={{ fontSize: 14 }}>투표 마감일</label>
-                      <input
-                        type="date"
-                        value={voteClosesAt}
-                        min={todayDateStr}
-                        onChange={(event) => setVoteClosesAt(event.target.value)}
-                        className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-yellow-300"
-                      />
-                    </div>
-                  </>
-                )}
-              </div>
-              <div className="flex-1 px-4 py-4 flex flex-col">
-                <textarea
-                  value={noticeDraft}
-                  onChange={(event) => setNoticeDraft(event.target.value)}
-                  maxLength={300}
-                  placeholder="공지 내용을 입력하세요"
-                  className="flex-1 w-full resize-none rounded-md border border-gray-200 px-3 py-[10px] text-base leading-6 text-gray-900 focus:outline-none focus:ring-2 focus:ring-yellow-300"
-                />
-                {noticeError && <p className="mt-2 text-sm text-red-500">{noticeError}</p>}
-              </div>
-              <div className="shrink-0 flex gap-2 px-4 py-3 border-t border-gray-100">
-                <button
-                  type="button"
-                  onClick={() => setNoticeDrawerOpen(false)}
-                  className="flex-1 rounded-md border border-gray-200 py-3 text-base font-semibold text-gray-700"
-                >
-                  취소
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    void handleSaveNotice();
-                  }}
-                  disabled={noticeSaving}
-                  className="flex-1 rounded-md bg-yellow-300 py-3 text-base font-bold text-gray-900 disabled:opacity-50"
-                >
-                  확인
-                </button>
-              </div>
-            </div>
-          </section>
-        </div>
+        <NoticeEditorDrawer
+          canWriteClassNotice={canWriteClassNotice}
+          editingNoticeId={editingNoticeId}
+          noticeDraft={noticeDraft}
+          noticeError={noticeError}
+          noticeKind={noticeKind}
+          noticeSaving={noticeSaving}
+          todayDateStr={todayDateStr}
+          voteClosesAt={voteClosesAt}
+          onClose={() => setNoticeDrawerOpen(false)}
+          onSave={() => {
+            void handleSaveNotice();
+          }}
+          setNoticeDraft={setNoticeDraft}
+          setNoticeKind={setNoticeKind}
+          setVoteClosesAt={setVoteClosesAt}
+        />
       )}
 
       {deleteTargetId && (
-        <div className="absolute inset-0 z-[95] flex items-center justify-center">
-          <button
-            type="button"
-            className="absolute inset-0 bg-black/40"
-            aria-label="삭제 취소"
-            onClick={() => setDeleteTargetId(null)}
-          />
-          <div className="relative w-[80%] max-w-[320px] rounded-xl bg-white p-5 shadow-xl">
-            <p className="text-base font-bold text-gray-900">정말 삭제하시겠습니까?</p>
-            <p className="mt-2 text-sm text-gray-600">삭제된 공지는 복구할 수 없습니다.</p>
-            <div className="mt-5 flex gap-2">
-              <button
-                type="button"
-                onClick={() => setDeleteTargetId(null)}
-                className="flex-1 rounded-md border border-gray-200 py-2.5 text-sm font-bold text-gray-700"
-              >
-                취소
-              </button>
-              <button
-                type="button"
-                onClick={() => { void handleConfirmDelete(); }}
-                className="flex-1 rounded-md bg-red-500 py-2.5 text-sm font-bold text-white"
-              >
-                확인
-              </button>
-            </div>
-          </div>
-        </div>
+        <NoticeDeleteDialog
+          onCancel={() => setDeleteTargetId(null)}
+          onConfirm={() => {
+            void handleConfirmDelete();
+          }}
+        />
       )}
 
-      {toastMessage && (
-        <div className="pointer-events-none absolute inset-0 z-[100] flex items-center justify-center">
-          <div className="rounded-md bg-black/80 px-4 py-2 text-sm font-bold text-white shadow-lg">
-            {toastMessage}
-          </div>
-        </div>
-      )}
+      <ToastOverlay message={toastMessage} />
     </div>
   );
 }
