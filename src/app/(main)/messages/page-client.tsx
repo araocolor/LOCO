@@ -153,7 +153,10 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
   const photoInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
   const shouldStickToBottomRef = useRef(true);
+  const previousScrollRoomRef = useRef<string | null>(null);
+  const previousTimelineCountRef = useRef(0);
   const activeChatRoomRef = useRef<string | null>(null);
   const autoOpenedRoomRef = useRef<string | null>(null);
   const roomIdFromQuery = searchParams.get("roomId");
@@ -765,6 +768,25 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedRoomId, messages]);
 
+  useEffect(() => {
+    const roomChanged = previousScrollRoomRef.current !== selectedRoomId;
+    const timelineCount = messages.length + notices.length;
+    const itemAdded = timelineCount > previousTimelineCountRef.current;
+
+    if (roomChanged) {
+      shouldStickToBottomRef.current = true;
+    }
+
+    if (selectedRoomId && timelineCount > 0 && (roomChanged || (itemAdded && shouldStickToBottomRef.current))) {
+      window.requestAnimationFrame(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: roomChanged ? "auto" : "smooth" });
+      });
+    }
+
+    previousScrollRoomRef.current = selectedRoomId;
+    previousTimelineCountRef.current = timelineCount;
+  }, [selectedRoomId, messages.length, notices.length]);
+
 
   useEffect(() => {
     let mounted = true;
@@ -1145,7 +1167,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
   }
 
   return (
-    <div className="max-w-xl mx-auto bg-white flex flex-col" style={{ height: "calc(100vh - 126px)" }}>
+    <div className="max-w-xl mx-auto bg-white flex min-h-0 flex-col" style={{ height: "calc(100dvh - 126px)" }}>
       <ConversationList
         activeMenuTab={activeMenuTab}
         conversations={conversations}
@@ -1175,6 +1197,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
         chatOpen={chatOpen}
         chatTitle={selectedConversation?.title ?? null}
         messages={messages}
+        messagesEndRef={messagesEndRef}
         myProfile={myProfile}
         newMessage={newMessage}
         notices={notices}

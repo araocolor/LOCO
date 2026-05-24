@@ -17,6 +17,7 @@ interface ChatDrawerProps {
   canAddMembers: boolean;
   canEditTitle: boolean;
   messages: Message[];
+  messagesEndRef: RefObject<HTMLDivElement | null>;
   myProfile: MyProfile | null;
   newMessage: string;
   notices: ChatNotice[];
@@ -83,6 +84,7 @@ export default function ChatDrawer({
   canAddMembers,
   canEditTitle,
   messages,
+  messagesEndRef,
   myProfile,
   newMessage,
   notices,
@@ -348,7 +350,7 @@ export default function ChatDrawer({
 
   return (
     <div
-      className={`fixed inset-0 z-[60] bg-white flex flex-col transition-transform duration-300 ease-in-out ${
+      className={`fixed inset-0 z-[60] bg-white flex min-h-0 flex-col transition-transform duration-300 ease-in-out ${
         chatOpen ? "translate-x-0" : "translate-x-full"
       }`}
     >
@@ -479,7 +481,7 @@ export default function ChatDrawer({
             </div>
           )}
           <div
-            className="flex-1 overflow-y-auto px-4 py-4 flex flex-col-reverse gap-3"
+            className="flex-1 min-h-0 overflow-y-auto px-4 py-4 flex flex-col gap-3"
             style={{ backgroundColor: "#B2C7D9" }}
             onScroll={onChatScroll}
             onClick={() => {
@@ -494,16 +496,16 @@ export default function ChatDrawer({
                 대화 시작하기
               </div>
             ) : (() => {
-              const reversed = [...timeline].reverse();
-              return reversed.map((item, idx) => {
-                const nextItem = reversed[idx + 1];
-                const prevMsgItem = nextItem?.kind === "msg" ? nextItem.msg : null;
+              let prevMsgItem: Message | null = null;
+              return timeline.map((item) => {
                 if (item.kind === "msg") {
+                  const prev = prevMsgItem;
+                  prevMsgItem = item.msg;
                   return (
                     <MessageBubble
                       key={`m-${item.msg.id}`}
                       msg={item.msg}
-                      prevMsg={prevMsgItem}
+                      prevMsg={prev}
                       userId={userId}
                       myProfile={myProfile}
                       otherUser={otherUser}
@@ -518,6 +520,7 @@ export default function ChatDrawer({
                     />
                   );
                 }
+                prevMsgItem = null;
                 const notice = item.notice;
                 const author = (roomMembers ?? []).find((m) => m.user_id === notice.author_id)?.profile ?? null;
                 return (
@@ -589,6 +592,7 @@ export default function ChatDrawer({
                 );
               });
             })()}
+            <div ref={messagesEndRef} />
           </div>
 
           <div className="border-t border-gray-100 px-3 pt-3 pb-3 flex gap-2 items-start min-h-[80px]">
@@ -629,7 +633,7 @@ export default function ChatDrawer({
       )}
 
       {displayedActiveTab === "members" && (
-        <div className="flex-1 overflow-y-auto px-4 py-4" style={{ backgroundColor: "#B2C7D9" }}>
+        <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4" style={{ backgroundColor: "#B2C7D9" }}>
           {memberProfiles.length === 0 ? (
             <div className="flex h-full items-center justify-center text-sm text-gray-400">참여 회원이 없습니다</div>
           ) : (
@@ -663,7 +667,7 @@ export default function ChatDrawer({
       )}
 
       {displayedActiveTab === "class" && (
-        <div className="flex-1 overflow-y-auto px-4 py-5" style={{ backgroundColor: "#B2C7D9" }}>
+        <div className="flex-1 min-h-0 overflow-y-auto px-4 py-5" style={{ backgroundColor: "#B2C7D9" }}>
           {!isClassRoom ? (
             <div className="flex h-full items-center justify-center text-sm text-gray-400">공지/투표가 없습니다</div>
           ) : (
@@ -800,7 +804,7 @@ export default function ChatDrawer({
       )}
 
       {displayedActiveTab === "archive" && (
-        <div className="flex-1 overflow-y-auto px-4 py-4" style={{ backgroundColor: "#B2C7D9" }}>
+        <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4" style={{ backgroundColor: "#B2C7D9" }}>
           {archiveItems.length === 0 ? (
             <div className="flex h-full items-center justify-center text-sm text-gray-400">보관된 항목이 없습니다</div>
           ) : (
