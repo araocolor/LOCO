@@ -69,6 +69,44 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    if (isSelf) {
+      const { data: existingSelf, error: existingSelfError } = await admin
+        .from("chat_rooms")
+        .select("id")
+        .eq("type", "self")
+        .eq("owner_id", user.id)
+        .eq("status", "active")
+        .maybeSingle<{ id: string }>();
+
+      if (existingSelfError) throw existingSelfError;
+
+      let selfRoomId = existingSelf?.id;
+
+      if (!selfRoomId) {
+        const { data: newRoom, error: newRoomError } = await admin
+          .from("chat_rooms")
+          .insert({ type: "self", owner_id: user.id })
+          .select("id")
+          .single<{ id: string }>();
+
+        if (newRoomError) throw newRoomError;
+        selfRoomId = newRoom.id;
+
+        const now = new Date().toISOString();
+        const { error: memberError } = await admin
+          .from("chat_room_members")
+          .upsert(
+            [{ room_id: selfRoomId, user_id: user.id, role: "owner", status: "active", left_at: null, joined_at: now }],
+            { onConflict: "room_id,user_id" }
+          );
+
+        if (memberError) throw memberError;
+      }
+
+      const room = await getRoomSnapshot(selfRoomId, user.id);
+      return NextResponse.json({ data: room });
+    }
+
     const { lowId, highId } = getDirectPair(user.id, target_id);
     const { data: existingRoom, error: existingError } = await admin
       .from("chat_rooms")

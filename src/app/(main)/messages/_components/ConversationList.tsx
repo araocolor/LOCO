@@ -41,8 +41,8 @@ export default function ConversationList({
   formatDate,
   truncateMessage,
 }: ConversationListProps) {
-  const selfChat = conversations.find((conv) => conv.type === "direct" && conv.other_user?.id === userId);
-  const directConversations = conversations.filter((conv) => conv.type === "direct" && conv.other_user?.id !== userId);
+  const selfChat = conversations.find((conv) => conv.type === "self");
+  const directConversations = conversations.filter((conv) => conv.type === "direct");
   const groupConversations = conversations.filter((conv) => conv.type === "group");
   const classConversations = conversations.filter((conv) => conv.type === "class");
   const [nearbyRefreshControl, setNearbyRefreshControl] = useState<NearbyRefreshControl>({

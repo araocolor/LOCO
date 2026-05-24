@@ -28,7 +28,7 @@ interface ChatDrawerProps {
     profile: OtherUser | null;
   }> | undefined;
   roomId: string | null;
-  roomType: "direct" | "group" | "class" | undefined;
+  roomType: "direct" | "group" | "class" | "self" | undefined;
   photoInputRef: RefObject<HTMLInputElement | null>;
   videoInputRef: RefObject<HTMLInputElement | null>;
   selectedUserId: string | null;
@@ -252,7 +252,7 @@ export default function ChatDrawer({
     });
   }, [messages]);
 
-  const isDirectRoom = roomType === "direct";
+  const isDirectRoom = roomType === "direct" || roomType === "self";
   const isClassRoom = roomType === "class";
 
   const timeline = useMemo(() => {
@@ -463,6 +463,21 @@ export default function ChatDrawer({
       `}</style>
       {displayedActiveTab === "all" && (
         <>
+          {isClassRoom && unreadNotice && (
+            <div className="shrink-0 px-4 pt-3 pb-1" style={{ backgroundColor: "#B2C7D9" }}>
+              <button
+                type="button"
+                onClick={openUnreadNotice}
+                className="h-[40px] w-full rounded-[20px] bg-yellow-300 px-4 text-left text-sm font-semibold leading-[40px] text-gray-800 shadow-sm animate-[noticeBarDown_220ms_ease-out]"
+              >
+                <span className="flex h-full items-center gap-2">
+                  <Megaphone size={16} className="shrink-0" />
+                  <span className="min-w-0 flex-1 truncate">공지사항을 꼭 읽어주세요</span>
+                  <span className="shrink-0 text-xs font-bold text-gray-700">보기</span>
+                </span>
+              </button>
+            </div>
+          )}
           <div
             className="flex-1 overflow-y-auto px-4 py-4 flex flex-col-reverse gap-3"
             style={{ backgroundColor: "#B2C7D9" }}
@@ -472,19 +487,6 @@ export default function ChatDrawer({
               setShakingMsgId(null);
             }}
           >
-            {isClassRoom && unreadNotice && (
-              <button
-                type="button"
-                onClick={openUnreadNotice}
-                className="sticky top-0 z-10 mb-1 h-[40px] w-full rounded-[20px] bg-yellow-300 px-4 text-left text-sm font-semibold leading-[40px] text-gray-800 shadow-sm animate-[noticeBarDown_220ms_ease-out]"
-              >
-                <span className="flex h-full items-center gap-2">
-                  <Megaphone size={16} className="shrink-0" />
-                  <span className="min-w-0 flex-1 truncate">공지사항을 꼭 읽어주세요</span>
-                  <span className="shrink-0 text-xs font-bold text-gray-700">보기</span>
-                </span>
-              </button>
-            )}
             {chatLoading ? (
               <div className="flex items-center justify-center h-full text-gray-600">로딩 중...</div>
             ) : messages.length === 0 && notices.length === 0 ? (

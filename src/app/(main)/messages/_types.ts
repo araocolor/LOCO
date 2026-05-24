@@ -1,6 +1,6 @@
 export interface Conversation {
   id: string;
-  type?: "direct" | "group" | "class";
+  type?: "direct" | "group" | "class" | "self";
   class_id?: string | null;
   class_image_url?: string | null;
   title?: string | null;

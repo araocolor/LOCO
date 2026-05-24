@@ -5,7 +5,7 @@ export type ChatMessageKind = "text" | "image" | "file" | "system";
 
 export interface ChatRoomRow {
   id: string;
-  type: "direct" | "group" | "class";
+  type: "direct" | "group" | "class" | "self";
   status: "active" | "archived";
   class_id: string | null;
   owner_id: string | null;
@@ -131,6 +131,8 @@ export function getRoomDisplayTitle(
   currentUserId: string
 ) {
   if (room.title?.trim()) return room.title;
+
+  if (room.type === "self") return "나와의 채팅";
 
   if (room.type === "direct") {
     const otherMember = members.find((member) => member.user_id !== currentUserId);

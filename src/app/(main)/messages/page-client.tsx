@@ -21,7 +21,7 @@ import {
 
 interface ChatRoomApiItem {
   id: string;
-  type: "direct" | "group" | "class";
+  type: "direct" | "group" | "class" | "self";
   class_id: string | null;
   class_image_url: string | null;
   owner_id: string | null;
@@ -354,7 +354,9 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
   function mapChatRoom(item: ChatRoomApiItem): Conversation {
     const otherMember = item.type === "direct"
       ? item.members.find((member) => member.user_id !== userId)
-      : undefined;
+      : item.type === "self"
+        ? item.members.find((member) => member.user_id === userId)
+        : undefined;
     const lastMessage = item.last_message;
 
     return {
