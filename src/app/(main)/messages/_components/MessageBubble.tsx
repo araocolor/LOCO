@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import Image from "next/image";
 import { Loader2, Play, TriangleAlert } from "lucide-react";
 import type { Message, MessageReactionType, MyProfile, OtherUser } from "../_types";
@@ -53,7 +54,7 @@ function formatClassDate(value?: string) {
   return `${date.getMonth() + 1}/${date.getDate()} ${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
 }
 
-export default function MessageBubble({
+export default memo(function MessageBubble({
   msg,
   prevMsg,
   userId,
@@ -277,4 +278,4 @@ export default function MessageBubble({
       </div>
     </div>
   );
-}
+});

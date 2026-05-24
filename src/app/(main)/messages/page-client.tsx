@@ -154,10 +154,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
   const photoInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
   const shouldStickToBottomRef = useRef(true);
-  const previousScrollRoomRef = useRef<string | null>(null);
-  const previousMessageCountRef = useRef(0);
   const activeChatRoomRef = useRef<string | null>(null);
   const autoOpenedRoomRef = useRef<string | null>(null);
   const roomIdFromQuery = searchParams.get("roomId");
@@ -767,23 +764,6 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedRoomId, messages]);
 
-  useEffect(() => {
-    const roomChanged = previousScrollRoomRef.current !== selectedRoomId;
-    const messageAdded = messages.length > previousMessageCountRef.current;
-
-    if (roomChanged) {
-      shouldStickToBottomRef.current = true;
-    }
-
-    if (selectedRoomId && messages.length > 0 && (roomChanged || (messageAdded && shouldStickToBottomRef.current))) {
-      window.requestAnimationFrame(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: roomChanged ? "auto" : "smooth" });
-      });
-    }
-
-    previousScrollRoomRef.current = selectedRoomId;
-    previousMessageCountRef.current = messages.length;
-  }, [selectedRoomId, messages.length]);
 
   useEffect(() => {
     let mounted = true;
@@ -1167,7 +1147,6 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
         chatOpen={chatOpen}
         chatTitle={selectedConversation?.title ?? null}
         messages={messages}
-        messagesEndRef={messagesEndRef}
         myProfile={myProfile}
         newMessage={newMessage}
         notices={notices}

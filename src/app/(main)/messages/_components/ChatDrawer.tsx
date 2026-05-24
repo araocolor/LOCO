@@ -18,7 +18,6 @@ interface ChatDrawerProps {
   canAddMembers: boolean;
   canEditTitle: boolean;
   messages: Message[];
-  messagesEndRef: RefObject<HTMLDivElement | null>;
   myProfile: MyProfile | null;
   newMessage: string;
   notices: ChatNotice[];
@@ -88,7 +87,6 @@ export default function ChatDrawer({
   canAddMembers,
   canEditTitle,
   messages,
-  messagesEndRef,
   myProfile,
   newMessage,
   notices,
@@ -264,6 +262,14 @@ export default function ChatDrawer({
 
   const isDirectRoom = roomType === "direct";
   const isClassRoom = roomType === "class";
+
+  const timeline = useMemo(() => {
+    const items: Array<{ kind: "msg"; at: string; msg: Message } | { kind: "notice"; at: string; notice: ChatNotice }> = [
+      ...messages.map((msg) => ({ kind: "msg" as const, at: msg.sent_at, msg })),
+      ...(isClassRoom ? notices.map((notice) => ({ kind: "notice" as const, at: notice.created_at, notice })) : []),
+    ];
+    return items.sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime());
+  }, [messages, notices, isClassRoom]);
   const unreadNotice = notices.find((notice) => !notice.read_by_me) ?? null;
   const classNoticeWriters = isClassRoom
     ? [
@@ -541,7 +547,7 @@ export default function ChatDrawer({
       {displayedActiveTab === "all" && (
         <>
           <div
-            className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3"
+            className="flex-1 overflow-y-auto px-4 py-4 flex flex-col-reverse gap-3"
             style={{ backgroundColor: "#B2C7D9" }}
             onScroll={onChatScroll}
             onClick={() => {
@@ -569,21 +575,16 @@ export default function ChatDrawer({
                 대화 시작하기
               </div>
             ) : (() => {
-              const timeline: Array<{ kind: "msg"; at: string; msg: Message } | { kind: "notice"; at: string; notice: ChatNotice }> = [
-                ...messages.map((msg) => ({ kind: "msg" as const, at: msg.sent_at, msg })),
-                ...(isClassRoom ? notices.map((notice) => ({ kind: "notice" as const, at: notice.created_at, notice })) : []),
-              ].sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime());
-
-              let prevMsgItem: Message | null = null;
-              return timeline.map((item) => {
+              const reversed = [...timeline].reverse();
+              return reversed.map((item, idx) => {
+                const nextItem = reversed[idx + 1];
+                const prevMsgItem = nextItem?.kind === "msg" ? nextItem.msg : null;
                 if (item.kind === "msg") {
-                  const prev = prevMsgItem;
-                  prevMsgItem = item.msg;
                   return (
                     <MessageBubble
                       key={`m-${item.msg.id}`}
                       msg={item.msg}
-                      prevMsg={prev}
+                      prevMsg={prevMsgItem}
                       userId={userId}
                       myProfile={myProfile}
                       otherUser={otherUser}
@@ -596,7 +597,6 @@ export default function ChatDrawer({
                     />
                   );
                 }
-                prevMsgItem = null;
                 const notice = item.notice;
                 const author = (roomMembers ?? []).find((m) => m.user_id === notice.author_id)?.profile ?? null;
                 return (
@@ -668,7 +668,6 @@ export default function ChatDrawer({
                 );
               });
             })()}
-            <div ref={messagesEndRef} />
           </div>
 
           <div className="border-t border-gray-100 px-3 pt-3 pb-3 flex gap-2 items-start min-h-[80px]">
