@@ -222,7 +222,7 @@ export default function ClassCard({ classData }: ClassCardProps) {
     if (enteringClassRoom) return;
     setEnteringClassRoom(true);
     setMenuOpen(false);
-    setUserExpanded(false);
+    setExpanded(false);
 
     try {
       const supabase = createClient();
@@ -261,7 +261,7 @@ export default function ClassCard({ classData }: ClassCardProps) {
     if (applyingClass) return;
     setApplyingClass(true);
     setMenuOpen(false);
-    setUserExpanded(false);
+    setExpanded(false);
 
     try {
       const supabase = createClient();
