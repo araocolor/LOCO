@@ -20,6 +20,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Missing target_id" }, { status: 400 });
     }
 
+    const isSelf = target_id === user.id;
     const admin = createAdminClient();
     const { data: targetProfile, error: targetError } = await admin
       .from("profiles")
@@ -32,37 +33,39 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "사용자를 찾을 수 없습니다." }, { status: 404 });
     }
 
-    const { data: blockedState, error: blockedError } = await admin
-      .from("friend_member_states")
-      .select("state")
-      .eq("owner_id", target_id)
-      .eq("target_id", user.id)
-      .in("state", ["blocked", "black"])
-      .maybeSingle();
+    if (!isSelf) {
+      const { data: blockedState, error: blockedError } = await admin
+        .from("friend_member_states")
+        .select("state")
+        .eq("owner_id", target_id)
+        .eq("target_id", user.id)
+        .in("state", ["blocked", "black"])
+        .maybeSingle();
 
-    if (blockedError) throw blockedError;
-    if (blockedState) {
-      return NextResponse.json({ error: "대화방을 만들 수 없습니다." }, { status: 403 });
-    }
+      if (blockedError) throw blockedError;
+      if (blockedState) {
+        return NextResponse.json({ error: "대화방을 만들 수 없습니다." }, { status: 403 });
+      }
 
-    const { data: receiverSettings, error: settingsError } = await admin
-      .from("user_settings")
-      .select("message_from")
-      .eq("user_id", target_id)
-      .maybeSingle<{ message_from: "anyone" | "friends_only" }>();
+      const { data: receiverSettings, error: settingsError } = await admin
+        .from("user_settings")
+        .select("message_from")
+        .eq("user_id", target_id)
+        .maybeSingle<{ message_from: "anyone" | "friends_only" }>();
 
-    if (settingsError) throw settingsError;
+      if (settingsError) throw settingsError;
 
-    if (receiverSettings?.message_from === "friends_only") {
-      const { data: friendshipRows, error: friendshipError } = await admin
-        .from("friendships")
-        .select("status")
-        .or(`and(user_id.eq.${user.id},friend_id.eq.${target_id}),and(user_id.eq.${target_id},friend_id.eq.${user.id})`)
-        .in("status", ["approved", "friend"]);
+      if (receiverSettings?.message_from === "friends_only") {
+        const { data: friendshipRows, error: friendshipError } = await admin
+          .from("friendships")
+          .select("status")
+          .or(`and(user_id.eq.${user.id},friend_id.eq.${target_id}),and(user_id.eq.${target_id},friend_id.eq.${user.id})`)
+          .in("status", ["approved", "friend"]);
 
-      if (friendshipError) throw friendshipError;
-      if (!friendshipRows || friendshipRows.length === 0) {
-        return NextResponse.json({ error: "친구만 메시지를 받을 수 있는 사용자입니다." }, { status: 403 });
+        if (friendshipError) throw friendshipError;
+        if (!friendshipRows || friendshipRows.length === 0) {
+          return NextResponse.json({ error: "친구만 메시지를 받을 수 있는 사용자입니다." }, { status: 403 });
+        }
       }
     }
 

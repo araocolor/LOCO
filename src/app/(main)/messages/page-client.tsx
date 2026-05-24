@@ -796,7 +796,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
       });
       const json = await res.json();
       if (res.ok && json.data?.id) {
-        const room = json.data;
+        const room = mapChatRoom(json.data as ChatRoomApiItem);
         setConversations((prev) => {
           if (prev.some((c) => c.id === room.id)) return prev;
           return [room, ...prev];
