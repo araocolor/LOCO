@@ -872,30 +872,47 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
     }, 300);
   }
 
-  async function handleSendMessage() {
-    if (!newMessage.trim() || !selectedRoomId) return;
+  function handleSendMessage() {
+    const text = newMessage.trim();
+    if (!text || !selectedRoomId) return;
 
-    setSending(true);
-    try {
-      const res = await fetch(`/api/chat/rooms/${selectedRoomId}/messages`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ kind: "text", content: newMessage.trim() }),
+    const tempId = `local-${Date.now()}`;
+    const tempMessage: Message = {
+      id: tempId,
+      room_id: selectedRoomId,
+      sender_id: userId,
+      kind: "text",
+      content: text,
+      sent_at: new Date().toISOString(),
+      sender: null,
+      my_reaction: null,
+      reaction_counts: EMPTY_MESSAGE_REACTION_COUNTS,
+      send_status: "sending",
+    };
+
+    setMessages((prev) => [...prev, tempMessage]);
+    setNewMessage("");
+
+    const roomId = selectedRoomId;
+    fetch(`/api/chat/rooms/${roomId}/messages`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ kind: "text", content: text }),
+    })
+      .then(async (res) => {
+        const json = await res.json();
+        const message = json.data ? mapChatMessage(json.data as ChatMessageApiItem) : null;
+        if (res.ok && message) {
+          setMessages((prev) => prev.map((m) => m.id === tempId ? message : m));
+          appendMessageCache(roomId, message);
+          patchConversationWithMessage(roomId, message);
+        } else {
+          setMessages((prev) => prev.map((m) => m.id === tempId ? { ...m, send_status: "failed" as const } : m));
+        }
+      })
+      .catch(() => {
+        setMessages((prev) => prev.map((m) => m.id === tempId ? { ...m, send_status: "failed" as const } : m));
       });
-      const json = await res.json();
-      const message = json.data ? mapChatMessage(json.data as ChatMessageApiItem) : null;
-
-      if (res.ok && message) {
-        setMessages((prev) => [...prev, message]);
-        appendMessageCache(selectedRoomId, message);
-        setNewMessage("");
-        patchConversationWithMessage(selectedRoomId, message);
-      }
-    } catch (error) {
-      console.error("Failed to send chat message:", error);
-    } finally {
-      setSending(false);
-    }
   }
 
   function startLongPress(msgId: string) {

@@ -260,17 +260,25 @@ export default memo(function MessageBubble({
           </div>
           {isMine && (
             <span className="flex items-center gap-1 text-xs text-gray-700">
-              {formatTime(msg.sent_at)}
-              {"read_at" in msg && (
-                msg.read_at ? (
-                  <span className="text-xs font-normal leading-none text-[#595959]">
-                    읽음
-                  </span>
-                ) : (
-                  <span className="text-xs font-normal leading-none text-red-500">
-                    안읽음
-                  </span>
-                )
+              {msg.send_status === "sending" ? (
+                <span className="text-xs font-normal leading-none text-gray-400">전송중</span>
+              ) : msg.send_status === "failed" ? (
+                <span className="text-xs font-bold leading-none text-red-500">전송실패</span>
+              ) : (
+                <>
+                  {formatTime(msg.sent_at)}
+                  {"read_at" in msg && (
+                    msg.read_at ? (
+                      <span className="text-xs font-normal leading-none text-[#595959]">
+                        읽음
+                      </span>
+                    ) : (
+                      <span className="text-xs font-normal leading-none text-red-500">
+                        안읽음
+                      </span>
+                    )
+                  )}
+                </>
               )}
             </span>
           )}

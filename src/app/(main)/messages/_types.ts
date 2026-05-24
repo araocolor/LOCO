@@ -68,6 +68,7 @@ export interface Message {
   sender?: OtherUser | null;
   my_reaction?: MessageReactionType | null;
   reaction_counts?: Record<MessageReactionType, number>;
+  send_status?: "sending" | "failed";
 }
 
 export interface OtherUser {

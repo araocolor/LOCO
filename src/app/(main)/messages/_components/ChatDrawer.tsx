@@ -681,7 +681,6 @@ export default function ChatDrawer({
               rows={1}
               className="flex-1 px-3 py-2 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-yellow-400 resize-none max-h-[120px] overflow-y-auto"
               style={{ fontSize: "16px", color: "#000000cc" }}
-              disabled={sending}
               onInput={(e) => {
                 const target = e.currentTarget;
                 target.style.height = "auto";
@@ -690,7 +689,7 @@ export default function ChatDrawer({
             />
             <button
               onClick={onSendMessage}
-              disabled={!newMessage.trim() || sending || !selectedUserId}
+              disabled={!newMessage.trim() || !selectedUserId}
               className="w-9 h-9 flex items-center justify-center bg-yellow-400 text-gray-900 rounded-full hover:bg-yellow-500 disabled:opacity-50 mt-1 flex-shrink-0"
             >
               <Send size={16} />
