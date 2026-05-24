@@ -34,6 +34,7 @@ export default function HomeSearchResultsPage({ initialClasses, regionOverride }
   const searchParams = useSearchParams();
   const region = regionOverride ?? searchParams.get("region") ?? "전체";
   const genres = searchParams.getAll("genre");
+  const classTypes = searchParams.getAll("class_type");
   const isBookmarkMode = searchParams.get("bookmark") === "true";
 
   const [loading, setLoading] = useState(stableInitial.length === 0);
@@ -71,8 +72,12 @@ export default function HomeSearchResultsPage({ initialClasses, regionOverride }
       const genreSet = new Set(genres);
       filtered = filtered.filter((item) => item.genres?.some((g) => genreSet.has(g)));
     }
+    if (classTypes.length > 0) {
+      const typeSet = new Set(classTypes);
+      filtered = filtered.filter((item) => typeSet.has(item.class_type));
+    }
     return filtered;
-  }, [classes, region, genres, isBookmarkMode, bookmarkVersion]);
+  }, [classes, region, genres, classTypes, isBookmarkMode, bookmarkVersion]);
 
   const warmImages = useCallback((items: ClassWithHost[]) => {
     items.forEach((item) => {

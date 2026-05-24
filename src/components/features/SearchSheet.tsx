@@ -7,6 +7,7 @@ import { LockOpen, Lock } from "lucide-react";
 import {
   DEFAULT_SEARCH_OPTIONS,
   SEARCH_DEFAULTS_STORAGE_KEY,
+  CLASS_TYPES,
   type SearchOptions,
 } from "@/lib/search-defaults";
 import SearchKeywordTab from "@/components/features/SearchKeywordTab";
@@ -29,6 +30,7 @@ function normalizeSearchOptions(
       : value.genre && value.genre !== "전체"
       ? [value.genre]
       : [],
+    class_type: Array.isArray((value as any).class_type) ? (value as any).class_type : [],
   };
 }
 
@@ -50,7 +52,7 @@ export default function SearchSheet() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [isOpen, setIsOpen] = useState(false);
-  const [sheetTab, setSheetTab] = useState<SheetTab>("keyword");
+  const [sheetTab, setSheetTab] = useState<SheetTab>("filter");
   const [opts, setOpts] = useState<SearchOptions>(DEFAULT_SEARCH_OPTIONS);
   const [isMySetting, setIsMySetting] = useState(false);
   const [dragY, setDragY] = useState(0);
@@ -83,16 +85,13 @@ export default function SearchSheet() {
 
   function close() {
     setIsOpen(false);
-    setSheetTab("keyword");
+    setSheetTab("filter");
     document.body.style.overflow = "";
     const params = new URLSearchParams(searchParams.toString());
     params.delete("search");
     const next = params.toString();
     window.history.replaceState(null, "", next ? `${pathname}?${next}` : pathname);
-  }
-
-  function handleSearch() {
-    close();
+    window.dispatchEvent(new CustomEvent("close-search-sheet"));
   }
 
   function set(key: "region" | "status" | "venue", value: string) {
@@ -147,6 +146,36 @@ export default function SearchSheet() {
       params.set("search", "open");
       const next = params.toString();
       router.replace(next ? `/?${next}` : "/?search=open");
+    }
+  }
+
+  function toggleClassType(value: string) {
+    const nextTypes = opts.class_type.includes(value) ? [] : [value];
+    const next = { ...opts, class_type: nextTypes };
+    setOpts(next);
+    localStorage.setItem(SEARCH_DEFAULTS_STORAGE_KEY, JSON.stringify(next));
+
+    if (pathname === "/") {
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete("class_type");
+      nextTypes.forEach((t) => params.append("class_type", t));
+      params.set("search", "open");
+      const qs = params.toString();
+      router.replace(qs ? `/?${qs}` : "/?search=open");
+    }
+  }
+
+  function selectAllClassTypes() {
+    const next = { ...opts, class_type: [] as string[] };
+    setOpts(next);
+    localStorage.setItem(SEARCH_DEFAULTS_STORAGE_KEY, JSON.stringify(next));
+
+    if (pathname === "/") {
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete("class_type");
+      params.set("search", "open");
+      const qs = params.toString();
+      router.replace(qs ? `/?${qs}` : "/?search=open");
     }
   }
 
@@ -232,10 +261,10 @@ export default function SearchSheet() {
                 value={opts.region}
                 onChange={(e) => set("region", e.target.value)}
               >
+                <option value="전체">전체</option>
                 <option value="경기도">경기도</option>
                 <option value="인천">인천</option>
                 <option value="서울">서울</option>
-                <option value="전체">전체</option>
                 <option value="대전">대전</option>
                 <option value="대구">대구</option>
                 <option value="광주">광주</option>
@@ -286,29 +315,35 @@ export default function SearchSheet() {
           </div>
         </div>
 
+        {/* 카테고리 */}
+        <div className="mb-5">
+          <label className="field-label">카테고리</label>
+          <div className="flex gap-2 flex-wrap">
+            <button
+              type="button"
+              disabled={isMySetting}
+              onClick={selectAllClassTypes}
+              className={`chip ${opts.class_type.length === 0 ? "active" : ""} ${isMySetting ? "opacity-50" : ""}`}
+            >
+              전체
+            </button>
+            {CLASS_TYPES.map((t) => (
+              <button
+                key={t.value}
+                type="button"
+                disabled={isMySetting}
+                onClick={() => toggleClassType(t.value)}
+                className={`chip ${opts.class_type.includes(t.value) ? "active" : ""} ${isMySetting ? "opacity-50" : ""}`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
         </>}
       </div>
 
-      {/* 하단 고정 영역 - 필터 탭에서만 표시 */}
-      {sheetTab === "filter" && <div className="fixed bottom-0 left-0 right-0 z-[10000] bg-white border-t border-[#e5e7eb] px-4 pt-3 pb-4">
-        {/* 검색하기 */}
-        <div className="flex gap-2 mb-2">
-          <button
-            type="button"
-            onClick={() => { router.push("/classes/new"); }}
-            className="flex-1 h-11 rounded-xl border border-gray-300 text-gray-700 font-semibold text-sm"
-          >
-            클래스등록
-          </button>
-          <button
-            type="button"
-            onClick={handleSearch}
-            className="flex-1 h-11 rounded-xl bg-[#FEE500] text-gray-900 font-semibold text-sm"
-          >
-            확인
-          </button>
-        </div>
-      </div>}
     </>
   );
 }

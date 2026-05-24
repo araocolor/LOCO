@@ -197,7 +197,7 @@ export default function ConversationList({
                       </div>
                       <p className="text-sm text-gray-500 truncate mt-0.5">
                         {selfChat?.last_message?.content
-                          ? truncateMessage(selfChat.last_message.content)
+                          ? getPreviewText(selfChat.last_message.content)
                           : "나만의 메모 공간"}
                       </p>
                     </div>

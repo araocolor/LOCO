@@ -8,6 +8,7 @@ export async function GET(request: NextRequest) {
   const status = searchParams.get("status");
   const class_type = searchParams.get("class_type");
   const genres = searchParams.getAll("genre");
+  const host_id = searchParams.get("host_id");
   const keyword = searchParams.get("keyword");
   const sort = searchParams.get("sort") ?? "latest";
   const requestedPage = Number.parseInt(searchParams.get("page") ?? "0", 10);
@@ -28,6 +29,7 @@ export async function GET(request: NextRequest) {
       count: "exact",
     });
 
+  if (host_id) query = query.eq("host_id", host_id);
   if (region && region !== "전체") query = query.eq("region", region);
   if (status && status !== "전체") query = query.eq("status", status);
   if (class_type && class_type !== "전체") query = query.eq("class_type", class_type);
