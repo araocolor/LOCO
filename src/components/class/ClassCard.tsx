@@ -50,18 +50,6 @@ function formatDate(dateStr: string) {
   return `${m}/${dd}(${day}) ${hh}:${mm}`;
 }
 
-function isClassStarted(datetime: string) {
-  return new Date(datetime).getTime() <= Date.now();
-}
-
-function calcDaysLeft(deadline: string) {
-  const now = new Date();
-  now.setHours(0, 0, 0, 0);
-  const d = new Date(deadline);
-  d.setHours(0, 0, 0, 0);
-  return Math.ceil((d.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-}
-
 function readCachedFollowingIds() {
   try {
     const raw = localStorage.getItem(SEARCH_CACHE_KEY);
@@ -92,13 +80,12 @@ function writeFriendToSearchCache(host: ClassHost) {
 }
 
 export default function ClassCard({ classData }: ClassCardProps) {
-  const { id, host_id, title, genres, level, datetime, deadline, region, status, images, host, description } =
+  const { id, host_id, title, genres, level, datetime, region, status, images, host, description } =
     classData;
   const [expanded, setExpanded] = useState(false);
   const [imgIndex, setImgIndex] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
   const [friendMsg, setFriendMsg] = useState("");
-  const [statusExpanded, setStatusExpanded] = useState(false);
   const [commentOpen, setCommentOpen] = useState(false);
   const [userExpanded, setUserExpanded] = useState(false);
   const [liked, setLiked] = useState(false);
@@ -482,217 +469,202 @@ export default function ClassCard({ classData }: ClassCardProps) {
     window.setTimeout(() => setShareComplete(false), 1000);
   }
 
+  function renderMoreMenu(buttonClassName: string) {
+    return (
+      <div className="relative">
+        <button
+          type="button"
+          aria-label="더보기"
+          className={buttonClassName}
+          onClick={() => { setMenuOpen((v) => !v); setUserExpanded(false); }}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+            <circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/>
+          </svg>
+        </button>
+        {menuOpen && (
+          <>
+            <div className="fixed inset-0 z-40" onClick={() => { setMenuOpen(false); setUserExpanded(false); }} />
+            <div
+              className="absolute right-0 top-full z-50 max-h-[70vh] overflow-y-auto rounded-xl border border-gray-100 bg-white text-gray-900 shadow-lg"
+              style={{ width: 180 }}
+            >
+              {isOwnClass ? (
+                <>
+                  <button
+                    type="button"
+                    className="flex w-full items-center px-4 py-3 text-sm text-gray-700"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      router.push(`/classes/${id}`);
+                    }}
+                  >
+                    상세보기
+                  </button>
+                  <div className="mx-3 border-t border-gray-100" />
+                  <button
+                    type="button"
+                    className="flex w-full items-center px-4 py-3 text-sm text-gray-700 disabled:opacity-60"
+                    onClick={() => {
+                      void handleEnterClassRoom();
+                    }}
+                    disabled={enteringClassRoom}
+                  >
+                    {enteringClassRoom ? "입장 중..." : "대화방입장"}
+                  </button>
+                  <div className="mx-3 border-t border-gray-100" />
+                  <button
+                    type="button"
+                    className="flex w-full items-center px-4 py-3 text-sm text-gray-700"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      setApplicantSheetOpen(true);
+                    }}
+                  >
+                    신청자 목록
+                  </button>
+                  <div className="mx-3 border-t border-gray-100" />
+                  <button
+                    type="button"
+                    className="flex w-full items-center px-4 py-3 text-sm text-gray-700"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      router.push(`/classes/${id}/edit`);
+                    }}
+                  >
+                    클래스 수정
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    className="flex w-full items-center justify-between px-4 py-3 text-sm text-gray-700"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      router.push(`/classes/${id}`);
+                    }}
+                  >
+                    <span>상세보기</span>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500">
+                      <path d="M9 18l6-6-6-6"/>
+                    </svg>
+                  </button>
+                  <div className="mx-3 border-t border-gray-100" />
+                  <button className="flex w-full items-center justify-between px-4 py-3 text-sm text-gray-700">
+                    <span>다운로드</span>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+                    </svg>
+                  </button>
+                  <div className="mx-3 border-t border-gray-100" />
+                  <button className="flex w-full items-center justify-between px-4 py-3 text-sm text-gray-700">
+                    <span>북마크저장</span>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500">
+                      <polygon points="19 21 12 16 5 21 5 3 19 3"/>
+                    </svg>
+                  </button>
+                  <div className="mx-3 border-t border-gray-100" />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void handleApplyClass();
+                    }}
+                    disabled={applyingClass || status !== "recruiting" || isPendingApplication}
+                    className="flex w-full items-center justify-between px-4 py-3 text-sm text-gray-700 disabled:opacity-60"
+                  >
+                    <span>{isPendingApplication ? "신청확인중" : applyingClass ? "신청 중..." : "수업신청"}</span>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500">
+                      <path d="M4 12h16"/><path d="M12 4v16"/>
+                    </svg>
+                  </button>
+                  {!isHostFriend && (
+                    <>
+                      <div className="mx-3 border-t border-gray-100" />
+                      <button
+                        onClick={async () => {
+                          if (!host?.id) return;
+                          setMenuOpen(false);
+                          const res = await fetch("/api/friends", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ target_id: host.id }),
+                          });
+                          const data = await res.json();
+                          if (res.ok) {
+                            writeFriendToSearchCache(host);
+                          }
+                          setFriendMsg(res.ok ? "친구등록 완료!" : (data.error ?? "오류가 발생했습니다"));
+                          setTimeout(() => setFriendMsg(""), 3000);
+                        }}
+                        className="flex w-full items-center justify-between px-4 py-3 text-sm text-gray-700"
+                      >
+                        <span>친구등록</span>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500">
+                          <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/>
+                        </svg>
+                      </button>
+                    </>
+                  )}
+                  <div className="mx-3 border-t border-gray-100" />
+                  <button
+                    onClick={() => {
+                      setMenuOpen(false);
+                      setMessageModalOpen(true);
+                    }}
+                    className="flex w-full items-center justify-between px-4 py-3 text-sm text-gray-700"
+                  >
+                    <span>메세지전송</span>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500">
+                      <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                    </svg>
+                  </button>
+                  <div className="mx-3 border-t border-gray-100" />
+                  <div>
+                    <button
+                      className="flex w-full items-center justify-between px-4 py-3 text-sm text-gray-700"
+                      onClick={() => setUserExpanded((v) => !v)}
+                    >
+                      <span className="font-bold">{host?.nickname ?? "사용자"}</span>
+                      <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-400" style={{ transform: userExpanded ? "rotate(90deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>
+                        <polyline points="9 18 15 12 9 6"/>
+                      </svg>
+                    </button>
+                    {userExpanded && (
+                      <div>
+                        {[
+                          { icon: "flag", label: "게시물 신고" },
+                          { icon: "slash", label: "블랙등록" },
+                        ].map(({ icon, label }, idx) => (
+                          <div key={label}>
+                            {idx > 0 && <div className="mx-3 border-t border-gray-200" />}
+                            <button className="flex w-full items-center justify-between px-4 py-2.5 text-sm text-gray-700">
+                              <span>{label}</span>
+                              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                {icon === "flag" && <><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></>}
+                                {icon === "slash" && <><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></>}
+                              </svg>
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+    );
+  }
+
   return (
     <>
       <div className="bg-white">
-        {/* 개설자 아이콘 - 상단 */}
-        <div className="flex items-center gap-2 px-3 pt-3 pb-2">
-          {host?.profile_image_url ? (
-            <Image
-              src={host.profile_image_url}
-              alt={host?.nickname ?? ""}
-              width={35}
-              height={35}
-              className="rounded-full object-cover flex-shrink-0 w-[35px] h-[35px]"
-            />
-          ) : (
-            <div className="w-[35px] h-[35px] rounded-full bg-gray-200 flex items-center justify-center text-gray-500 text-xs font-medium flex-shrink-0">
-              {host?.nickname?.[0] ?? "?"}
-            </div>
-          )}
-          <div className="flex flex-col flex-1 gap-0">
-            <span className="font-bold text-gray-900" style={{ fontSize: "15px", lineHeight: "1.1" }}>{host?.nickname ?? ""}</span>
-            <span className="text-gray-400" style={{ fontSize: "13px", lineHeight: "1.1" }}>{region} | {levelLabel} | {genreLabel}</span>
-          </div>
-          <div className="relative">
-            <button className="p-1 text-gray-400" onClick={() => { setMenuOpen((v) => !v); setUserExpanded(false); }}>
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                <circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/>
-              </svg>
-            </button>
-            {menuOpen && (
-              <>
-                <div className="fixed inset-0 z-40" onClick={() => { setMenuOpen(false); setUserExpanded(false); }} />
-                <div
-                  className="absolute right-0 top-full z-50 bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden"
-                  style={{ width: 180 }}
-                >
-                  {isOwnClass ? (
-                    <>
-                      <button
-                        type="button"
-                        className="flex items-center w-full px-4 py-3 text-sm text-gray-700"
-                        onClick={() => {
-                          setMenuOpen(false);
-                          router.push(`/classes/${id}`);
-                        }}
-                      >
-                        상세보기
-                      </button>
-                      <div className="border-t border-gray-100 mx-3" />
-                      <button
-                        type="button"
-                        className="flex items-center w-full px-4 py-3 text-sm text-gray-700 disabled:opacity-60"
-                        onClick={() => {
-                          void handleEnterClassRoom();
-                        }}
-                        disabled={enteringClassRoom}
-                      >
-                        {enteringClassRoom ? "입장 중..." : "대화방입장"}
-                      </button>
-                      <div className="border-t border-gray-100 mx-3" />
-                      <button
-                        type="button"
-                        className="flex items-center w-full px-4 py-3 text-sm text-gray-700"
-                        onClick={() => {
-                          setMenuOpen(false);
-                          setApplicantSheetOpen(true);
-                        }}
-                      >
-                        신청자 목록
-                      </button>
-                      <div className="border-t border-gray-100 mx-3" />
-                      <button
-                        type="button"
-                        className="flex items-center w-full px-4 py-3 text-sm text-gray-700"
-                        onClick={() => {
-                          setMenuOpen(false);
-                          router.push(`/classes/${id}/edit`);
-                        }}
-                      >
-                        클래스 수정
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <button
-                        type="button"
-                        className="flex items-center justify-between w-full px-4 py-3 text-sm text-gray-700"
-                        onClick={() => {
-                          setMenuOpen(false);
-                          router.push(`/classes/${id}`);
-                        }}
-                      >
-                        <span>상세보기</span>
-                        <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500">
-                          <path d="M9 18l6-6-6-6"/>
-                        </svg>
-                      </button>
-                      <div className="border-t border-gray-100 mx-3" />
-                      {/* 다운로드 */}
-                      <button className="flex items-center justify-between w-full px-4 py-3 text-sm text-gray-700 ">
-                        <span>다운로드</span>
-                        <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500">
-                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
-                        </svg>
-                      </button>
-                      <div className="border-t border-gray-100 mx-3" />
-                      {/* 북마크저장 */}
-                      <button className="flex items-center justify-between w-full px-4 py-3 text-sm text-gray-700 ">
-                        <span>북마크저장</span>
-                        <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500">
-                          <polygon points="19 21 12 16 5 21 5 3 19 3"/>
-                        </svg>
-                      </button>
-                      <div className="border-t border-gray-100 mx-3" />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          void handleApplyClass();
-                        }}
-                        disabled={applyingClass || status !== "recruiting" || isPendingApplication}
-                        className="flex items-center justify-between w-full px-4 py-3 text-sm text-gray-700 disabled:opacity-60"
-                      >
-                        <span>{isPendingApplication ? "신청확인중" : applyingClass ? "신청 중..." : "수업신청"}</span>
-                        <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500">
-                          <path d="M4 12h16"/><path d="M12 4v16"/>
-                        </svg>
-                      </button>
-                      {!isHostFriend && (
-                        <>
-                          <div className="border-t border-gray-100 mx-3" />
-                          {/* 친구등록 */}
-                          <button
-                            onClick={async () => {
-                              if (!host?.id) return;
-                              setMenuOpen(false);
-                              const res = await fetch("/api/friends", {
-                                method: "POST",
-                                headers: { "Content-Type": "application/json" },
-                                body: JSON.stringify({ target_id: host.id }),
-                              });
-                              const data = await res.json();
-                              if (res.ok) {
-                                writeFriendToSearchCache(host);
-                              }
-                              setFriendMsg(res.ok ? "친구등록 완료!" : (data.error ?? "오류가 발생했습니다"));
-                              setTimeout(() => setFriendMsg(""), 3000);
-                            }}
-                            className="flex items-center justify-between w-full px-4 py-3 text-sm text-gray-700">
-                            <span>친구등록</span>
-                            <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500">
-                              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/>
-                            </svg>
-                          </button>
-                        </>
-                      )}
-                      <div className="border-t border-gray-100 mx-3" />
-                      {/* 메세지전송 */}
-                      <button
-                        onClick={() => {
-                          setMenuOpen(false);
-                          setMessageModalOpen(true);
-                        }}
-                        className="flex items-center justify-between w-full px-4 py-3 text-sm text-gray-700"
-                      >
-                        <span>메세지전송</span>
-                        <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500">
-                          <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
-                        </svg>
-                      </button>
-                      <div className="border-t border-gray-100 mx-3" />
-                      {/* 사용자 펼침 */}
-                      <div>
-                        <button
-                          className="flex items-center justify-between w-full px-4 py-3 text-sm text-gray-700"
-                          onClick={() => setUserExpanded((v) => !v)}
-                        >
-                          <span className="font-bold">{host?.nickname ?? "사용자"}</span>
-                          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-400" style={{ transform: userExpanded ? "rotate(90deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>
-                            <polyline points="9 18 15 12 9 6"/>
-                          </svg>
-                        </button>
-                        {userExpanded && (
-                          <div>
-                            {[
-                              { icon: "flag", label: "게시물 신고" },
-                              { icon: "slash", label: "블랙등록" },
-                            ].map(({ icon, label }, idx) => (
-                              <div key={label}>
-                                {idx > 0 && <div className="border-t border-gray-200 mx-3" />}
-                                <button className="flex items-center justify-between w-full px-4 py-2.5 text-sm text-gray-700">
-                                  <span>{label}</span>
-                                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                    {icon === "flag" && <><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></>}
-                                    {icon === "slash" && <><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></>}
-                                  </svg>
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </>
-                  )}
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-
-        <div ref={sliderRef} className="relative w-full overflow-hidden">
+        <div ref={sliderRef} className="relative w-full">
           {totalImages > 0 ? (
-            <div className="block w-full cursor-default" onClick={handleImageClick}>
+            <div className="block w-full cursor-default overflow-hidden" onClick={handleImageClick}>
               <div
                 style={{
                   display: "flex",
@@ -718,7 +690,7 @@ export default function ClassCard({ classData }: ClassCardProps) {
               </div>
             </div>
           ) : (
-            <div className="block w-full cursor-default">
+            <div className="block w-full cursor-default overflow-hidden">
               <div
                 className="w-full aspect-[3/4] flex items-center justify-center"
                 style={{ backgroundColor: GENRE_BG[primaryGenre] ?? GENRE_BG.other }}
@@ -729,48 +701,31 @@ export default function ClassCard({ classData }: ClassCardProps) {
               </div>
             </div>
           )}
-          {/* 상태 배지 */}
-          {(status === "recruiting" || status === "closed") && (() => {
-            const daysLeft = deadline ? calcDaysLeft(deadline) : null;
-            const deadlineLabel = deadline
-              ? new Date(deadline).toLocaleDateString("ko-KR", { year: "numeric", month: "numeric", day: "numeric" })
-              : "";
-            const daysText = daysLeft !== null
-              ? daysLeft > 0 ? `마감 ${daysLeft}일전` : daysLeft === 0 ? "오늘 마감" : "마감"
-              : "";
-            const inProgress = status === "recruiting" && isClassStarted(datetime);
-            return (
-              <div className="absolute top-2 left-2 flex items-center">
-                {/* 확장 버튼 — 기존 버튼 뒤에서 오른쪽으로 슬라이드 */}
-                <div
-                  className="absolute left-0 flex items-center overflow-hidden transition-all duration-300 ease-out pointer-events-none"
-                  style={{ maxWidth: statusExpanded ? 280 : 0 }}
-                >
-                  <div className="bg-black text-[#FEE500] text-xs font-semibold rounded-full whitespace-nowrap"
-                    style={{ padding: "4px 12px 4px 70px" }}
-                  >
-                    {deadlineLabel} · {daysText}
-                  </div>
-                </div>
-                {/* 기존 배지 버튼 — z-index로 위에 */}
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setStatusExpanded((v) => {
-                      if (!v) setTimeout(() => setStatusExpanded(false), 4000);
-                      return !v;
-                    });
-                  }}
-                  className={`relative z-10 flex items-center text-[#FEE500] text-xs font-semibold rounded-full whitespace-nowrap ${inProgress ? "bg-red-600 border border-[#FEE500]" : status === "recruiting" ? "bg-black border border-[#FEE500]" : "bg-black"}`}
-                  style={{ padding: "6px 16px" }}
-                >
-                  {inProgress ? "수업중" : status === "recruiting" ? "모집중" : "마감"}
-                </button>
-              </div>
-            );
-          })()}
+          <div className="pointer-events-none absolute inset-x-0 top-0 z-20 h-[100px]">
+            <div className="absolute inset-0 bg-gradient-to-b from-black/70 to-transparent" />
+            <div className="relative h-full px-3 pt-3 text-white">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleToggleExpanded();
+                }}
+                className="pointer-events-auto block w-full text-left"
+              >
+                <p className="flex min-w-0 items-center gap-1.5 text-base font-semibold leading-tight text-white drop-shadow-sm">
+                  <span className="min-w-0 truncate">{title}</span>
+                  {status === "recruiting" && (
+                    <span className="h-2 w-2 flex-shrink-0 rounded-full bg-green-400" aria-label="모집중" />
+                  )}
+                </p>
+                <p className="mt-0.5 truncate text-sm leading-tight text-white/85 drop-shadow-sm">
+                  {region} | {levelLabel} | {genreLabel}
+                </p>
+              </button>
+            </div>
+          </div>
           {totalImages > 1 && (
-            <div className="absolute top-2 right-2 bg-white/80 text-gray-900 text-xs font-medium px-2.5 py-0.5 rounded-full">
+            <div className="absolute bottom-3 right-3 z-20 rounded-full bg-black/45 px-2.5 py-0.5 text-xs font-medium text-white">
               {imgIndex + 1}/{totalImages}
             </div>
           )}
@@ -806,8 +761,15 @@ export default function ClassCard({ classData }: ClassCardProps) {
         </div>
 
         {/* 액션 아이콘 */}
-        <div className="flex items-center justify-between px-3 pt-3">
+        <div className="flex items-center justify-between px-3 pt-2">
           <div className="flex items-center gap-4">
+            {/* 북마크 */}
+            <button type="button" onClick={handleBookmark} aria-label="북마크" className="flex items-center gap-1">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill={bookmarked ? "#1a1a1a" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-800">
+                <polygon points="19 21 12 16 5 21 5 3 19 3" />
+              </svg>
+              <span className="text-sm font-semibold text-gray-800">5</span>
+            </button>
             {/* 좋아요 */}
             <button type="button" onClick={() => void handleLikeToggle()} aria-label="좋아요" className="flex items-center gap-1">
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill={liked ? "#ff3b5c" : "none"} stroke={liked ? "#ff3b5c" : "currentColor"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-800">
@@ -815,6 +777,8 @@ export default function ClassCard({ classData }: ClassCardProps) {
               </svg>
               <span className="text-sm font-semibold text-gray-800">{likeCount}</span>
             </button>
+          </div>
+          <div className="flex items-center gap-4">
             {/* 댓글 */}
             <button type="button" onClick={() => setCommentOpen(true)} aria-label="댓글보기" className="flex items-center gap-1">
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-800">
@@ -830,57 +794,63 @@ export default function ClassCard({ classData }: ClassCardProps) {
               <span className="text-sm font-semibold text-gray-800">{shareCount}</span>
             </button>
           </div>
-          <div className="flex items-center gap-1">
-            <span className="text-sm font-semibold text-gray-800">5</span>
-            {/* 북마크 */}
-            <button onClick={handleBookmark}>
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill={bookmarked ? "#1a1a1a" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-800">
-                <polygon points="19 21 12 16 5 21 5 3 19 3" />
-              </svg>
-            </button>
-          </div>
         </div>
 
-        {/* 제목/정보 */}
-        <div className="flex items-start gap-2 px-3 pt-2 pb-3">
-          <div className="flex flex-col min-w-0 flex-1">
+        {/* 개설자 정보 */}
+        <div className={`flex items-center gap-2 px-3 pt-2 ${expanded ? "pb-1" : "pb-4"}`}>
+          {host?.profile_image_url ? (
+            <Image
+              src={host.profile_image_url}
+              alt={host?.nickname ?? ""}
+              width={35}
+              height={35}
+              className="h-[35px] w-[35px] flex-shrink-0 rounded-full object-cover"
+            />
+          ) : (
+            <div className="flex h-[35px] w-[35px] flex-shrink-0 items-center justify-center rounded-full bg-gray-200 text-xs font-medium text-gray-500">
+              {host?.nickname?.[0] ?? "?"}
+            </div>
+          )}
+          <div className="min-w-0 flex-1">
+            <span className="block truncate text-[15px] font-bold leading-tight text-gray-900">{host?.nickname ?? ""}</span>
             <button
+              type="button"
               onClick={handleToggleExpanded}
-              className="text-left w-full"
+              className="block w-full truncate text-left text-[13px] leading-tight text-gray-400"
             >
-              <p className="text-base text-gray-900 font-semibold line-clamp-1">{title}</p>
-              <p className="text-gray-500" style={{ fontSize: "14px" }}>
-                {levelLabel} · {formatDate(datetime)}
-                {!expanded && (
-                  <span className="text-gray-500 font-bold inline-flex items-center gap-0.5" style={{ fontSize: "14px" }}>
-                    {" ...더 보기"}
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="13"
-                      height="13"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2.5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <polyline points="6 9 12 15 18 9" />
-                    </svg>
-                  </span>
-                )}
-              </p>
+              {levelLabel} · {formatDate(datetime)}
+              {!expanded && (
+                <span className="inline-flex items-center gap-0.5 font-bold text-gray-500">
+                  {" ...더 보기"}
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="13"
+                    height="13"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <polyline points="6 9 12 15 18 9" />
+                  </svg>
+                </span>
+              )}
             </button>
-            {expanded && description && (
-              <div ref={descriptionRef} className="scroll-mt-[250px]">
-                <MentionText
-                  text={description}
-                  className="text-[15px] text-gray-600 mt-2 whitespace-pre-wrap leading-relaxed"
-                />
-              </div>
-            )}
           </div>
+          {renderMoreMenu("flex h-9 w-9 items-center justify-center rounded-full text-gray-400")}
         </div>
+        {description && (
+          <div className={expanded ? "px-3 pb-3" : "hidden"}>
+            <div ref={descriptionRef} className="scroll-mt-[250px]">
+              <MentionText
+                text={description}
+                className="text-[15px] text-gray-600 mt-2 whitespace-pre-wrap leading-relaxed"
+              />
+            </div>
+          </div>
+        )}
       </div>
       {lightboxOpen && totalImages > 0 && (
         <div

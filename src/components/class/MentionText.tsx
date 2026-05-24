@@ -16,6 +16,8 @@ interface MentionTextProps {
 }
 
 const MENTION_PATTERN = /(^|[^\p{L}\p{N}_-])@([\p{L}\p{N}_-]{1,30})/gu;
+const mentionProfileCache = new Map<string, MentionProfile>();
+const mentionRequestCache = new Map<string, Promise<void>>();
 
 function getMentionHandles(text: string) {
   const handles = new Set<string>();
@@ -25,34 +27,67 @@ function getMentionHandles(text: string) {
   return Array.from(handles);
 }
 
+function getCachedProfiles(handles: string[]) {
+  return handles.reduce<Record<string, MentionProfile>>((acc, handle) => {
+    const profile = mentionProfileCache.get(handle);
+    if (profile) acc[handle] = profile;
+    return acc;
+  }, {});
+}
+
 export default function MentionText({ text, emptyText, className }: MentionTextProps) {
   const content = text || emptyText || "";
   const handles = useMemo(() => getMentionHandles(content), [content]);
-  const [profiles, setProfiles] = useState<Record<string, MentionProfile>>({});
+  const [profiles, setProfiles] = useState<Record<string, MentionProfile>>(() => getCachedProfiles(handles));
 
   useEffect(() => {
+    let cancelled = false;
+
     if (handles.length === 0) {
-      setProfiles({});
-      return;
+      queueMicrotask(() => {
+        if (!cancelled) setProfiles({});
+      });
+      return () => {
+        cancelled = true;
+      };
     }
 
-    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) setProfiles(getCachedProfiles(handles));
+    });
+
+    const missingHandles = handles.filter((handle) => !mentionProfileCache.has(handle));
+    if (missingHandles.length === 0) {
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const requestKey = [...missingHandles].sort().join(",");
     const run = async () => {
       try {
-        const params = new URLSearchParams({ handles: handles.join(",") });
-        const res = await fetch(`/api/users/mentions?${params.toString()}`, { method: "GET" });
-        if (!res.ok) return;
-        const json = (await res.json()) as { data?: MentionProfile[] };
+        let request = mentionRequestCache.get(requestKey);
+        if (!request) {
+          request = (async () => {
+            const params = new URLSearchParams({ handles: missingHandles.join(",") });
+            const res = await fetch(`/api/users/mentions?${params.toString()}`, { method: "GET" });
+            if (!res.ok) return;
+            const json = (await res.json()) as { data?: MentionProfile[] };
+            (json.data ?? []).forEach((profile) => {
+              mentionProfileCache.set(profile.nickname, profile);
+            });
+          })();
+          mentionRequestCache.set(requestKey, request);
+        }
+
+        await request;
         if (cancelled) return;
 
-        setProfiles(
-          (json.data ?? []).reduce<Record<string, MentionProfile>>((acc, profile) => {
-            acc[profile.nickname] = profile;
-            return acc;
-          }, {})
-        );
+        setProfiles(getCachedProfiles(handles));
       } catch {
         if (!cancelled) setProfiles({});
+      } finally {
+        mentionRequestCache.delete(requestKey);
       }
     };
 
