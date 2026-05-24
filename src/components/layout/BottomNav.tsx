@@ -78,7 +78,7 @@ export default function BottomNav() {
         const isActive =
           href === "/" ? activeHref === "/" : activeHref.startsWith(href);
         const className =
-          "h-full min-w-0 flex flex-col items-center justify-start pt-3 gap-0.5 text-black/60 transition-colors";
+          "h-[60px] w-full min-w-0 flex flex-col items-center justify-start pt-3 gap-0.5 text-black/60 transition-colors";
 
         return (
           <Link
