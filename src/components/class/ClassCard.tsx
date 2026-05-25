@@ -725,17 +725,18 @@ export default function ClassCard({ classData, priorityImage = false }: ClassCar
                     !imageUrl || (failedImages.classId === id && failedImages.urls.has(imageUrl));
 
                   return (
-                    <div key={i} className="relative aspect-[3/4] min-w-full overflow-hidden">
+                    <div key={i} className="relative min-w-full overflow-hidden">
                       {imageFailed ? (
                         renderClassImageFallback()
                       ) : (
                         <Image
                           src={imageUrl}
                           alt={title}
-                          fill
-                          sizes="(max-width: 500px) 100vw, 500px"
+                          width={0}
+                          height={0}
+                          sizes="100vw"
                           priority={priorityImage && i === 0}
-                          className="object-cover"
+                          style={{ width: "100%", height: "auto" }}
                           onLoad={() => handleClassImageLoad(imageUrl)}
                           onError={() => handleClassImageError(imageUrl)}
                         />
