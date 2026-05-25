@@ -71,7 +71,7 @@ export default function MyPageCacheLoader() {
 
     async function fetchAndUpdate() {
       const res = await fetch("/api/mypage/summary", { method: "GET", cache: "no-store" });
-      if (res.status === 401) { router.replace("/login?next=/mypage"); return true; }
+      if (res.status === 401) { router.replace("/login"); return true; }
       const json = await res.json();
       if (json?.needsOnboarding) { router.replace("/onboarding"); return true; }
       if (!res.ok) return false;

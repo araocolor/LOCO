@@ -130,7 +130,7 @@ export default function ClassCard({ classData, priorityImage = false }: ClassCar
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) {
-      router.push(`/login?next=/classes/${id}`);
+      router.push("/login");
       return;
     }
     const raw = localStorage.getItem(LIKES_CACHE_KEY);
@@ -179,7 +179,7 @@ export default function ClassCard({ classData, priorityImage = false }: ClassCar
       });
 
       if (res.status === 401) {
-        router.push(`/login?next=/classes/${id}`);
+        router.push("/login");
         return;
       }
 
@@ -278,7 +278,7 @@ export default function ClassCard({ classData, priorityImage = false }: ClassCar
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) {
-        router.push(`/login?next=/classes/${id}`);
+        router.push("/login");
         return;
       }
 
@@ -485,7 +485,7 @@ export default function ClassCard({ classData, priorityImage = false }: ClassCar
     } = await supabase.auth.getUser();
 
     if (!user) {
-      router.push(`/login?next=/classes/${id}`);
+      router.push("/login");
       return;
     }
 

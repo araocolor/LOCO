@@ -300,7 +300,7 @@ export default function ClassCommentsPanel({
       });
 
       if (res.status === 401) {
-        router.push(`/login?next=/classes/${classId}`);
+        router.push("/login");
         return;
       }
 
@@ -330,7 +330,7 @@ export default function ClassCommentsPanel({
     } = await supabase.auth.getUser();
 
     if (!user) {
-      router.push(`/login?next=/classes/${classId}`);
+      router.push("/login");
       return;
     }
 
@@ -384,7 +384,7 @@ export default function ClassCommentsPanel({
       });
 
       if (res.status === 401) {
-        router.push(`/login?next=/classes/${classId}`);
+        router.push("/login");
         return;
       }
 

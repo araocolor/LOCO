@@ -43,7 +43,7 @@ export default function NotificationsPage() {
       } = await supabase.auth.getUser();
 
       if (!user) {
-        router.push("/login?next=/notifications");
+        router.push("/login");
         return;
       }
 

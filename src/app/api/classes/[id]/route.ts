@@ -2,10 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { sendKakaoAlimtalk } from "@/lib/kakao/notify";
 
-export async function GET(
-  _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+const ALLOWED_UPDATE_STATUSES = ["recruiting", "closed"] as const;
+
+export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = await createClient();
 
@@ -22,10 +21,7 @@ export async function GET(
   return NextResponse.json(data);
 }
 
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = await createClient();
   const {
@@ -36,11 +32,7 @@ export async function PATCH(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { data: existing } = await supabase
-    .from("classes")
-    .select("host_id")
-    .eq("id", id)
-    .single();
+  const { data: existing } = await supabase.from("classes").select("host_id").eq("id", id).single();
 
   if (!existing || existing.host_id !== user.id) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -64,9 +56,30 @@ export async function PATCH(
     updatePayload.is_public = body.is_public;
   }
 
+  if ("status" in body) {
+    if (!ALLOWED_UPDATE_STATUSES.includes(body.status)) {
+      return NextResponse.json({ error: "모집 상태 값이 올바르지 않습니다." }, { status: 400 });
+    }
+    updatePayload.status = body.status;
+  }
+
+  if ("images" in body) {
+    if (!Array.isArray(body.images)) {
+      return NextResponse.json({ error: "이미지 값이 올바르지 않습니다." }, { status: 400 });
+    }
+    updatePayload.images = body.images;
+  }
+
+  if ("location_address" in body) {
+    updatePayload.location_address =
+      typeof body.location_address === "string" ? body.location_address : "";
+    updatePayload.location_lat = typeof body.location_lat === "number" ? body.location_lat : null;
+    updatePayload.location_lng = typeof body.location_lng === "number" ? body.location_lng : null;
+  }
+
   if (Object.keys(updatePayload).length === 0) {
     return NextResponse.json(
-      { error: "수정 가능한 항목은 내용과 공개 상태뿐입니다." },
+      { error: "수정 가능한 항목은 내용, 공개 상태, 모집 상태, 대표 이미지, 장소뿐입니다." },
       { status: 400 }
     );
   }
@@ -152,10 +165,7 @@ export async function DELETE(
   }
 
   // 신청자 있으면 취소 처리
-  await supabase
-    .from("classes")
-    .update({ status: "cancelled" })
-    .eq("id", id);
+  await supabase.from("classes").update({ status: "cancelled" }).eq("id", id);
 
   // 승인된 신청자에게 취소 알림
   const approved = applications.filter((a) => a.status === "approved");

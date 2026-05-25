@@ -110,7 +110,7 @@ export default function ClassShareSheet({ open, classData, onClose, onShared }: 
       });
 
       if (res.status === 401) {
-        window.location.href = `/login?next=${encodeURIComponent("/")}`;
+        window.location.href = "/login";
         return;
       }
 

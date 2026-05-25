@@ -4,24 +4,16 @@ import ClassForm from "@/components/class/ClassForm";
 import type { DanceClass } from "@/types/class";
 import ClassHeader from "@/components/layout/ClassHeader";
 
-export default async function ClassEditPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export default async function ClassEditPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) redirect(`/login?next=/classes/${id}/edit`);
+  if (!user) redirect("/login");
 
-  const { data: cls } = await supabase
-    .from("classes")
-    .select("*")
-    .eq("id", id)
-    .single();
+  const { data: cls } = await supabase.from("classes").select("*").eq("id", id).single();
 
   if (!cls) notFound();
   if (cls.host_id !== user.id) redirect(`/classes/${id}`);
@@ -36,12 +28,15 @@ export default async function ClassEditPage({
 
   return (
     <div data-page-shell className="page-slide-in-from-top">
-      <ClassHeader backExitAnimationClass="page-slide-out-to-top" backExitDelayMs={200} />
-      <div className="sticky top-14 z-30 bg-white border-b border-[#e5e7eb] px-4 py-3">
-        <h1 className="font-semibold text-base">클래스 수정</h1>
-        <p className="mt-1 text-xs text-red-500">* 주의 클래스 정보변경은 내용과 공개 상태만 수정 가능합니다.</p>
+      <ClassHeader
+        title="클래스 편집정보"
+        className="h-[70px]"
+        backExitAnimationClass="page-slide-out-to-top"
+        backExitDelayMs={200}
+      />
+      <div className="bg-[#f4f4f4] pt-[10px]">
+        <ClassForm initialData={cls as DanceClass} classId={id} userRole={role} />
       </div>
-      <ClassForm initialData={cls as DanceClass} classId={id} userRole={role} />
     </div>
   );
 }

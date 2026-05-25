@@ -7,7 +7,7 @@ export default function ClassNewButton({ isLoggedIn }: { isLoggedIn: boolean }) 
 
   function handleClick() {
     if (!isLoggedIn) {
-      router.push("/login?next=/classes/new");
+      router.push("/login");
     } else {
       router.push("/classes/new");
     }

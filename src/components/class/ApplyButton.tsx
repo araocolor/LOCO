@@ -34,7 +34,7 @@ export default function ApplyButton({
 
   async function handleApply() {
     if (!isLoggedIn) {
-      router.push(`/login?next=/classes/${classId}`);
+      router.push("/login");
       return;
     }
     setLoading(true);

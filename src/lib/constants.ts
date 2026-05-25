@@ -19,16 +19,17 @@ export const REGIONS_WITH_ALL = ["전체", ...REGIONS] as const;
 export const GENRES = [
   { value: "salsa", label: "살사" },
   { value: "bachata", label: "바차타" },
+  { value: "chacha", label: "차차" },
   { value: "other", label: "기타" },
 ] as const;
 
 export const CATEGORIES = [
-  { value: "event", label: "이벤트" },
-  { value: "regular", label: "정규강습" },
-  { value: "practice", label: "연습모임" },
-  { value: "training", label: "1:1트레이닝" },
-  { value: "choreography", label: "안무반" },
+  { value: "event", label: "행사/이벤트" },
   { value: "festival", label: "페스티발" },
+  { value: "regular", label: "레벨강습" },
+  { value: "practice", label: "연습모임" },
+  { value: "training", label: "1:1강습" },
+  { value: "other", label: "기타" },
 ] as const;
 
 export const LEVELS = [
@@ -51,9 +52,17 @@ export const CLASS_TYPES = [
 ] as const;
 
 export const MEMBER_TYPES = [
-  "일반회원", "운영진", "인스트럭터", "인플루언서",
-  "프로댄서", "오거나이저", "아카데미대표", "독립군",
-  "왕초보", "Artist", "클럽공식채널",
+  "일반회원",
+  "운영진",
+  "인스트럭터",
+  "인플루언서",
+  "프로댄서",
+  "오거나이저",
+  "아카데미대표",
+  "독립군",
+  "왕초보",
+  "Artist",
+  "클럽공식채널",
 ] as const;
 
 export const MAX_MEMBER_TYPE = 3;

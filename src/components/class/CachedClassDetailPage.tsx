@@ -35,11 +35,6 @@ function formatDate(dateStr: string) {
   return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, "0")}.${String(d.getDate()).padStart(2, "0")}`;
 }
 
-function formatPrice(price: number) {
-  if (price <= 0) return "무료";
-  return `${price.toLocaleString()}원`;
-}
-
 function formatCommentTime(value: string) {
   const created = new Date(value).getTime();
   const diffMinutes = Math.max(0, Math.floor((Date.now() - created) / 60000));
@@ -516,9 +511,7 @@ export default function CachedClassDetailPage() {
           <InfoRow icon="📆" label="마감일자" value={formatDate(displayClass.deadline)} />
           <InfoRow icon="📍" label="장소" value={displayClass.location_address} />
           <InfoRow icon="💊" label="레벨" value={levelLabel} />
-          <InfoRow icon="🫵" label="정원" value={`${displayClass.capacity}명`} />
           <InfoRow icon="📞" label="연락처" value={displayClass.contact} />
-          <InfoRow icon="💰" label="비용" value={formatPrice(displayClass.price)} />
         </div>
       </section>
 

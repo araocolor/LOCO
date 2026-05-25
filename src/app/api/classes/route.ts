@@ -2,17 +2,18 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
 const ALLOWED_LEVELS = ["beginner", "elementary", "intermediate", "advanced", "all"] as const;
+const ALLOWED_CREATE_STATUSES = ["recruiting", "closed"] as const;
 const LEVEL_ALIASES: Record<string, (typeof ALLOWED_LEVELS)[number]> = {
   beginner: "beginner",
-  "입문": "beginner",
+  입문: "beginner",
   elementary: "elementary",
-  "초급": "elementary",
+  초급: "elementary",
   intermediate: "intermediate",
-  "중급": "intermediate",
+  중급: "intermediate",
   advanced: "advanced",
-  "고급": "advanced",
+  고급: "advanced",
   all: "all",
-  "올레벨": "all",
+  올레벨: "all",
 };
 
 function normalizeLevel(value: unknown): (typeof ALLOWED_LEVELS)[number] | null {
@@ -33,6 +34,7 @@ export async function POST(request: NextRequest) {
 
   const body = await request.json();
   const level = normalizeLevel(body?.level);
+  const status = ALLOWED_CREATE_STATUSES.includes(body?.status) ? body.status : "recruiting";
 
   if (!level) {
     return NextResponse.json(
@@ -47,7 +49,7 @@ export async function POST(request: NextRequest) {
       ...body,
       level,
       host_id: user.id,
-      status: "recruiting",
+      status,
       view_count: 0,
       is_modified: false,
     })
@@ -56,10 +58,7 @@ export async function POST(request: NextRequest) {
 
   if (error) {
     if (error.message.includes("violates check constraint")) {
-      return NextResponse.json(
-        { error: "입력한 항목을 다시 확인해주세요." },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "입력한 항목을 다시 확인해주세요." }, { status: 400 });
     }
     if (error.message.includes("classes_level_check")) {
       return NextResponse.json(
