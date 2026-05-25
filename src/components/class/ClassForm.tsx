@@ -366,13 +366,18 @@ export default function ClassForm({ initialData, classId, userRole: _userRole }:
   useEffect(() => {
     if (!isCreateMode) return;
 
-    const message = error === "필수 항목을 모두 입력해주세요." ? error : "";
+    let message = "";
+    if (createStep === 1 && error === "필수 항목을 모두 입력해주세요.") {
+      message = error;
+    } else if (createStep === 2 && error === "필수 항목을 모두 입력해주세요.") {
+      message = error;
+    }
     window.dispatchEvent(new CustomEvent("class-header-notice", { detail: { message } }));
 
     return () => {
       window.dispatchEvent(new CustomEvent("class-header-notice", { detail: { message: "" } }));
     };
-  }, [error, isCreateMode]);
+  }, [error, isCreateMode, createStep]);
 
   function scheduleResize(files: File[]) {
     for (const file of files) {
@@ -438,12 +443,7 @@ export default function ClassForm({ initialData, classId, userRole: _userRole }:
       error === "필수 항목을 모두 입력해주세요." &&
       nextTotalImages > 0 &&
       nextForm.title.trim() &&
-      nextForm.description.trim() &&
-      nextForm.genres.length > 0 &&
-      nextForm.category &&
-      nextForm.level &&
-      nextForm.region &&
-      nextForm.deadline
+      nextForm.description.trim()
     ) {
       setError("");
     }
@@ -597,6 +597,7 @@ export default function ClassForm({ initialData, classId, userRole: _userRole }:
 
     setError("");
     setCreateStep(2);
+    window.dispatchEvent(new CustomEvent("class-header-notice", { detail: { message: "" } }));
   }
 
   function handleBackToFirstStep() {
