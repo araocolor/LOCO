@@ -1,9 +1,7 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback } from "react";
 import Image from "next/image";
-import { Bell, BellOff, RefreshCw } from "lucide-react";
-import NearbyMap, { type NearbyRefreshControl } from "@/components/features/NearbyMap";
 import type { Conversation, MessageMenuTab, MyProfile } from "../_types";
 import { getMessagePreviewText, parseMessageContent } from "../_lib/message-content";
 import MessageFriendsPanel from "./MessageFriendsPanel";
@@ -11,7 +9,6 @@ import MessageFriendsPanel from "./MessageFriendsPanel";
 interface ConversationListProps {
   activeMenuTab: MessageMenuTab;
   conversations: Conversation[];
-  finderSoundEnabled: boolean;
   loading: boolean;
   myProfile: MyProfile | null;
   onlineIds: Set<string>;
@@ -20,7 +17,6 @@ interface ConversationListProps {
   onOpenProfile: (userId: string) => void;
   onPrefetchChat: (roomId: string) => void;
   onFriendMessageSent: (roomId: string) => void;
-  onToggleFinderSound: () => void;
   setActiveMenuTab: (tab: MessageMenuTab) => void;
   formatDate: (dateStr: string) => string;
   truncateMessage: (content: string, length?: number) => string;
@@ -29,7 +25,6 @@ interface ConversationListProps {
 export default function ConversationList({
   activeMenuTab,
   conversations,
-  finderSoundEnabled,
   loading,
   myProfile,
   onlineIds,
@@ -38,7 +33,6 @@ export default function ConversationList({
   onOpenSelfChat,
   onPrefetchChat,
   onFriendMessageSent,
-  onToggleFinderSound,
   setActiveMenuTab,
   formatDate,
   truncateMessage,
@@ -47,14 +41,6 @@ export default function ConversationList({
   const directConversations = conversations.filter((conv) => conv.type === "direct");
   const groupConversations = conversations.filter((conv) => conv.type === "group");
   const classConversations = conversations.filter((conv) => conv.type === "class");
-  const [nearbyRefreshControl, setNearbyRefreshControl] = useState<NearbyRefreshControl>({
-    disabled: true,
-    spinning: false,
-    onRefresh: () => {},
-  });
-  const handleNearbyRefreshControlChange = useCallback((control: NearbyRefreshControl) => {
-    setNearbyRefreshControl(control);
-  }, []);
   const getPreviewText = useCallback((content: string, isMine?: boolean) => {
     return getMessagePreviewText(content, { isMine, truncate: truncateMessage });
   }, [truncateMessage]);
@@ -117,53 +103,12 @@ export default function ConversationList({
           >
             클래스
           </button>
-          <button
-            onClick={() => setActiveMenuTab("nearby")}
-            style={{ fontSize: activeMenuTab === "nearby" ? 18 : 17 }}
-            className={`pb-2 font-bold border-b-2 transition-colors ${
-              activeMenuTab === "nearby"
-                ? "border-black text-black"
-                : "border-transparent text-gray-400"
-            }`}
-          >
-            Finder
-          </button>
         </div>
-        {activeMenuTab === "nearby" ? (
-          <div className="flex items-center gap-2 pb-2">
-            <button
-              type="button"
-              onClick={onToggleFinderSound}
-              className={`p-1 transition-colors ${
-                finderSoundEnabled ? "text-gray-800 hover:text-gray-900" : "text-gray-400 hover:text-gray-500"
-              }`}
-              aria-label={finderSoundEnabled ? "Finder 알림음 끄기" : "Finder 알림음 켜기"}
-              aria-pressed={finderSoundEnabled}
-            >
-              {finderSoundEnabled ? <Bell size={17} /> : <BellOff size={17} />}
-            </button>
-            <button
-              onClick={nearbyRefreshControl.onRefresh}
-              disabled={nearbyRefreshControl.disabled}
-              className={`p-1 ${nearbyRefreshControl.disabled ? "text-gray-400 cursor-not-allowed" : "text-gray-800 hover:text-gray-900"}`}
-              aria-label="내근처 새로고침"
-            >
-              <RefreshCw size={18} className={nearbyRefreshControl.spinning ? "animate-spin" : ""} style={{ animationDuration: "0.8s" }} />
-            </button>
-          </div>
-        ) : null}
       </div>
 
       <div className="flex-1 overflow-y-auto">
         {activeMenuTab === "friends" ? (
           <MessageFriendsPanel onlineIds={onlineIds} onMessageSent={onFriendMessageSent} />
-        ) : activeMenuTab === "nearby" ? (
-          <div className="bg-white">
-            <div className="px-4 pt-4 pb-2">
-              <p className="text-base font-bold" style={{ color: "#333333" }}>검색범위</p>
-            </div>
-            <NearbyMap soundEnabled={finderSoundEnabled} onRefreshControlChange={handleNearbyRefreshControlChange} />
-          </div>
         ) : loading ? (
           <div className="flex items-center justify-center h-32 text-gray-400">로딩 중...</div>
         ) : visibleConversations.length === 0 && activeMenuTab !== "messages" ? (

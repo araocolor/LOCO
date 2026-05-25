@@ -1,4 +1,4 @@
-export type Tab = "friends" | "members" | "followings" | "pending";
+export type Tab = "friends" | "members" | "followings" | "pending" | "finder";
 export type MenuRelation = "mutual" | "following" | "follower" | "none";
 export type SocialListMode = "followers" | "mySubscribers" | "subscriptions" | "management" | "following";
 

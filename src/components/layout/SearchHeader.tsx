@@ -1,6 +1,6 @@
 "use client";
 
-type Tab = "friends" | "members" | "followings" | "pending";
+type Tab = "friends" | "members" | "followings" | "pending" | "finder";
 
 interface SearchHeaderProps {
   activeTab: Tab;
@@ -41,6 +41,15 @@ export default function SearchHeader({ activeTab, onTabChange, myRegionLabel = "
           style={{ fontSize: activeTab === "followings" ? 18 : 17 }}
         >
           구독자
+        </button>
+        <button
+          onClick={() => onTabChange("finder")}
+          className={`pb-2 font-bold transition-colors ${
+            activeTab === "finder" ? "text-black" : "text-gray-400"
+          }`}
+          style={{ fontSize: activeTab === "finder" ? 18 : 17 }}
+        >
+          Finder
         </button>
       </div>
     </header>

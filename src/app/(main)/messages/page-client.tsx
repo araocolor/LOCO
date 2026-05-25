@@ -76,7 +76,6 @@ const EMPTY_MESSAGE_REACTION_COUNTS: Record<MessageReactionType, number> = {
   sad: 0,
 };
 
-const FINDER_SOUND_ENABLED_KEY = "loco_finder_sound_enabled";
 const MAX_VIDEO_UPLOAD_BYTES = 50 * 1024 * 1024;
 const VIDEO_UPLOAD_TIMEOUT_MS = 180000;
 const ALLOWED_VIDEO_TYPES = new Set(["video/mp4", "video/quicktime", "video/webm"]);
@@ -104,14 +103,6 @@ function getConversationsForCache(convs: Conversation[]) {
   return prioritizeOneToOneConversations(convs).slice(0, CONVERSATIONS_LIMIT);
 }
 
-function readFinderSoundEnabled() {
-  if (typeof window === "undefined") return true;
-  try {
-    return localStorage.getItem(FINDER_SOUND_ENABLED_KEY) !== "false";
-  } catch {
-    return true;
-  }
-}
 
 async function uploadVideoToSignedUrl(signedUrl: string, file: File) {
   const controller = new AbortController();
@@ -150,7 +141,6 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
   const [loading, setLoading] = useState(true);
   const [onlineIds, setOnlineIds] = useState<Set<string>>(new Set());
   const [activeMenuTab, setActiveMenuTab] = useState<MessageMenuTab>("messages");
-  const [finderSoundEnabled, setFinderSoundEnabled] = useState(readFinderSoundEnabled);
 
   // 대화창 상태
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
@@ -205,14 +195,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
     voteNotice,
   } = useChatNotices({ selectedRoomId, notices, setNotices });
 
-  useEffect(() => {
-    const headerAvatar = document.querySelector<HTMLElement>("[data-messages-header-avatar]");
-    if (!headerAvatar) return;
-    headerAvatar.hidden = activeMenuTab === "nearby";
-    return () => {
-      headerAvatar.hidden = false;
-    };
-  }, [activeMenuTab]);
+
 
   async function resizeToBlob(bitmap: ImageBitmap, maxW: number): Promise<Blob> {
     const scale = bitmap.width > maxW ? maxW / bitmap.width : 1;
@@ -1087,16 +1070,6 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
     }
   }
 
-  function toggleFinderSound() {
-    setFinderSoundEnabled((prev) => {
-      const next = !prev;
-      try {
-        localStorage.setItem(FINDER_SOUND_ENABLED_KEY, String(next));
-      } catch {}
-      return next;
-    });
-  }
-
   async function handleFriendMessageSent(roomId: string) {
     setActiveMenuTab("messages");
     await fetchConversations({ force: true });
@@ -1110,7 +1083,6 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
       <ConversationList
         activeMenuTab={activeMenuTab}
         conversations={conversations}
-        finderSoundEnabled={finderSoundEnabled}
         loading={loading}
         myProfile={myProfile}
         onlineIds={onlineIds}
@@ -1123,7 +1095,6 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
         onFriendMessageSent={(roomId) => {
           void handleFriendMessageSent(roomId);
         }}
-        onToggleFinderSound={toggleFinderSound}
         setActiveMenuTab={setActiveMenuTab}
         formatDate={formatDate}
         truncateMessage={truncateMessage}

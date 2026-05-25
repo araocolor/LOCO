@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import SearchHeader from "@/components/layout/SearchHeader";
 import SendMessageModal from "@/components/modal/SendMessageModal";
 import { PRESENCE_EVENT } from "@/components/features/PresenceTracker";
+import FinderSection from "./FinderSection";
 import { CheckModal } from "./SearchBadges";
 import FriendsSection from "./FriendsSection";
 import ManagementPanel from "./ManagementPanel";
@@ -196,6 +197,8 @@ export default function SearchPage() {
           {managementPanel}
         </div>
       )}
+
+      {activeTab === "finder" && <FinderSection />}
 
       <style jsx global>{`
         @keyframes heartFloatUp {
