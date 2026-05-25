@@ -8,6 +8,7 @@ export function getSearchTab(): Tab {
   if (tab === "members") return "members";
   if (tab === "followings") return "followings";
   if (tab === "pending") return "pending";
+  if (tab === "finder") return "finder";
   return "members";
 }
 
