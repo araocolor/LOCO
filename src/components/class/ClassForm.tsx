@@ -259,6 +259,7 @@ export default function ClassForm({ initialData, classId, userRole: _userRole }:
   const [newFiles, setNewFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const submitGuardRef = useRef(false);
   const [error, setError] = useState("");
   const [submitModal, setSubmitModal] = useState<SubmitModalState>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -363,21 +364,6 @@ export default function ClassForm({ initialData, classId, userRole: _userRole }:
     document.head.appendChild(s);
   }, []);
 
-  useEffect(() => {
-    if (!isCreateMode) return;
-
-    let message = "";
-    if (createStep === 1 && error === "필수 항목을 모두 입력해주세요.") {
-      message = error;
-    } else if (createStep === 2 && error === "필수 항목을 모두 입력해주세요.") {
-      message = error;
-    }
-    window.dispatchEvent(new CustomEvent("class-header-notice", { detail: { message } }));
-
-    return () => {
-      window.dispatchEvent(new CustomEvent("class-header-notice", { detail: { message: "" } }));
-    };
-  }, [error, isCreateMode, createStep]);
 
   function scheduleResize(files: File[]) {
     for (const file of files) {
@@ -395,9 +381,7 @@ export default function ClassForm({ initialData, classId, userRole: _userRole }:
   }
 
   function set<K extends keyof FormState>(key: K, value: FormState[K]) {
-    const nextForm = { ...form, [key]: value };
     setForm((prev) => ({ ...prev, [key]: value }));
-    maybeClearCreateRequiredError(nextForm);
     if (key === "genres" && !genreSelectedRef.current) {
       genreSelectedRef.current = true;
       scheduleResize(newFiles);
@@ -434,20 +418,6 @@ export default function ClassForm({ initialData, classId, userRole: _userRole }:
     updateMentionSearch(next, e.target.selectionStart);
   }
 
-  function maybeClearCreateRequiredError(
-    nextForm: FormState = form,
-    nextTotalImages = totalImages
-  ) {
-    if (
-      isCreateMode &&
-      error === "필수 항목을 모두 입력해주세요." &&
-      nextTotalImages > 0 &&
-      nextForm.title.trim() &&
-      nextForm.description.trim()
-    ) {
-      setError("");
-    }
-  }
 
   function handleDescriptionCursor() {
     const textarea = descriptionRef.current;
@@ -509,7 +479,6 @@ export default function ClassForm({ initialData, classId, userRole: _userRole }:
     const picked = files.slice(0, remaining);
     setNewFiles((p) => [...p, ...picked]);
     setPreviews((p) => [...p, ...picked.map((f) => URL.createObjectURL(f))]);
-    maybeClearCreateRequiredError(form, totalImages + picked.length);
     if (genreSelectedRef.current) scheduleResize(picked);
     e.target.value = "";
   }
@@ -589,19 +558,15 @@ export default function ClassForm({ initialData, classId, userRole: _userRole }:
     return result;
   }
 
-  async function handleNextStep() {
-    if (totalImages === 0 || !form.title.trim() || !form.description.trim()) {
-      setError("필수 항목을 모두 입력해주세요.");
-      return;
-    }
-
-    setError("");
+  function handleNextStep() {
+    submitGuardRef.current = true;
     setCreateStep(2);
-    window.dispatchEvent(new CustomEvent("class-header-notice", { detail: { message: "" } }));
+    requestAnimationFrame(() => {
+      submitGuardRef.current = false;
+    });
   }
 
   function handleBackToFirstStep() {
-    setError("");
     setCreateStep(1);
   }
 
@@ -623,13 +588,8 @@ export default function ClassForm({ initialData, classId, userRole: _userRole }:
   async function handleSubmit(e: React.SyntheticEvent) {
     e.preventDefault();
 
-    if (isCreateMode) {
-      const required: (keyof FormState)[] = ["title", "level", "deadline", "region", "category"];
-      if (required.some((k) => !form[k]) || form.genres.length === 0) {
-        setError("필수 항목을 모두 입력해주세요.");
-        return;
-      }
-    }
+    if (isCreateMode && createStep !== 2) return;
+    if (submitGuardRef.current) return;
 
     setSubmitting(true);
     setError("");
@@ -1329,6 +1289,7 @@ export default function ClassForm({ initialData, classId, userRole: _userRole }:
                 <button
                   type="button"
                   className={CREATE_PRIMARY_BUTTON_CLASS}
+                  disabled={totalImages === 0 || !form.title.trim() || !form.description.trim()}
                   onClick={() => void handleNextStep()}
                 >
                   다음
@@ -1347,7 +1308,7 @@ export default function ClassForm({ initialData, classId, userRole: _userRole }:
                 <button
                   type="submit"
                   className={CREATE_PRIMARY_BUTTON_CLASS}
-                  disabled={submitting}
+                  disabled={submitting || form.genres.length === 0 || !form.category || !form.level || !form.region || !form.deadline}
                 >
                   {submitting ? "저장 중..." : "클래스개설"}
                 </button>
@@ -1365,7 +1326,7 @@ export default function ClassForm({ initialData, classId, userRole: _userRole }:
       </form>
 
       {submitModal?.kind === "success" && (
-        <div className="fixed inset-0 z-[120] bg-black/35 flex items-end sm:items-center justify-center p-4">
+        <div className="fixed inset-0 z-[120] bg-black/35 flex items-center justify-center p-4">
           <div className="w-full max-w-sm rounded-2xl bg-white shadow-xl overflow-hidden">
             <div className="px-6 pt-6 pb-5 flex flex-col items-center text-center">
               <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mb-3">
@@ -1441,6 +1402,7 @@ export default function ClassForm({ initialData, classId, userRole: _userRole }:
           </div>
         </div>
       )}
+
     </>
   );
 }
