@@ -78,10 +78,6 @@ export default function ClassCard({ classData, priorityImage = false }: ClassCar
     classId: id,
     urls: new Set(),
   }));
-  const [loadedImages, setLoadedImages] = useState<{ classId: string; urls: Set<string> }>(() => ({
-    classId: id,
-    urls: new Set(),
-  }));
   const { user: authUser } = useAuth();
   const currentUserId = authUser?.id ?? null;
   const [myApplicationStatus, setMyApplicationStatus] = useState<
@@ -320,15 +316,6 @@ export default function ClassCard({ classData, priorityImage = false }: ClassCar
     });
   }
 
-  function handleClassImageLoad(url: string) {
-    setLoadedImages((prev) => {
-      const prevUrls = prev.classId === id ? prev.urls : new Set<string>();
-      if (prevUrls.has(url)) return prev;
-      const next = new Set(prevUrls);
-      next.add(url);
-      return { classId: id, urls: next };
-    });
-  }
 
   function renderClassImageFallback() {
     return (
@@ -700,34 +687,6 @@ export default function ClassCard({ classData, priorityImage = false }: ClassCar
   return (
     <>
       <div className="bg-white">
-        <div className="flex items-start justify-between px-3 py-2">
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              handleToggleExpanded();
-            }}
-            className="block min-w-0 flex-1 text-left"
-          >
-            <p className="flex min-w-0 items-center gap-1.5 text-base font-semibold leading-tight text-gray-900">
-              <span className="min-w-0 truncate">{title}</span>
-              {status === "recruiting" && (
-                <span
-                  className="h-2 w-2 flex-shrink-0 rounded-full bg-green-400"
-                  aria-label="모집중"
-                />
-              )}
-            </p>
-            <p className="mt-0.5 truncate text-sm leading-tight text-gray-500">
-              {region} | {levelLabel} | {genreLabel}
-            </p>
-          </button>
-          <div className="flex-shrink-0">
-            {renderMoreMenu(
-              "flex h-9 w-9 items-center justify-center rounded-full text-gray-600"
-            )}
-          </div>
-        </div>
         <div ref={sliderRef} className="relative w-full">
           {totalImages > 0 ? (
             <div className="block w-full cursor-default overflow-hidden" onClick={handleImageClick}>
@@ -755,7 +714,6 @@ export default function ClassCard({ classData, priorityImage = false }: ClassCar
                           sizes="(max-width: 500px) 100vw, 500px"
                           priority={priorityImage && i === 0}
                           className="object-cover"
-                          onLoad={() => handleClassImageLoad(imageUrl)}
                           onError={() => handleClassImageError(imageUrl)}
                         />
                       )}
@@ -769,6 +727,11 @@ export default function ClassCard({ classData, priorityImage = false }: ClassCar
               <div className="aspect-square w-full">{renderClassImageFallback()}</div>
             </div>
           )}
+          <div className="absolute right-2 top-4 z-30">
+            {renderMoreMenu(
+              "flex h-5 items-center justify-center rounded-full bg-black/40 px-1.5 text-white font-bold text-xs"
+            )}
+          </div>
           {totalImages > 1 && (
             <div className="absolute bottom-3 right-3 z-20 rounded-full bg-black/45 px-2.5 py-0.5 text-xs font-medium text-white">
               {imgIndex + 1}/{totalImages}
@@ -907,7 +870,7 @@ export default function ClassCard({ classData, priorityImage = false }: ClassCar
         </div>
 
         {/* 개설자 정보 */}
-        <div className={`flex items-center gap-2 px-3 pt-2 ${expanded ? "pb-1" : "pb-4"}`}>
+        <div className={`flex items-center gap-2 px-3 pt-2 pb-1`}>
           {host?.profile_image_url ? (
             <Image
               src={host.profile_image_url}
@@ -922,15 +885,21 @@ export default function ClassCard({ classData, priorityImage = false }: ClassCar
             </div>
           )}
           <div className="min-w-0 flex-1">
-            <span className="block truncate text-[15px] font-bold leading-tight text-gray-900">
-              {host?.nickname ?? ""}
+            <span className="flex min-w-0 items-center gap-1.5 truncate text-[15px] font-bold leading-tight text-gray-900">
+              <span className="min-w-0 truncate">{title}</span>
+              {status === "recruiting" && (
+                <span
+                  className="h-2 w-2 flex-shrink-0 rounded-full bg-green-400"
+                  aria-label="모집중"
+                />
+              )}
             </span>
             <button
               type="button"
               onClick={handleToggleExpanded}
               className="block w-full truncate text-left text-[13px] leading-tight text-gray-400"
             >
-              {levelLabel} · {formatDate(datetime)}
+              {host?.nickname ?? ""} · {formatDate(datetime)} · {region} | {levelLabel} | {genreLabel}
               {!expanded && (
                 <span className="inline-flex items-center gap-0.5 font-bold text-gray-500">
                   {" ...더 보기"}
@@ -953,11 +922,11 @@ export default function ClassCard({ classData, priorityImage = false }: ClassCar
           </div>
         </div>
         {description && (
-          <div className={expanded ? "px-3 pb-3" : "hidden"}>
+          <div className="px-3 pb-3">
             <div ref={descriptionRef} className="scroll-mt-[250px]">
               <MentionText
                 text={description}
-                className="text-[15px] text-gray-600 mt-2 whitespace-pre-wrap leading-relaxed"
+                className={`text-[15px] text-gray-600 mt-2 whitespace-pre-wrap leading-relaxed ${expanded ? "" : "line-clamp-1"}`}
               />
             </div>
           </div>
