@@ -104,7 +104,7 @@ export default function HomeSearchResultsPage({ initialClasses, regionOverride }
       .then((r) => r.json())
       .then((j) => { if (j.data) warmImages(j.data); })
       .catch(() => {});
-  }, [warmImages]);
+  }, [regionParam, warmImages]);
 
   async function handleGoHome() {
     try {
@@ -147,7 +147,7 @@ export default function HomeSearchResultsPage({ initialClasses, regionOverride }
     finally {
       setLoadingMore(false);
     }
-  }, [loadingMore, hasMore, page, warmImages, warmPageImages, writeHomeCache]);
+  }, [loadingMore, hasMore, page, regionParam, warmImages, warmPageImages, writeHomeCache]);
 
   // 스크롤 끝 감지
   useEffect(() => {
@@ -251,7 +251,7 @@ export default function HomeSearchResultsPage({ initialClasses, regionOverride }
 
     void load();
     return () => { cancelled = true; };
-  }, [stableInitial, warmImages, warmPageImages, writeHomeCache]);
+  }, [regionParam, stableInitial, warmImages, warmPageImages, writeHomeCache]);
 
   return (
     <div className="max-w-xl mx-auto bg-white relative">
@@ -263,7 +263,7 @@ export default function HomeSearchResultsPage({ initialClasses, regionOverride }
 
       <div className="flex flex-col pb-6">
         {filteredClasses.map((c, idx) => (
-          <ClassCard key={`${c.id}-${idx}`} classData={c} />
+          <ClassCard key={`${c.id}-${idx}`} classData={c} priorityImage={idx < 2} />
         ))}
       </div>
 

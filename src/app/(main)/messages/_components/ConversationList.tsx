@@ -6,6 +6,7 @@ import { Bell, BellOff, RefreshCw } from "lucide-react";
 import NearbyMap, { type NearbyRefreshControl } from "@/components/features/NearbyMap";
 import type { Conversation, MessageMenuTab, MyProfile } from "../_types";
 import { getMessagePreviewText, parseMessageContent } from "../_lib/message-content";
+import MessageFriendsPanel from "./MessageFriendsPanel";
 
 interface ConversationListProps {
   activeMenuTab: MessageMenuTab;
@@ -18,6 +19,7 @@ interface ConversationListProps {
   onOpenSelfChat: () => void;
   onOpenProfile: (userId: string) => void;
   onPrefetchChat: (roomId: string) => void;
+  onFriendMessageSent: (roomId: string) => void;
   onToggleFinderSound: () => void;
   setActiveMenuTab: (tab: MessageMenuTab) => void;
   formatDate: (dateStr: string) => string;
@@ -35,6 +37,7 @@ export default function ConversationList({
   onOpenProfile,
   onOpenSelfChat,
   onPrefetchChat,
+  onFriendMessageSent,
   onToggleFinderSound,
   setActiveMenuTab,
   formatDate,
@@ -58,6 +61,8 @@ export default function ConversationList({
   const visibleConversations =
     activeMenuTab === "messages"
       ? directConversations
+      : activeMenuTab === "friends"
+        ? []
       : activeMenuTab === "groups"
         ? groupConversations
         : activeMenuTab === "my-chat"
@@ -68,6 +73,17 @@ export default function ConversationList({
     <>
       <div className="flex items-end justify-between px-4 border-b border-[#e5e7eb]">
         <div className="ml-2 flex gap-5">
+          <button
+            onClick={() => setActiveMenuTab("friends")}
+            style={{ fontSize: activeMenuTab === "friends" ? 18 : 17 }}
+            className={`pb-2 font-bold border-b-2 transition-colors ${
+              activeMenuTab === "friends"
+                ? "border-black text-black"
+                : "border-transparent text-gray-400"
+            }`}
+          >
+            친구들
+          </button>
           <button
             onClick={() => setActiveMenuTab("messages")}
             style={{ fontSize: activeMenuTab === "messages" ? 18 : 17 }}
@@ -139,7 +155,9 @@ export default function ConversationList({
       </div>
 
       <div className="flex-1 overflow-y-auto">
-        {activeMenuTab === "nearby" ? (
+        {activeMenuTab === "friends" ? (
+          <MessageFriendsPanel onlineIds={onlineIds} onMessageSent={onFriendMessageSent} />
+        ) : activeMenuTab === "nearby" ? (
           <div className="bg-white">
             <div className="px-4 pt-4 pb-2">
               <p className="text-base font-bold" style={{ color: "#333333" }}>검색범위</p>

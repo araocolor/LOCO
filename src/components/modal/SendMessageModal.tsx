@@ -6,6 +6,7 @@ import Image from "next/image";
 interface SendMessageModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onSent?: (roomId: string) => void;
   receiver: {
     id: string;
     nickname: string;
@@ -13,7 +14,16 @@ interface SendMessageModalProps {
   };
 }
 
-export default function SendMessageModal({ isOpen, onClose, receiver }: SendMessageModalProps) {
+function clearChatRoomsCaches() {
+  try {
+    localStorage.removeItem("loco_chat_rooms_cache_v1");
+    Object.keys(localStorage)
+      .filter((key) => key.startsWith("loco_chat_rooms_cache_v2:"))
+      .forEach((key) => localStorage.removeItem(key));
+  } catch {}
+}
+
+export default function SendMessageModal({ isOpen, onClose, onSent, receiver }: SendMessageModalProps) {
   const [content, setContent] = useState("");
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -52,11 +62,12 @@ export default function SendMessageModal({ isOpen, onClose, receiver }: SendMess
         return;
       }
 
-      localStorage.removeItem("loco_chat_rooms_cache_v1");
+      clearChatRoomsCaches();
       setSuccess(true);
       setContent("");
       setSuccess(false);
       onClose();
+      onSent?.(roomId);
     } catch {
       alert("오류 발생");
       setLoading(false);

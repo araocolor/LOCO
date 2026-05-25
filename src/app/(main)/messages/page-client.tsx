@@ -80,6 +80,29 @@ const FINDER_SOUND_ENABLED_KEY = "loco_finder_sound_enabled";
 const MAX_VIDEO_UPLOAD_BYTES = 50 * 1024 * 1024;
 const VIDEO_UPLOAD_TIMEOUT_MS = 180000;
 const ALLOWED_VIDEO_TYPES = new Set(["video/mp4", "video/quicktime", "video/webm"]);
+const CHAT_ROOMS_CACHE_PREFIX = "loco_chat_rooms_cache_v2:";
+const LEGACY_CHAT_ROOMS_CACHE_KEY = "loco_chat_rooms_cache_v1";
+const CONVERSATIONS_LIMIT = 50;
+const ROOM_PREFETCH_LIMIT = 5;
+const MESSAGE_USER_SESSION_PREFIX = "message_userid_session:";
+
+function getChatRoomsCacheKey(userId: string) {
+  return `${CHAT_ROOMS_CACHE_PREFIX}${userId}`;
+}
+
+function getMessageUserSessionKey(userId: string) {
+  return `${MESSAGE_USER_SESSION_PREFIX}${userId}`;
+}
+
+function prioritizeOneToOneConversations(convs: Conversation[]) {
+  const oneToOneConversations = convs.filter((conv) => conv.type === "self" || conv.type === "direct");
+  const otherConversations = convs.filter((conv) => conv.type !== "self" && conv.type !== "direct");
+  return [...oneToOneConversations, ...otherConversations];
+}
+
+function getConversationsForCache(convs: Conversation[]) {
+  return prioritizeOneToOneConversations(convs).slice(0, CONVERSATIONS_LIMIT);
+}
 
 function readFinderSoundEnabled() {
   if (typeof window === "undefined") return true;
@@ -324,10 +347,8 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
     }
   }
 
-  const CACHE_KEY = "loco_chat_rooms_cache_v1";
-  const CONVERSATIONS_LIMIT = 20;
-  const ROOM_PREFETCH_LIMIT = 5;
-  const MESSAGE_USER_SESSION_KEY = "message_userid_session";
+  const cacheKey = getChatRoomsCacheKey(userId);
+  const messageUserSessionKey = getMessageUserSessionKey(userId);
   const roomPrefetchInFlightRef = useRef<Map<string, Promise<ChatRoomPayload>>>(new Map());
   const recentRoomPrefetchedRef = useRef<Set<string>>(new Set());
 
@@ -383,6 +404,54 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
     };
   }
 
+  function normalizeCachedConversation(item: unknown): Conversation | null {
+    if (!item || typeof item !== "object") return null;
+    const record = item as Partial<Conversation> & Partial<ChatRoomApiItem>;
+    if (typeof record.id !== "string") return null;
+
+    const hasApiLastMessage =
+      !!record.last_message &&
+      typeof record.last_message === "object" &&
+      "created_at" in record.last_message;
+    const looksLikeApiRoom =
+      hasApiLastMessage ||
+      (!Object.prototype.hasOwnProperty.call(record, "other_user") && Array.isArray(record.members));
+
+    if (looksLikeApiRoom) return mapChatRoom(record as ChatRoomApiItem);
+    return record as Conversation;
+  }
+
+  function readCachedConversations() {
+    try {
+      const raw = localStorage.getItem(cacheKey) ?? localStorage.getItem(LEGACY_CHAT_ROOMS_CACHE_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as { data?: unknown } | unknown[];
+      const rows = Array.isArray(parsed)
+        ? parsed
+        : Array.isArray(parsed.data)
+          ? parsed.data
+          : [];
+      const next = rows
+        .map(normalizeCachedConversation)
+        .filter((item): item is Conversation => Boolean(item));
+      return next.length > 0 ? next : null;
+    } catch {
+      return null;
+    }
+  }
+
+  function writeConversationsCache(convs: Conversation[]) {
+    try {
+      localStorage.setItem(
+        cacheKey,
+        JSON.stringify({
+          data: getConversationsForCache(convs),
+          ts: Date.now(),
+        })
+      );
+    } catch {}
+  }
+
   function patchConversationWithMessage(roomId: string, message: Message) {
     setConversations((prev) => {
       const next = prev.map((conv) =>
@@ -404,7 +473,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
           : conv
       );
       const sorted = [...next].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
-      try { localStorage.setItem(CACHE_KEY, JSON.stringify(sorted.slice(0, CONVERSATIONS_LIMIT))); } catch {}
+      writeConversationsCache(sorted);
       return sorted;
     });
   }
@@ -513,7 +582,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
             }
           : conv
       );
-      try { localStorage.setItem(CACHE_KEY, JSON.stringify(next.slice(0, CONVERSATIONS_LIMIT))); } catch {}
+      writeConversationsCache(next);
       return next;
     });
   }
@@ -620,17 +689,17 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
         });
       }
 
-      sessionStorage.setItem(MESSAGE_USER_SESSION_KEY, JSON.stringify(sessionMap));
+      sessionStorage.setItem(messageUserSessionKey, JSON.stringify(sessionMap));
     } catch {}
   }
 
   async function fetchConversations(options?: { force?: boolean }) {
     const force = options?.force ?? false;
-    const hasUserSession = Boolean(sessionStorage.getItem(MESSAGE_USER_SESSION_KEY));
+    const hasUserSession = Boolean(sessionStorage.getItem(messageUserSessionKey));
     if (!force && hasUserSession) {
-      const cached = localStorage.getItem(CACHE_KEY);
+      const cached = readCachedConversations();
       if (cached) {
-        setConversations(JSON.parse(cached) as Conversation[]);
+        setConversations(cached);
       }
       setLoading(false);
     }
@@ -641,7 +710,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
       if (json.data) {
         const incomingConversations = (json.data as ChatRoomApiItem[]).map(mapChatRoom);
         setConversations(incomingConversations);
-        localStorage.setItem(CACHE_KEY, JSON.stringify(incomingConversations.slice(0, CONVERSATIONS_LIMIT)));
+        writeConversationsCache(incomingConversations);
         await saveMessageUserSession(incomingConversations);
       }
     } catch (error) {
@@ -653,11 +722,10 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
 
   useEffect(() => {
     // v1: 로컬 목록 캐시 즉시 표시
-    const cached = localStorage.getItem(CACHE_KEY);
+    const cached = readCachedConversations();
     if (cached) {
-      const next = JSON.parse(cached) as Conversation[];
       queueMicrotask(() => {
-        setConversations(next);
+        setConversations(cached);
         setLoading(false);
       });
     }
@@ -673,7 +741,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
   useEffect(() => {
     if (conversations.length === 0) return;
 
-    conversations.slice(0, ROOM_PREFETCH_LIMIT).forEach((conv) => {
+    prioritizeOneToOneConversations(conversations).slice(0, ROOM_PREFETCH_LIMIT).forEach((conv) => {
       if (recentRoomPrefetchedRef.current.has(conv.id)) return;
       recentRoomPrefetchedRef.current.add(conv.id);
       void prefetchChatRoom(conv.id);
@@ -856,7 +924,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
       const next = prev.map((conv) =>
         conv.id === roomId ? { ...conv, unread_count: 0 } : conv
       );
-      try { localStorage.setItem(CACHE_KEY, JSON.stringify(next)); } catch {}
+      writeConversationsCache(next);
       return next;
     });
 
@@ -1029,6 +1097,14 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
     });
   }
 
+  async function handleFriendMessageSent(roomId: string) {
+    setActiveMenuTab("messages");
+    await fetchConversations({ force: true });
+    queueMicrotask(() => {
+      void openChat(roomId);
+    });
+  }
+
   return (
     <div className="max-w-xl mx-auto bg-white flex min-h-0 flex-col" style={{ height: "calc(100dvh - 126px)" }}>
       <ConversationList
@@ -1043,6 +1119,9 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
         onOpenSelfChat={() => { void openSelfChat(); }}
         onPrefetchChat={(roomId) => {
           void prefetchChatRoom(roomId);
+        }}
+        onFriendMessageSent={(roomId) => {
+          void handleFriendMessageSent(roomId);
         }}
         onToggleFinderSound={toggleFinderSound}
         setActiveMenuTab={setActiveMenuTab}

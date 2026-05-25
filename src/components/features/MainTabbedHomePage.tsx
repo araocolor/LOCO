@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { Grid3X3, Plus, Search } from "lucide-react";
 import { ClassWithHost } from "@/components/class/ClassCard";
 import HomeSearchResultsPage from "@/components/features/HomeSearchResultsPage";
@@ -18,44 +18,88 @@ interface MainTabbedHomePageProps {
   initialClasses: ClassWithHost[];
 }
 
+function getMyClassesCacheKey(userId: string) {
+  return `${MY_CLASSES_CACHE_KEY}:${userId}`;
+}
+
 export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePageProps) {
   const [activeTab, setActiveTab] = useState<MainTab>("classSearch");
-  const [userRegion, setUserRegion] = useState<string | null>(() => {
-    if (typeof window === "undefined") return null;
-    try {
-      const raw = localStorage.getItem("loco_mypage_cache_local_v2");
-      if (raw) {
-        const cached = JSON.parse(raw) as { profile?: { region?: string | null } };
-        return cached.profile?.region ?? null;
-      }
-    } catch {}
-    return null;
-  });
+  const [userRegion, setUserRegion] = useState<string | null>(null);
   const { user } = useAuth();
   const userId = user?.id ?? null;
-  const [myClasses, setMyClasses] = useState<ClassWithHost[]>(() => {
-    if (typeof window === "undefined") return [];
-    try {
-      const raw = localStorage.getItem(MY_CLASSES_CACHE_KEY);
-      return raw ? JSON.parse(raw) : [];
-    } catch {}
-    return [];
-  });
+  const [myClasses, setMyClasses] = useState<ClassWithHost[]>([]);
   const [myClassesLoading, setMyClassesLoading] = useState(false);
-  const [searchRegion, setSearchRegion] = useState<string | null>(() => {
-    if (typeof window === "undefined") return null;
+  const [searchRegion, setSearchRegion] = useState<string | null>(null);
+  const isChromeVisible = useScrollChromeVisibility(true);
+  const router = useRouter();
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function fetchUserRegionFromProfile(uid: string) {
+      try {
+        const res = await fetch("/api/mypage/summary", { method: "GET", cache: "no-store" });
+        if (!res.ok || cancelled) return;
+
+        const json = await res.json() as {
+          profile?: { id?: string; region?: string | null };
+        };
+        if (json.profile?.id && json.profile.id !== uid) return;
+
+        const nextRegion = json.profile?.region ?? null;
+        setUserRegion(nextRegion);
+
+        try {
+          const raw = localStorage.getItem("loco_mypage_cache_local_v2");
+          const current = raw ? JSON.parse(raw) : {};
+          localStorage.setItem(
+            "loco_mypage_cache_local_v2",
+            JSON.stringify({
+              ...current,
+              ...json,
+              profile: {
+                ...(current.profile ?? {}),
+                ...(json.profile ?? {}),
+              },
+            })
+          );
+        } catch {}
+      } catch {}
+    }
+
     try {
+      let nextUserRegion: string | null = null;
+      let nextSearchRegion: string | null = null;
+
+      const mypageRaw = localStorage.getItem("loco_mypage_cache_local_v2");
+      if (mypageRaw) {
+        const cached = JSON.parse(mypageRaw) as {
+          profile?: { id?: string; region?: string | null };
+        };
+        if (!userId || !cached.profile?.id || cached.profile.id === userId) {
+          nextUserRegion = cached.profile?.region ?? null;
+        }
+      }
+
       const raw = localStorage.getItem(SEARCH_DEFAULTS_STORAGE_KEY);
       if (raw) {
         const opts = JSON.parse(raw) as SearchOptions;
-        return opts.region && opts.region !== "전체" ? opts.region : null;
+        nextSearchRegion = opts.region && opts.region !== "전체" ? opts.region : null;
+      }
+
+      queueMicrotask(() => {
+        setUserRegion(nextUserRegion);
+        setSearchRegion(nextSearchRegion);
+      });
+
+      if (userId && !nextUserRegion) {
+        void fetchUserRegionFromProfile(userId);
       }
     } catch {}
-    return null;
-  });
-  const isChromeVisible = useScrollChromeVisibility(true);
-  const router = useRouter();
-  const searchParams = useSearchParams();
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
 
   useEffect(() => {
     function handleSearchClose() {
@@ -74,20 +118,39 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
   }, []);
 
   const fetchMyClasses = useCallback(async (uid: string) => {
+    setMyClassesLoading(true);
     try {
       const res = await fetch(`/api/classes/search?host_id=${uid}&limit=50`);
       const json = await res.json();
       const items = (json.data ?? []) as ClassWithHost[];
       setMyClasses(items);
       try {
-        localStorage.setItem(MY_CLASSES_CACHE_KEY, JSON.stringify(items));
+        localStorage.setItem(getMyClassesCacheKey(uid), JSON.stringify(items));
       } catch {}
-    } catch {}
+    } catch {
+    } finally {
+      setMyClassesLoading(false);
+    }
   }, []);
 
   useEffect(() => {
-    if (!userId) return;
-    fetchMyClasses(userId);
+    if (!userId) {
+      queueMicrotask(() => setMyClasses([]));
+      return;
+    }
+
+    let nextMyClasses: ClassWithHost[] = [];
+    try {
+      const raw = localStorage.getItem(getMyClassesCacheKey(userId));
+      nextMyClasses = raw ? JSON.parse(raw) : [];
+    } catch {
+      nextMyClasses = [];
+    }
+
+    queueMicrotask(() => {
+      setMyClasses(nextMyClasses);
+      void fetchMyClasses(userId);
+    });
   }, [userId, fetchMyClasses]);
 
   return (

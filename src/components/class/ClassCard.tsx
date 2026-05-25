@@ -29,6 +29,7 @@ export interface ClassWithHost extends DanceClass {
 
 interface ClassCardProps {
   classData: ClassWithHost;
+  priorityImage?: boolean;
 }
 
 const GENRE_BG: Record<string, string> = {
@@ -50,7 +51,7 @@ function formatDate(dateStr: string) {
   return `${m}/${dd}(${day}) ${hh}:${mm}`;
 }
 
-export default function ClassCard({ classData }: ClassCardProps) {
+export default function ClassCard({ classData, priorityImage = false }: ClassCardProps) {
   const { id, host_id, title, genres, level, datetime, region, status, images, host, description } =
     classData;
   const [expanded, setExpanded] = useState(false);
@@ -73,6 +74,14 @@ export default function ClassCard({ classData }: ClassCardProps) {
   const [enteringClassRoom, setEnteringClassRoom] = useState(false);
   const [applyingClass, setApplyingClass] = useState(false);
   const [applicantSheetOpen, setApplicantSheetOpen] = useState(false);
+  const [failedImages, setFailedImages] = useState<{ classId: string; urls: Set<string> }>(() => ({
+    classId: id,
+    urls: new Set(),
+  }));
+  const [loadedImages, setLoadedImages] = useState<{ classId: string; urls: Set<string> }>(() => ({
+    classId: id,
+    urls: new Set(),
+  }));
   const { user: authUser } = useAuth();
   const currentUserId = authUser?.id ?? null;
   const [myApplicationStatus, setMyApplicationStatus] = useState<
@@ -301,6 +310,39 @@ export default function ClassCard({ classData }: ClassCardProps) {
   const imageList = images ?? [];
   const totalImages = imageList.length;
 
+  function handleClassImageError(url: string) {
+    setFailedImages((prev) => {
+      const prevUrls = prev.classId === id ? prev.urls : new Set<string>();
+      if (prevUrls.has(url)) return prev;
+      const next = new Set(prevUrls);
+      next.add(url);
+      return { classId: id, urls: next };
+    });
+  }
+
+  function handleClassImageLoad(url: string) {
+    setLoadedImages((prev) => {
+      const prevUrls = prev.classId === id ? prev.urls : new Set<string>();
+      if (prevUrls.has(url)) return prev;
+      const next = new Set(prevUrls);
+      next.add(url);
+      return { classId: id, urls: next };
+    });
+  }
+
+  function renderClassImageFallback() {
+    return (
+      <div
+        className="flex h-full w-full items-center justify-center"
+        style={{ backgroundColor: GENRE_BG[primaryGenre] ?? GENRE_BG.other }}
+      >
+        <span className="text-6xl opacity-30">
+          {primaryGenre === "salsa" ? "💃" : primaryGenre === "bachata" ? "🕺" : "🎵"}
+        </span>
+      </div>
+    );
+  }
+
   useEffect(() => {
     const el = sliderRef.current;
     if (!el || totalImages <= 1) return;
@@ -361,6 +403,15 @@ export default function ClassCard({ classData }: ClassCardProps) {
   const isPendingApplication = myApplicationStatus === "pending";
   const currentLightboxImageUrl =
     imageList[lightboxIndex]?.full_url ?? imageList[lightboxIndex]?.card_url ?? null;
+  const currentCardImageUrl = imageList[imgIndex]?.card_url ?? null;
+  const currentCardImageFailed =
+    !currentCardImageUrl ||
+    (failedImages.classId === id && failedImages.urls.has(currentCardImageUrl));
+  const currentCardImageLoaded =
+    currentCardImageFailed ||
+    (loadedImages.classId === id &&
+      currentCardImageUrl !== null &&
+      loadedImages.urls.has(currentCardImageUrl));
 
   function handleLightboxTouchStart(e: ReactTouchEvent<HTMLDivElement>) {
     lightboxTouchStartX.current = e.touches[0].clientX;
@@ -668,42 +719,42 @@ export default function ClassCard({ classData }: ClassCardProps) {
                   transition: "transform 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94)",
                 }}
               >
-                {imageList.map((img, i) => (
-                  <div
-                    key={i}
-                    style={{
-                      minWidth: "100%",
-                      maxHeight: "calc(100vw * 4 / 3)",
-                      overflow: "hidden",
-                      display: "flex",
-                      alignItems: "flex-end",
-                    }}
-                  >
-                    <Image
-                      src={img.card_url}
-                      alt={title}
-                      width={0}
-                      height={0}
-                      sizes="100vw"
-                      style={{ width: "100%", height: "auto" }}
-                    />
-                  </div>
-                ))}
+                {imageList.map((img, i) => {
+                  const imageUrl = img.card_url;
+                  const imageFailed =
+                    !imageUrl || (failedImages.classId === id && failedImages.urls.has(imageUrl));
+
+                  return (
+                    <div key={i} className="relative aspect-[3/4] min-w-full overflow-hidden">
+                      {imageFailed ? (
+                        renderClassImageFallback()
+                      ) : (
+                        <Image
+                          src={imageUrl}
+                          alt={title}
+                          fill
+                          sizes="(max-width: 500px) 100vw, 500px"
+                          priority={priorityImage && i === 0}
+                          className="object-cover"
+                          onLoad={() => handleClassImageLoad(imageUrl)}
+                          onError={() => handleClassImageError(imageUrl)}
+                        />
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           ) : (
             <div className="block w-full cursor-default overflow-hidden">
-              <div
-                className="w-full aspect-[3/4] flex items-center justify-center"
-                style={{ backgroundColor: GENRE_BG[primaryGenre] ?? GENRE_BG.other }}
-              >
-                <span className="text-6xl opacity-30">
-                  {primaryGenre === "salsa" ? "💃" : primaryGenre === "bachata" ? "🕺" : "🎵"}
-                </span>
-              </div>
+              <div className="aspect-[3/4] w-full">{renderClassImageFallback()}</div>
             </div>
           )}
-          <div className="pointer-events-none absolute inset-x-0 top-0 z-20 h-[100px]">
+          <div
+            className={`pointer-events-none absolute inset-x-0 top-0 z-20 h-[100px] transition-opacity duration-300 ${
+              currentCardImageLoaded ? "opacity-100" : "opacity-0"
+            }`}
+          >
             <div className="absolute inset-0 bg-gradient-to-b from-black/70 to-transparent" />
             <div className="relative h-full px-3 pt-3 text-white">
               <div className="pointer-events-auto absolute right-3 top-2 z-30">

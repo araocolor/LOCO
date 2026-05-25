@@ -20,6 +20,7 @@ export interface Follower {
   friend_accepted_at?: string | null;
   joined_at?: string | null;
   relation_updated_at?: string | null;
+  profile_updated_at?: string | null;
   favorite_genre?: string[];
   created_at?: string | null;
 }

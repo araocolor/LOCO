@@ -57,8 +57,8 @@ export function parseMessageContent(content: string): ParsedMessageContent | nul
 
 export function getImageMessageData(content: string): ImageMessageData | null {
   const parsed = parseMessageContent(content);
-  if (parsed?.type === "image" && typeof parsed.thumb === "string" && typeof parsed.full === "string") {
-    return { type: "image", thumb: parsed.thumb, full: parsed.full };
+  if (parsed?.type === "image" && typeof parsed.thumb === "string") {
+    return { type: "image", thumb: parsed.thumb, full: typeof parsed.full === "string" ? parsed.full : parsed.thumb };
   }
   return null;
 }

@@ -22,7 +22,7 @@ import {
   X,
 } from "lucide-react";
 import { RiVerifiedBadgeFill } from "react-icons/ri";
-import { logoutAction } from "@/actions/auth";
+import { createClient } from "@/lib/supabase/client";
 import type { ReactNode } from "react";
 
 type SubItem = { label: string };
@@ -237,11 +237,12 @@ export default function MyPageHeader() {
     });
   }
 
-  function handleLogout() {
+  async function handleLogout() {
     localStorage.clear();
     sessionStorage.clear();
-    router.replace("/login");
-    void logoutAction();
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    window.location.href = "/login";
   }
 
   return (

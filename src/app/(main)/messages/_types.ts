@@ -90,4 +90,4 @@ export interface SessionClassItem {
   created_at?: string;
 }
 
-export type MessageMenuTab = "messages" | "groups" | "my-chat" | "nearby";
+export type MessageMenuTab = "friends" | "messages" | "groups" | "my-chat" | "nearby";

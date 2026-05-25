@@ -17,7 +17,7 @@ export default async function MainLayout({
       <div className="relative flex flex-col w-full max-w-[500px] min-h-screen bg-white">
         <MainContentShell>{children}</MainContentShell>
         <PresenceTracker />
-        <AppPrefetcher isLoggedIn={!!user} />
+        <AppPrefetcher userId={user?.id ?? null} />
         <SearchSheet />
         <BottomNav />
       </div>

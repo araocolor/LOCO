@@ -16,6 +16,7 @@ interface ProfileModalProps {
   onOpenMessage: (receiver: { id: string; nickname: string; profile_image_url: string | null }) => void;
   onFollowFromMenu: (member: Follower) => void;
   onViewProfile: (id: string) => void;
+  hideViewProfileButton?: boolean;
 }
 
 export default function ProfileModal({
@@ -29,6 +30,7 @@ export default function ProfileModal({
   onOpenMessage,
   onFollowFromMenu,
   onViewProfile,
+  hideViewProfileButton = false,
 }: ProfileModalProps) {
   return (
     <>
@@ -118,15 +120,17 @@ export default function ProfileModal({
                 {getRelationStatusValue(profileModal.id) === "팔로잉" ? "구독하기" : "친구추가"}
               </button>
             )}
-            <button
-              className="flex-1 h-9 rounded-full bg-[#FEE500] text-gray-900 font-semibold text-[14px]"
-              onClick={() => {
-                onViewProfile(profileModal.id);
-                onClose();
-              }}
-            >
-              프로필보기
-            </button>
+            {!hideViewProfileButton && (
+              <button
+                className="flex-1 h-9 rounded-full bg-[#FEE500] text-gray-900 font-semibold text-[14px]"
+                onClick={() => {
+                  onViewProfile(profileModal.id);
+                  onClose();
+                }}
+              >
+                프로필보기
+              </button>
+            )}
           </div>
         </div>
       </div>

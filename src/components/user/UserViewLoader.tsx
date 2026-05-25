@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import UserViewClient from "@/components/user/UserViewClient";
 import type { ClassImage } from "@/types/class";
 
-const MESSAGE_USER_SESSION_KEY = "message_userid_session";
+const LEGACY_MESSAGE_USER_SESSION_KEY = "message_userid_session";
+const MESSAGE_USER_SESSION_PREFIX = "message_userid_session:";
 
 interface GridClass {
   id: string;
@@ -54,6 +55,24 @@ function normalizeProfile(profile: Profile): Profile {
   };
 }
 
+function readMessageUserSession(userId: string) {
+  const keys = [
+    LEGACY_MESSAGE_USER_SESSION_KEY,
+    ...Object.keys(sessionStorage).filter((key) => key.startsWith(MESSAGE_USER_SESSION_PREFIX)),
+  ];
+
+  for (const key of keys) {
+    try {
+      const raw = sessionStorage.getItem(key);
+      if (!raw) continue;
+      const sessionMap = JSON.parse(raw) as Record<string, SessionUserData>;
+      if (sessionMap[userId]) return sessionMap[userId];
+    } catch {}
+  }
+
+  return null;
+}
+
 export default function UserViewLoader({ userId }: { userId: string }) {
   const [data, setData] = useState<UserViewData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -92,35 +111,31 @@ export default function UserViewLoader({ userId }: { userId: string }) {
           return;
         }
 
-        const raw = sessionStorage.getItem(MESSAGE_USER_SESSION_KEY);
-        if (raw) {
-          const sessionMap = JSON.parse(raw) as Record<string, SessionUserData>;
-          const sessionUser = sessionMap[userId];
-          if (sessionUser) {
-            const hasProfileFields =
-              "bio" in sessionUser || "member_type" in sessionUser || "email" in sessionUser;
-            const hasUsableEmail = typeof sessionUser.email === "string" && sessionUser.email.length > 0;
-            // 구버전 세션이거나 이메일이 비어 있으면 API로 보강한다.
-            if (hasProfileFields && hasUsableEmail && !cancelled) {
-              setData({
-                profile: {
-                  id: sessionUser.id,
-                  email: sessionUser.email ?? null,
-                  nickname: sessionUser.nickname,
-                  bio: sessionUser.bio ?? null,
-                  country: sessionUser.country ?? null,
-                  member_type: sessionUser.member_type ?? [],
-                  profile_image_url: sessionUser.profile_image_url ?? null,
-                  region: sessionUser.region ?? null,
-                },
-                myClasses: (sessionUser.opened_classes ?? []).map((c) => ({ ...c, isBookmark: false })),
-                bookmarkClasses: (sessionUser.bookmarked_classes ?? []).map((c) => ({ ...c, isBookmark: true })),
-                followerCount: 0,
-              });
-              setLoading(false);
-            }
-            if (hasProfileFields && hasUsableEmail) return;
+        const sessionUser = readMessageUserSession(userId);
+        if (sessionUser) {
+          const hasProfileFields =
+            "bio" in sessionUser || "member_type" in sessionUser || "email" in sessionUser;
+          const hasUsableEmail = typeof sessionUser.email === "string" && sessionUser.email.length > 0;
+          // 구버전 세션이거나 이메일이 비어 있으면 API로 보강한다.
+          if (hasProfileFields && hasUsableEmail && !cancelled) {
+            setData({
+              profile: {
+                id: sessionUser.id,
+                email: sessionUser.email ?? null,
+                nickname: sessionUser.nickname,
+                bio: sessionUser.bio ?? null,
+                country: sessionUser.country ?? null,
+                member_type: sessionUser.member_type ?? [],
+                profile_image_url: sessionUser.profile_image_url ?? null,
+                region: sessionUser.region ?? null,
+              },
+              myClasses: (sessionUser.opened_classes ?? []).map((c) => ({ ...c, isBookmark: false })),
+              bookmarkClasses: (sessionUser.bookmarked_classes ?? []).map((c) => ({ ...c, isBookmark: true })),
+              followerCount: 0,
+            });
+            setLoading(false);
           }
+          if (hasProfileFields && hasUsableEmail) return;
         }
 
         const res = await fetch(`/api/users/${userId}/view-summary`, { method: "GET" });

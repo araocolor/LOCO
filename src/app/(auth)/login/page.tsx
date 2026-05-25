@@ -121,7 +121,7 @@ export default function LoginPage() {
   return (
     <main className="flex min-h-screen items-center justify-center p-4">
       <div className="w-full max-w-sm card p-8">
-        <h1 className="text-2xl font-bold text-center mb-1">LOCO</h1>
+        <h1 className="text-2xl font-bold text-center mb-1">XLATIN</h1>
         <p className="text-sm text-center mb-8" style={{ color: "#999999" }}>
           라틴 댄스 클래스 플랫폼
         </p>
