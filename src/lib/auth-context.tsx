@@ -20,14 +20,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function loadUser() {
-      const supabase = createClient();
-      const { data: { session } } = await supabase.auth.getSession();
-      setUser(session?.user ? { id: session.user.id, email: session.user.email } : null);
+    const supabase = createClient();
+
+    function syncUser(sessionUser: { id: string; email?: string } | null) {
+      setUser(sessionUser ? { id: sessionUser.id, email: sessionUser.email } : null);
       setLoading(false);
     }
 
+    async function loadUser() {
+      const { data: { session } } = await supabase.auth.getSession();
+      syncUser(session?.user ? { id: session.user.id, email: session.user.email } : null);
+    }
+
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+      syncUser(session?.user ? { id: session.user.id, email: session.user.email } : null);
+    });
+
     loadUser();
+
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
   }, []);
 
   return (
