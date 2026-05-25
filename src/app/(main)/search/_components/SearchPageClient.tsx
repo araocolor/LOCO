@@ -86,6 +86,10 @@ export default function SearchPage() {
   }, [setFriendListMode, setFriendViewMode, setMemberViewMode, setSocialListMode]);
 
   useEffect(() => {
+    navigator.geolocation?.getCurrentPosition(() => {}, () => {});
+  }, []);
+
+  useEffect(() => {
     queueMicrotask(() => {
       if (window.__onlineIds) setOnlineIds(window.__onlineIds);
     });

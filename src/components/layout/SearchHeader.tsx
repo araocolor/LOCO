@@ -49,7 +49,7 @@ export default function SearchHeader({ activeTab, onTabChange, myRegionLabel = "
           }`}
           style={{ fontSize: activeTab === "finder" ? 18 : 17 }}
         >
-          Finder
+          이근처
         </button>
       </div>
     </header>
