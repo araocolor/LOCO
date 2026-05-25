@@ -756,8 +756,7 @@ export default function ClassCard({ classData, priorityImage = false }: ClassCar
               currentCardImageLoaded ? "opacity-100" : "opacity-0"
             }`}
           >
-            <div className="absolute inset-0 bg-gradient-to-b from-black/70 to-transparent" />
-            <div className="relative h-full px-3 pt-3 text-white">
+            <div className="relative h-full px-3 pt-3 text-white" style={{ textShadow: "0 1px 4px rgba(0,0,0,0.8), 0 0 2px rgba(0,0,0,0.6)" }}>
               <div className="pointer-events-auto absolute right-3 top-2 z-30">
                 {renderMoreMenu(
                   "flex h-9 w-9 items-center justify-center rounded-full text-white drop-shadow-sm"
