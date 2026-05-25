@@ -403,15 +403,6 @@ export default function ClassCard({ classData, priorityImage = false }: ClassCar
   const isPendingApplication = myApplicationStatus === "pending";
   const currentLightboxImageUrl =
     imageList[lightboxIndex]?.full_url ?? imageList[lightboxIndex]?.card_url ?? null;
-  const currentCardImageUrl = imageList[imgIndex]?.card_url ?? null;
-  const currentCardImageFailed =
-    !currentCardImageUrl ||
-    (failedImages.classId === id && failedImages.urls.has(currentCardImageUrl));
-  const currentCardImageLoaded =
-    currentCardImageFailed ||
-    (loadedImages.classId === id &&
-      currentCardImageUrl !== null &&
-      loadedImages.urls.has(currentCardImageUrl));
 
   function handleLightboxTouchStart(e: ReactTouchEvent<HTMLDivElement>) {
     lightboxTouchStartX.current = e.touches[0].clientX;
@@ -709,6 +700,34 @@ export default function ClassCard({ classData, priorityImage = false }: ClassCar
   return (
     <>
       <div className="bg-white">
+        <div className="flex items-start justify-between px-3 py-2">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleToggleExpanded();
+            }}
+            className="block min-w-0 flex-1 text-left"
+          >
+            <p className="flex min-w-0 items-center gap-1.5 text-base font-semibold leading-tight text-gray-900">
+              <span className="min-w-0 truncate">{title}</span>
+              {status === "recruiting" && (
+                <span
+                  className="h-2 w-2 flex-shrink-0 rounded-full bg-green-400"
+                  aria-label="모집중"
+                />
+              )}
+            </p>
+            <p className="mt-0.5 truncate text-sm leading-tight text-gray-500">
+              {region} | {levelLabel} | {genreLabel}
+            </p>
+          </button>
+          <div className="flex-shrink-0">
+            {renderMoreMenu(
+              "flex h-9 w-9 items-center justify-center rounded-full text-gray-600"
+            )}
+          </div>
+        </div>
         <div ref={sliderRef} className="relative w-full">
           {totalImages > 0 ? (
             <div className="block w-full cursor-default overflow-hidden" onClick={handleImageClick}>
@@ -725,18 +744,17 @@ export default function ClassCard({ classData, priorityImage = false }: ClassCar
                     !imageUrl || (failedImages.classId === id && failedImages.urls.has(imageUrl));
 
                   return (
-                    <div key={i} className="relative min-w-full overflow-hidden">
+                    <div key={i} className="relative aspect-square min-w-full overflow-hidden">
                       {imageFailed ? (
                         renderClassImageFallback()
                       ) : (
                         <Image
                           src={imageUrl}
                           alt={title}
-                          width={0}
-                          height={0}
-                          sizes="100vw"
+                          fill
+                          sizes="(max-width: 500px) 100vw, 500px"
                           priority={priorityImage && i === 0}
-                          style={{ width: "100%", height: "auto" }}
+                          className="object-cover"
                           onLoad={() => handleClassImageLoad(imageUrl)}
                           onError={() => handleClassImageError(imageUrl)}
                         />
@@ -748,43 +766,9 @@ export default function ClassCard({ classData, priorityImage = false }: ClassCar
             </div>
           ) : (
             <div className="block w-full cursor-default overflow-hidden">
-              <div className="aspect-[3/4] w-full">{renderClassImageFallback()}</div>
+              <div className="aspect-square w-full">{renderClassImageFallback()}</div>
             </div>
           )}
-          <div
-            className={`pointer-events-none absolute inset-x-0 top-0 z-20 h-[100px] transition-opacity duration-300 ${
-              currentCardImageLoaded ? "opacity-100" : "opacity-0"
-            }`}
-          >
-            <div className="relative h-full px-3 pt-3 text-white" style={{ textShadow: "0 1px 4px rgba(0,0,0,0.8), 0 0 2px rgba(0,0,0,0.6)" }}>
-              <div className="pointer-events-auto absolute right-3 top-2 z-30">
-                {renderMoreMenu(
-                  "flex h-9 w-9 items-center justify-center rounded-full text-white drop-shadow-sm"
-                )}
-              </div>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleToggleExpanded();
-                }}
-                className="pointer-events-auto block w-full text-left"
-              >
-                <p className="flex min-w-0 items-center gap-1.5 text-base font-semibold leading-tight text-white drop-shadow-sm">
-                  <span className="min-w-0 truncate">{title}</span>
-                  {status === "recruiting" && (
-                    <span
-                      className="h-2 w-2 flex-shrink-0 rounded-full bg-green-400"
-                      aria-label="모집중"
-                    />
-                  )}
-                </p>
-                <p className="mt-0.5 truncate text-sm leading-tight text-white/85 drop-shadow-sm">
-                  {region} | {levelLabel} | {genreLabel}
-                </p>
-              </button>
-            </div>
-          </div>
           {totalImages > 1 && (
             <div className="absolute bottom-3 right-3 z-20 rounded-full bg-black/45 px-2.5 py-0.5 text-xs font-medium text-white">
               {imgIndex + 1}/{totalImages}
