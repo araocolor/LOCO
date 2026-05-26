@@ -334,7 +334,8 @@ export default function CachedClassDetailPage({ classIdOverride }: CachedClassDe
   }
 
   async function handleDeleteClick() {
-    if (!classId || deleteLoading) return;
+    if (!classId || deleteLoading || !displayClass) return;
+    const currentClass = displayClass;
 
     try {
       const res = await fetch(`/api/classes/${classId}/applications`, { method: "GET" });
@@ -344,8 +345,8 @@ export default function CachedClassDetailPage({ classIdOverride }: CachedClassDe
         const approvedCount = Array.isArray(data.data?.approved) ? data.data.approved.length : 0;
         const hasApplicants = pendingCount + approvedCount > 0;
         const isRecruitingPeriod =
-          displayClass.status === "recruiting" &&
-          new Date(displayClass.deadline).getTime() >= Date.now();
+          currentClass.status === "recruiting" &&
+          new Date(currentClass.deadline).getTime() >= Date.now();
 
         if (hasApplicants && isRecruitingPeriod) {
           showCenterNotice("신청자가 있는 모집중 클래스는 삭제할 수 없습니다.");
