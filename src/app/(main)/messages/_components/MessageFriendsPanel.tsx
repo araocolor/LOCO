@@ -140,7 +140,7 @@ export default function MessageFriendsPanel({ onlineIds, onMessageSent }: Messag
     nickname: string;
     profile_image_url: string | null;
   } | null>(null);
-  const [friendViewMode, setFriendViewMode] = useState<"list" | "grid">("list");
+  const [friendViewMode, setFriendViewMode] = useState<"list" | "grid">("grid");
   const [friendSearch, setFriendSearch] = useState("");
 
   const menuActions = useUserMenuActions({

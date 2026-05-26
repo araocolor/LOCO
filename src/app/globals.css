@@ -492,3 +492,12 @@ body {
 .animate-sheet-slide-up {
   animation: sheet-slide-up 300ms ease-out forwards;
 }
+
+@keyframes loading-bar-fill {
+  0%   { width: 0%; }
+  100% { width: 100%; }
+}
+
+.animate-loading-bar {
+  animation: loading-bar-fill 1.5s ease-in-out infinite;
+}

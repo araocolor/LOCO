@@ -56,7 +56,10 @@ function ClassGrid({ classes, onClassSelect }: { classes: ClassWithHost[]; onCla
               <span className="text-gray-300 text-xs">없음</span>
             </div>
           )}
-          <div className="absolute top-0 left-0 z-10" onClick={(e) => e.stopPropagation()}>
+          {classData.status !== "recruiting" && (
+            <div className="absolute top-1.5 left-1.5 w-3 h-3 rounded-full bg-black" />
+          )}
+          <div className="absolute top-0 right-0 z-10" onClick={(e) => e.stopPropagation()}>
             <ClassMoreMenu
               classId={classData.id}
               hostId={classData.host_id}
@@ -67,9 +70,6 @@ function ClassGrid({ classes, onClassSelect }: { classes: ClassWithHost[]; onCla
               onDetailView={() => onClassSelect ? onClassSelect(classData.id) : router.push(`/classes/${classData.id}`)}
             />
           </div>
-          {classData.status === "recruiting" && (
-            <div className="absolute top-1.5 right-1.5 w-3 h-3 rounded-full bg-green-500" />
-          )}
         </div>
       ))}
       {fillerCells.map((cell) => (

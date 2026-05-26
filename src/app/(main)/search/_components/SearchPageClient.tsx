@@ -25,7 +25,7 @@ import type { Tab } from "../_types/search";
 
 export default function SearchPage() {
   const router = useRouter();
-  const activeTab = useSyncExternalStore(subscribeSearchTab, getSearchTab, (): Tab => "members");
+  const activeTab = useSyncExternalStore(subscribeSearchTab, getSearchTab, (): Tab => "friends");
   const [onlineIds, setOnlineIds] = useState<Set<string>>(new Set());
 
   const socialData = useSearchSocialData(activeTab);

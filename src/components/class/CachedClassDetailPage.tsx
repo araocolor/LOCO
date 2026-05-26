@@ -318,7 +318,7 @@ export default function CachedClassDetailPage({ classIdOverride, hideChat, onClo
   }
 
   if (!displayClass) {
-    return <div className="max-w-xl mx-auto px-4 py-6 text-sm text-gray-500">null</div>;
+    return <div className="max-w-xl mx-auto h-full bg-white" />;
   }
 
   const host = displayClass.host ?? null;
@@ -454,7 +454,11 @@ export default function CachedClassDetailPage({ classIdOverride, hideChat, onClo
       setDeleteModalOpen(false);
       showCenterNotice("삭제되었습니다.");
       window.setTimeout(() => {
-        router.push("/");
+        if (onClose) {
+          onClose();
+        } else {
+          router.push("/");
+        }
         router.refresh();
       }, 900);
     } catch {
