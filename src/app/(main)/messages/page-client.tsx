@@ -84,6 +84,15 @@ const LEGACY_CHAT_ROOMS_CACHE_KEY = "loco_chat_rooms_cache_v1";
 const CONVERSATIONS_LIMIT = 50;
 const ROOM_PREFETCH_LIMIT = 5;
 const MESSAGE_USER_SESSION_PREFIX = "message_userid_session:";
+const APP_LAST_HIDDEN_AT_KEY = "app_last_hidden_at";
+const APP_LAST_VISIBLE_AT_KEY = "app_last_visible_at";
+const APP_LAST_RESUME_AT_KEY = "app_last_resume_at";
+const APP_RESUME_SOURCE_KEY = "app_resume_source";
+const APP_WAS_BACKGROUNDED_KEY = "app_was_backgrounded";
+const APP_RESUME_MIN_HIDDEN_MS = 5000;
+const MESSAGES_LAST_ROOMS_LOADED_PREFIX = "messages_last_rooms_loaded_at:";
+const MESSAGES_RESUME_REFRESH_DELAY_MS = 2000;
+const MESSAGES_RECENT_REFRESH_TTL_MS = 60 * 1000;
 
 function getChatRoomsCacheKey(userId: string) {
   return `${CHAT_ROOMS_CACHE_PREFIX}${userId}`;
@@ -91,6 +100,58 @@ function getChatRoomsCacheKey(userId: string) {
 
 function getMessageUserSessionKey(userId: string) {
   return `${MESSAGE_USER_SESSION_PREFIX}${userId}`;
+}
+
+function getMessagesLastRoomsLoadedKey(userId: string) {
+  return `${MESSAGES_LAST_ROOMS_LOADED_PREFIX}${userId}`;
+}
+
+function readLocalStorageTime(key: string) {
+  try {
+    const value = Number(localStorage.getItem(key) ?? "0");
+    return Number.isFinite(value) ? value : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function writeLocalStorageTime(key: string, value: number) {
+  try {
+    localStorage.setItem(key, String(value));
+  } catch {}
+}
+
+function markAppHidden() {
+  const now = Date.now();
+  writeLocalStorageTime(APP_LAST_HIDDEN_AT_KEY, now);
+  try {
+    localStorage.setItem(APP_WAS_BACKGROUNDED_KEY, "1");
+  } catch {}
+}
+
+function markAppVisible(source: string) {
+  const now = Date.now();
+  const lastHiddenAt = readLocalStorageTime(APP_LAST_HIDDEN_AT_KEY);
+  const wasBackgrounded = (() => {
+    try {
+      return localStorage.getItem(APP_WAS_BACKGROUNDED_KEY) === "1";
+    } catch {
+      return false;
+    }
+  })();
+  const hiddenFor = lastHiddenAt > 0 ? now - lastHiddenAt : 0;
+  const isResume = wasBackgrounded || hiddenFor >= APP_RESUME_MIN_HIDDEN_MS;
+
+  writeLocalStorageTime(APP_LAST_VISIBLE_AT_KEY, now);
+  try {
+    localStorage.setItem(APP_WAS_BACKGROUNDED_KEY, "0");
+    if (isResume) {
+      localStorage.setItem(APP_RESUME_SOURCE_KEY, source);
+      writeLocalStorageTime(APP_LAST_RESUME_AT_KEY, now);
+    }
+  } catch {}
+
+  return { isResume, hiddenFor };
 }
 
 function prioritizeOneToOneConversations(convs: Conversation[]) {
@@ -332,8 +393,11 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
 
   const cacheKey = getChatRoomsCacheKey(userId);
   const messageUserSessionKey = getMessageUserSessionKey(userId);
+  const messagesLastRoomsLoadedKey = getMessagesLastRoomsLoadedKey(userId);
   const roomPrefetchInFlightRef = useRef<Map<string, Promise<ChatRoomPayload>>>(new Map());
   const recentRoomPrefetchedRef = useRef<Set<string>>(new Set());
+  const appResumeVisitRef = useRef(false);
+  const resumeRefreshTimerRef = useRef<number | null>(null);
 
   function mapChatMessage(item: ChatMessageApiItem): Message {
     return {
@@ -694,6 +758,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
         const incomingConversations = (json.data as ChatRoomApiItem[]).map(mapChatRoom);
         setConversations(incomingConversations);
         writeConversationsCache(incomingConversations);
+        writeLocalStorageTime(messagesLastRoomsLoadedKey, Date.now());
         await saveMessageUserSession(incomingConversations);
       }
     } catch (error) {
@@ -703,9 +768,73 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
     }
   }
 
+  function clearResumeRefreshTimer() {
+    if (resumeRefreshTimerRef.current === null) return;
+    window.clearTimeout(resumeRefreshTimerRef.current);
+    resumeRefreshTimerRef.current = null;
+  }
+
+  function scheduleConversationsRefresh(delay: number, options?: { force?: boolean }) {
+    clearResumeRefreshTimer();
+    resumeRefreshTimerRef.current = window.setTimeout(() => {
+      resumeRefreshTimerRef.current = null;
+      void fetchConversations(options);
+    }, delay);
+  }
+
+  function scheduleResumeRefreshIfNeeded() {
+    const lastRoomsLoadedAt = readLocalStorageTime(messagesLastRoomsLoadedKey);
+    const hasRecentRooms = lastRoomsLoadedAt > 0 && Date.now() - lastRoomsLoadedAt < MESSAGES_RECENT_REFRESH_TTL_MS;
+    if (hasRecentRooms) return;
+    scheduleConversationsRefresh(MESSAGES_RESUME_REFRESH_DELAY_MS, { force: false });
+  }
+
   useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        markAppHidden();
+      } else {
+        const resume = markAppVisible("visibilitychange");
+        if (resume.isResume) {
+          appResumeVisitRef.current = true;
+          scheduleResumeRefreshIfNeeded();
+        }
+      }
+    };
+    const handlePageHide = () => {
+      markAppHidden();
+    };
+    const handlePageShow = (event: PageTransitionEvent) => {
+      const resume = markAppVisible(event.persisted ? "pageshow-persisted" : "pageshow");
+      if (resume.isResume) {
+        appResumeVisitRef.current = true;
+        scheduleResumeRefreshIfNeeded();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("pagehide", handlePageHide);
+    window.addEventListener("pageshow", handlePageShow);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("pagehide", handlePageHide);
+      window.removeEventListener("pageshow", handlePageShow);
+      clearResumeRefreshTimer();
+    };
+    // 복귀 이벤트에서도 화면은 그대로 두고, 목록 최신화만 뒤로 미룹니다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const resume = markAppVisible("messages-mount");
     // v1: 로컬 목록 캐시 즉시 표시
     const cached = readCachedConversations();
+    const isResumeWithCache = resume.isResume && Boolean(cached);
+    const lastRoomsLoadedAt = readLocalStorageTime(messagesLastRoomsLoadedKey);
+    const hasRecentRooms = lastRoomsLoadedAt > 0 && Date.now() - lastRoomsLoadedAt < MESSAGES_RECENT_REFRESH_TTL_MS;
+    appResumeVisitRef.current = isResumeWithCache;
+
     if (cached) {
       queueMicrotask(() => {
         setConversations(cached);
@@ -713,16 +842,21 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
       });
     }
 
+    if (isResumeWithCache && hasRecentRooms) return;
+
     // v2: 백그라운드에서 최신 데이터 갱신
-    queueMicrotask(() => {
-      void fetchConversations({ force: !cached });
-    });
-    // 첫 진입 때 로컬 캐시를 먼저 보여주고, 최신 목록은 한 번만 백그라운드 갱신합니다.
+    scheduleConversationsRefresh(isResumeWithCache ? MESSAGES_RESUME_REFRESH_DELAY_MS : 0, { force: !cached });
+
+    return () => {
+      clearResumeRefreshTimer();
+    };
+    // 첫 진입 때는 최신 목록을 갱신하고, 복귀 때는 캐시 표시 후 갱신을 늦춥니다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
     if (conversations.length === 0) return;
+    if (appResumeVisitRef.current) return;
 
     prioritizeOneToOneConversations(conversations).slice(0, ROOM_PREFETCH_LIMIT).forEach((conv) => {
       if (recentRoomPrefetchedRef.current.has(conv.id)) return;
