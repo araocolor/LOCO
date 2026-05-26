@@ -50,6 +50,9 @@ export async function POST(request: NextRequest) {
       level,
       host_id: user.id,
       status,
+      datetime: body?.datetime ?? body?.deadline,
+      capacity: body?.capacity ?? 9999,
+      price: body?.price ?? 0,
       view_count: 0,
       is_modified: false,
     })

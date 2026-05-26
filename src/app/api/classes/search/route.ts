@@ -1,12 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
+function expandCategory(value: string) {
+  if (value === "party") return ["party", "event"];
+  if (value === "level_class") return ["level_class", "regular"];
+  if (value === "private_training") return ["private_training", "training"];
+  if (value === "etc") return ["etc", "other"];
+  return [value];
+}
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
 
   const region = searchParams.get("region");
   const status = searchParams.get("status");
-  const class_type = searchParams.get("class_type");
+  const categoryFilters = searchParams.getAll("class_type");
   const genres = searchParams.getAll("genre");
   const host_id = searchParams.get("host_id");
   const keyword = searchParams.get("keyword");
@@ -32,7 +40,14 @@ export async function GET(request: NextRequest) {
   if (host_id) query = query.eq("host_id", host_id);
   if (region && region !== "전체") query = query.eq("region", region);
   if (status && status !== "전체") query = query.eq("status", status);
-  if (class_type && class_type !== "전체") query = query.eq("class_type", class_type);
+  const filteredCategories = Array.from(
+    new Set(categoryFilters.filter((t) => t && t !== "전체").flatMap(expandCategory))
+  );
+  if (filteredCategories.length === 1) {
+    query = query.eq("category", filteredCategories[0]);
+  } else if (filteredCategories.length > 1) {
+    query = query.in("category", filteredCategories);
+  }
   if (genres.length > 0) {
     const filteredGenres = genres.filter((g) => g && g !== "전체");
     if (filteredGenres.length > 0) query = query.overlaps("genres", filteredGenres);

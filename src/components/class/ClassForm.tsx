@@ -40,14 +40,10 @@ interface FormState {
   class_type: string;
   status: string;
   type: string;
-  datetime: string;
   deadline: string;
   location_address: string;
   location_lat: number | null;
   location_lng: number | null;
-  capacity: string;
-  price: string;
-  price_type: "free" | "paid";
   contact: string;
   description: string;
   region: string;
@@ -62,14 +58,10 @@ const EMPTY: FormState = {
   class_type: "group",
   status: "recruiting",
   type: "class",
-  datetime: "",
   deadline: "",
   location_address: "",
   location_lat: null,
   location_lng: null,
-  capacity: "",
-  price: "0",
-  price_type: "free",
   contact: "",
   description: "",
   region: "",
@@ -85,14 +77,10 @@ function toFormState(d: Partial<DanceClass>): FormState {
     class_type: d.class_type ?? "group",
     status: d.status ?? "recruiting",
     type: d.type ?? "class",
-    datetime: d.datetime ? d.datetime.slice(0, 16) : "",
     deadline: d.deadline ? d.deadline.slice(0, 10) : "",
     location_address: d.location_address ?? "",
     location_lat: d.location_lat ?? null,
     location_lng: d.location_lng ?? null,
-    capacity: d.capacity?.toString() ?? "",
-    price: d.price?.toString() ?? "0",
-    price_type: d.price === 0 ? "free" : "paid",
     contact: d.contact ?? "",
     description: d.description ?? "",
     region: d.region ?? "",
@@ -601,43 +589,15 @@ export default function ClassForm({ initialData, classId, userRole: _userRole }:
       } = await supabase.auth.getUser();
       if (!user) throw new Error("로그인이 필요합니다.");
 
-      if (isEditMode) {
-        const res = await fetch(`/api/classes/${classId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            description: form.description,
-            is_public: form.is_public,
-            status: form.status,
-            images: existingImages,
-            location_address: form.location_address,
-            location_lat: form.location_lat,
-            location_lng: form.location_lng,
-          }),
-        });
-
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error ?? "오류가 발생했습니다.");
-
-        router.push(`/classes/${classId}`);
-        router.refresh();
-        return;
-      }
-
-      // 삭제된 이미지 Storage에서 제거
-      if (deletedImages.length > 0) {
-        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-        const paths = deletedImages.flatMap((img) =>
-          [img.icon_url, img.card_url, img.full_url].map((url) =>
-            url.replace(`${supabaseUrl}/storage/v1/object/public/class-images/`, "")
-          )
-        );
-        await fetch("/api/storage/class-images", {
-          method: "DELETE",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ paths }),
-        });
-      }
+      const deletedImagePaths =
+        deletedImages.length > 0
+          ? deletedImages.flatMap((img) => {
+              const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+              return [img.icon_url, img.card_url, img.full_url].map((url) =>
+                url.replace(`${supabaseUrl}/storage/v1/object/public/class-images/`, "")
+              );
+            })
+          : [];
 
       const uploaded = newFiles.length > 0 ? await uploadImages(newFiles, user.id) : [];
       const images = isCreateMode ? uploaded : [...existingImages, ...uploaded];
@@ -646,20 +606,17 @@ export default function ClassForm({ initialData, classId, userRole: _userRole }:
       const contentType =
         form.category === "event" || form.category === "festival" ? "event" : "class";
 
-      const payload = {
+      const payload: Record<string, unknown> = {
         genres: form.genres,
         title: form.title,
         level: form.level,
-        class_type: isCreateMode ? classType : form.class_type,
+        class_type: classType,
         status: form.status,
-        type: isCreateMode ? contentType : form.type,
-        datetime: isCreateMode ? deadlineDateTime : form.datetime,
+        type: contentType,
         deadline: isCreateMode ? deadlineDateTime : form.deadline,
         location_address: isCreateMode ? "" : form.location_address,
         location_lat: form.location_lat,
         location_lng: form.location_lng,
-        capacity: isCreateMode ? 9999 : parseInt(form.capacity),
-        price: isCreateMode ? 0 : parseInt(form.price) || 0,
         contact: isCreateMode ? "" : form.contact,
         description: form.description,
         region: form.region,
@@ -667,7 +624,6 @@ export default function ClassForm({ initialData, classId, userRole: _userRole }:
         is_public: form.is_public,
         images,
       };
-
       const url = classId ? `/api/classes/${classId}` : "/api/classes";
       const res = await fetch(url, {
         method: classId ? "PATCH" : "POST",
@@ -677,6 +633,14 @@ export default function ClassForm({ initialData, classId, userRole: _userRole }:
 
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "오류가 발생했습니다.");
+
+      if (deletedImagePaths.length > 0) {
+        await fetch("/api/storage/class-images", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ paths: deletedImagePaths }),
+        });
+      }
 
       if (isCreateMode) {
         window.sessionStorage.removeItem(CREATE_DRAFT_KEY);
@@ -904,7 +868,7 @@ export default function ClassForm({ initialData, classId, userRole: _userRole }:
                           대표
                         </span>
                       )}
-                      {isCreateMode && (
+                      {(isCreateMode || isEditMode) && (
                         <button
                           type="button"
                           onClick={() => removeExisting(i)}
@@ -923,7 +887,7 @@ export default function ClassForm({ initialData, classId, userRole: _userRole }:
                         style={{ width: 100, height: "auto" }}
                         className="rounded-[10px]"
                       />
-                      {isCreateMode && (
+                      {(isCreateMode || isEditMode) && (
                         <button
                           type="button"
                           onClick={() => removeNew(i)}
@@ -937,7 +901,7 @@ export default function ClassForm({ initialData, classId, userRole: _userRole }:
                 </div>
               )}
               <div className="flex justify-center">
-                {isCreateMode && totalImages < 5 && (
+                {totalImages < 5 && (
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
@@ -954,7 +918,6 @@ export default function ClassForm({ initialData, classId, userRole: _userRole }:
                 multiple
                 onChange={handleFileChange}
                 className="hidden"
-                disabled={isEditMode}
               />
             </div>
 
@@ -968,8 +931,7 @@ export default function ClassForm({ initialData, classId, userRole: _userRole }:
                   <button
                     key={g.value}
                     type="button"
-                    className={`chip disabled:cursor-not-allowed disabled:opacity-60 ${form.genres.includes(g.value) ? "active" : ""}`}
-                    disabled={isEditMode}
+                    className={`chip ${form.genres.includes(g.value) ? "active" : ""}`}
                     onClick={() => {
                       const exists = form.genres.includes(g.value);
                       const next = exists
@@ -996,8 +958,7 @@ export default function ClassForm({ initialData, classId, userRole: _userRole }:
                   <button
                     key={c.value}
                     type="button"
-                    className={`chip disabled:cursor-not-allowed disabled:opacity-60 ${form.category === c.value ? "active" : ""}`}
-                    disabled={isEditMode}
+                    className={`chip ${form.category === c.value ? "active" : ""}`}
                     onClick={() => set("category", form.category === c.value ? "" : c.value)}
                   >
                     {c.label}
@@ -1035,7 +996,6 @@ export default function ClassForm({ initialData, classId, userRole: _userRole }:
                 value={form.title}
                 onChange={(e) => set("title", e.target.value)}
                 maxLength={100}
-                disabled={isEditMode}
               />
               <div className="relative">
                 <textarea
@@ -1094,19 +1054,18 @@ export default function ClassForm({ initialData, classId, userRole: _userRole }:
               </div>
             </div>
 
-            {/* 섹션 4 — 지역 / 레벨 / 비용 */}
+            {/* 섹션 4 — 지역 / 레벨 */}
             <div className="mx-4 mt-[18px] bg-white rounded-2xl px-4 py-5">
               <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
-                {isEditMode ? "지역 / 레벨" : "지역 / 레벨 / 비용"}
+                지역 / 레벨
               </p>
-              <div className={`grid gap-2 ${isEditMode ? "grid-cols-2" : "grid-cols-3"}`}>
+              <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="field-label">지역 *</label>
                   <select
                     className="input-field disabled:bg-gray-100 disabled:text-gray-500"
                     value={form.region}
                     onChange={(e) => set("region", e.target.value)}
-                    disabled={isEditMode}
                   >
                     <option value="">선택</option>
                     {REGIONS.map((r) => (
@@ -1122,7 +1081,6 @@ export default function ClassForm({ initialData, classId, userRole: _userRole }:
                     className="input-field disabled:bg-gray-100 disabled:text-gray-500"
                     value={form.level}
                     onChange={(e) => set("level", e.target.value)}
-                    disabled={isEditMode}
                   >
                     <option value="">선택</option>
                     {LEVELS.map((l) => (
@@ -1132,39 +1090,7 @@ export default function ClassForm({ initialData, classId, userRole: _userRole }:
                     ))}
                   </select>
                 </div>
-                {!isEditMode && (
-                  <div>
-                    <label className="field-label">비용 *</label>
-                    <select
-                      className="input-field disabled:bg-gray-100 disabled:text-gray-500"
-                      value={form.price_type}
-                      onChange={(e) => {
-                        set("price_type", e.target.value as "free" | "paid");
-                        if (e.target.value === "free") set("price", "0");
-                      }}
-                      disabled={isEditMode}
-                    >
-                      <option value="free">무료</option>
-                      <option value="paid">유료</option>
-                    </select>
-                  </div>
-                )}
               </div>
-              {!isEditMode && form.price_type === "paid" && (
-                <div className="mt-3">
-                  <label className="field-label">수강료 *</label>
-                  <input
-                    type="number"
-                    className="input-field disabled:bg-gray-100 disabled:text-gray-500"
-                    placeholder="금액 입력"
-                    value={form.price}
-                    onChange={(e) => set("price", e.target.value)}
-                    min={0}
-                    step={1000}
-                    disabled={isEditMode}
-                  />
-                </div>
-              )}
             </div>
 
             {/* 섹션 5+6 — 장소 상세 */}
@@ -1183,22 +1109,6 @@ export default function ClassForm({ initialData, classId, userRole: _userRole }:
               </div>
               {(showDetail || isEditMode) && (
                 <>
-                  {!isEditMode && (
-                    <>
-                      {/* 일시 */}
-                      <div>
-                        <label className="field-label">일시 *</label>
-                        <input
-                          type="datetime-local"
-                          className="input-field disabled:bg-gray-100 disabled:text-gray-500"
-                          value={form.datetime}
-                          onChange={(e) => set("datetime", e.target.value)}
-                          disabled={isEditMode}
-                        />
-                      </div>
-                    </>
-                  )}
-
                   {/* 신청 마감일 */}
                   <div>
                     <label className="field-label">신청 마감일 *</label>
@@ -1207,7 +1117,6 @@ export default function ClassForm({ initialData, classId, userRole: _userRole }:
                       className="input-field disabled:bg-gray-100 disabled:text-gray-500"
                       value={form.deadline}
                       onChange={(e) => set("deadline", e.target.value)}
-                      disabled={isEditMode}
                     />
                   </div>
 
@@ -1250,22 +1159,17 @@ export default function ClassForm({ initialData, classId, userRole: _userRole }:
                     </div>
                   </div>
 
-                  {!isEditMode && (
-                    <>
-                      {/* 연락처 */}
-                      <div>
-                        <label className="field-label">연락처 *</label>
-                        <input
-                          type="tel"
-                          className="input-field disabled:bg-gray-100 disabled:text-gray-500"
-                          placeholder="카카오톡 ID 또는 전화번호"
-                          value={form.contact}
-                          onChange={(e) => set("contact", e.target.value)}
-                          disabled={isEditMode}
-                        />
-                      </div>
-                    </>
-                  )}
+                  {/* 연락처 */}
+                  <div>
+                    <label className="field-label">연락처 *</label>
+                    <input
+                      type="tel"
+                      className="input-field disabled:bg-gray-100 disabled:text-gray-500"
+                      placeholder="카카오톡 ID 또는 전화번호"
+                      value={form.contact}
+                      onChange={(e) => set("contact", e.target.value)}
+                    />
+                  </div>
                 </>
               )}
             </div>

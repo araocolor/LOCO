@@ -3,6 +3,13 @@ import { createClient } from "@/lib/supabase/server";
 import { sendKakaoAlimtalk } from "@/lib/kakao/notify";
 
 const ALLOWED_UPDATE_STATUSES = ["recruiting", "closed"] as const;
+const ALLOWED_LEVELS = ["beginner", "elementary", "intermediate", "advanced", "all"] as const;
+const ALLOWED_CLASS_TYPES = ["group", "private"] as const;
+const ALLOWED_CONTENT_TYPES = ["class", "event"] as const;
+
+function isAllowedValue<T extends readonly string[]>(values: T, value: unknown): value is T[number] {
+  return typeof value === "string" && values.includes(value);
+}
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -45,29 +52,40 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   const updatePayload: Record<string, unknown> = {};
 
-  if ("description" in body) {
-    updatePayload.description = typeof body.description === "string" ? body.description : "";
+  if ("genres" in body) {
+    if (!Array.isArray(body.genres)) {
+      return NextResponse.json({ error: "장르 값이 올바르지 않습니다." }, { status: 400 });
+    }
+    updatePayload.genres = body.genres;
   }
 
-  if ("is_public" in body) {
-    if (typeof body.is_public !== "boolean") {
-      return NextResponse.json({ error: "공개 상태 값이 올바르지 않습니다." }, { status: 400 });
-    }
-    updatePayload.is_public = body.is_public;
+  if ("title" in body) {
+    updatePayload.title = typeof body.title === "string" ? body.title : "";
   }
 
-  if ("status" in body) {
-    if (!ALLOWED_UPDATE_STATUSES.includes(body.status)) {
-      return NextResponse.json({ error: "모집 상태 값이 올바르지 않습니다." }, { status: 400 });
+  if ("level" in body) {
+    if (!isAllowedValue(ALLOWED_LEVELS, body.level)) {
+      return NextResponse.json({ error: "레벨 값이 올바르지 않습니다." }, { status: 400 });
     }
-    updatePayload.status = body.status;
+    updatePayload.level = body.level;
   }
 
-  if ("images" in body) {
-    if (!Array.isArray(body.images)) {
-      return NextResponse.json({ error: "이미지 값이 올바르지 않습니다." }, { status: 400 });
+  if ("class_type" in body) {
+    if (!isAllowedValue(ALLOWED_CLASS_TYPES, body.class_type)) {
+      return NextResponse.json({ error: "클래스 구분 값이 올바르지 않습니다." }, { status: 400 });
     }
-    updatePayload.images = body.images;
+    updatePayload.class_type = body.class_type;
+  }
+
+  if ("type" in body) {
+    if (!isAllowedValue(ALLOWED_CONTENT_TYPES, body.type)) {
+      return NextResponse.json({ error: "콘텐츠 타입 값이 올바르지 않습니다." }, { status: 400 });
+    }
+    updatePayload.type = body.type;
+  }
+
+  if ("deadline" in body) {
+    updatePayload.deadline = typeof body.deadline === "string" ? body.deadline : null;
   }
 
   if ("location_address" in body) {
@@ -77,9 +95,46 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     updatePayload.location_lng = typeof body.location_lng === "number" ? body.location_lng : null;
   }
 
+  if ("contact" in body) {
+    updatePayload.contact = typeof body.contact === "string" ? body.contact : "";
+  }
+
+  if ("description" in body) {
+    updatePayload.description = typeof body.description === "string" ? body.description : "";
+  }
+
+  if ("region" in body) {
+    updatePayload.region = typeof body.region === "string" ? body.region : "";
+  }
+
+  if ("category" in body) {
+    updatePayload.category = typeof body.category === "string" && body.category ? body.category : null;
+  }
+
+  if ("status" in body) {
+    if (!ALLOWED_UPDATE_STATUSES.includes(body.status)) {
+      return NextResponse.json({ error: "모집 상태 값이 올바르지 않습니다." }, { status: 400 });
+    }
+    updatePayload.status = body.status;
+  }
+
+  if ("is_public" in body) {
+    if (typeof body.is_public !== "boolean") {
+      return NextResponse.json({ error: "공개 상태 값이 올바르지 않습니다." }, { status: 400 });
+    }
+    updatePayload.is_public = body.is_public;
+  }
+
+  if ("images" in body) {
+    if (!Array.isArray(body.images)) {
+      return NextResponse.json({ error: "이미지 값이 올바르지 않습니다." }, { status: 400 });
+    }
+    updatePayload.images = body.images;
+  }
+
   if (Object.keys(updatePayload).length === 0) {
     return NextResponse.json(
-      { error: "수정 가능한 항목은 내용, 공개 상태, 모집 상태, 대표 이미지, 장소뿐입니다." },
+      { error: "수정할 항목이 없습니다." },
       { status: 400 }
     );
   }
@@ -143,7 +198,7 @@ export async function DELETE(
 
   const { data: cls } = await supabase
     .from("classes")
-    .select("host_id, title")
+    .select("host_id, title, status, deadline")
     .eq("id", id)
     .single();
 
@@ -158,38 +213,23 @@ export async function DELETE(
     .eq("class_id", id)
     .neq("status", "cancelled");
 
+  const hasApplications = (applications ?? []).length > 0;
+  const isRecruitingPeriod =
+    cls.status === "recruiting" && new Date(cls.deadline).getTime() >= Date.now();
+
+  if (hasApplications && isRecruitingPeriod) {
+    return NextResponse.json(
+      { error: "신청자가 있는 모집중 클래스는 삭제할 수 없습니다." },
+      { status: 400 }
+    );
+  }
+
   if (!applications || applications.length === 0) {
     // 신청자 없으면 즉시 삭제
     await supabase.from("classes").delete().eq("id", id);
     return NextResponse.json({ deleted: true });
   }
 
-  // 신청자 있으면 취소 처리
-  await supabase.from("classes").update({ status: "cancelled" }).eq("id", id);
-
-  // 승인된 신청자에게 취소 알림
-  const approved = applications.filter((a) => a.status === "approved");
-  if (approved.length > 0) {
-    const message = `신청한 클래스 "${cls.title}"이 취소되었습니다.`;
-    const linkUrl = `/classes/${id}`;
-
-    await supabase.from("notifications").insert(
-      approved.map((a) => ({
-        user_id: a.applicant_id,
-        type: "cancelled",
-        message,
-        link_url: linkUrl,
-        related_id: id,
-      }))
-    );
-
-    await sendKakaoAlimtalk({
-      event: "cancelled",
-      recipients: approved.map((a) => a.applicant_id),
-      message,
-      linkUrl,
-    });
-  }
-
-  return NextResponse.json({ cancelled: true });
+  await supabase.from("classes").delete().eq("id", id);
+  return NextResponse.json({ deleted: true });
 }

@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { ClassWithHost } from "@/components/class/ClassCard";
 
 export const revalidate = 3600;
-const HOME_PAGE_SIZE = 10;
+const HOME_PAGE_SIZE = 12;
 
 async function fetchInitialClasses(): Promise<ClassWithHost[]> {
   try {
@@ -12,6 +12,7 @@ async function fetchInitialClasses(): Promise<ClassWithHost[]> {
     const { data } = await supabase
       .from("classes")
       .select("*, host:profiles!host_id(id, nickname, profile_image_url)")
+      .overlaps("genres", ["salsa"])
       .order("created_at", { ascending: false })
       .range(0, HOME_PAGE_SIZE - 1);
     return (data ?? []) as ClassWithHost[];

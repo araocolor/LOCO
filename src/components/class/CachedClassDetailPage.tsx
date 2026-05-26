@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { DANCE_GENRE_LABELS, CLASS_LEVEL_LABELS } from "@/types/class";
 import type { ClassWithHost } from "@/components/class/ClassCard";
 import type { ClassComment } from "@/components/class/ClassCommentsPanel";
@@ -11,6 +11,7 @@ import ClassCommentsPanel from "@/components/class/ClassCommentsPanel";
 import ClassDetailImageGallery from "@/components/class/ClassDetailImageGallery";
 import MentionText from "@/components/class/MentionText";
 import Avatar from "@/components/ui/Avatar";
+import { useAuth } from "@/lib/auth-context";
 
 const HOME_RESULTS_LOCAL_KEY = "loco_home_results_local_v1";
 const LIKES_CACHE_KEY = "loco_liked_posts";
@@ -125,6 +126,8 @@ function CommentPreviewThread({
 export default function CachedClassDetailPage() {
   const params = useParams<{ id: string }>();
   const searchParams = useSearchParams();
+  const router = useRouter();
+  const { user } = useAuth();
   const classId = params?.id;
   const animateFromHome = searchParams.get("from") === "home";
   const [loaded, setLoaded] = useState(false);
@@ -136,6 +139,10 @@ export default function CachedClassDetailPage() {
   const [commentSheetOpen, setCommentSheetOpen] = useState(false);
   const [comments, setComments] = useState<ClassComment[]>([]);
   const [commentsLoading, setCommentsLoading] = useState(false);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [noticeText, setNoticeText] = useState("");
   const requestedRef = useRef(false);
 
   useEffect(() => {
@@ -315,6 +322,66 @@ export default function CachedClassDetailPage() {
     }
   }
 
+  function showCenterNotice(message: string) {
+    setNoticeText(message);
+    window.setTimeout(() => {
+      setNoticeText((current) => (current === message ? "" : current));
+    }, 1400);
+  }
+
+  async function handleDeleteClick() {
+    if (!classId || deleteLoading) return;
+
+    try {
+      const res = await fetch(`/api/classes/${classId}/applications`, { method: "GET" });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        const pendingCount = Array.isArray(data.data?.pending) ? data.data.pending.length : 0;
+        const approvedCount = Array.isArray(data.data?.approved) ? data.data.approved.length : 0;
+        const hasApplicants = pendingCount + approvedCount > 0;
+        const isRecruitingPeriod =
+          displayClass.status === "recruiting" &&
+          new Date(displayClass.deadline).getTime() >= Date.now();
+
+        if (hasApplicants && isRecruitingPeriod) {
+          showCenterNotice("신청자가 있는 모집중 클래스는 삭제할 수 없습니다.");
+          return;
+        }
+      }
+    } catch {
+      showCenterNotice("삭제 가능 여부를 확인하지 못했습니다.");
+      return;
+    }
+
+    setDeleteConfirmText("");
+    setDeleteModalOpen(true);
+  }
+
+  async function handleDeleteConfirm() {
+    if (!classId || deleteConfirmText !== "삭제하기" || deleteLoading) return;
+
+    setDeleteLoading(true);
+    try {
+      const res = await fetch(`/api/classes/${classId}`, { method: "DELETE" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        showCenterNotice(data.error ?? "삭제할 수 없습니다.");
+        return;
+      }
+
+      setDeleteModalOpen(false);
+      showCenterNotice("삭제되었습니다.");
+      window.setTimeout(() => {
+        router.push("/");
+        router.refresh();
+      }, 900);
+    } catch {
+      showCenterNotice("삭제에 실패했습니다.");
+    } finally {
+      setDeleteLoading(false);
+    }
+  }
+
   const rootComments = comments.filter((comment) => !comment.parent_id);
   const repliesByParent = comments.reduce((map, comment) => {
     if (!comment.parent_id) return map;
@@ -363,6 +430,7 @@ export default function CachedClassDetailPage() {
 
   const previewCommentCount = COMMENT_PREVIEW_LIMIT - remainingPreviewCount;
   const hasMoreComments = comments.length > previewCommentCount;
+  const isOwnClass = user?.id === displayClass.host_id;
   const applyLabel =
     displayClass.status !== "recruiting" ? "신청 마감" : applying ? "신청 중..." : "신청하기";
 
@@ -541,16 +609,80 @@ export default function CachedClassDetailPage() {
         )}
       </section>
 
-      <div className="flex justify-center px-4 pb-[max(16px,env(safe-area-inset-bottom))] pt-6">
-        <button
-          type="button"
-          onClick={handleApply}
-          disabled={applying || displayClass.status !== "recruiting"}
-          className="inline-flex h-12 items-center justify-center rounded-full bg-[#fee500] px-7 text-[15px] font-bold text-[#191600] shadow-sm transition-colors hover:bg-[#f5dc00] disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {applyLabel}
-        </button>
+      <div className="flex justify-center gap-2 px-4 pb-[max(16px,env(safe-area-inset-bottom))] pt-6">
+        {isOwnClass ? (
+          <button
+            type="button"
+            onClick={handleDeleteClick}
+            disabled={deleteLoading}
+            className="inline-flex h-12 items-center justify-center rounded-full bg-red-500 px-7 text-[15px] font-bold text-white shadow-sm transition-colors hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {deleteLoading ? "삭제 중..." : "삭제하기"}
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={handleApply}
+            disabled={applying || displayClass.status !== "recruiting"}
+            className="inline-flex h-12 items-center justify-center rounded-full bg-[#fee500] px-7 text-[15px] font-bold text-[#191600] shadow-sm transition-colors hover:bg-[#f5dc00] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {applyLabel}
+          </button>
+        )}
+        {isOwnClass && (
+          <Link
+            href={`/classes/${displayClass.id}/edit`}
+            className="inline-flex h-12 items-center justify-center rounded-full border border-gray-200 bg-white px-7 text-[15px] font-bold text-gray-900 shadow-sm"
+          >
+            편집하기
+          </Link>
+        )}
       </div>
+
+      {deleteModalOpen && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/35 px-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl">
+            <h2 className="text-lg font-bold text-gray-900">클래스 삭제</h2>
+            <p className="mt-2 text-sm leading-6 text-gray-600">
+              해당 클래스를 삭제하려면 아래에 삭제하기를 입력하세요.
+            </p>
+            <input
+              type="text"
+              value={deleteConfirmText}
+              onChange={(event) => setDeleteConfirmText(event.target.value)}
+              className="mt-4 w-full rounded-xl border border-gray-200 px-3 py-3 text-sm font-semibold outline-none focus:border-red-300"
+              placeholder="삭제하기"
+              autoFocus
+            />
+            <div className="mt-4 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setDeleteModalOpen(false)}
+                disabled={deleteLoading}
+                className="flex-1 rounded-full border border-gray-200 py-3 text-sm font-bold text-gray-700 disabled:opacity-50"
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteConfirm}
+                disabled={deleteConfirmText !== "삭제하기" || deleteLoading}
+                className="flex-1 rounded-full bg-red-500 py-3 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                확인
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {noticeText && (
+        <div className="pointer-events-none fixed inset-0 z-[130] flex items-center justify-center px-4">
+          <div className="rounded-full bg-black/80 px-5 py-3 text-sm font-bold text-white shadow-lg">
+            {noticeText}
+          </div>
+        </div>
+      )}
 
       <ClassCommentsPanel
         classId={displayClass.id}

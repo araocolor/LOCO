@@ -29,7 +29,7 @@ export default async function ClassEditPage({ params }: { params: Promise<{ id: 
   return (
     <div data-page-shell className="page-slide-in-from-top">
       <ClassHeader
-        title="클래스 편집정보"
+        title="클래스 수정"
         className="h-[70px]"
         backExitAnimationClass="page-slide-out-to-top"
         backExitDelayMs={200}

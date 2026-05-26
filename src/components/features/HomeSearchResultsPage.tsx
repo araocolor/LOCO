@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
-import ClassCard, { ClassWithHost } from "@/components/class/ClassCard";
+import type { ClassWithHost } from "@/components/class/ClassCard";
 import { createClient } from "@/lib/supabase/client";
 import {
   SEARCH_DEFAULTS_STORAGE_KEY,
@@ -10,7 +11,7 @@ import {
 import { parseBookmarkEntries } from "@/lib/bookmarks/local";
 
 const HOME_RESULTS_LOCAL_KEY = "loco_home_results_local_v1";
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 12;
 
 interface CachedHomeResult {
   data: ClassWithHost[];
@@ -21,20 +22,35 @@ function getLastLoadedPage(itemCount: number) {
   return Math.max(0, Math.ceil(itemCount / PAGE_SIZE) - 1);
 }
 
+function expandCategory(value: string) {
+  if (value === "party") return ["party", "event"];
+  if (value === "level_class") return ["level_class", "regular"];
+  if (value === "private_training") return ["private_training", "training"];
+  if (value === "etc") return ["etc", "other"];
+  return [value];
+}
+
 interface Props {
   initialClasses?: ClassWithHost[];
   regionOverride?: string | null;
+  genreOverride?: string[];
+  classTypeOverride?: string[];
 }
 
 const EMPTY_CLASSES: ClassWithHost[] = [];
 
-export default function HomeSearchResultsPage({ initialClasses, regionOverride }: Props) {
+export default function HomeSearchResultsPage({
+  initialClasses,
+  regionOverride,
+  genreOverride,
+  classTypeOverride,
+}: Props) {
   const stableInitial = initialClasses ?? EMPTY_CLASSES;
   const router = useRouter();
   const searchParams = useSearchParams();
   const region = regionOverride ?? searchParams.get("region") ?? "전체";
-  const genres = searchParams.getAll("genre");
-  const classTypes = searchParams.getAll("class_type");
+  const genres = genreOverride ?? searchParams.getAll("genre");
+  const classTypes = classTypeOverride ?? searchParams.getAll("class_type");
   const isBookmarkMode = searchParams.get("bookmark") === "true";
 
   const [loading, setLoading] = useState(stableInitial.length === 0);
@@ -44,7 +60,15 @@ export default function HomeSearchResultsPage({ initialClasses, regionOverride }
   const [loadingMore, setLoadingMore] = useState(false);
   const [bookmarkVersion, setBookmarkVersion] = useState(0);
 
-  const regionParam = region && region !== "전체" ? `&region=${encodeURIComponent(region)}` : "";
+  const filterParam = useMemo(() => {
+    const params = new URLSearchParams();
+    if (region && region !== "전체") params.set("region", region);
+    genres.forEach((genre) => params.append("genre", genre));
+    classTypes.forEach((classType) => params.append("class_type", classType));
+    const qs = params.toString();
+    return qs ? `&${qs}` : "";
+  }, [region, genres, classTypes]);
+  const homeCacheKey = `${HOME_RESULTS_LOCAL_KEY}:${filterParam || "all"}`;
 
   const warmedImageUrlsRef = useRef<Set<string>>(new Set());
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -73,8 +97,8 @@ export default function HomeSearchResultsPage({ initialClasses, regionOverride }
       filtered = filtered.filter((item) => item.genres?.some((g) => genreSet.has(g)));
     }
     if (classTypes.length > 0) {
-      const typeSet = new Set(classTypes);
-      filtered = filtered.filter((item) => typeSet.has(item.class_type));
+      const typeSet = new Set(classTypes.flatMap(expandCategory));
+      filtered = filtered.filter((item) => item.category && typeSet.has(item.category));
     }
     return filtered;
   }, [classes, region, genres, classTypes, isBookmarkMode, bookmarkVersion]);
@@ -93,18 +117,18 @@ export default function HomeSearchResultsPage({ initialClasses, regionOverride }
   const writeHomeCache = useCallback((items: ClassWithHost[], count: number) => {
     try {
       localStorage.setItem(
-        HOME_RESULTS_LOCAL_KEY,
+        homeCacheKey,
         JSON.stringify({ data: items, count } satisfies CachedHomeResult)
       );
     } catch {}
-  }, []);
+  }, [homeCacheKey]);
 
   const warmPageImages = useCallback((pageNumber: number) => {
-    fetch(`/api/classes/search?page=${pageNumber}&limit=${PAGE_SIZE}${regionParam}`)
+    fetch(`/api/classes/search?page=${pageNumber}&limit=${PAGE_SIZE}${filterParam}`)
       .then((r) => r.json())
       .then((j) => { if (j.data) warmImages(j.data); })
       .catch(() => {});
-  }, [regionParam, warmImages]);
+  }, [filterParam, warmImages]);
 
   async function handleGoHome() {
     try {
@@ -125,7 +149,7 @@ export default function HomeSearchResultsPage({ initialClasses, regionOverride }
     setLoadingMore(true);
     try {
       const nextPage = page + 1;
-      const res = await fetch(`/api/classes/search?page=${nextPage}&limit=${PAGE_SIZE}${regionParam}`);
+      const res = await fetch(`/api/classes/search?page=${nextPage}&limit=${PAGE_SIZE}${filterParam}`);
       const json = await res.json();
       if (json.error) return;
       const incoming = (json.data ?? []) as ClassWithHost[];
@@ -147,7 +171,7 @@ export default function HomeSearchResultsPage({ initialClasses, regionOverride }
     finally {
       setLoadingMore(false);
     }
-  }, [loadingMore, hasMore, page, regionParam, warmImages, warmPageImages, writeHomeCache]);
+  }, [loadingMore, hasMore, page, filterParam, warmImages, warmPageImages, writeHomeCache]);
 
   // 스크롤 끝 감지
   useEffect(() => {
@@ -175,7 +199,7 @@ export default function HomeSearchResultsPage({ initialClasses, regionOverride }
       }
 
       // 2. localStorage 우선
-      const localRaw = localStorage.getItem(HOME_RESULTS_LOCAL_KEY);
+      const localRaw = localStorage.getItem(homeCacheKey);
       if (localRaw) {
         try {
           const cached = JSON.parse(localRaw) as CachedHomeResult;
@@ -200,7 +224,7 @@ export default function HomeSearchResultsPage({ initialClasses, regionOverride }
 
     async function fetchAndUpdate(cancelled: boolean) {
       try {
-        const res = await fetch(`/api/classes/search?page=0&limit=${PAGE_SIZE}${regionParam}`);
+        const res = await fetch(`/api/classes/search?page=0&limit=${PAGE_SIZE}${filterParam}`);
         const json = await res.json();
         if (json.error) { if (!cancelled) setLoading(false); return; }
         const incoming = (json.data ?? []) as ClassWithHost[];
@@ -251,7 +275,7 @@ export default function HomeSearchResultsPage({ initialClasses, regionOverride }
 
     void load();
     return () => { cancelled = true; };
-  }, [regionParam, stableInitial, warmImages, warmPageImages, writeHomeCache]);
+  }, [filterParam, homeCacheKey, stableInitial, warmImages, warmPageImages, writeHomeCache]);
 
   return (
     <div className="max-w-xl mx-auto bg-white relative">
@@ -261,9 +285,49 @@ export default function HomeSearchResultsPage({ initialClasses, regionOverride }
         </div>
       )}
 
-      <div className="flex flex-col pb-6">
+      <div className="grid grid-cols-3 gap-[1px] bg-gray-200">
         {filteredClasses.map((c, idx) => (
-          <ClassCard key={`${c.id}-${idx}`} classData={c} priorityImage={idx < 2} />
+          <button
+            key={`${c.id}-${idx}`}
+            type="button"
+            onClick={() => router.push(`/classes/${c.id}`)}
+            className="aspect-square bg-gray-100 relative overflow-hidden cursor-pointer"
+          >
+            {c.images?.[0]?.card_url ? (
+              <Image
+                src={c.images[0].card_url}
+                alt={c.title}
+                fill
+                sizes="(max-width: 640px) 33vw, 213px"
+                className="object-cover"
+                priority={idx < 6}
+                unoptimized
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center bg-gray-100">
+                <span className="text-gray-300 text-xs">없음</span>
+              </div>
+            )}
+            {isBookmarkMode && (
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="white"
+                stroke="white"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="absolute top-1.5 right-1.5"
+              >
+                <polygon points="19 21 12 16 5 21 5 3 19 3" />
+              </svg>
+            )}
+            {!isBookmarkMode && c.status === "recruiting" && (
+              <div className="absolute top-1.5 right-1.5 w-3 h-3 rounded-full bg-green-500" />
+            )}
+          </button>
         ))}
       </div>
 

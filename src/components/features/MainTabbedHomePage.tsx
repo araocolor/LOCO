@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Grid3X3, Plus, Search } from "lucide-react";
+import { LayoutList, Plus, Search } from "lucide-react";
 import { ClassWithHost } from "@/components/class/ClassCard";
 import HomeSearchResultsPage from "@/components/features/HomeSearchResultsPage";
 import MyClassesTab from "@/components/features/MyClassesTab";
@@ -12,7 +12,7 @@ import { SEARCH_DEFAULTS_STORAGE_KEY, type SearchOptions } from "@/lib/search-de
 
 const MY_CLASSES_CACHE_KEY = "loco_my_classes_v1";
 
-type MainTab = "classSearch" | "mySubscriptions" | "friendClasses";
+type MainTab = "salsaClasses" | "bachataClasses" | "eventClasses" | "mySubscriptions";
 
 interface MainTabbedHomePageProps {
   initialClasses: ClassWithHost[];
@@ -23,12 +23,14 @@ function getMyClassesCacheKey(userId: string) {
 }
 
 export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePageProps) {
-  const [activeTab, setActiveTab] = useState<MainTab>("classSearch");
+  const [activeTab, setActiveTab] = useState<MainTab>("salsaClasses");
   const [userRegion, setUserRegion] = useState<string | null>(null);
   const { user } = useAuth();
   const userId = user?.id ?? null;
   const [myClasses, setMyClasses] = useState<ClassWithHost[]>([]);
   const [myClassesLoading, setMyClassesLoading] = useState(false);
+  const [regionalClasses, setRegionalClasses] = useState<ClassWithHost[]>([]);
+  const [regionalClassesLoading, setRegionalClassesLoading] = useState(false);
   const [searchRegion, setSearchRegion] = useState<string | null>(null);
   const isChromeVisible = useScrollChromeVisibility(true);
   const router = useRouter();
@@ -133,6 +135,19 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
     }
   }, []);
 
+  const fetchRegionalClasses = useCallback(async (region: string) => {
+    setRegionalClassesLoading(true);
+    try {
+      const res = await fetch(`/api/classes/search?region=${encodeURIComponent(region)}&limit=50`);
+      const json = await res.json();
+      const items = (json.data ?? []) as ClassWithHost[];
+      setRegionalClasses(items);
+    } catch {
+    } finally {
+      setRegionalClassesLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (!userId) {
       queueMicrotask(() => setMyClasses([]));
@@ -153,6 +168,17 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
     });
   }, [userId, fetchMyClasses]);
 
+  useEffect(() => {
+    if (!userRegion) {
+      queueMicrotask(() => setRegionalClasses([]));
+      return;
+    }
+
+    queueMicrotask(() => {
+      void fetchRegionalClasses(userRegion);
+    });
+  }, [userRegion, fetchRegionalClasses]);
+
   return (
     <>
       <header
@@ -161,7 +187,7 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
         }`}
       >
         <div className="relative h-14 px-4 flex items-center">
-          {activeTab === "classSearch" ? (
+          {activeTab !== "mySubscriptions" ? (
             <button
               type="button"
               aria-label="찾기"
@@ -201,35 +227,54 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
             내클래스
           </button>
           <button
-            onClick={() => setActiveTab("friendClasses")}
+            onClick={() => setActiveTab("salsaClasses")}
             className={`pb-2 font-bold transition-colors ${
-              activeTab === "friendClasses" ? "text-black" : "text-gray-400"
+              activeTab === "salsaClasses" ? "text-black" : "text-gray-400"
             }`}
-            style={{ fontSize: activeTab === "friendClasses" ? 18 : 17 }}
+            style={{ fontSize: activeTab === "salsaClasses" ? 18 : 17 }}
           >
-            {userRegion}클래스
+            살사
           </button>
           <button
-            onClick={() => setActiveTab("classSearch")}
+            onClick={() => setActiveTab("bachataClasses")}
             className={`pb-2 font-bold transition-colors ${
-              activeTab === "classSearch" ? "text-black" : "text-gray-400"
+              activeTab === "bachataClasses" ? "text-black" : "text-gray-400"
             }`}
-            style={{ fontSize: activeTab === "classSearch" ? 18 : 17 }}
+            style={{ fontSize: activeTab === "bachataClasses" ? 18 : 17 }}
           >
-            올클래스
+            바차타
           </button>
-          <button type="button" aria-label="썸네일 보기" className="ml-auto pb-2 text-gray-400">
-            <Grid3X3 size={18} strokeWidth={1.9} />
+          <button
+            onClick={() => setActiveTab("eventClasses")}
+            className={`pb-2 font-bold transition-colors ${
+              activeTab === "eventClasses" ? "text-black" : "text-gray-400"
+            }`}
+            style={{ fontSize: activeTab === "eventClasses" ? 18 : 17 }}
+          >
+            이벤트
+          </button>
+          <button type="button" aria-label="목록 보기" className="ml-auto pb-2 text-gray-400">
+            <LayoutList size={18} strokeWidth={1.9} />
           </button>
         </div>
       </header>
 
-      {activeTab === "classSearch" && <HomeSearchResultsPage initialClasses={initialClasses} />}
-      {activeTab === "friendClasses" && <HomeSearchResultsPage regionOverride={userRegion} />}
+      {activeTab === "salsaClasses" && (
+        <HomeSearchResultsPage initialClasses={initialClasses} genreOverride={["salsa"]} />
+      )}
+      {activeTab === "bachataClasses" && (
+        <HomeSearchResultsPage genreOverride={["bachata"]} />
+      )}
+      {activeTab === "eventClasses" && (
+        <HomeSearchResultsPage classTypeOverride={["festival", "party", "etc"]} />
+      )}
       {activeTab === "mySubscriptions" && (
         <MyClassesTab
           classes={myClasses}
           loading={myClassesLoading}
+          regionalClasses={regionalClasses}
+          regionalLoading={regionalClassesLoading}
+          regionalLabel={userRegion}
           onRetry={() => userId && fetchMyClasses(userId)}
         />
       )}
