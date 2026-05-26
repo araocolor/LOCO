@@ -1242,6 +1242,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
         chatLoading={chatLoading}
         chatOpen={chatOpen}
         chatTitle={selectedConversation?.title ?? null}
+        classId={selectedConversation?.class_id ?? null}
         messages={messages}
         messagesEndRef={messagesEndRef}
         myProfile={myProfile}

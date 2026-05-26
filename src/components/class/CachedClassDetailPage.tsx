@@ -123,12 +123,16 @@ function CommentPreviewThread({
   );
 }
 
-export default function CachedClassDetailPage() {
+interface CachedClassDetailPageProps {
+  classIdOverride?: string;
+}
+
+export default function CachedClassDetailPage({ classIdOverride }: CachedClassDetailPageProps = {}) {
   const params = useParams<{ id: string }>();
   const searchParams = useSearchParams();
   const router = useRouter();
   const { user } = useAuth();
-  const classId = params?.id;
+  const classId = classIdOverride ?? params?.id;
   const animateFromHome = searchParams.get("from") === "home";
   const [loaded, setLoaded] = useState(false);
   const [displayClass, setDisplayClass] = useState<ClassWithHost | null>(null);

@@ -22,6 +22,7 @@ interface ChatDrawerProps {
   chatLoading: boolean;
   chatOpen: boolean;
   chatTitle: string | null;
+  classId: string | null;
   canAddMembers: boolean;
   canEditTitle: boolean;
   messages: Message[];
@@ -84,6 +85,7 @@ export default function ChatDrawer({
   chatLoading,
   chatOpen,
   chatTitle,
+  classId,
   canAddMembers,
   canEditTitle,
   messages,
@@ -291,6 +293,7 @@ export default function ChatDrawer({
       <ChatDrawerHeader
         canEditTitle={canEditTitle}
         chatTitle={chatTitle}
+        classId={classId}
         otherUser={otherUser}
         roomId={roomId}
         roomType={roomType}

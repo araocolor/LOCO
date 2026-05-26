@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Info } from "lucide-react";
+import CachedClassDetailPage from "@/components/class/CachedClassDetailPage";
 import type { OtherUser } from "../../_types";
 
 interface ChatDrawerHeaderProps {
   canEditTitle: boolean;
   chatTitle: string | null;
+  classId: string | null;
   otherUser: OtherUser | null;
   roomId: string | null;
   roomType: "direct" | "group" | "class" | "self" | undefined;
@@ -17,12 +19,14 @@ interface ChatDrawerHeaderProps {
 export default function ChatDrawerHeader({
   canEditTitle,
   chatTitle,
+  classId,
   otherUser,
   roomId,
   roomType,
   onClose,
   onTitleChanged,
 }: ChatDrawerHeaderProps) {
+  const [classDetailOpen, setClassDetailOpen] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
   const titleInputRef = useRef<HTMLInputElement>(null);
@@ -109,6 +113,39 @@ export default function ChatDrawerHeader({
           </span>
         )}
       </div>
+      {roomType === "class" && classId && (
+        <button
+          onClick={() => setClassDetailOpen(true)}
+          className="absolute right-4 top-1/2 -translate-y-1/2 w-[37px] h-[37px] flex items-center justify-center text-gray-600 hover:text-gray-900"
+        >
+          <Info size={20} />
+        </button>
+      )}
+
+      {roomType === "class" && classId && (
+        <div
+          className={`fixed inset-0 z-[70] bg-white flex flex-col transition-transform duration-300 ease-in-out ${
+            classDetailOpen ? "translate-x-0" : "-translate-x-full"
+          }`}
+        >
+          <header className="sticky top-0 z-50 bg-white h-14 px-4 relative">
+            <button
+              onClick={() => setClassDetailOpen(false)}
+              className="absolute left-4 top-1/2 -translate-y-1/2 w-[37px] h-[37px] flex items-center justify-center text-gray-600 hover:text-gray-900"
+            >
+              <ArrowLeft size={20} />
+            </button>
+            <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+              <span className="font-bold text-[#4d4d4d]" style={{ fontSize: 18 }}>
+                클래스 정보
+              </span>
+            </div>
+          </header>
+          <div className="flex-1 overflow-y-auto">
+            <CachedClassDetailPage classIdOverride={classId} />
+          </div>
+        </div>
+      )}
     </header>
   );
 }

@@ -12,6 +12,7 @@ import { parseBookmarkEntries } from "@/lib/bookmarks/local";
 
 const HOME_RESULTS_LOCAL_KEY = "loco_home_results_local_v1";
 const PAGE_SIZE = 12;
+const GRID_FILL_COLORS = ["#E84040", "#B8D44A", "#F5A623", "#5BB8E8"] as const;
 
 interface CachedHomeResult {
   data: ClassWithHost[];
@@ -59,6 +60,7 @@ export default function HomeSearchResultsPage({
   const [hasMore, setHasMore] = useState(stableInitial.length >= PAGE_SIZE);
   const [loadingMore, setLoadingMore] = useState(false);
   const [bookmarkVersion, setBookmarkVersion] = useState(0);
+  const [gridFillSeed] = useState(() => Math.floor(Math.random() * GRID_FILL_COLORS.length));
 
   const filterParam = useMemo(() => {
     const params = new URLSearchParams();
@@ -102,6 +104,15 @@ export default function HomeSearchResultsPage({
     }
     return filtered;
   }, [classes, region, genres, classTypes, isBookmarkMode, bookmarkVersion]);
+
+  const fillerCells = useMemo(() => {
+    const remain = filteredClasses.length % 3;
+    const count = remain === 0 ? 0 : 3 - remain;
+    return Array.from({ length: count }, (_, idx) => {
+      const color = GRID_FILL_COLORS[(gridFillSeed + filteredClasses.length + idx) % GRID_FILL_COLORS.length];
+      return { key: `filler-${filteredClasses.length}-${idx}`, color };
+    });
+  }, [filteredClasses.length, gridFillSeed]);
 
   const warmImages = useCallback((items: ClassWithHost[]) => {
     items.forEach((item) => {
@@ -328,6 +339,14 @@ export default function HomeSearchResultsPage({
               <div className="absolute top-1.5 right-1.5 w-3 h-3 rounded-full bg-green-500" />
             )}
           </button>
+        ))}
+        {fillerCells.map((cell) => (
+          <div
+            key={cell.key}
+            aria-hidden="true"
+            className="aspect-square"
+            style={{ backgroundColor: cell.color }}
+          />
         ))}
       </div>
 

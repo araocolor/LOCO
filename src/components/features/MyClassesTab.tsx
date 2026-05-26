@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
+import { useMemo, useState } from "react";
 import type { ClassWithHost } from "@/components/class/ClassCard";
 
 interface MyClassesTabProps {
@@ -14,8 +15,19 @@ interface MyClassesTabProps {
   onRetry: () => void;
 }
 
+const GRID_FILL_COLORS = ["#E84040", "#B8D44A", "#F5A623", "#5BB8E8"] as const;
+
 function ClassGrid({ classes }: { classes: ClassWithHost[] }) {
   const router = useRouter();
+  const [gridFillSeed] = useState(() => Math.floor(Math.random() * GRID_FILL_COLORS.length));
+  const fillerCells = useMemo(() => {
+    const remain = classes.length % 3;
+    const count = remain === 0 ? 0 : 3 - remain;
+    return Array.from({ length: count }, (_, idx) => {
+      const color = GRID_FILL_COLORS[(gridFillSeed + classes.length + idx) % GRID_FILL_COLORS.length];
+      return { key: `filler-${classes.length}-${idx}`, color };
+    });
+  }, [classes.length, gridFillSeed]);
 
   return (
     <div className="grid grid-cols-3 gap-[1px] bg-gray-200">
@@ -44,6 +56,14 @@ function ClassGrid({ classes }: { classes: ClassWithHost[] }) {
             <div className="absolute top-1.5 right-1.5 w-3 h-3 rounded-full bg-green-500" />
           )}
         </button>
+      ))}
+      {fillerCells.map((cell) => (
+        <div
+          key={cell.key}
+          aria-hidden="true"
+          className="aspect-square"
+          style={{ backgroundColor: cell.color }}
+        />
       ))}
     </div>
   );

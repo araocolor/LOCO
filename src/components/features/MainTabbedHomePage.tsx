@@ -23,7 +23,7 @@ function getMyClassesCacheKey(userId: string) {
 }
 
 export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePageProps) {
-  const [activeTab, setActiveTab] = useState<MainTab>("salsaClasses");
+  const [activeTab, setActiveTab] = useState<MainTab>("mySubscriptions");
   const [userRegion, setUserRegion] = useState<string | null>(null);
   const { user } = useAuth();
   const userId = user?.id ?? null;
