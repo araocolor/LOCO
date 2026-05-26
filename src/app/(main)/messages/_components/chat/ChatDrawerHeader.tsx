@@ -125,7 +125,7 @@ export default function ChatDrawerHeader({
       {roomType === "class" && classId && (
         <div
           className={`fixed inset-0 z-[70] bg-white flex flex-col transition-transform duration-300 ease-in-out ${
-            classDetailOpen ? "translate-x-0" : "-translate-x-full"
+            classDetailOpen ? "translate-x-0" : "-translate-x-full invisible"
           }`}
         >
           <header className="sticky top-0 z-50 bg-white h-14 px-4 relative">
@@ -142,7 +142,7 @@ export default function ChatDrawerHeader({
             </div>
           </header>
           <div className="flex-1 overflow-y-auto">
-            <CachedClassDetailPage classIdOverride={classId} />
+            <CachedClassDetailPage classIdOverride={classId} hideChat />
           </div>
         </div>
       )}
