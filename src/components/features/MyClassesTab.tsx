@@ -154,7 +154,7 @@ export default function MyClassesTab({
         </div>
       ) : participatingClasses.length === 0 ? (
         <div className="flex items-center justify-center h-24 text-gray-400">
-          <p className="text-sm">신청 클래스가 없다니...헐</p>
+          <p className="text-sm">참여신청 클래스가 없습니다.</p>
         </div>
       ) : (
         <ClassGrid classes={participatingClasses} onClassSelect={onClassSelect} />
