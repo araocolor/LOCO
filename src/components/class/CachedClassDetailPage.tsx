@@ -12,6 +12,7 @@ import ClassDetailImageGallery from "@/components/class/ClassDetailImageGallery"
 import MentionText from "@/components/class/MentionText";
 import Avatar from "@/components/ui/Avatar";
 import { useAuth } from "@/lib/auth-context";
+import { createClient } from "@/lib/supabase/client";
 
 const HOME_RESULTS_LOCAL_KEY = "loco_home_results_local_v1";
 const LIKES_CACHE_KEY = "loco_liked_posts";
@@ -140,6 +141,9 @@ export default function CachedClassDetailPage({ classIdOverride }: CachedClassDe
   const [bookmarked, setBookmarked] = useState(false);
   const [likeCount, setLikeCount] = useState(0);
   const [applying, setApplying] = useState(false);
+  const [applied, setApplied] = useState(false);
+  const [approved, setApproved] = useState(false);
+  const [enteringChat, setEnteringChat] = useState(false);
   const [commentSheetOpen, setCommentSheetOpen] = useState(false);
   const [comments, setComments] = useState<ClassComment[]>([]);
   const [commentsLoading, setCommentsLoading] = useState(false);
@@ -241,6 +245,26 @@ export default function CachedClassDetailPage({ classIdOverride }: CachedClassDe
     void loadCommentPreview();
   }, [loadCommentPreview]);
 
+  useEffect(() => {
+    if (!classId || !user) return;
+    const checkMyApplication = async () => {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from("applications")
+        .select("status")
+        .eq("class_id", classId)
+        .eq("applicant_id", user.id)
+        .neq("status", "cancelled")
+        .maybeSingle();
+      if (data?.status === "pending") {
+        setApplied(true);
+      } else if (data?.status === "approved") {
+        setApproved(true);
+      }
+    };
+    void checkMyApplication();
+  }, [classId, user]);
+
   if (!loaded) {
     return <div className="max-w-xl mx-auto px-4 py-6 text-sm text-gray-400">불러오는 중...</div>;
   }
@@ -318,9 +342,14 @@ export default function CachedClassDetailPage({ classIdOverride }: CachedClassDe
       });
 
       const data = await res.json().catch(() => ({}));
-      alert(res.ok ? "신청이 완료되었습니다." : (data.error ?? "신청에 실패했습니다."));
+      if (res.ok) {
+        setApplied(true);
+        showCenterNotice("신청완료되었습니다.");
+      } else {
+        showCenterNotice(data.error ?? "신청에 실패했습니다.");
+      }
     } catch {
-      alert("신청에 실패했습니다.");
+      showCenterNotice("신청에 실패했습니다.");
     } finally {
       setApplying(false);
     }
@@ -330,7 +359,7 @@ export default function CachedClassDetailPage({ classIdOverride }: CachedClassDe
     setNoticeText(message);
     window.setTimeout(() => {
       setNoticeText((current) => (current === message ? "" : current));
-    }, 1400);
+    }, 1500);
   }
 
   async function handleDeleteClick() {
@@ -437,7 +466,7 @@ export default function CachedClassDetailPage({ classIdOverride }: CachedClassDe
   const hasMoreComments = comments.length > previewCommentCount;
   const isOwnClass = user?.id === displayClass.host_id;
   const applyLabel =
-    displayClass.status !== "recruiting" ? "신청 마감" : applying ? "신청 중..." : "신청하기";
+    displayClass.status !== "recruiting" ? "신청 마감" : applied ? "신청확인중" : applying ? "신청 중..." : "신청하기";
 
   return (
     <div
@@ -624,11 +653,35 @@ export default function CachedClassDetailPage({ classIdOverride }: CachedClassDe
           >
             {deleteLoading ? "삭제 중..." : "삭제하기"}
           </button>
+        ) : approved ? (
+          <button
+            type="button"
+            disabled={enteringChat}
+            onClick={async () => {
+              if (!classId || enteringChat) return;
+              setEnteringChat(true);
+              try {
+                const res = await fetch(`/api/chat/rooms/class/${classId}`, { method: "POST" });
+                if (res.ok) {
+                  router.push(`/messages?room=${(await res.json()).data?.id}`);
+                } else {
+                  showCenterNotice("대화방 입장에 실패했습니다.");
+                }
+              } catch {
+                showCenterNotice("대화방 입장에 실패했습니다.");
+              } finally {
+                setEnteringChat(false);
+              }
+            }}
+            className="inline-flex h-12 items-center justify-center rounded-full bg-[#fee500] px-7 text-[15px] font-bold text-[#191600] shadow-sm transition-colors hover:bg-[#f5dc00] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {enteringChat ? "입장 중..." : "클래스 대화방"}
+          </button>
         ) : (
           <button
             type="button"
             onClick={handleApply}
-            disabled={applying || displayClass.status !== "recruiting"}
+            disabled={applying || applied || displayClass.status !== "recruiting"}
             className="inline-flex h-12 items-center justify-center rounded-full bg-[#fee500] px-7 text-[15px] font-bold text-[#191600] shadow-sm transition-colors hover:bg-[#f5dc00] disabled:cursor-not-allowed disabled:opacity-50"
           >
             {applyLabel}

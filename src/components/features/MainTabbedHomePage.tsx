@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { LayoutList, Plus, Search } from "lucide-react";
+import { ArrowLeft, LayoutList, Plus, Search } from "lucide-react";
 import { ClassWithHost } from "@/components/class/ClassCard";
+import CachedClassDetailPage from "@/components/class/CachedClassDetailPage";
 import HomeSearchResultsPage from "@/components/features/HomeSearchResultsPage";
 import MyClassesTab from "@/components/features/MyClassesTab";
 import { useScrollChromeVisibility } from "@/hooks/useScrollChromeVisibility";
@@ -32,6 +33,7 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
   const [regionalClasses, setRegionalClasses] = useState<ClassWithHost[]>([]);
   const [regionalClassesLoading, setRegionalClassesLoading] = useState(false);
   const [searchRegion, setSearchRegion] = useState<string | null>(null);
+  const [classDetailId, setClassDetailId] = useState<string | null>(null);
   const isChromeVisible = useScrollChromeVisibility(true);
   const router = useRouter();
 
@@ -260,13 +262,13 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
       </header>
 
       {activeTab === "salsaClasses" && (
-        <HomeSearchResultsPage initialClasses={initialClasses} genreOverride={["salsa"]} />
+        <HomeSearchResultsPage initialClasses={initialClasses} genreOverride={["salsa"]} onClassSelect={(id) => setClassDetailId(id)} />
       )}
       {activeTab === "bachataClasses" && (
-        <HomeSearchResultsPage genreOverride={["bachata"]} />
+        <HomeSearchResultsPage genreOverride={["bachata"]} onClassSelect={(id) => setClassDetailId(id)} />
       )}
       {activeTab === "eventClasses" && (
-        <HomeSearchResultsPage classTypeOverride={["festival", "party", "etc"]} />
+        <HomeSearchResultsPage classTypeOverride={["festival", "party", "etc"]} onClassSelect={(id) => setClassDetailId(id)} />
       )}
       {activeTab === "mySubscriptions" && (
         <MyClassesTab
@@ -276,8 +278,32 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
           regionalLoading={regionalClassesLoading}
           regionalLabel={userRegion}
           onRetry={() => userId && fetchMyClasses(userId)}
+          onClassSelect={(id) => setClassDetailId(id)}
         />
       )}
+
+      <div
+        className={`fixed inset-0 z-[70] bg-white flex flex-col transition-transform duration-300 ease-in-out ${
+          classDetailId ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
+        <header className="sticky top-0 z-50 bg-white h-14 px-4 relative">
+          <button
+            onClick={() => setClassDetailId(null)}
+            className="absolute left-4 top-1/2 -translate-y-1/2 w-[37px] h-[37px] flex items-center justify-center text-gray-600 hover:text-gray-900"
+          >
+            <ArrowLeft size={20} />
+          </button>
+          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+            <span className="font-bold text-[#4d4d4d]" style={{ fontSize: 18 }}>
+              클래스 정보
+            </span>
+          </div>
+        </header>
+        <div className="flex-1 overflow-y-auto">
+          {classDetailId && <CachedClassDetailPage classIdOverride={classDetailId} />}
+        </div>
+      </div>
     </>
   );
 }

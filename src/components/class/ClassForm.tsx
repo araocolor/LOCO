@@ -741,7 +741,7 @@ export default function ClassForm({ initialData, classId, userRole: _userRole }:
             <>
               <div className="mx-4 mt-[18px] bg-white rounded-2xl px-4 py-5">
                 <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
-                  장르 <span className="text-red-500">*</span>
+                  장르 (최대 2개) <span className="text-red-500">*</span>
                 </p>
                 <div className="flex gap-2 flex-wrap">
                   {GENRES.map((g) => (
@@ -750,7 +750,13 @@ export default function ClassForm({ initialData, classId, userRole: _userRole }:
                       type="button"
                       className={`chip ${form.genres.includes(g.value) ? "active" : ""}`}
                       onClick={() => {
-                        set("genres", [g.value]);
+                        const exists = form.genres.includes(g.value);
+                        const next = exists
+                          ? form.genres.filter((v) => v !== g.value)
+                          : form.genres.length >= 2
+                            ? [...form.genres.slice(1), g.value]
+                            : [...form.genres, g.value];
+                        set("genres", next);
                       }}
                     >
                       {g.label}

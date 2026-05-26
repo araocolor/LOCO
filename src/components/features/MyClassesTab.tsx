@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { ClassWithHost } from "@/components/class/ClassCard";
+import ClassMoreMenu from "@/components/class/ClassMoreMenu";
 
 interface MyClassesTabProps {
   classes: ClassWithHost[];
@@ -13,11 +14,12 @@ interface MyClassesTabProps {
   regionalLoading: boolean;
   regionalLabel: string | null;
   onRetry: () => void;
+  onClassSelect?: (classId: string) => void;
 }
 
 const GRID_FILL_COLORS = ["#E84040", "#B8D44A", "#F5A623", "#5BB8E8"] as const;
 
-function ClassGrid({ classes }: { classes: ClassWithHost[] }) {
+function ClassGrid({ classes, onClassSelect }: { classes: ClassWithHost[]; onClassSelect?: (classId: string) => void }) {
   const router = useRouter();
   const [gridFillSeed] = useState(() => Math.floor(Math.random() * GRID_FILL_COLORS.length));
   const fillerCells = useMemo(() => {
@@ -32,10 +34,9 @@ function ClassGrid({ classes }: { classes: ClassWithHost[] }) {
   return (
     <div className="grid grid-cols-3 gap-[1px] bg-gray-200">
       {classes.map((classData) => (
-        <button
+        <div
           key={classData.id}
-          type="button"
-          onClick={() => router.push(`/classes/${classData.id}`)}
+          onClick={() => onClassSelect ? onClassSelect(classData.id) : router.push(`/classes/${classData.id}`)}
           className="aspect-square bg-gray-100 relative overflow-hidden cursor-pointer"
         >
           {classData.images?.[0]?.card_url ? (
@@ -52,10 +53,21 @@ function ClassGrid({ classes }: { classes: ClassWithHost[] }) {
               <span className="text-gray-300 text-xs">없음</span>
             </div>
           )}
+          <div className="absolute top-0 left-0 z-10" onClick={(e) => e.stopPropagation()}>
+            <ClassMoreMenu
+              classId={classData.id}
+              hostId={classData.host_id}
+              hostNickname={classData.host?.nickname}
+              hostImageUrl={classData.host?.profile_image_url}
+              status={classData.status}
+              buttonClassName="flex items-center justify-center w-8 h-8 text-white drop-shadow-md"
+              onDetailView={() => onClassSelect ? onClassSelect(classData.id) : router.push(`/classes/${classData.id}`)}
+            />
+          </div>
           {classData.status === "recruiting" && (
             <div className="absolute top-1.5 right-1.5 w-3 h-3 rounded-full bg-green-500" />
           )}
-        </button>
+        </div>
       ))}
       {fillerCells.map((cell) => (
         <div
@@ -99,6 +111,7 @@ export default function MyClassesTab({
   regionalClasses,
   regionalLoading,
   regionalLabel,
+  onClassSelect,
 }: MyClassesTabProps) {
   if (loading) {
     return (
@@ -115,7 +128,7 @@ export default function MyClassesTab({
           <p className="text-sm">개설한 클래스가 없습니다</p>
         </div>
       ) : (
-        <ClassGrid classes={classes} />
+        <ClassGrid classes={classes} onClassSelect={onClassSelect} />
       )}
 
       <RegionalHeaderGrid label={regionalLabel} />
@@ -128,7 +141,7 @@ export default function MyClassesTab({
           <p className="text-sm">지역 클래스가 없습니다</p>
         </div>
       ) : (
-        <ClassGrid classes={regionalClasses} />
+        <ClassGrid classes={regionalClasses} onClassSelect={onClassSelect} />
       )}
     </div>
   );

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { ClassWithHost } from "@/components/class/ClassCard";
+import ClassMoreMenu from "@/components/class/ClassMoreMenu";
 import { createClient } from "@/lib/supabase/client";
 import {
   SEARCH_DEFAULTS_STORAGE_KEY,
@@ -36,6 +37,7 @@ interface Props {
   regionOverride?: string | null;
   genreOverride?: string[];
   classTypeOverride?: string[];
+  onClassSelect?: (classId: string) => void;
 }
 
 const EMPTY_CLASSES: ClassWithHost[] = [];
@@ -45,6 +47,7 @@ export default function HomeSearchResultsPage({
   regionOverride,
   genreOverride,
   classTypeOverride,
+  onClassSelect,
 }: Props) {
   const stableInitial = initialClasses ?? EMPTY_CLASSES;
   const router = useRouter();
@@ -298,10 +301,9 @@ export default function HomeSearchResultsPage({
 
       <div className="grid grid-cols-3 gap-[1px] bg-gray-200">
         {filteredClasses.map((c, idx) => (
-          <button
+          <div
             key={`${c.id}-${idx}`}
-            type="button"
-            onClick={() => router.push(`/classes/${c.id}`)}
+            onClick={() => onClassSelect ? onClassSelect(c.id) : router.push(`/classes/${c.id}`)}
             className="aspect-square bg-gray-100 relative overflow-hidden cursor-pointer"
           >
             {c.images?.[0]?.card_url ? (
@@ -319,6 +321,17 @@ export default function HomeSearchResultsPage({
                 <span className="text-gray-300 text-xs">없음</span>
               </div>
             )}
+            <div className="absolute top-0 left-0 z-10" onClick={(e) => e.stopPropagation()}>
+              <ClassMoreMenu
+                classId={c.id}
+                hostId={c.host_id}
+                hostNickname={c.host?.nickname}
+                hostImageUrl={c.host?.profile_image_url}
+                status={c.status}
+                buttonClassName="flex items-center justify-center w-8 h-8 text-white drop-shadow-md"
+                onDetailView={() => onClassSelect ? onClassSelect(c.id) : router.push(`/classes/${c.id}`)}
+              />
+            </div>
             {isBookmarkMode && (
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -338,7 +351,7 @@ export default function HomeSearchResultsPage({
             {!isBookmarkMode && c.status === "recruiting" && (
               <div className="absolute top-1.5 right-1.5 w-3 h-3 rounded-full bg-green-500" />
             )}
-          </button>
+          </div>
         ))}
         {fillerCells.map((cell) => (
           <div
