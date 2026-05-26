@@ -129,6 +129,19 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
     });
   }, [userId, fetchHomeMyClasses, applyHomeMyClassesPayload]);
 
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const deletedId = (e as CustomEvent<string>).detail;
+      if (!deletedId) return;
+      const remove = (list: ClassWithHost[]) => list.filter((c) => c.id !== deletedId);
+      setMyClasses(remove);
+      setParticipatingClasses(remove);
+      setRegionalClasses(remove);
+    };
+    window.addEventListener("class-deleted", handler);
+    return () => window.removeEventListener("class-deleted", handler);
+  }, []);
+
   return (
     <>
       <header

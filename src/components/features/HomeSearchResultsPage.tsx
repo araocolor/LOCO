@@ -85,6 +85,15 @@ export default function HomeSearchResultsPage({
     return () => window.removeEventListener("bookmarkChanged", handler);
   }, [isBookmarkMode]);
 
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const deletedId = (e as CustomEvent<string>).detail;
+      if (deletedId) setClasses((prev) => prev.filter((c) => c.id !== deletedId));
+    };
+    window.addEventListener("class-deleted", handler);
+    return () => window.removeEventListener("class-deleted", handler);
+  }, []);
+
   const filteredClasses = useMemo(() => {
     if (isBookmarkMode) {
       void bookmarkVersion;

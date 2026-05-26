@@ -15,6 +15,7 @@ import { useAuth } from "@/lib/auth-context";
 import { createClient } from "@/lib/supabase/client";
 
 const HOME_RESULTS_LOCAL_KEY = "loco_home_results_local_v1";
+const HOME_MY_CLASSES_CACHE_KEY = "loco_home_my_classes_v1";
 const LIKES_CACHE_KEY = "loco_liked_posts";
 const BOOKMARKS_CACHE_KEY = "loco_bookmark_ids_v1";
 const COMMENT_PREVIEW_LIMIT = 8;
@@ -160,7 +161,7 @@ function CommentPreviewThread({
 interface CachedClassDetailPageProps {
   classIdOverride?: string;
   hideChat?: boolean;
-  onClose?: () => void;
+  onClose?: (deletedClassId?: string) => void;
 }
 
 export default function CachedClassDetailPage({ classIdOverride, hideChat, onClose }: CachedClassDetailPageProps = {}) {
@@ -451,11 +452,41 @@ export default function CachedClassDetailPage({ classIdOverride, hideChat, onClo
         return;
       }
 
+      try {
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (!key || !key.startsWith(HOME_RESULTS_LOCAL_KEY)) continue;
+          const raw = localStorage.getItem(key);
+          if (!raw) continue;
+          const parsed = JSON.parse(raw) as CachedHomeResult;
+          if (!Array.isArray(parsed.data)) continue;
+          parsed.data = parsed.data.filter((c) => c.id !== classId);
+          parsed.count = parsed.data.length;
+          localStorage.setItem(key, JSON.stringify(parsed));
+        }
+      } catch {}
+
+      if (user?.id) {
+        try {
+          const key = `${HOME_MY_CLASSES_CACHE_KEY}:${user.id}`;
+          const raw = localStorage.getItem(key);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (parsed.myClasses) parsed.myClasses = parsed.myClasses.filter((c: ClassWithHost) => c.id !== classId);
+            if (parsed.participatingClasses) parsed.participatingClasses = parsed.participatingClasses.filter((c: ClassWithHost) => c.id !== classId);
+            if (parsed.regionalClasses) parsed.regionalClasses = parsed.regionalClasses.filter((c: ClassWithHost) => c.id !== classId);
+            localStorage.setItem(key, JSON.stringify(parsed));
+          }
+        } catch {}
+      }
+
+      window.dispatchEvent(new CustomEvent("class-deleted", { detail: classId }));
+
       setDeleteModalOpen(false);
       showCenterNotice("삭제되었습니다.");
       window.setTimeout(() => {
         if (onClose) {
-          onClose();
+          onClose(classId);
         } else {
           router.push("/");
         }
