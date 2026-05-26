@@ -126,9 +126,11 @@ function CommentPreviewThread({
 
 interface CachedClassDetailPageProps {
   classIdOverride?: string;
+  hideChat?: boolean;
+  onClose?: () => void;
 }
 
-export default function CachedClassDetailPage({ classIdOverride }: CachedClassDetailPageProps = {}) {
+export default function CachedClassDetailPage({ classIdOverride, hideChat, onClose }: CachedClassDetailPageProps = {}) {
   const params = useParams<{ id: string }>();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -653,7 +655,7 @@ export default function CachedClassDetailPage({ classIdOverride }: CachedClassDe
           >
             {deleteLoading ? "삭제 중..." : "삭제하기"}
           </button>
-        ) : approved ? (
+        ) : approved && !hideChat ? (
           <button
             type="button"
             disabled={enteringChat}
@@ -663,7 +665,9 @@ export default function CachedClassDetailPage({ classIdOverride }: CachedClassDe
               try {
                 const res = await fetch(`/api/chat/rooms/class/${classId}`, { method: "POST" });
                 if (res.ok) {
-                  router.push(`/messages?room=${(await res.json()).data?.id}`);
+                  const roomId = (await res.json()).data?.id;
+                  onClose?.();
+                  router.push(`/messages?roomId=${roomId}`);
                 } else {
                   showCenterNotice("대화방 입장에 실패했습니다.");
                 }

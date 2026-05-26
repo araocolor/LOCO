@@ -301,7 +301,7 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
           </div>
         </header>
         <div className="flex-1 overflow-y-auto">
-          {classDetailId && <CachedClassDetailPage classIdOverride={classDetailId} />}
+          {classDetailId && <CachedClassDetailPage classIdOverride={classDetailId} onClose={() => setClassDetailId(null)} />}
         </div>
       </div>
     </>
