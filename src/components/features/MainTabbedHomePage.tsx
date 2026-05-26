@@ -11,7 +11,7 @@ import { useScrollChromeVisibility } from "@/hooks/useScrollChromeVisibility";
 import { useAuth } from "@/lib/auth-context";
 import { SEARCH_DEFAULTS_STORAGE_KEY, type SearchOptions } from "@/lib/search-defaults";
 
-const MY_CLASSES_CACHE_KEY = "loco_my_classes_v1";
+const HOME_MY_CLASSES_CACHE_KEY = "loco_home_my_classes_v1";
 
 type MainTab = "salsaClasses" | "bachataClasses" | "eventClasses" | "mySubscriptions";
 
@@ -19,8 +19,18 @@ interface MainTabbedHomePageProps {
   initialClasses: ClassWithHost[];
 }
 
-function getMyClassesCacheKey(userId: string) {
-  return `${MY_CLASSES_CACHE_KEY}:${userId}`;
+interface HomeMyClassesPayload {
+  profile: {
+    id: string;
+    region: string | null;
+  };
+  myClasses: ClassWithHost[];
+  participatingClasses: ClassWithHost[];
+  regionalClasses: ClassWithHost[];
+}
+
+function getHomeMyClassesCacheKey(userId: string) {
+  return `${HOME_MY_CLASSES_CACHE_KEY}:${userId}`;
 }
 
 export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePageProps) {
@@ -30,6 +40,8 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
   const userId = user?.id ?? null;
   const [myClasses, setMyClasses] = useState<ClassWithHost[]>([]);
   const [myClassesLoading, setMyClassesLoading] = useState(false);
+  const [participatingClasses, setParticipatingClasses] = useState<ClassWithHost[]>([]);
+  const [participatingClassesLoading, setParticipatingClassesLoading] = useState(false);
   const [regionalClasses, setRegionalClasses] = useState<ClassWithHost[]>([]);
   const [regionalClassesLoading, setRegionalClassesLoading] = useState(false);
   const [searchRegion, setSearchRegion] = useState<string | null>(null);
@@ -37,73 +49,24 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
   const isChromeVisible = useScrollChromeVisibility(true);
   const router = useRouter();
 
+  const applyHomeMyClassesPayload = useCallback((payload: HomeMyClassesPayload) => {
+    setUserRegion(payload.profile?.region ?? null);
+    setMyClasses(payload.myClasses ?? []);
+    setParticipatingClasses(payload.participatingClasses ?? []);
+    setRegionalClasses(payload.regionalClasses ?? []);
+  }, []);
+
   useEffect(() => {
-    let cancelled = false;
-
-    async function fetchUserRegionFromProfile(uid: string) {
-      try {
-        const res = await fetch("/api/mypage/summary", { method: "GET", cache: "no-store" });
-        if (!res.ok || cancelled) return;
-
-        const json = await res.json() as {
-          profile?: { id?: string; region?: string | null };
-        };
-        if (json.profile?.id && json.profile.id !== uid) return;
-
-        const nextRegion = json.profile?.region ?? null;
-        setUserRegion(nextRegion);
-
-        try {
-          const raw = localStorage.getItem("loco_mypage_cache_local_v2");
-          const current = raw ? JSON.parse(raw) : {};
-          localStorage.setItem(
-            "loco_mypage_cache_local_v2",
-            JSON.stringify({
-              ...current,
-              ...json,
-              profile: {
-                ...(current.profile ?? {}),
-                ...(json.profile ?? {}),
-              },
-            })
-          );
-        } catch {}
-      } catch {}
-    }
-
     try {
-      let nextUserRegion: string | null = null;
       let nextSearchRegion: string | null = null;
-
-      const mypageRaw = localStorage.getItem("loco_mypage_cache_local_v2");
-      if (mypageRaw) {
-        const cached = JSON.parse(mypageRaw) as {
-          profile?: { id?: string; region?: string | null };
-        };
-        if (!userId || !cached.profile?.id || cached.profile.id === userId) {
-          nextUserRegion = cached.profile?.region ?? null;
-        }
-      }
-
       const raw = localStorage.getItem(SEARCH_DEFAULTS_STORAGE_KEY);
       if (raw) {
         const opts = JSON.parse(raw) as SearchOptions;
         nextSearchRegion = opts.region && opts.region !== "전체" ? opts.region : null;
       }
-
-      queueMicrotask(() => {
-        setUserRegion(nextUserRegion);
-        setSearchRegion(nextSearchRegion);
-      });
-
-      if (userId && !nextUserRegion) {
-        void fetchUserRegionFromProfile(userId);
-      }
+      queueMicrotask(() => setSearchRegion(nextSearchRegion));
     } catch {}
-    return () => {
-      cancelled = true;
-    };
-  }, [userId]);
+  }, []);
 
   useEffect(() => {
     function handleSearchClose() {
@@ -121,65 +84,50 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
     return () => window.removeEventListener("close-search-sheet", handleSearchClose);
   }, []);
 
-  const fetchMyClasses = useCallback(async (uid: string) => {
+  const fetchHomeMyClasses = useCallback(async (uid: string) => {
     setMyClassesLoading(true);
+    setParticipatingClassesLoading(true);
+    setRegionalClassesLoading(true);
     try {
-      const res = await fetch(`/api/classes/search?host_id=${uid}&limit=50`);
-      const json = await res.json();
-      const items = (json.data ?? []) as ClassWithHost[];
-      setMyClasses(items);
+      const res = await fetch("/api/home/my-classes");
+      if (!res.ok) return;
+      const json = await res.json() as HomeMyClassesPayload;
+      applyHomeMyClassesPayload(json);
       try {
-        localStorage.setItem(getMyClassesCacheKey(uid), JSON.stringify(items));
+        localStorage.setItem(getHomeMyClassesCacheKey(uid), JSON.stringify(json));
       } catch {}
     } catch {
     } finally {
       setMyClassesLoading(false);
-    }
-  }, []);
-
-  const fetchRegionalClasses = useCallback(async (region: string) => {
-    setRegionalClassesLoading(true);
-    try {
-      const res = await fetch(`/api/classes/search?region=${encodeURIComponent(region)}&limit=50`);
-      const json = await res.json();
-      const items = (json.data ?? []) as ClassWithHost[];
-      setRegionalClasses(items);
-    } catch {
-    } finally {
+      setParticipatingClassesLoading(false);
       setRegionalClassesLoading(false);
     }
-  }, []);
+  }, [applyHomeMyClassesPayload]);
 
   useEffect(() => {
     if (!userId) {
       queueMicrotask(() => setMyClasses([]));
-      return;
-    }
-
-    let nextMyClasses: ClassWithHost[] = [];
-    try {
-      const raw = localStorage.getItem(getMyClassesCacheKey(userId));
-      nextMyClasses = raw ? JSON.parse(raw) : [];
-    } catch {
-      nextMyClasses = [];
-    }
-
-    queueMicrotask(() => {
-      setMyClasses(nextMyClasses);
-      void fetchMyClasses(userId);
-    });
-  }, [userId, fetchMyClasses]);
-
-  useEffect(() => {
-    if (!userRegion) {
+      queueMicrotask(() => setParticipatingClasses([]));
       queueMicrotask(() => setRegionalClasses([]));
+      queueMicrotask(() => setUserRegion(null));
       return;
     }
 
+    let cachedPayload: HomeMyClassesPayload | null = null;
+    try {
+      const raw = localStorage.getItem(getHomeMyClassesCacheKey(userId));
+      cachedPayload = raw ? JSON.parse(raw) as HomeMyClassesPayload : null;
+    } catch {
+      cachedPayload = null;
+    }
+
     queueMicrotask(() => {
-      void fetchRegionalClasses(userRegion);
+      if (cachedPayload?.profile?.id === userId) {
+        applyHomeMyClassesPayload(cachedPayload);
+      }
+      void fetchHomeMyClasses(userId);
     });
-  }, [userRegion, fetchRegionalClasses]);
+  }, [userId, fetchHomeMyClasses, applyHomeMyClassesPayload]);
 
   return (
     <>
@@ -274,10 +222,12 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
         <MyClassesTab
           classes={myClasses}
           loading={myClassesLoading}
+          participatingClasses={participatingClasses}
+          participatingLoading={participatingClassesLoading}
           regionalClasses={regionalClasses}
           regionalLoading={regionalClassesLoading}
           regionalLabel={userRegion}
-          onRetry={() => userId && fetchMyClasses(userId)}
+          onRetry={() => userId && fetchHomeMyClasses(userId)}
           onClassSelect={(id) => setClassDetailId(id)}
         />
       )}

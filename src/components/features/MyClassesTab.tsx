@@ -4,12 +4,15 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
 import { useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import type { ClassWithHost } from "@/components/class/ClassCard";
 import ClassMoreMenu from "@/components/class/ClassMoreMenu";
 
 interface MyClassesTabProps {
   classes: ClassWithHost[];
   loading: boolean;
+  participatingClasses: ClassWithHost[];
+  participatingLoading: boolean;
   regionalClasses: ClassWithHost[];
   regionalLoading: boolean;
   regionalLabel: string | null;
@@ -105,9 +108,19 @@ function RegionalHeaderGrid({ label }: { label: string | null }) {
   );
 }
 
+function SectionLabel({ children }: { children: ReactNode }) {
+  return (
+    <div className="px-4 py-3 bg-white">
+      <h2 className="text-[16px] font-bold text-gray-900">{children}</h2>
+    </div>
+  );
+}
+
 export default function MyClassesTab({
   classes,
   loading,
+  participatingClasses,
+  participatingLoading,
   regionalClasses,
   regionalLoading,
   regionalLabel,
@@ -129,6 +142,19 @@ export default function MyClassesTab({
         </div>
       ) : (
         <ClassGrid classes={classes} onClassSelect={onClassSelect} />
+      )}
+
+      <SectionLabel>참여중인 클래스</SectionLabel>
+      {participatingLoading ? (
+        <div className="flex items-center justify-center h-24 text-gray-400">
+          로딩 중...
+        </div>
+      ) : participatingClasses.length === 0 ? (
+        <div className="flex items-center justify-center h-24 text-gray-400">
+          <p className="text-sm">참여중인 클래스가 없다니...헐</p>
+        </div>
+      ) : (
+        <ClassGrid classes={participatingClasses} onClassSelect={onClassSelect} />
       )}
 
       <RegionalHeaderGrid label={regionalLabel} />

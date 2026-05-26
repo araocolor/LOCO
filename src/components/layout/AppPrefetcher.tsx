@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { usePathname } from "next/navigation";
 import { fetchWithAuthRetry } from "@/lib/auth/fetch-with-auth-retry";
 
 const CHAT_ROOMS_CACHE_PREFIX = "loco_chat_rooms_cache_v2:";
@@ -102,9 +103,13 @@ async function prefetchSuggestions() {
 }
 
 export default function AppPrefetcher({ userId }: { userId: string | null }) {
+  const pathname = usePathname();
+
   useEffect(() => {
     async function prefetch() {
       try {
+        if (pathname === "/") return;
+
         const shouldPrefetchConversations = userId ? !hasFreshChatRoomsCache(userId) : false;
         const shouldPrefetchMyPage = !localStorage.getItem(MYPAGE_CACHE_KEY);
         const shouldPrefetchSearch = !localStorage.getItem(SEARCH_CACHE_KEY);
@@ -129,7 +134,7 @@ export default function AppPrefetcher({ userId }: { userId: string | null }) {
     }
 
     void prefetch();
-  }, [userId]);
+  }, [userId, pathname]);
 
   return null;
 }
