@@ -56,7 +56,7 @@ const NAV_ITEMS = [
 export default function BottomNav() {
   const pathname = usePathname();
   const [hydrated, setHydrated] = useState(false);
-  const shouldAutoHide = pathname === "/";
+  const shouldAutoHide = false;
   const isChromeVisible = useScrollChromeVisibility(shouldAutoHide);
 
   useEffect(() => {

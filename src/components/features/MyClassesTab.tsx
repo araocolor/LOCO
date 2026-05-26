@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { Plus } from "lucide-react";
+import { IdCard, Plus } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import type { ClassWithHost } from "@/components/class/ClassCard";
@@ -86,13 +86,14 @@ function ClassGrid({ classes, onClassSelect }: { classes: ClassWithHost[]; onCla
 
 function RegionalHeaderGrid({ label }: { label: string | null }) {
   const router = useRouter();
-  const displayLabel = label ? `${label}클래스` : "지역클래스";
+  const regionText = label ?? "지역";
 
   return (
     <div className="grid grid-cols-3 gap-[1px] bg-gray-200">
       <div className="aspect-square bg-white flex items-end justify-start px-4 pb-3">
-        <span className="text-[17px] font-bold text-gray-900 leading-tight">
-          {displayLabel}
+        <span className="text-gray-900 leading-tight">
+          <span className="block text-[25px] font-bold">{regionText}</span>
+          <span className="block text-[17px]">지역클래스</span>
         </span>
       </div>
       <div className="aspect-square bg-gray-100" />
@@ -101,8 +102,10 @@ function RegionalHeaderGrid({ label }: { label: string | null }) {
         onClick={() => router.push("/classes/new")}
         className="aspect-square bg-[#fee500] flex flex-col items-center justify-center gap-2 text-gray-900"
       >
-        <Plus size={24} strokeWidth={2.2} />
-        <span className="text-sm font-bold">클래스만들기</span>
+        <div className="w-10 h-10 rounded-full border-2 border-gray-900 flex items-center justify-center">
+          <Plus size={22} strokeWidth={2.2} />
+        </div>
+        <span className="text-[18px] font-bold">클래스 생성</span>
       </button>
     </div>
   );
@@ -110,8 +113,8 @@ function RegionalHeaderGrid({ label }: { label: string | null }) {
 
 function SectionLabel({ children }: { children: ReactNode }) {
   return (
-    <div className="px-4 py-3 bg-white">
-      <h2 className="text-[16px] font-bold text-gray-900">{children}</h2>
+    <div className="px-4 pt-6 pb-1 bg-white">
+      <h2 className="text-[18px] font-bold text-gray-900">{children}</h2>
     </div>
   );
 }
@@ -144,14 +147,14 @@ export default function MyClassesTab({
         <ClassGrid classes={classes} onClassSelect={onClassSelect} />
       )}
 
-      <SectionLabel>참여중인 클래스</SectionLabel>
+      <SectionLabel>신청클래스</SectionLabel>
       {participatingLoading ? (
         <div className="flex items-center justify-center h-24 text-gray-400">
           로딩 중...
         </div>
       ) : participatingClasses.length === 0 ? (
         <div className="flex items-center justify-center h-24 text-gray-400">
-          <p className="text-sm">참여중인 클래스가 없다니...헐</p>
+          <p className="text-sm">신청 클래스가 없다니...헐</p>
         </div>
       ) : (
         <ClassGrid classes={participatingClasses} onClassSelect={onClassSelect} />
