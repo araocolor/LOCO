@@ -27,6 +27,14 @@ export function useSearchSocialData(activeTab: Tab) {
 
   const prevActiveTabRef = useRef<Tab>(activeTab);
 
+  const hasSocialCache = useCallback(() => {
+    try {
+      return Boolean(localStorage.getItem(SEARCH_CACHE_KEY));
+    } catch {
+      return false;
+    }
+  }, []);
+
   const loadFromCache = useCallback(() => {
     try {
       const cached = localStorage.getItem(SEARCH_CACHE_KEY);
@@ -67,9 +75,11 @@ export function useSearchSocialData(activeTab: Tab) {
   }, []);
 
   useEffect(() => {
+    const hasCache = hasSocialCache();
     queueMicrotask(() => loadFromCache());
+    if (activeTab === "friends" && hasCache) return;
     fetchFollowersAndFollowing();
-  }, [loadFromCache, fetchFollowersAndFollowing]);
+  }, [activeTab, hasSocialCache, loadFromCache, fetchFollowersAndFollowing]);
 
   useEffect(() => {
     if (activeTab === "followings" && prevActiveTabRef.current !== "followings") {

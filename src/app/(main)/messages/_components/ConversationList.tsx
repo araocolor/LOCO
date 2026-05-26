@@ -173,7 +173,6 @@ export default function ConversationList({
             <div
               key={conv.id}
               onPointerDown={() => onPrefetchChat(conv.id)}
-              onPointerEnter={() => onPrefetchChat(conv.id)}
               onClick={() => onOpenChat(conv.id)}
               className="border-b border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors"
             >

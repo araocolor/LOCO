@@ -10,6 +10,9 @@ const CHAT_ROOMS_CACHE_LIMIT = 50;
 const MYPAGE_CACHE_KEY = "loco_mypage_cache_local_v2";
 const SEARCH_CACHE_KEY = "search_prefetch_cache";
 const SUGGESTIONS_KEY = "search_suggestions_cache";
+const SEARCH_CACHE_TTL_MS = 3 * 60 * 1000;
+const MAIN_SOCIAL_PREFETCH_MIN_DELAY_MS = 1000;
+const MAIN_SOCIAL_PREFETCH_MAX_DELAY_MS = 5000;
 
 function getChatRoomsCacheKey(userId: string) {
   return `${CHAT_ROOMS_CACHE_PREFIX}${userId}`;
@@ -32,8 +35,26 @@ function prioritizeOneToOneRooms<T extends { type?: string }>(rooms: T[]) {
   return [...oneToOneRooms, ...otherRooms].slice(0, CHAT_ROOMS_CACHE_LIMIT);
 }
 
+function hasFreshSearchCache() {
+  try {
+    const raw = localStorage.getItem(SEARCH_CACHE_KEY);
+    if (!raw) return false;
+    const parsed = JSON.parse(raw) as { ts?: number };
+    return typeof parsed.ts === "number" && Date.now() - parsed.ts < SEARCH_CACHE_TTL_MS;
+  } catch {
+    return false;
+  }
+}
+
+function getRandomMainSocialPrefetchDelay() {
+  return (
+    MAIN_SOCIAL_PREFETCH_MIN_DELAY_MS +
+    Math.floor(Math.random() * (MAIN_SOCIAL_PREFETCH_MAX_DELAY_MS - MAIN_SOCIAL_PREFETCH_MIN_DELAY_MS + 1))
+  );
+}
+
 async function prefetchChatRooms(userId: string) {
-  const convRes = await fetch("/api/chat/rooms");
+  const convRes = await fetch("/api/chat/rooms/preview");
   if (convRes.ok) {
     const json = await convRes.json();
     if (json.data) {
@@ -110,7 +131,9 @@ export default function AppPrefetcher({ userId }: { userId: string | null }) {
       try {
         if (pathname === "/") return;
 
-        const shouldPrefetchConversations = userId ? !hasFreshChatRoomsCache(userId) : false;
+        const shouldPrefetchConversations = userId && pathname !== "/messages"
+          ? !hasFreshChatRoomsCache(userId)
+          : false;
         const shouldPrefetchMyPage = !localStorage.getItem(MYPAGE_CACHE_KEY);
         const shouldPrefetchSearch = !localStorage.getItem(SEARCH_CACHE_KEY);
         const shouldPrefetchSuggestions = !localStorage.getItem(SUGGESTIONS_KEY);
@@ -134,6 +157,17 @@ export default function AppPrefetcher({ userId }: { userId: string | null }) {
     }
 
     void prefetch();
+  }, [userId, pathname]);
+
+  useEffect(() => {
+    if (pathname !== "/" || !userId || hasFreshSearchCache()) return;
+
+    const timer = window.setTimeout(() => {
+      if (document.visibilityState !== "visible" || hasFreshSearchCache()) return;
+      void prefetchSearchSocial();
+    }, getRandomMainSocialPrefetchDelay());
+
+    return () => window.clearTimeout(timer);
   }, [userId, pathname]);
 
   return null;

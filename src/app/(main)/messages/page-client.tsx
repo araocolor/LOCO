@@ -8,7 +8,7 @@ import { PRESENCE_EVENT } from "@/components/features/PresenceTracker";
 import ConversationList from "./_components/ConversationList";
 import ChatDrawer from "./_components/ChatDrawer";
 import ChatMemberDrawer from "./_components/ChatMemberDrawer";
-import type { ChatNotice, Conversation, Message, MessageMenuTab, MessageReactionType, MyProfile, OtherUser, SessionClassItem } from "./_types";
+import type { ChatNotice, Conversation, Message, MessageMenuTab, MessageReactionType, MyProfile, OtherUser } from "./_types";
 import { useChatNotices } from "./_hooks/useChatNotices";
 import {
   appendMessageCache,
@@ -66,6 +66,7 @@ interface ChatMessageApiItem {
 interface ChatRoomPayload {
   messages: Message[];
   notices: ChatNotice[];
+  room?: Partial<ChatRoomApiItem>;
 }
 
 const EMPTY_MESSAGE_REACTION_COUNTS: Record<MessageReactionType, number> = {
@@ -82,8 +83,6 @@ const ALLOWED_VIDEO_TYPES = new Set(["video/mp4", "video/quicktime", "video/webm
 const CHAT_ROOMS_CACHE_PREFIX = "loco_chat_rooms_cache_v2:";
 const LEGACY_CHAT_ROOMS_CACHE_KEY = "loco_chat_rooms_cache_v1";
 const CONVERSATIONS_LIMIT = 50;
-const ROOM_PREFETCH_LIMIT = 5;
-const MESSAGE_USER_SESSION_PREFIX = "message_userid_session:";
 const APP_LAST_HIDDEN_AT_KEY = "app_last_hidden_at";
 const APP_LAST_VISIBLE_AT_KEY = "app_last_visible_at";
 const APP_LAST_RESUME_AT_KEY = "app_last_resume_at";
@@ -93,13 +92,11 @@ const APP_RESUME_MIN_HIDDEN_MS = 5000;
 const MESSAGES_LAST_ROOMS_LOADED_PREFIX = "messages_last_rooms_loaded_at:";
 const MESSAGES_RESUME_REFRESH_DELAY_MS = 2000;
 const MESSAGES_RECENT_REFRESH_TTL_MS = 60 * 1000;
+const CHAT_PREVIEW_PREFETCH_MIN_DELAY_MS = 2000;
+const CHAT_PREVIEW_PREFETCH_MAX_DELAY_MS = 5000;
 
 function getChatRoomsCacheKey(userId: string) {
   return `${CHAT_ROOMS_CACHE_PREFIX}${userId}`;
-}
-
-function getMessageUserSessionKey(userId: string) {
-  return `${MESSAGE_USER_SESSION_PREFIX}${userId}`;
 }
 
 function getMessagesLastRoomsLoadedKey(userId: string) {
@@ -119,6 +116,13 @@ function writeLocalStorageTime(key: string, value: number) {
   try {
     localStorage.setItem(key, String(value));
   } catch {}
+}
+
+function getRandomChatPreviewPrefetchDelay() {
+  return (
+    CHAT_PREVIEW_PREFETCH_MIN_DELAY_MS +
+    Math.floor(Math.random() * (CHAT_PREVIEW_PREFETCH_MAX_DELAY_MS - CHAT_PREVIEW_PREFETCH_MIN_DELAY_MS + 1))
+  );
 }
 
 function markAppHidden() {
@@ -201,7 +205,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [onlineIds, setOnlineIds] = useState<Set<string>>(new Set());
-  const [activeMenuTab, setActiveMenuTab] = useState<MessageMenuTab>("messages");
+  const [activeMenuTab, setActiveMenuTab] = useState<MessageMenuTab>("friends");
 
   // 대화창 상태
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
@@ -392,10 +396,8 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
   }
 
   const cacheKey = getChatRoomsCacheKey(userId);
-  const messageUserSessionKey = getMessageUserSessionKey(userId);
   const messagesLastRoomsLoadedKey = getMessagesLastRoomsLoadedKey(userId);
   const roomPrefetchInFlightRef = useRef<Map<string, Promise<ChatRoomPayload>>>(new Map());
-  const recentRoomPrefetchedRef = useRef<Set<string>>(new Set());
   const appResumeVisitRef = useRef(false);
   const resumeRefreshTimerRef = useRef<number | null>(null);
 
@@ -499,6 +501,11 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
     } catch {}
   }
 
+  function hasRecentConversationsCache() {
+    const lastRoomsLoadedAt = readLocalStorageTime(messagesLastRoomsLoadedKey);
+    return lastRoomsLoadedAt > 0 && Date.now() - lastRoomsLoadedAt < MESSAGES_RECENT_REFRESH_TTL_MS;
+  }
+
   function patchConversationWithMessage(roomId: string, message: Message) {
     setConversations((prev) => {
       const next = prev.map((conv) =>
@@ -530,13 +537,15 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
     if (inFlight) return inFlight;
 
     const task = (async () => {
-      const [messageRes, noticeRes] = await Promise.all([
+      const [messageRes, noticeRes, roomRes] = await Promise.all([
         fetch(`/api/chat/rooms/${roomId}/messages`),
         fetch(`/api/chat/rooms/${roomId}/notices`),
+        fetch(`/api/chat/rooms/${roomId}`),
       ]);
 
       const messages: Message[] = [];
       let notices: ChatNotice[] = [];
+      let room: Partial<ChatRoomApiItem> | undefined;
 
       if (messageRes.ok) {
         const messageJson = await messageRes.json();
@@ -552,7 +561,14 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
         }
       }
 
-      return { messages, notices };
+      if (roomRes.ok) {
+        const roomJson = await roomRes.json();
+        if (roomJson.data) {
+          room = roomJson.data as Partial<ChatRoomApiItem>;
+        }
+      }
+
+      return { messages, notices, room };
     })();
 
     roomPrefetchInFlightRef.current.set(roomId, task);
@@ -610,6 +626,9 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
       title?: string | null;
       notice?: string | null;
       updated_at?: string;
+      class_id?: string | null;
+      class_image_url?: string | null;
+      member_count?: number;
       members?: Conversation["members"];
     };
     if (!nextRoom.id) return;
@@ -622,9 +641,11 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
               type: nextRoom.type ?? conv.type,
               title: nextRoom.title ?? conv.title,
               notice: Object.prototype.hasOwnProperty.call(nextRoom, "notice") ? nextRoom.notice ?? null : conv.notice,
+              class_id: Object.prototype.hasOwnProperty.call(nextRoom, "class_id") ? nextRoom.class_id ?? null : conv.class_id,
+              class_image_url: Object.prototype.hasOwnProperty.call(nextRoom, "class_image_url") ? nextRoom.class_image_url ?? null : conv.class_image_url,
               updated_at: nextRoom.updated_at ?? conv.updated_at,
               members: nextRoom.members ?? conv.members,
-              member_count: nextRoom.members?.length ?? conv.member_count,
+              member_count: nextRoom.member_count ?? nextRoom.members?.length ?? conv.member_count,
               other_user: nextRoom.type === "direct" ? conv.other_user : null,
             }
           : conv
@@ -634,116 +655,9 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
     });
   }
 
-  async function saveMessageUserSession(convs: Conversation[]) {
-    try {
-      const sessionMap: Record<
-        string,
-        {
-          id: string;
-          nickname: string;
-          profile_image_url: string | null;
-          email: string | null;
-          bio: string | null;
-          member_type: string[];
-          opened_classes: SessionClassItem[];
-          bookmarked_classes: SessionClassItem[];
-        }
-      > = {};
-
-      const userIds = Array.from(
-        new Set(
-          convs
-            .map((conv) => conv.other_user?.id)
-            .filter((id): id is string => Boolean(id))
-        )
-      );
-
-      convs.forEach((conv) => {
-        const user = conv.other_user;
-        if (!user?.id) return;
-        sessionMap[user.id] = {
-          id: user.id,
-          nickname: user.nickname,
-          profile_image_url: user.profile_image_url ?? null,
-          email: null,
-          bio: null,
-          member_type: [],
-          opened_classes: [],
-          bookmarked_classes: [],
-        };
-      });
-
-      if (userIds.length > 0) {
-        const supabase = createClient();
-        const { data: profiles } = await supabase
-          .from("profiles")
-          .select("id, email, bio, member_type")
-          .in("id", userIds);
-
-        (profiles ?? []).forEach((p) => {
-          if (!sessionMap[p.id]) return;
-          sessionMap[p.id].email = p.email ?? null;
-          sessionMap[p.id].bio = p.bio ?? null;
-          sessionMap[p.id].member_type = p.member_type ?? [];
-        });
-
-        const { data: openedClasses } = await supabase
-          .from("classes")
-          .select("id, host_id, title, images, status, created_at")
-          .in("host_id", userIds)
-          .order("created_at", { ascending: false })
-          .limit(10);
-
-        (openedClasses ?? []).forEach((cls) => {
-          const hostId = (cls as { host_id?: string }).host_id;
-          if (!hostId || !sessionMap[hostId]) return;
-          sessionMap[hostId].opened_classes.push({
-            id: cls.id,
-            title: cls.title,
-            images: cls.images,
-            status: cls.status,
-            created_at: cls.created_at,
-          });
-        });
-
-        const { data: bookmarkRows } = await supabase
-          .from("class_bookmarks")
-          .select("user_id, created_at, classes(id, title, images, status)")
-          .in("user_id", userIds)
-          .order("created_at", { ascending: false })
-          .limit(10);
-
-        (bookmarkRows ?? []).forEach((row) => {
-          const userIdRow = (row as { user_id?: string }).user_id;
-          if (!userIdRow || !sessionMap[userIdRow]) return;
-          const clsRaw = (row as { classes?: unknown }).classes;
-          const cls = Array.isArray(clsRaw) ? clsRaw[0] : clsRaw;
-          if (!cls || typeof cls !== "object") return;
-          const c = cls as {
-            id?: string;
-            title?: string;
-            images?: { card_url?: string }[] | null;
-            status?: string;
-          };
-          if (!c.id || !c.title) return;
-          sessionMap[userIdRow].bookmarked_classes.push({
-            id: c.id,
-            title: c.title,
-            images: c.images ?? null,
-            status: c.status,
-            created_at: (row as { created_at?: string }).created_at,
-          });
-        });
-      }
-
-      sessionStorage.setItem(messageUserSessionKey, JSON.stringify(sessionMap));
-    } catch {}
-  }
-
   async function fetchConversations(options?: { force?: boolean }) {
     const force = options?.force ?? false;
-    const hasUserSession = Boolean(sessionStorage.getItem(messageUserSessionKey));
-    if (!force && hasUserSession) {
+    if (!force) {
       const cached = readCachedConversations();
       if (cached) {
         setConversations(cached);
@@ -752,14 +666,13 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
     }
 
     try {
-      const res = await fetch("/api/chat/rooms");
+      const res = await fetch("/api/chat/rooms/preview");
       const json = await res.json();
       if (json.data) {
         const incomingConversations = (json.data as ChatRoomApiItem[]).map(mapChatRoom);
         setConversations(incomingConversations);
         writeConversationsCache(incomingConversations);
         writeLocalStorageTime(messagesLastRoomsLoadedKey, Date.now());
-        await saveMessageUserSession(incomingConversations);
       }
     } catch (error) {
       console.error("Failed to load conversations:", error);
@@ -783,9 +696,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
   }
 
   function scheduleResumeRefreshIfNeeded() {
-    const lastRoomsLoadedAt = readLocalStorageTime(messagesLastRoomsLoadedKey);
-    const hasRecentRooms = lastRoomsLoadedAt > 0 && Date.now() - lastRoomsLoadedAt < MESSAGES_RECENT_REFRESH_TTL_MS;
-    if (hasRecentRooms) return;
+    if (hasRecentConversationsCache()) return;
     scheduleConversationsRefresh(MESSAGES_RESUME_REFRESH_DELAY_MS, { force: false });
   }
 
@@ -831,8 +742,6 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
     // v1: 로컬 목록 캐시 즉시 표시
     const cached = readCachedConversations();
     const isResumeWithCache = resume.isResume && Boolean(cached);
-    const lastRoomsLoadedAt = readLocalStorageTime(messagesLastRoomsLoadedKey);
-    const hasRecentRooms = lastRoomsLoadedAt > 0 && Date.now() - lastRoomsLoadedAt < MESSAGES_RECENT_REFRESH_TTL_MS;
     appResumeVisitRef.current = isResumeWithCache;
 
     if (cached) {
@@ -842,10 +751,14 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
       });
     }
 
-    if (isResumeWithCache && hasRecentRooms) return;
+    if (isResumeWithCache && hasRecentConversationsCache()) return;
 
-    // v2: 백그라운드에서 최신 데이터 갱신
-    scheduleConversationsRefresh(isResumeWithCache ? MESSAGES_RESUME_REFRESH_DELAY_MS : 0, { force: !cached });
+    if (roomIdFromQuery) {
+      scheduleConversationsRefresh(0, { force: !cached });
+      return;
+    }
+
+    scheduleConversationsRefresh(getRandomChatPreviewPrefetchDelay(), { force: !cached });
 
     return () => {
       clearResumeRefreshTimer();
@@ -855,17 +768,16 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
   }, []);
 
   useEffect(() => {
-    if (conversations.length === 0) return;
-    if (appResumeVisitRef.current) return;
+    if (activeMenuTab === "friends") return;
+    if (conversations.length > 0 && hasRecentConversationsCache()) return;
+    scheduleConversationsRefresh(0, { force: conversations.length === 0 });
 
-    prioritizeOneToOneConversations(conversations).slice(0, ROOM_PREFETCH_LIMIT).forEach((conv) => {
-      if (recentRoomPrefetchedRef.current.has(conv.id)) return;
-      recentRoomPrefetchedRef.current.add(conv.id);
-      void prefetchChatRoom(conv.id);
-    });
-    // 최근 대화방 본문을 백그라운드에서 미리 받아 첫 클릭 대기 시간을 줄입니다.
+    return () => {
+      clearResumeRefreshTimer();
+    };
+    // 채팅 목록 탭으로 이동하면 preview 목록만 즉시 보강합니다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [conversations]);
+  }, [activeMenuTab]);
 
   useEffect(() => {
     queueMicrotask(() => {
@@ -1048,6 +960,9 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
     void (async () => {
       try {
         const payload = await fetchChatRoomPayload(roomId);
+        if (payload.room) {
+          patchConversationWithRoom(payload.room);
+        }
         if (activeChatRoomRef.current === roomId) {
           setMessages(payload.messages);
           setNotices(payload.notices);

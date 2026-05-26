@@ -1,6 +1,67 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
-import { getAuthenticatedUser, requireActiveRoomMember } from "../../_lib";
+import { getAuthenticatedUser, getRoomSnapshot, requireActiveRoomMember } from "../../_lib";
+
+interface ClassImageItem {
+  icon_url?: string;
+  card_url?: string;
+}
+
+export async function GET(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const user = await getAuthenticatedUser();
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { id: roomId } = await params;
+    const member = await requireActiveRoomMember(roomId, user.id);
+    if (!member) {
+      return NextResponse.json({ error: "채팅방 멤버가 아닙니다" }, { status: 403 });
+    }
+
+    const room = await getRoomSnapshot(roomId, user.id);
+    if (!room) {
+      return NextResponse.json({ error: "채팅방을 찾을 수 없습니다" }, { status: 404 });
+    }
+
+    let classImageUrl: string | null = null;
+    let classTitle: string | null = null;
+    if (room.type === "class" && room.class_id) {
+      const admin = createAdminClient();
+      const { data: cls, error: classError } = await admin
+        .from("classes")
+        .select("title, images")
+        .eq("id", room.class_id)
+        .maybeSingle<{ title: string; images: ClassImageItem[] | null }>();
+
+      if (classError) throw classError;
+      classTitle = cls?.title ?? null;
+      classImageUrl = cls?.images?.[0]?.icon_url ?? cls?.images?.[0]?.card_url ?? null;
+    }
+
+    return NextResponse.json({
+      data: {
+        id: room.id,
+        type: room.type,
+        class_id: room.class_id,
+        class_image_url: classImageUrl,
+        owner_id: room.owner_id,
+        title: room.type === "class" && classTitle && room.title === "클래스 채팅" ? classTitle : room.title,
+        notice: room.notice,
+        member_count: room.members.length,
+        members: room.members,
+        updated_at: room.updated_at,
+      },
+    });
+  } catch (error) {
+    console.error("[chat-room-get]", error);
+    return NextResponse.json({ error: "서버 오류" }, { status: 500 });
+  }
+}
 
 export async function PATCH(
   request: Request,
