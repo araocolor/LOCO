@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import {
   type ChatMemberRow,
@@ -12,6 +13,13 @@ interface ClassPreviewRow {
   id: string;
   title: string;
   images: Array<{ icon_url?: string; card_url?: string }> | null;
+}
+
+type PreviewRoomType = "direct" | "group" | "class";
+
+function parsePreviewRoomType(value: string | null): PreviewRoomType | null {
+  if (value === "direct" || value === "group" || value === "class") return value;
+  return null;
 }
 
 function getRoomTitle(
@@ -56,7 +64,7 @@ function getDisplayMembers(room: ChatRoomRow, members: ChatMemberRow[], currentU
   return [];
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const user = await getAuthenticatedUser();
     if (!user) {
@@ -78,14 +86,24 @@ export async function GET() {
       return NextResponse.json({ data: [] });
     }
 
+    const previewType = parsePreviewRoomType(request.nextUrl.searchParams.get("type"));
+
+    let roomsQuery = admin
+      .from("chat_rooms")
+      .select("id, type, status, class_id, owner_id, title, notice, direct_user_low_id, direct_user_high_id, last_message_id, last_message_at, created_at, updated_at")
+      .in("id", roomIds)
+      .eq("status", "active");
+
+    if (previewType === "direct") {
+      // direct 탭은 기존 동작을 유지하기 위해 self 채팅을 함께 포함합니다.
+      roomsQuery = roomsQuery.in("type", ["direct", "self"]);
+    } else if (previewType) {
+      roomsQuery = roomsQuery.eq("type", previewType);
+    }
+
     const [{ data: rooms, error: roomsError }, { data: members, error: membersError }] =
       await Promise.all([
-        admin
-          .from("chat_rooms")
-          .select("id, type, status, class_id, owner_id, title, notice, direct_user_low_id, direct_user_high_id, last_message_id, last_message_at, created_at, updated_at")
-          .in("id", roomIds)
-          .eq("status", "active")
-          .returns<ChatRoomRow[]>(),
+        roomsQuery.returns<ChatRoomRow[]>(),
         admin
           .from("chat_room_members")
           .select("room_id, user_id, role, status, last_read_at, created_at")

@@ -18,10 +18,16 @@ const HOME_RESULTS_LOCAL_KEY = "loco_home_results_local_v1";
 const LIKES_CACHE_KEY = "loco_liked_posts";
 const BOOKMARKS_CACHE_KEY = "loco_bookmark_ids_v1";
 const COMMENT_PREVIEW_LIMIT = 8;
+const CLASS_COMMENTS_SESSION_CACHE_PREFIX = "loco_class_comments_cache_v1:";
 
 interface CachedHomeResult {
   data: ClassWithHost[];
   count: number;
+}
+
+interface ClassCommentsSessionCache {
+  comments: ClassComment[];
+  ts: number;
 }
 
 const GENRE_CHIP: Record<string, string> = {
@@ -48,6 +54,33 @@ function formatCommentTime(value: string) {
 
   const d = new Date(value);
   return `${String(d.getMonth() + 1).padStart(2, "0")}.${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function getClassCommentsSessionCacheKey(classId: string) {
+  return `${CLASS_COMMENTS_SESSION_CACHE_PREFIX}${classId}`;
+}
+
+function readClassCommentsSessionCache(classId: string): ClassComment[] {
+  try {
+    const raw = sessionStorage.getItem(getClassCommentsSessionCacheKey(classId));
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as Partial<ClassCommentsSessionCache> | null;
+    return Array.isArray(parsed?.comments) ? parsed.comments : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeClassCommentsSessionCache(classId: string, comments: ClassComment[]) {
+  try {
+    sessionStorage.setItem(
+      getClassCommentsSessionCacheKey(classId),
+      JSON.stringify({
+        comments,
+        ts: Date.now(),
+      } satisfies ClassCommentsSessionCache)
+    );
+  } catch {}
 }
 
 function InfoRow({ icon, label, value }: { icon: string; label: string; value: string }) {
@@ -231,12 +264,25 @@ export default function CachedClassDetailPage({ classIdOverride, hideChat, onClo
   const loadCommentPreview = useCallback(async () => {
     if (!classId) return;
 
-    queueMicrotask(() => setCommentsLoading(true));
+    const cachedComments = readClassCommentsSessionCache(classId);
+    const hasSessionCache = cachedComments.length > 0;
+
+    if (hasSessionCache) {
+      queueMicrotask(() => {
+        setComments(cachedComments);
+        setCommentsLoading(false);
+      });
+    } else {
+      queueMicrotask(() => setCommentsLoading(true));
+    }
+
     try {
       const res = await fetch(`/api/classes/${classId}/comments`, { method: "GET" });
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        setComments(Array.isArray(data.comments) ? data.comments : []);
+        const nextComments = Array.isArray(data.comments) ? data.comments as ClassComment[] : [];
+        setComments(nextComments);
+        writeClassCommentsSessionCache(classId, nextComments);
       }
     } finally {
       setCommentsLoading(false);

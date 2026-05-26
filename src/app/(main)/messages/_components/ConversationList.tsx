@@ -15,7 +15,6 @@ interface ConversationListProps {
   onOpenChat: (roomId: string) => void;
   onOpenSelfChat: () => void;
   onOpenProfile: (userId: string) => void;
-  onPrefetchChat: (roomId: string) => void;
   onFriendMessageSent: (roomId: string) => void;
   setActiveMenuTab: (tab: MessageMenuTab) => void;
   formatDate: (dateStr: string) => string;
@@ -31,7 +30,6 @@ export default function ConversationList({
   onOpenChat,
   onOpenProfile,
   onOpenSelfChat,
-  onPrefetchChat,
   onFriendMessageSent,
   setActiveMenuTab,
   formatDate,
@@ -172,7 +170,6 @@ export default function ConversationList({
           {visibleConversations.map((conv) => (
             <div
               key={conv.id}
-              onPointerDown={() => onPrefetchChat(conv.id)}
               onClick={() => onOpenChat(conv.id)}
               className="border-b border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors"
             >

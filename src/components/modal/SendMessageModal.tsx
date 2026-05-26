@@ -18,7 +18,10 @@ function clearChatRoomsCaches() {
   try {
     localStorage.removeItem("loco_chat_rooms_cache_v1");
     Object.keys(localStorage)
-      .filter((key) => key.startsWith("loco_chat_rooms_cache_v2:"))
+      .filter((key) =>
+        key.startsWith("loco_chat_rooms_cache_v2:") ||
+        key.startsWith("loco_chat_rooms_preview_cache_v1:")
+      )
       .forEach((key) => localStorage.removeItem(key));
   } catch {}
 }

@@ -80,92 +80,39 @@ const EMPTY_MESSAGE_REACTION_COUNTS: Record<MessageReactionType, number> = {
 const MAX_VIDEO_UPLOAD_BYTES = 50 * 1024 * 1024;
 const VIDEO_UPLOAD_TIMEOUT_MS = 180000;
 const ALLOWED_VIDEO_TYPES = new Set(["video/mp4", "video/quicktime", "video/webm"]);
-const CHAT_ROOMS_CACHE_PREFIX = "loco_chat_rooms_cache_v2:";
-const LEGACY_CHAT_ROOMS_CACHE_KEY = "loco_chat_rooms_cache_v1";
+const CHAT_ROOMS_PREVIEW_CACHE_PREFIX = "loco_chat_rooms_preview_cache_v1:";
+const CHAT_ROOMS_PREVIEW_CACHE_TTL_MS = 60 * 1000;
 const CONVERSATIONS_LIMIT = 50;
-const APP_LAST_HIDDEN_AT_KEY = "app_last_hidden_at";
-const APP_LAST_VISIBLE_AT_KEY = "app_last_visible_at";
-const APP_LAST_RESUME_AT_KEY = "app_last_resume_at";
-const APP_RESUME_SOURCE_KEY = "app_resume_source";
-const APP_WAS_BACKGROUNDED_KEY = "app_was_backgrounded";
-const APP_RESUME_MIN_HIDDEN_MS = 5000;
-const MESSAGES_LAST_ROOMS_LOADED_PREFIX = "messages_last_rooms_loaded_at:";
-const MESSAGES_RESUME_REFRESH_DELAY_MS = 2000;
-const MESSAGES_RECENT_REFRESH_TTL_MS = 60 * 1000;
 const CHAT_PREVIEW_PREFETCH_MIN_DELAY_MS = 2000;
 const CHAT_PREVIEW_PREFETCH_MAX_DELAY_MS = 5000;
 
-function getChatRoomsCacheKey(userId: string) {
-  return `${CHAT_ROOMS_CACHE_PREFIX}${userId}`;
-}
+type PreviewRoomType = "direct" | "group" | "class";
 
-function getMessagesLastRoomsLoadedKey(userId: string) {
-  return `${MESSAGES_LAST_ROOMS_LOADED_PREFIX}${userId}`;
-}
-
-function readLocalStorageTime(key: string) {
-  try {
-    const value = Number(localStorage.getItem(key) ?? "0");
-    return Number.isFinite(value) ? value : 0;
-  } catch {
-    return 0;
-  }
-}
-
-function writeLocalStorageTime(key: string, value: number) {
-  try {
-    localStorage.setItem(key, String(value));
-  } catch {}
-}
-
-function getRandomChatPreviewPrefetchDelay() {
+function getRandomChatPreviewDelay() {
   return (
     CHAT_PREVIEW_PREFETCH_MIN_DELAY_MS +
     Math.floor(Math.random() * (CHAT_PREVIEW_PREFETCH_MAX_DELAY_MS - CHAT_PREVIEW_PREFETCH_MIN_DELAY_MS + 1))
   );
 }
 
-function markAppHidden() {
-  const now = Date.now();
-  writeLocalStorageTime(APP_LAST_HIDDEN_AT_KEY, now);
-  try {
-    localStorage.setItem(APP_WAS_BACKGROUNDED_KEY, "1");
-  } catch {}
+function getPreviewCacheKey(userId: string, type: PreviewRoomType) {
+  return `${CHAT_ROOMS_PREVIEW_CACHE_PREFIX}${userId}:${type}`;
 }
 
-function markAppVisible(source: string) {
-  const now = Date.now();
-  const lastHiddenAt = readLocalStorageTime(APP_LAST_HIDDEN_AT_KEY);
-  const wasBackgrounded = (() => {
-    try {
-      return localStorage.getItem(APP_WAS_BACKGROUNDED_KEY) === "1";
-    } catch {
-      return false;
-    }
-  })();
-  const hiddenFor = lastHiddenAt > 0 ? now - lastHiddenAt : 0;
-  const isResume = wasBackgrounded || hiddenFor >= APP_RESUME_MIN_HIDDEN_MS;
-
-  writeLocalStorageTime(APP_LAST_VISIBLE_AT_KEY, now);
-  try {
-    localStorage.setItem(APP_WAS_BACKGROUNDED_KEY, "0");
-    if (isResume) {
-      localStorage.setItem(APP_RESUME_SOURCE_KEY, source);
-      writeLocalStorageTime(APP_LAST_RESUME_AT_KEY, now);
-    }
-  } catch {}
-
-  return { isResume, hiddenFor };
+function isConversationInPreviewType(conv: Conversation, type: PreviewRoomType) {
+  if (type === "direct") return conv.type === "direct" || conv.type === "self";
+  return conv.type === type;
 }
 
-function prioritizeOneToOneConversations(convs: Conversation[]) {
-  const oneToOneConversations = convs.filter((conv) => conv.type === "self" || conv.type === "direct");
-  const otherConversations = convs.filter((conv) => conv.type !== "self" && conv.type !== "direct");
-  return [...oneToOneConversations, ...otherConversations];
+function mapMenuTabToPreviewType(tab: MessageMenuTab): PreviewRoomType | null {
+  if (tab === "messages") return "direct";
+  if (tab === "groups") return "group";
+  if (tab === "my-chat") return "class";
+  return null;
 }
 
 function getConversationsForCache(convs: Conversation[]) {
-  return prioritizeOneToOneConversations(convs).slice(0, CONVERSATIONS_LIMIT);
+  return convs.slice(0, CONVERSATIONS_LIMIT);
 }
 
 
@@ -395,11 +342,8 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
     }
   }
 
-  const cacheKey = getChatRoomsCacheKey(userId);
-  const messagesLastRoomsLoadedKey = getMessagesLastRoomsLoadedKey(userId);
   const roomPrefetchInFlightRef = useRef<Map<string, Promise<ChatRoomPayload>>>(new Map());
-  const appResumeVisitRef = useRef(false);
-  const resumeRefreshTimerRef = useRef<number | null>(null);
+  const backgroundPreviewTimersRef = useRef<number[]>([]);
 
   function mapChatMessage(item: ChatMessageApiItem): Message {
     return {
@@ -470,11 +414,11 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
     return record as Conversation;
   }
 
-  function readCachedConversations() {
+  function readPreviewCache(type: PreviewRoomType) {
     try {
-      const raw = localStorage.getItem(cacheKey) ?? localStorage.getItem(LEGACY_CHAT_ROOMS_CACHE_KEY);
+      const raw = localStorage.getItem(getPreviewCacheKey(userId, type));
       if (!raw) return null;
-      const parsed = JSON.parse(raw) as { data?: unknown } | unknown[];
+      const parsed = JSON.parse(raw) as { data?: unknown; ts?: number };
       const rows = Array.isArray(parsed)
         ? parsed
         : Array.isArray(parsed.data)
@@ -483,27 +427,41 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
       const next = rows
         .map(normalizeCachedConversation)
         .filter((item): item is Conversation => Boolean(item));
-      return next.length > 0 ? next : null;
+      if (next.length === 0) return null;
+      const ts = typeof parsed.ts === "number" ? parsed.ts : 0;
+      const expired = ts <= 0 || Date.now() - ts > CHAT_ROOMS_PREVIEW_CACHE_TTL_MS;
+      return { data: next, expired, ts };
     } catch {
       return null;
     }
   }
 
-  function writeConversationsCache(convs: Conversation[]) {
+  function writePreviewCache(type: PreviewRoomType, convs: Conversation[]) {
     try {
+      const rows = getConversationsForCache(convs.filter((conv) => isConversationInPreviewType(conv, type)));
       localStorage.setItem(
-        cacheKey,
+        getPreviewCacheKey(userId, type),
         JSON.stringify({
-          data: getConversationsForCache(convs),
+          data: rows,
           ts: Date.now(),
         })
       );
     } catch {}
   }
 
-  function hasRecentConversationsCache() {
-    const lastRoomsLoadedAt = readLocalStorageTime(messagesLastRoomsLoadedKey);
-    return lastRoomsLoadedAt > 0 && Date.now() - lastRoomsLoadedAt < MESSAGES_RECENT_REFRESH_TTL_MS;
+  function writeAllPreviewCaches(convs: Conversation[]) {
+    writePreviewCache("direct", convs);
+    writePreviewCache("group", convs);
+    writePreviewCache("class", convs);
+  }
+
+  function mergeConversationsByType(type: PreviewRoomType, incoming: Conversation[]) {
+    setConversations((prev) => {
+      const next = prev.filter((conv) => !isConversationInPreviewType(conv, type));
+      const merged = [...next, ...incoming].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+      writeAllPreviewCaches(merged);
+      return merged;
+    });
   }
 
   function patchConversationWithMessage(roomId: string, message: Message) {
@@ -527,7 +485,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
           : conv
       );
       const sorted = [...next].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
-      writeConversationsCache(sorted);
+      writeAllPreviewCaches(sorted);
       return sorted;
     });
   }
@@ -585,20 +543,6 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
     writeNoticeCache(roomId, payload.notices);
   }
 
-  async function prefetchChatRoom(roomId: string, options?: { force?: boolean }) {
-    if (!roomId) return;
-    if (!options?.force && hasChatRoomCache(roomId)) return;
-
-    try {
-      const payload = await fetchChatRoomPayload(roomId);
-      window.setTimeout(() => {
-        writeChatRoomPayloadCache(roomId, payload);
-      }, 0);
-    } catch (error) {
-      console.error("Failed to prefetch chat room:", error);
-    }
-  }
-
   function patchMessageInView(roomId: string, message: Message) {
     setMessages((prev) => {
       const existing = prev.find((item) => item.id === message.id);
@@ -650,134 +594,127 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
             }
           : conv
       );
-      writeConversationsCache(next);
+      writeAllPreviewCaches(next);
       return next;
     });
   }
 
-  async function fetchConversations(options?: { force?: boolean }) {
-    const force = options?.force ?? false;
-    if (!force) {
-      const cached = readCachedConversations();
-      if (cached) {
-        setConversations(cached);
-      }
-      setLoading(false);
+  async function fetchConversationsByType(type: PreviewRoomType, options?: { force?: boolean }) {
+    const cached = readPreviewCache(type);
+    if (!options?.force && cached && !cached.expired) {
+      mergeConversationsByType(type, cached.data);
+      return;
     }
 
     try {
-      const res = await fetch("/api/chat/rooms/preview");
+      const res = await fetch(`/api/chat/rooms/preview?type=${type}`);
       const json = await res.json();
-      if (json.data) {
-        const incomingConversations = (json.data as ChatRoomApiItem[]).map(mapChatRoom);
-        setConversations(incomingConversations);
-        writeConversationsCache(incomingConversations);
-        writeLocalStorageTime(messagesLastRoomsLoadedKey, Date.now());
-      }
+      if (!res.ok || !json.data) return;
+      const incomingConversations = (json.data as ChatRoomApiItem[]).map(mapChatRoom);
+      writePreviewCache(type, incomingConversations);
+      mergeConversationsByType(type, incomingConversations);
     } catch (error) {
-      console.error("Failed to load conversations:", error);
-    } finally {
-      setLoading(false);
+      console.error(`Failed to load ${type} conversations:`, error);
     }
   }
 
-  function clearResumeRefreshTimer() {
-    if (resumeRefreshTimerRef.current === null) return;
-    window.clearTimeout(resumeRefreshTimerRef.current);
-    resumeRefreshTimerRef.current = null;
-  }
-
-  function scheduleConversationsRefresh(delay: number, options?: { force?: boolean }) {
-    clearResumeRefreshTimer();
-    resumeRefreshTimerRef.current = window.setTimeout(() => {
-      resumeRefreshTimerRef.current = null;
-      void fetchConversations(options);
-    }, delay);
-  }
-
-  function scheduleResumeRefreshIfNeeded() {
-    if (hasRecentConversationsCache()) return;
-    scheduleConversationsRefresh(MESSAGES_RESUME_REFRESH_DELAY_MS, { force: false });
-  }
-
   useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === "hidden") {
-        markAppHidden();
-      } else {
-        const resume = markAppVisible("visibilitychange");
-        if (resume.isResume) {
-          appResumeVisitRef.current = true;
-          scheduleResumeRefreshIfNeeded();
-        }
-      }
-    };
-    const handlePageHide = () => {
-      markAppHidden();
-    };
-    const handlePageShow = (event: PageTransitionEvent) => {
-      const resume = markAppVisible(event.persisted ? "pageshow-persisted" : "pageshow");
-      if (resume.isResume) {
-        appResumeVisitRef.current = true;
-        scheduleResumeRefreshIfNeeded();
-      }
-    };
+    const cachedDirect = readPreviewCache("direct");
+    const cachedGroup = readPreviewCache("group");
+    const cachedClass = readPreviewCache("class");
+    const hydrated = [
+      ...(cachedDirect?.data ?? []),
+      ...(cachedGroup?.data ?? []),
+      ...(cachedClass?.data ?? []),
+    ];
 
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    window.addEventListener("pagehide", handlePageHide);
-    window.addEventListener("pageshow", handlePageShow);
-
-    return () => {
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-      window.removeEventListener("pagehide", handlePageHide);
-      window.removeEventListener("pageshow", handlePageShow);
-      clearResumeRefreshTimer();
-    };
-    // 복귀 이벤트에서도 화면은 그대로 두고, 목록 최신화만 뒤로 미룹니다.
+    if (hydrated.length > 0) {
+      const byId = new Map(hydrated.map((conv) => [conv.id, conv]));
+      const merged = Array.from(byId.values()).sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+      queueMicrotask(() => {
+        setConversations(merged);
+      });
+    }
+    queueMicrotask(() => {
+      setLoading(false);
+    });
+    // 캐시는 첫 렌더 이후 비동기로 반영해 effect 내부 동기 setState를 피합니다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    const resume = markAppVisible("messages-mount");
-    // v1: 로컬 목록 캐시 즉시 표시
-    const cached = readCachedConversations();
-    const isResumeWithCache = resume.isResume && Boolean(cached);
-    appResumeVisitRef.current = isResumeWithCache;
+    const previewType = mapMenuTabToPreviewType(activeMenuTab);
+    if (!previewType) return;
 
-    if (cached) {
+    const cached = readPreviewCache(previewType);
+    if (cached?.data?.length) {
       queueMicrotask(() => {
-        setConversations(cached);
+        mergeConversationsByType(previewType, cached.data);
         setLoading(false);
       });
     }
 
-    if (isResumeWithCache && hasRecentConversationsCache()) return;
-
-    if (roomIdFromQuery) {
-      scheduleConversationsRefresh(0, { force: !cached });
-      return;
+    if (!cached || cached.expired) {
+      if (!cached?.data?.length) {
+        queueMicrotask(() => {
+          setLoading(true);
+        });
+      }
+      const timer = window.setTimeout(() => {
+        void fetchConversationsByType(previewType, { force: true }).finally(() => setLoading(false));
+      }, 0);
+      return () => window.clearTimeout(timer);
     }
-
-    scheduleConversationsRefresh(getRandomChatPreviewPrefetchDelay(), { force: !cached });
-
-    return () => {
-      clearResumeRefreshTimer();
-    };
-    // 첫 진입 때는 최신 목록을 갱신하고, 복귀 때는 캐시 표시 후 갱신을 늦춥니다.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    if (activeMenuTab === "friends") return;
-    if (conversations.length > 0 && hasRecentConversationsCache()) return;
-    scheduleConversationsRefresh(0, { force: conversations.length === 0 });
-
-    return () => {
-      clearResumeRefreshTimer();
-    };
-    // 채팅 목록 탭으로 이동하면 preview 목록만 즉시 보강합니다.
+    // 탭 전환 시점에만 실행하고 내부 함수 의존성은 고정 동작으로 유지합니다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeMenuTab]);
+
+  useEffect(() => {
+    if (activeMenuTab !== "friends") return;
+
+    const directDelay = getRandomChatPreviewDelay();
+    const groupDelay = directDelay + getRandomChatPreviewDelay();
+    const classDelay = groupDelay + getRandomChatPreviewDelay();
+    const timers: number[] = [];
+
+    timers.push(
+      window.setTimeout(() => {
+        void fetchConversationsByType("direct");
+      }, directDelay)
+    );
+    timers.push(
+      window.setTimeout(() => {
+        void fetchConversationsByType("group");
+      }, groupDelay)
+    );
+    timers.push(
+      window.setTimeout(() => {
+        void fetchConversationsByType("class");
+      }, classDelay)
+    );
+    backgroundPreviewTimersRef.current = timers;
+
+    return () => {
+      backgroundPreviewTimersRef.current.forEach((timer) => window.clearTimeout(timer));
+      backgroundPreviewTimersRef.current = [];
+    };
+    // 친구 탭에서만 순차 백그라운드 캐싱을 실행합니다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeMenuTab]);
+
+  useEffect(() => {
+    if (!roomIdFromQuery) return;
+    const timer = window.setTimeout(() => {
+      void Promise.allSettled([
+        fetchConversationsByType("direct", { force: true }),
+        fetchConversationsByType("group", { force: true }),
+        fetchConversationsByType("class", { force: true }),
+      ]);
+    }, 0);
+    return () => window.clearTimeout(timer);
+    // roomId 딥링크는 목록 확보를 위해 마운트 후 비동기로 동기화합니다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roomIdFromQuery]);
 
   useEffect(() => {
     queueMicrotask(() => {
@@ -953,7 +890,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
       const next = prev.map((conv) =>
         conv.id === roomId ? { ...conv, unread_count: 0 } : conv
       );
-      writeConversationsCache(next);
+      writeAllPreviewCaches(next);
       return next;
     });
 
@@ -1121,7 +1058,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
 
   async function handleFriendMessageSent(roomId: string) {
     setActiveMenuTab("messages");
-    await fetchConversations({ force: true });
+    await fetchConversationsByType("direct", { force: true });
     queueMicrotask(() => {
       void openChat(roomId);
     });
@@ -1138,9 +1075,6 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
         onOpenChat={openChat}
         onOpenProfile={(profileId) => router.push(`/users/${profileId}/view`)}
         onOpenSelfChat={() => { void openSelfChat(); }}
-        onPrefetchChat={(roomId) => {
-          void prefetchChatRoom(roomId);
-        }}
         onFriendMessageSent={(roomId) => {
           void handleFriendMessageSent(roomId);
         }}
