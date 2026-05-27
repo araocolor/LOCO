@@ -41,7 +41,7 @@ export default function ProfileModal({
       <div className="fixed inset-0 z-[70] bg-black/50" onClick={onClose} />
       <div className="fixed inset-0 z-[80] flex items-center justify-center pointer-events-none">
         <div className="relative w-[250px] bg-white rounded-2xl shadow-lg p-6 pointer-events-auto flex flex-col items-center gap-2">
-          {(activeTab === "friends" || activeTab === "members") && (
+          {activeTab === "members" && (
             <button
               type="button"
               className="absolute top-3 right-3 rounded-full p-1 text-gray-500 hover:bg-gray-100"

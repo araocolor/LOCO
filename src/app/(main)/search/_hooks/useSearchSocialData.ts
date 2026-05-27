@@ -77,7 +77,7 @@ export function useSearchSocialData(activeTab: Tab) {
   useEffect(() => {
     const hasCache = hasSocialCache();
     queueMicrotask(() => loadFromCache());
-    if (activeTab === "friends" && hasCache) return;
+    if (activeTab === "finder" && hasCache) return;
     fetchFollowersAndFollowing();
   }, [activeTab, hasSocialCache, loadFromCache, fetchFollowersAndFollowing]);
 

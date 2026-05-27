@@ -243,7 +243,7 @@ export function useSearchMembersData(activeTab: Tab) {
   );
 
   useEffect(() => {
-    const shouldBootstrap = activeTab === "members" || activeTab === "friends";
+    const shouldBootstrap = activeTab === "members" || activeTab === "finder";
     if (!shouldBootstrap || membersBootstrappedRef.current) return;
     membersBootstrappedRef.current = true;
 

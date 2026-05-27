@@ -5,10 +5,9 @@ type Tab = "friends" | "members" | "followings" | "pending" | "finder";
 interface SearchHeaderProps {
   activeTab: Tab;
   onTabChange: (tab: Tab) => void;
-  myRegionLabel?: string;
 }
 
-export default function SearchHeader({ activeTab, onTabChange, myRegionLabel = "내지역" }: SearchHeaderProps) {
+export default function SearchHeader({ activeTab, onTabChange }: SearchHeaderProps) {
   return (
     <header className="sticky top-0 z-50 bg-white border-b border-[#e5e7eb]">
       <div className="h-14 px-4 flex items-center justify-center">
@@ -24,16 +23,7 @@ export default function SearchHeader({ activeTab, onTabChange, myRegionLabel = "
         >
           댄서들
         </button>
-        <button
-          onClick={() => onTabChange("friends")}
-          className={`pb-2 font-bold transition-colors ${
-            activeTab === "friends" ? "text-black" : "text-gray-400"
-          }`}
-          style={{ fontSize: activeTab === "friends" ? 18 : 17 }}
-        >
-          {myRegionLabel}
-        </button>
-        <button
+<button
           onClick={() => onTabChange("followings")}
           className={`pb-2 font-bold transition-colors ${
             activeTab === "followings" ? "text-black" : "text-gray-400"

@@ -7,7 +7,6 @@ import SendMessageModal from "@/components/modal/SendMessageModal";
 import { PRESENCE_EVENT } from "@/components/features/PresenceTracker";
 import FinderSection from "./FinderSection";
 import { CheckModal } from "./SearchBadges";
-import FriendsSection from "./FriendsSection";
 import ManagementPanel from "./ManagementPanel";
 import MembersSection from "./MembersSection";
 import ProfileModal from "./ProfileModal";
@@ -68,22 +67,19 @@ export default function SearchPage() {
     activeTab,
     visibleMembers: membersData.visibleMembers,
   });
-  const { setFriendListMode, setFriendViewMode, setSocialListMode } = socialData;
+  const { setFriendListMode, setSocialListMode } = socialData;
   const { setMemberViewMode } = membersData;
 
   const handleTabChange = useCallback((tab: Tab) => {
     replaceSearchTab(tab);
     setFriendListMode("following");
-    if (tab === "friends") {
-      setFriendViewMode("grid");
-    }
-    if (tab === "members") {
+if (tab === "members") {
       setMemberViewMode("grid");
     }
     if (tab === "followings") {
       setSocialListMode("mySubscribers");
     }
-  }, [setFriendListMode, setFriendViewMode, setMemberViewMode, setSocialListMode]);
+  }, [setFriendListMode, setMemberViewMode, setSocialListMode]);
 
   useEffect(() => {
     navigator.geolocation?.getCurrentPosition(() => {}, () => {});
@@ -121,7 +117,7 @@ export default function SearchPage() {
 
   return (
     <>
-      <SearchHeader activeTab={activeTab} onTabChange={handleTabChange} myRegionLabel="친구들" />
+      <SearchHeader activeTab={activeTab} onTabChange={handleTabChange} />
 
       {activeTab === "followings" && (
         <SocialSection
@@ -172,31 +168,7 @@ export default function SearchPage() {
         />
       )}
 
-      {activeTab === "friends" && (
-        <FriendsSection
-          suggestionsLoading={friendActions.suggestionsLoading}
-          suggestions={friendActions.suggestions}
-          addedIds={friendActions.addedIds}
-          onAddFriend={friendActions.handleAddFriend}
-          onViewProfile={(id) => router.push(`/users/${id}/view`)}
-          friendListMode={socialData.friendListMode}
-          setFriendListMode={socialData.setFriendListMode}
-          onResortFriendMembers={socialData.resortFriendMembers}
-          followingCount={socialData.following.length}
-          friendViewMode={socialData.friendViewMode}
-          setFriendViewMode={socialData.setFriendViewMode}
-          friendSearch={socialData.friendSearch}
-          setFriendSearch={socialData.setFriendSearch}
-          visibleFriendMembers={socialData.visibleFriendMembers}
-          followerById={socialData.followerById}
-          onlineIds={onlineIds}
-          closingProfileMemberId={profileModal.closingProfileMemberId}
-          onOpenProfile={profileModal.openFriendProfile}
-          onOpenMenu={menuActions.openUserMenu}
-        />
-      )}
-
-      {activeTab === "pending" && (
+{activeTab === "pending" && (
         <div className="px-4 pt-4 bg-white">
           {managementPanel}
         </div>
