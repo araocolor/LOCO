@@ -84,10 +84,12 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
     return () => window.removeEventListener("close-search-sheet", handleSearchClose);
   }, []);
 
-  const fetchHomeMyClasses = useCallback(async (uid: string) => {
-    setMyClassesLoading(true);
-    setParticipatingClassesLoading(true);
-    setRegionalClassesLoading(true);
+  const fetchHomeMyClasses = useCallback(async (uid: string, silent?: boolean) => {
+    if (!silent) {
+      setMyClassesLoading(true);
+      setParticipatingClassesLoading(true);
+      setRegionalClassesLoading(true);
+    }
     try {
       const res = await fetch("/api/home/my-classes");
       if (!res.ok) return;
@@ -121,11 +123,12 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
       cachedPayload = null;
     }
 
+    const hasCached = cachedPayload?.profile?.id === userId;
     queueMicrotask(() => {
-      if (cachedPayload?.profile?.id === userId) {
+      if (hasCached) {
         applyHomeMyClassesPayload(cachedPayload);
       }
-      void fetchHomeMyClasses(userId);
+      void fetchHomeMyClasses(userId, hasCached);
     });
   }, [userId, fetchHomeMyClasses, applyHomeMyClassesPayload]);
 

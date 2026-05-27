@@ -8,8 +8,6 @@ const MYPAGE_CACHE_KEY = "loco_mypage_cache_local_v2";
 const SEARCH_CACHE_KEY = "search_prefetch_cache";
 const SUGGESTIONS_KEY = "search_suggestions_cache";
 const SEARCH_CACHE_TTL_MS = 3 * 60 * 1000;
-const MAIN_SOCIAL_PREFETCH_MIN_DELAY_MS = 1000;
-const MAIN_SOCIAL_PREFETCH_MAX_DELAY_MS = 5000;
 
 function hasFreshSearchCache() {
   try {
@@ -20,13 +18,6 @@ function hasFreshSearchCache() {
   } catch {
     return false;
   }
-}
-
-function getRandomMainSocialPrefetchDelay() {
-  return (
-    MAIN_SOCIAL_PREFETCH_MIN_DELAY_MS +
-    Math.floor(Math.random() * (MAIN_SOCIAL_PREFETCH_MAX_DELAY_MS - MAIN_SOCIAL_PREFETCH_MIN_DELAY_MS + 1))
-  );
 }
 
 async function prefetchMyPage() {
@@ -116,13 +107,7 @@ export default function AppPrefetcher({ userId }: { userId: string | null }) {
 
   useEffect(() => {
     if (pathname !== "/" || !userId || hasFreshSearchCache()) return;
-
-    const timer = window.setTimeout(() => {
-      if (document.visibilityState !== "visible" || hasFreshSearchCache()) return;
-      void prefetchSearchSocial();
-    }, getRandomMainSocialPrefetchDelay());
-
-    return () => window.clearTimeout(timer);
+    void prefetchSearchSocial();
   }, [userId, pathname]);
 
   return null;

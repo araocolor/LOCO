@@ -83,17 +83,8 @@ const ALLOWED_VIDEO_TYPES = new Set(["video/mp4", "video/quicktime", "video/webm
 const CHAT_ROOMS_PREVIEW_CACHE_PREFIX = "loco_chat_rooms_preview_cache_v1:";
 const CHAT_ROOMS_PREVIEW_CACHE_TTL_MS = 60 * 1000;
 const CONVERSATIONS_LIMIT = 50;
-const CHAT_PREVIEW_PREFETCH_MIN_DELAY_MS = 2000;
-const CHAT_PREVIEW_PREFETCH_MAX_DELAY_MS = 5000;
 
 type PreviewRoomType = "direct" | "group" | "class";
-
-function getRandomChatPreviewDelay() {
-  return (
-    CHAT_PREVIEW_PREFETCH_MIN_DELAY_MS +
-    Math.floor(Math.random() * (CHAT_PREVIEW_PREFETCH_MAX_DELAY_MS - CHAT_PREVIEW_PREFETCH_MIN_DELAY_MS + 1))
-  );
-}
 
 function getPreviewCacheKey(userId: string, type: PreviewRoomType) {
   return `${CHAT_ROOMS_PREVIEW_CACHE_PREFIX}${userId}:${type}`;
@@ -343,7 +334,6 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
   }
 
   const roomPrefetchInFlightRef = useRef<Map<string, Promise<ChatRoomPayload>>>(new Map());
-  const backgroundPreviewTimersRef = useRef<number[]>([]);
 
   function mapChatMessage(item: ChatMessageApiItem): Message {
     return {
@@ -672,33 +662,9 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
   useEffect(() => {
     if (activeMenuTab !== "friends") return;
 
-    const directDelay = getRandomChatPreviewDelay();
-    const groupDelay = directDelay + getRandomChatPreviewDelay();
-    const classDelay = groupDelay + getRandomChatPreviewDelay();
-    const timers: number[] = [];
-
-    timers.push(
-      window.setTimeout(() => {
-        void fetchConversationsByType("direct");
-      }, directDelay)
-    );
-    timers.push(
-      window.setTimeout(() => {
-        void fetchConversationsByType("group");
-      }, groupDelay)
-    );
-    timers.push(
-      window.setTimeout(() => {
-        void fetchConversationsByType("class");
-      }, classDelay)
-    );
-    backgroundPreviewTimersRef.current = timers;
-
-    return () => {
-      backgroundPreviewTimersRef.current.forEach((timer) => window.clearTimeout(timer));
-      backgroundPreviewTimersRef.current = [];
-    };
-    // 친구 탭에서만 순차 백그라운드 캐싱을 실행합니다.
+    void fetchConversationsByType("direct");
+    void fetchConversationsByType("group");
+    void fetchConversationsByType("class");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeMenuTab]);
 
@@ -1056,12 +1022,8 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
     }
   }
 
-  async function handleFriendMessageSent(roomId: string) {
-    setActiveMenuTab("messages");
+  async function handleFriendMessageSent(_roomId: string) {
     await fetchConversationsByType("direct", { force: true });
-    queueMicrotask(() => {
-      void openChat(roomId);
-    });
   }
 
   return (

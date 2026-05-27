@@ -345,7 +345,7 @@ export default function NearbyMap({ soundEnabled = true, onRefreshControlChange 
       osc.frequency.exponentialRampToValueAtTime(980, now + 2.0);
 
       gain.gain.setValueAtTime(0.0, now);
-      gain.gain.linearRampToValueAtTime(0.12, now + 0.01);
+      gain.gain.linearRampToValueAtTime(0.036, now + 0.01);
       gain.gain.exponentialRampToValueAtTime(0.001, now + 2.0);
 
       osc.start(now);
