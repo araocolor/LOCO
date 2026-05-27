@@ -152,7 +152,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [onlineIds, setOnlineIds] = useState<Set<string>>(new Set());
-  const [activeMenuTab, setActiveMenuTab] = useState<MessageMenuTab>("messages");
+  const [activeMenuTab, setActiveMenuTab] = useState<MessageMenuTab>("friends");
 
   // 대화창 상태
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);

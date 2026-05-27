@@ -9,6 +9,7 @@ export interface Follower {
   bio?: string | null;
   country: string | null;
   region: string | null;
+  last_active_at?: string | null;
   gender?: "로" | "라" | null;
   member_type?: string[];
   role?: "member" | "pro" | "admin";
@@ -57,6 +58,7 @@ export interface PendingMember {
   profile_image_url: string | null;
   country: string | null;
   region: string | null;
+  last_active_at?: string | null;
   state: "hidden" | "blocked" | "black";
   updated_at: string;
 }

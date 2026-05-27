@@ -12,7 +12,11 @@ interface UseProfileModalParams {
 
 export function useProfileModal({ activeTab, visibleMembers }: UseProfileModalParams) {
   const [profileModal, setProfileModal] = useState<Follower | null>(null);
-  const [profileModalData, setProfileModalData] = useState<{ bio: string | null; member_type: string[] } | null>(null);
+  const [profileModalData, setProfileModalData] = useState<{
+    bio: string | null;
+    member_type: string[];
+    last_active_at: string | null;
+  } | null>(null);
   const [closingProfileMemberId, setClosingProfileMemberId] = useState<string | null>(null);
 
   function readProfileSummaryCache(memberId: string) {
@@ -20,7 +24,13 @@ export function useProfileModal({ activeTab, visibleMembers }: UseProfileModalPa
     if (cached) {
       try {
         const json = JSON.parse(cached);
-        setProfileModalData({ bio: json.profile?.bio ?? null, member_type: json.profile?.member_type ?? [] });
+        const hasLastActiveAt = !!json.profile && Object.prototype.hasOwnProperty.call(json.profile, "last_active_at");
+        setProfileModalData({
+          bio: json.profile?.bio ?? null,
+          member_type: json.profile?.member_type ?? [],
+          last_active_at: json.profile?.last_active_at ?? null,
+        });
+        if (!hasLastActiveAt) return false;
       } catch {}
       return true;
     }
@@ -33,7 +43,11 @@ export function useProfileModal({ activeTab, visibleMembers }: UseProfileModalPa
       .then((res) => res.json())
       .then((json) => {
         sessionStorage.setItem(`user_view_${memberId}`, JSON.stringify(json));
-        setProfileModalData({ bio: json.profile?.bio ?? null, member_type: json.profile?.member_type ?? [] });
+        setProfileModalData({
+          bio: json.profile?.bio ?? null,
+          member_type: json.profile?.member_type ?? [],
+          last_active_at: json.profile?.last_active_at ?? null,
+        });
       })
       .catch(() => {});
   }
@@ -50,6 +64,7 @@ export function useProfileModal({ activeTab, visibleMembers }: UseProfileModalPa
       profile_image_url: member.profile_image_url,
       country: member.country,
       region: member.region,
+      last_active_at: member.last_active_at,
     });
     loadProfileSummary(member.id);
   }
@@ -63,7 +78,11 @@ export function useProfileModal({ activeTab, visibleMembers }: UseProfileModalPa
     setProfileModal(member);
     if (readProfileSummaryCache(member.id)) return;
 
-    setProfileModalData({ bio: member.bio ?? null, member_type: member.member_type ?? [] });
+    setProfileModalData({
+      bio: member.bio ?? null,
+      member_type: member.member_type ?? [],
+      last_active_at: member.last_active_at ?? null,
+    });
     writeProfilePreviewCache(member);
   }
 

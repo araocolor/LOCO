@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Image from "next/image";
+import { playSound } from "@/lib/sound";
 
 interface SendMessageModalProps {
   isOpen: boolean;
@@ -65,6 +66,7 @@ export default function SendMessageModal({ isOpen, onClose, onSent, receiver }: 
         return;
       }
 
+      playSound("message-send");
       clearChatRoomsCaches();
       setSuccess(true);
       setContent("");

@@ -9,6 +9,7 @@ interface PendingMember {
   profile_image_url: string | null;
   country: string | null;
   region: string | null;
+  last_active_at: string | null;
   state: PendingState;
   updated_at: string;
 }
@@ -32,12 +33,18 @@ export async function GET() {
     if (stateError) throw stateError;
 
     const targetIds = (stateRows ?? []).map((row) => row.target_id);
-    let profileMap = new Map<string, { nickname: string; profile_image_url: string | null; country: string | null; region: string | null }>();
+    let profileMap = new Map<string, {
+      nickname: string;
+      profile_image_url: string | null;
+      country: string | null;
+      region: string | null;
+      last_active_at: string | null;
+    }>();
 
     if (targetIds.length > 0) {
       const { data: profiles, error: profileError } = await supabase
         .from("profiles")
-        .select("id, nickname, profile_image_url, country, region")
+        .select("id, nickname, profile_image_url, country, region, last_active_at")
         .in("id", targetIds);
       if (profileError) throw profileError;
 
@@ -49,6 +56,7 @@ export async function GET() {
             profile_image_url: p.profile_image_url ?? null,
             country: p.country ?? null,
             region: p.region ?? null,
+            last_active_at: p.last_active_at ?? null,
           },
         ])
       );
@@ -69,6 +77,7 @@ export async function GET() {
           profile_image_url: p?.profile_image_url ?? null,
           country: p?.country ?? null,
           region: p?.region ?? null,
+          last_active_at: p?.last_active_at ?? null,
           state: row.state as PendingState,
           updated_at: row.updated_at ?? new Date(0).toISOString(),
         };

@@ -13,7 +13,7 @@ import { SEARCH_DEFAULTS_STORAGE_KEY, type SearchOptions } from "@/lib/search-de
 
 const HOME_MY_CLASSES_CACHE_KEY = "loco_home_my_classes_v1";
 
-type MainTab = "salsaClasses" | "bachataClasses" | "eventClasses" | "mySubscriptions";
+type MainTab = "allClasses" | "mySubscriptions";
 
 interface MainTabbedHomePageProps {
   initialClasses: ClassWithHost[];
@@ -190,31 +190,13 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
             내클래스
           </button>
           <button
-            onClick={() => setActiveTab("salsaClasses")}
+            onClick={() => setActiveTab("allClasses")}
             className={`pb-2 font-bold transition-colors ${
-              activeTab === "salsaClasses" ? "text-black" : "text-gray-400"
+              activeTab === "allClasses" ? "text-black" : "text-gray-400"
             }`}
-            style={{ fontSize: activeTab === "salsaClasses" ? 18 : 17 }}
+            style={{ fontSize: activeTab === "allClasses" ? 18 : 17 }}
           >
-            살사
-          </button>
-          <button
-            onClick={() => setActiveTab("bachataClasses")}
-            className={`pb-2 font-bold transition-colors ${
-              activeTab === "bachataClasses" ? "text-black" : "text-gray-400"
-            }`}
-            style={{ fontSize: activeTab === "bachataClasses" ? 18 : 17 }}
-          >
-            바차타
-          </button>
-          <button
-            onClick={() => setActiveTab("eventClasses")}
-            className={`pb-2 font-bold transition-colors ${
-              activeTab === "eventClasses" ? "text-black" : "text-gray-400"
-            }`}
-            style={{ fontSize: activeTab === "eventClasses" ? 18 : 17 }}
-          >
-            이벤트
+            올클래스
           </button>
           <button type="button" aria-label="목록 보기" className="ml-auto pb-2 text-gray-400">
             <LayoutList size={18} strokeWidth={1.9} />
@@ -222,14 +204,8 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
         </div>
       </header>
 
-      {activeTab === "salsaClasses" && (
-        <HomeSearchResultsPage initialClasses={initialClasses} genreOverride={["salsa"]} onClassSelect={(id) => setClassDetailId(id)} />
-      )}
-      {activeTab === "bachataClasses" && (
-        <HomeSearchResultsPage genreOverride={["bachata"]} onClassSelect={(id) => setClassDetailId(id)} />
-      )}
-      {activeTab === "eventClasses" && (
-        <HomeSearchResultsPage classTypeOverride={["festival", "party", "etc"]} onClassSelect={(id) => setClassDetailId(id)} />
+      {activeTab === "allClasses" && (
+        <HomeSearchResultsPage initialClasses={initialClasses} onClassSelect={(id) => setClassDetailId(id)} />
       )}
       {activeTab === "mySubscriptions" && (
         <MyClassesTab

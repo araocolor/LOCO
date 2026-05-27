@@ -24,7 +24,8 @@ CREATE TABLE profiles (
   kakao_id          TEXT        UNIQUE,
   bio               TEXT,
   region            TEXT,
-  created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  last_active_at    TIMESTAMPTZ
 );
 
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;

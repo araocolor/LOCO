@@ -3,12 +3,12 @@
 import { Ellipsis } from "lucide-react";
 import Avatar from "@/components/ui/Avatar";
 import type { Follower, MenuRelation, MenuTarget, Tab } from "../_types/search";
-import { formatLocation, getMemberTypeLabel } from "../_lib/search-utils";
+import { formatLocation, formatRecentActiveTime, getMemberTypeLabel } from "../_lib/search-utils";
 
 interface ProfileModalProps {
   activeTab: Tab;
   profileModal: Follower;
-  profileModalData: { bio: string | null; member_type: string[] } | null;
+  profileModalData: { bio: string | null; member_type: string[]; last_active_at: string | null } | null;
   onClose: () => void;
   onSetMenuTarget: (target: MenuTarget) => void;
   getMenuRelation: (id: string) => MenuRelation;
@@ -32,6 +32,10 @@ export default function ProfileModal({
   onViewProfile,
   hideViewProfileButton = false,
 }: ProfileModalProps) {
+  const locationText = formatLocation(profileModal.country, profileModal.region);
+  const activeTimeText = formatRecentActiveTime(profileModal.last_active_at ?? profileModalData?.last_active_at ?? null);
+  const profileMetaText = [locationText, activeTimeText].filter(Boolean).join(", ");
+
   return (
     <>
       <div className="fixed inset-0 z-[70] bg-black/50" onClick={onClose} />
@@ -69,9 +73,9 @@ export default function ProfileModal({
             <p className="font-bold text-gray-900 truncate" style={{ fontSize: 16 }}>
               {profileModal.nickname}
             </p>
-            {formatLocation(profileModal.country, profileModal.region) && (
+            {profileMetaText && (
               <p className="text-xs text-gray-400 mt-0.5">
-                {formatLocation(profileModal.country, profileModal.region)}
+                {profileMetaText}
               </p>
             )}
             {profileModalData?.member_type?.[0] && (

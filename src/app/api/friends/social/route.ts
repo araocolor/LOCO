@@ -22,14 +22,14 @@ export async function GET() {
       supabase
         .from("friendships")
         .select(
-          "friend_id, status, created_at, updated_at, profiles!friendships_friend_id_fkey(id, nickname, profile_image_url, country, region, member_type, role)"
+          "friend_id, status, created_at, updated_at, profiles!friendships_friend_id_fkey(id, nickname, profile_image_url, country, region, last_active_at, member_type, role)"
         )
         .eq("user_id", user.id)
         .in("status", ["approved", "friend"]),
       supabase
         .from("friendships")
         .select(
-          "user_id, status, created_at, updated_at, profiles!friendships_user_id_fkey(id, nickname, profile_image_url, country, region, member_type, role)"
+          "user_id, status, created_at, updated_at, profiles!friendships_user_id_fkey(id, nickname, profile_image_url, country, region, last_active_at, member_type, role)"
         )
         .eq("friend_id", user.id)
         .in("status", ["approved", "friend"]),
@@ -43,7 +43,7 @@ export async function GET() {
         .eq("owner_id", user.id),
       supabase
         .from("user_subscriptions")
-        .select("owner_id, profiles!user_subscriptions_owner_id_fkey(id, nickname, profile_image_url, country, region, member_type, role)")
+        .select("owner_id, profiles!user_subscriptions_owner_id_fkey(id, nickname, profile_image_url, country, region, last_active_at, member_type, role)")
         .eq("target_id", user.id),
     ]);
 
@@ -77,6 +77,7 @@ export async function GET() {
           profile_image_url: p?.profile_image_url ?? null,
           country: p?.country ?? null,
           region: p?.region ?? null,
+          last_active_at: p?.last_active_at ?? null,
           member_type: p?.member_type ?? [],
           role: p?.role ?? "member",
           status: row.status,
@@ -98,6 +99,7 @@ export async function GET() {
           profile_image_url: p?.profile_image_url ?? null,
           country: p?.country ?? null,
           region: p?.region ?? null,
+          last_active_at: p?.last_active_at ?? null,
           member_type: p?.member_type ?? [],
           role: p?.role ?? "member",
           status: row.status,
@@ -119,6 +121,7 @@ export async function GET() {
           profile_image_url: p?.profile_image_url ?? null,
           country: p?.country ?? null,
           region: p?.region ?? null,
+          last_active_at: p?.last_active_at ?? null,
           member_type: p?.member_type ?? [],
           role: p?.role ?? "member",
           is_subscribed: subscribedIds.has(p?.id ?? row.owner_id),

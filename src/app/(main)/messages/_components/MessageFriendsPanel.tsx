@@ -13,7 +13,7 @@ import { useProfileModal } from "../../search/_hooks/useProfileModal";
 import { useSearchSocialData } from "../../search/_hooks/useSearchSocialData";
 import { useUserMenuActions } from "../../search/_hooks/useUserMenuActions";
 import type { DancerMember, Follower, Suggestion } from "../../search/_types/search";
-import { formatLocation } from "../../search/_lib/search-utils";
+import { formatLocation, getAvatarFloatStyle } from "../../search/_lib/search-utils";
 
 interface MessageFriendsPanelProps {
   onlineIds: Set<string>;
@@ -200,6 +200,68 @@ export default function MessageFriendsPanel({ onlineIds, onMessageSent }: Messag
 
   return (
     <div className="bg-white px-4 pb-6">
+      <section className="-mx-4 py-3 h-[120px] bg-gray-100">
+        {friendActions.suggestionsLoading ? (
+          <div className="flex gap-7 overflow-x-auto pb-1 pt-3 scrollbar-hide">
+            {Array.from({ length: 8 }).map((_, index) => (
+              <div key={index} className="flex flex-col items-center gap-1 flex-shrink-0">
+                <div className="w-[60px] h-[60px] rounded-full bg-gray-200 animate-pulse" />
+                <div className="w-10 h-3 rounded bg-gray-200 animate-pulse mt-1" />
+              </div>
+            ))}
+          </div>
+        ) : suggestions.length === 0 ? (
+          <div className="flex items-center justify-center py-3">
+            <p className="text-gray-400 animate-blacklist-avatar" style={{ fontSize: 16 }}>친구추천 목록 없음</p>
+          </div>
+        ) : (
+          <div
+            className="overflow-x-auto scrollbar-hide pt-3 pb-1"
+            style={{ WebkitOverflowScrolling: "touch", touchAction: "pan-x" }}
+          >
+            <div className="flex gap-7 w-max">
+              {suggestions.map((suggestion) => (
+                <div key={suggestion.id} className="flex flex-col items-center gap-1 flex-shrink-0">
+                  <div className="relative" style={{ width: 60, height: 60 }}>
+                    <div className="relative animate-blacklist-avatar" style={getAvatarFloatStyle(suggestion.id)}>
+                      <button onClick={() => friendActions.handleAddFriend(suggestion.id)}>
+                        <Avatar
+                          src={suggestion.profile_image_url}
+                          nickname={suggestion.nickname}
+                          size={60}
+                          className="bg-black"
+                        />
+                      </button>
+                      <button
+                        onClick={() => friendActions.handleAddFriend(suggestion.id)}
+                        className={`absolute -top-0.5 -right-0.5 w-6 h-6 rounded-full flex items-center justify-center ${
+                          friendActions.addedIds.has(suggestion.id)
+                            ? "bg-gray-400 cursor-default"
+                            : "bg-yellow-300"
+                        }`}
+                      >
+                        {friendActions.addedIds.has(suggestion.id)
+                          ? <Check size={11} className="text-white" strokeWidth={3} />
+                          : <Plus size={15} className="text-black" strokeWidth={3.5} />
+                        }
+                      </button>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => profileModal.openFriendProfile(suggestionToFollower(suggestion))}
+                    className="max-w-[62px] text-center font-bold text-gray-900 truncate"
+                    style={{ fontSize: 14 }}
+                  >
+                    {suggestion.nickname}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </section>
+
       <section className="pt-3">
         <div className="relative mb-3 flex items-center">
           <div className="flex items-center gap-1 text-gray-900">
@@ -276,52 +338,6 @@ export default function MessageFriendsPanel({ onlineIds, onMessageSent }: Messag
                 onOpenMenu={menuActions.openUserMenu}
               />
             ))}
-          </div>
-        )}
-      </section>
-
-      <section className="pt-5">
-        <h2 className="mb-1 text-[16px] font-bold text-gray-900">친구추천</h2>
-        {friendActions.suggestionsLoading ? (
-          <div className="flex flex-col">
-            {Array.from({ length: 5 }).map((_, index) => (
-              <div key={index} className="flex items-center gap-3 border-b border-gray-50 py-3">
-                <div className="h-11 w-11 rounded-full bg-gray-200 animate-pulse" />
-                <div className="flex-1">
-                  <div className="h-4 w-24 rounded bg-gray-200 animate-pulse" />
-                  <div className="mt-2 h-3 w-16 rounded bg-gray-100 animate-pulse" />
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : suggestions.length === 0 ? (
-          <p className="py-5 text-sm text-gray-400">친구추천 목록이 없습니다</p>
-        ) : (
-          <div className="flex flex-col">
-            {suggestions.map((suggestion) => {
-              const member = suggestionToFollower(suggestion);
-              return (
-                <FriendRow
-                  key={suggestion.id}
-                  member={member}
-                  onlineIds={onlineIds}
-                  onOpenProfile={profileModal.openFriendProfile}
-                  action={
-                    <button
-                      type="button"
-                      onClick={() => friendActions.handleAddFriend(suggestion.id)}
-                      disabled={friendActions.addedIds.has(suggestion.id)}
-                      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
-                        friendActions.addedIds.has(suggestion.id) ? "bg-gray-300 text-white" : "bg-yellow-300 text-gray-900"
-                      }`}
-                      aria-label={`${suggestion.nickname} 친구추가`}
-                    >
-                      {friendActions.addedIds.has(suggestion.id) ? <Check size={14} strokeWidth={3} /> : <Plus size={17} strokeWidth={3} />}
-                    </button>
-                  }
-                />
-              );
-            })}
           </div>
         )}
       </section>

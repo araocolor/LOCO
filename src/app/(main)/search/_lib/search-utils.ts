@@ -126,6 +126,31 @@ export function formatLocation(country: string | null | undefined, region: strin
   return [normalizedCountry, normalizedRegion].filter(Boolean).join(", ");
 }
 
+export function formatRecentActiveTime(lastActiveAt: string | null | undefined, nowMs: number = Date.now()) {
+  if (!lastActiveAt) return null;
+
+  const activeMs = new Date(lastActiveAt).getTime();
+  if (Number.isNaN(activeMs)) return null;
+
+  const diffMs = Math.max(0, nowMs - activeMs);
+  const diffMinutes = Math.floor(diffMs / (60 * 1000));
+  if (diffMinutes < 60) {
+    return `${Math.max(1, diffMinutes)}분`;
+  }
+
+  const diffHours = Math.floor(diffMs / (60 * 60 * 1000));
+  if (diffHours < 24) {
+    return `${diffHours}시간`;
+  }
+
+  const diffDays = Math.floor(diffMs / (24 * 60 * 60 * 1000));
+  if (diffDays < 30) {
+    return `${diffDays}일`;
+  }
+
+  return `${Math.floor(diffDays / 30)}개월`;
+}
+
 export function writeProfilePreviewCache(member: Follower) {
   try {
     sessionStorage.setItem(
@@ -137,6 +162,7 @@ export function writeProfilePreviewCache(member: Follower) {
           nickname: member.nickname,
           bio: member.bio ?? null,
           country: member.country ?? null,
+          last_active_at: member.last_active_at ?? null,
           member_type: member.member_type ?? [],
           profile_image_url: member.profile_image_url ?? null,
           region: member.region ?? null,
