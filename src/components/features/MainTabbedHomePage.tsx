@@ -125,7 +125,7 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
 
     const hasCached = cachedPayload?.profile?.id === userId;
     queueMicrotask(() => {
-      if (hasCached) {
+      if (hasCached && cachedPayload) {
         applyHomeMyClassesPayload(cachedPayload);
       }
       void fetchHomeMyClasses(userId, hasCached);
