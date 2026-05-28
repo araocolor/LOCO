@@ -419,7 +419,7 @@ export default function MyPageClient({
             <div className="w-1/2 flex justify-end">
               <div className="grid grid-cols-3 w-full max-w-[250px] text-center">
                 <Link
-                  href="/search?tab=friends"
+                  href="/?tab=search&section=friends"
                   className="flex flex-col items-center gap-0.5"
                 >
                   <HeartHandshake size={25} className="text-gray-500" />
@@ -436,7 +436,7 @@ export default function MyPageClient({
                   <span className="text-[18px] font-bold text-gray-900 leading-tight">{receivedStarCount}</span>
                 </button>
                 <Link
-                  href="/search?tab=followings"
+                  href="/?tab=search&section=followings"
                   className="flex flex-col items-center gap-0.5"
                 >
                   <SmilePlus size={25} className="text-gray-500" />

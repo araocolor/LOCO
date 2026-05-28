@@ -1,12 +1,17 @@
 "use client";
-import { useEffect, useState } from "react";
-import Link from "next/link";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { usePathname } from "next/navigation";
 import { useScrollChromeVisibility } from "@/hooks/useScrollChromeVisibility";
+import { type MainTabId, getMainTab, subscribeMainTab, replaceMainTab } from "@/lib/main-tab";
 
-const NAV_ITEMS = [
+const NAV_ITEMS: {
+  tabId: MainTabId;
+  label: string;
+  activeColor: string;
+  renderIcon: (isActive: boolean) => React.ReactNode;
+}[] = [
   {
-    href: "/",
+    tabId: "home",
     label: "home",
     activeColor: "#E84040",
     renderIcon: (isActive: boolean) => (
@@ -17,7 +22,7 @@ const NAV_ITEMS = [
     ),
   },
   {
-    href: "/messages",
+    tabId: "messages",
     label: "message",
     activeColor: "#E84040",
     renderIcon: (isActive: boolean) => (
@@ -28,7 +33,7 @@ const NAV_ITEMS = [
     ),
   },
   {
-    href: "/search",
+    tabId: "search",
     label: "Search",
     activeColor: "#E84040",
     renderIcon: (isActive: boolean) => (
@@ -41,7 +46,7 @@ const NAV_ITEMS = [
     ),
   },
   {
-    href: "/mypage",
+    tabId: "mypage",
     label: "My",
     activeColor: "#E84040",
     renderIcon: (isActive: boolean) => (
@@ -58,6 +63,7 @@ export default function BottomNav() {
   const [hydrated, setHydrated] = useState(false);
   const shouldAutoHide = false;
   const isChromeVisible = useScrollChromeVisibility(shouldAutoHide);
+  const activeTab = useSyncExternalStore(subscribeMainTab, getMainTab, () => "home" as const);
 
   useEffect(() => {
     queueMicrotask(() => setHydrated(true));
@@ -66,30 +72,28 @@ export default function BottomNav() {
   if (pathname.startsWith("/classes/") || pathname.startsWith("/users/")) return null;
   if (!hydrated) return null;
 
-  const activeHref = pathname;
-
   return (
     <nav
       className={`fixed bottom-0 left-1/2 grid w-full max-w-[500px] z-50 h-[65px] grid-cols-4 bg-white shadow-[0_-8px_24px_rgba(0,0,0,0.08)] touch-manipulation overscroll-contain select-none transition-transform duration-200 ease-out motion-reduce:transition-none ${
         isChromeVisible ? "-translate-x-1/2 translate-y-0" : "-translate-x-1/2 translate-y-full"
       }`}
     >
-      {NAV_ITEMS.map(({ href, label, activeColor, renderIcon }) => {
-        const isActive =
-          href === "/" ? activeHref === "/" : activeHref.startsWith(href);
+      {NAV_ITEMS.map(({ tabId, label, activeColor, renderIcon }) => {
+        const isActive = activeTab === tabId;
         const className =
           "h-[65px] w-full min-w-0 flex flex-col items-center justify-start pt-3 gap-0.5 text-black/60 transition-colors";
 
         return (
-          <Link
-            key={href}
-            href={href}
+          <button
+            key={tabId}
+            type="button"
+            onClick={() => replaceMainTab(tabId)}
             className={className}
             style={isActive ? { color: activeColor } : undefined}
           >
             {renderIcon(isActive)}
             <span className="sr-only">{label}</span>
-          </Link>
+          </button>
         );
       })}
     </nav>

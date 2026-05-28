@@ -1,5 +1,5 @@
-import SearchPageClient from "./_components/SearchPageClient";
+import { redirect } from "next/navigation";
 
 export default function SearchPage() {
-  return <SearchPageClient />;
+  redirect("/?tab=search");
 }

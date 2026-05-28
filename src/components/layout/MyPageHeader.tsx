@@ -196,7 +196,7 @@ const SECTIONS: SectionDef[] = [
 export default function MyPageHeader() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const currentTab = (searchParams.get("tab") as MyPageTab | null) ?? "all";
+  const currentTab = (searchParams.get("section") as MyPageTab | null) ?? "all";
   const [open, setOpen] = useState(false);
   const [openIds, setOpenIds] = useState<Set<string>>(new Set());
   const [toggles, setToggles] = useState<Record<string, boolean>>({
@@ -261,7 +261,7 @@ export default function MyPageHeader() {
             <button
               key={key}
               type="button"
-              onClick={() => router.push(key === "all" ? "/mypage" : `/mypage?tab=${key}`)}
+              onClick={() => router.push(key === "all" ? "/?tab=mypage" : `/?tab=mypage&section=${key}`)}
               className={`pb-2 font-bold transition-colors ${currentTab === key ? "text-black" : "text-gray-400"}`}
               style={{ fontSize: currentTab === key ? 18 : 17 }}
             >

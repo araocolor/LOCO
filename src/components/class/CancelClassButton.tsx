@@ -18,7 +18,7 @@ export default function CancelClassButton({ classId }: { classId: string }) {
       const data = await res.json();
       if (res.ok) {
         if (data.deleted) {
-          router.push("/mypage");
+          router.push("/?tab=mypage");
         } else {
           router.refresh();
         }

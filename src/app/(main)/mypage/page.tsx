@@ -1,8 +1,5 @@
-import type { Metadata } from "next";
-import MyPageCacheLoader from "@/components/user/MyPageCacheLoader";
-
-export const metadata: Metadata = { title: "마이페이지" };
+import { redirect } from "next/navigation";
 
 export default function MyPage() {
-  return <MyPageCacheLoader />;
+  redirect("/?tab=mypage");
 }
