@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { ClassStatus } from "@/types/class";
 import type { ApplicationStatus } from "@/types/application";
-import type { UserRole } from "@/types/user";
+import type { StarGiver, UserRole } from "@/types/user";
 
 interface AppliedClassInfo {
   id: string;
@@ -53,6 +53,7 @@ interface MyPageSummary {
     friends: number;
     subscriptionCount: number;
   };
+  starGivers: StarGiver[];
 }
 
 export async function GET() {
@@ -111,8 +112,9 @@ export async function GET() {
         .eq("target_id", user.id),
       admin
         .from("star_gifts")
-        .select("count")
-        .eq("receiver_id", user.id),
+        .select("giver_id, count, created_at")
+        .eq("receiver_id", user.id)
+        .order("created_at", { ascending: false }),
       admin
         .from("star_wallets")
         .select("balance")
@@ -138,6 +140,28 @@ export async function GET() {
     if (subscriptionResult.error) console.error("[mypage-summary] subscription count failed", subscriptionResult.error);
     if (receivedStarRowsResult.error) console.error("[mypage-summary] received stars count failed", receivedStarRowsResult.error);
     if (starWalletResult.error) console.error("[mypage-summary] star wallet failed", starWalletResult.error);
+
+    const receivedStarRows = receivedStarRowsResult.error ? [] : (receivedStarRowsResult.data ?? []) as { giver_id: string; count: number; created_at: string }[];
+    const giverIds = [...new Set(receivedStarRows.map((row) => row.giver_id))];
+    const { data: giverProfilesRaw } = giverIds.length
+      ? await admin
+          .from("profiles")
+          .select("id, nickname, profile_image_url")
+          .in("id", giverIds)
+      : { data: [] as { id: string; nickname: string; profile_image_url: string | null }[] };
+    const giverProfileMap = new Map((giverProfilesRaw ?? []).map((giver) => [giver.id, giver] as const));
+    const starGivers = receivedStarRows
+      .map((row) => {
+        const giver = giverProfileMap.get(row.giver_id);
+        if (!giver) return null;
+        return {
+          id: giver.id,
+          nickname: giver.nickname,
+          profile_image_url: giver.profile_image_url,
+          count: row.count,
+        };
+      })
+      .filter((giver): giver is StarGiver => giver !== null);
 
     const appliedClasses: AppliedClassRow[] = (appliedResult.error ? [] : appliedResult.data ?? []).map((row) => {
       const cls = row.class as unknown as AppliedClassInfo | null;
@@ -187,6 +211,7 @@ export async function GET() {
         friends: friendsResult.error ? 0 : friendsResult.count ?? 0,
         subscriptionCount: subscriptionResult.error ? 0 : subscriptionResult.count ?? 0,
       },
+      starGivers,
     };
 
     return NextResponse.json(payload);

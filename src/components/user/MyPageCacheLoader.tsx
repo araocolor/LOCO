@@ -5,9 +5,9 @@ import { useRouter } from "next/navigation";
 import MyPageClient from "@/components/user/MyPageClient";
 import type { ClassStatus, ClassImage } from "@/types/class";
 import type { ApplicationStatus } from "@/types/application";
-import type { UserRole } from "@/types/user";
+import type { StarGiver, UserRole } from "@/types/user";
 
-const MY_PAGE_CACHE_KEY = "loco_mypage_cache_local_v2";
+const MY_PAGE_CACHE_KEY = "loco_mypage_cache_local_v3";
 
 interface CachedProfile {
   id: string;
@@ -59,6 +59,7 @@ interface MyPageSummaryCache {
     friends: number;
     subscriptionCount?: number;
   };
+  starGivers?: StarGiver[];
 }
 
 export default function MyPageCacheLoader() {
@@ -120,5 +121,12 @@ export default function MyPageCacheLoader() {
     return <div className="max-w-3xl mx-auto px-4 py-10 text-sm text-gray-500">로딩 중...</div>;
   }
 
-  return <MyPageClient profile={data.profile} myClasses={data.myClasses ?? []} socialCounts={data.socialCounts} />;
+  return (
+    <MyPageClient
+      profile={data.profile}
+      myClasses={data.myClasses ?? []}
+      socialCounts={data.socialCounts}
+      starGivers={data.starGivers ?? []}
+    />
+  );
 }

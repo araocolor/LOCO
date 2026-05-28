@@ -35,3 +35,10 @@ export interface User {
   kakao_notification_enabled: boolean;
   created_at: string;
 }
+
+export interface StarGiver {
+  id: string;
+  nickname: string;
+  profile_image_url: string | null;
+  count: number;
+}

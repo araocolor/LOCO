@@ -48,6 +48,7 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
   const [searchRegion, setSearchRegion] = useState<string | null>(null);
   const [classDetailId, setClassDetailId] = useState<string | null>(null);
   const [notificationOpen, setNotificationOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
   const [viewMode, setViewMode] = useState<"grid" | "card">("card");
   const isChromeVisible = useScrollChromeVisibility(true);
   const router = useRouter();
@@ -148,9 +149,17 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
     return () => window.removeEventListener("class-deleted", handler);
   }, []);
 
+  useEffect(() => {
+    if (!userId) return;
+    fetch("/api/notifications/unread-count")
+      .then((r) => r.json())
+      .then((j) => setUnreadCount(j.count ?? 0))
+      .catch(() => {});
+  }, [userId]);
+
   return (
     <>
-      <NotificationDrawer open={notificationOpen} onClose={() => setNotificationOpen(false)} />
+      <NotificationDrawer open={notificationOpen} onClose={() => setNotificationOpen(false)} onUnreadCountChange={setUnreadCount} />
       <header
         className={`sticky top-0 z-50 bg-white border-b border-[#e5e7eb] transition-transform duration-200 ease-out motion-reduce:transition-none ${
           isChromeVisible ? "translate-y-0" : "-translate-y-full"
@@ -180,10 +189,13 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
           <button
             type="button"
             aria-label="알림"
-            className="ml-auto w-10 h-10 mr-[-4px] flex items-center justify-center text-gray-700"
+            className="ml-auto w-10 h-10 mr-[-8px] flex items-center justify-center text-gray-700 relative"
             onClick={() => setNotificationOpen(true)}
           >
             <Heart size={25} strokeWidth={2.2} />
+            {unreadCount > 0 && (
+              <span className="absolute top-1 right-0.5 w-2.5 h-2.5 bg-red-500 rounded-full" />
+            )}
           </button>
         </div>
         <div className="flex pl-4 pr-4 gap-5 pb-0 overflow-x-auto scrollbar-hide whitespace-nowrap">

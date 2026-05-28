@@ -11,6 +11,8 @@ import { parseBookmarkEntries } from "@/lib/bookmarks/local";
 import { REGIONS, MEMBER_TYPES, MAX_MEMBER_TYPE } from "@/lib/constants";
 import AvatarCropModal from "./AvatarCropModal";
 import { ClassImage } from "@/types/class";
+import Avatar from "@/components/ui/Avatar";
+import type { StarGiver } from "@/types/user";
 
 type TabType = "all" | "my" | "bookmark";
 
@@ -88,6 +90,7 @@ interface Profile {
 interface Props {
   profile: Profile;
   myClasses: GridClass[];
+  starGivers?: StarGiver[];
   socialCounts?: {
     following: number;
     followers: number;
@@ -98,8 +101,13 @@ interface Props {
 
 type CacheProfilePatch = Partial<Pick<Profile, "bio" | "country" | "region" | "favorite_genre" | "member_type" | "profile_image_url">>;
 
-export default function MyPageClient({ profile, myClasses: initialMyClasses, socialCounts }: Props) {
-  const MY_PAGE_CACHE_KEY = "loco_mypage_cache_local_v2";
+export default function MyPageClient({
+  profile,
+  myClasses: initialMyClasses,
+  socialCounts,
+  starGivers: initialStarGivers = [],
+}: Props) {
+  const MY_PAGE_CACHE_KEY = "loco_mypage_cache_local_v3";
   const FAVORITE_GENRE_OPTIONS = [
     { value: "salsa", label: "살사" },
     { value: "bachata", label: "바차타" },
@@ -131,7 +139,7 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses, soc
   const [bookmarkClasses, setBookmarkClasses] = useState<GridClass[]>([]);
   const [friendsCount, setFriendsCount] = useState<number>(socialCounts?.friends ?? 0);
   const [followingCount, setFollowingCount] = useState<number>(socialCounts?.following ?? 0);
-  const [subscriberCount, setSubscriberCount] = useState<number>(socialCounts?.subscriptionCount ?? 0);
+  const [starGiversOpen, setStarGiversOpen] = useState(false);
 
   const activeTab: TabType = (() => {
     const rawTab = searchParams.get("tab");
@@ -148,23 +156,12 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses, soc
         queueMicrotask(() => {
           if (sc?.friends != null) setFriendsCount(sc.friends);
           if (sc?.following != null) setFollowingCount(sc.following);
-          if (sc?.subscriptionCount != null) setSubscriberCount(sc.subscriptionCount);
         });
-      }
-      const searchRaw = localStorage.getItem("search_social_cache");
-      if (searchRaw) {
-        const searchParsed = JSON.parse(searchRaw);
-        if (searchParsed?.subscriptionCount != null && Array.isArray(searchParsed?.mySubscribers)) {
-          queueMicrotask(() => setSubscriberCount(searchParsed.subscriptionCount));
-          return;
-        }
       }
       fetchWithAuthRetry("/api/friends/social").then((res) => {
         if (!res.ok) return;
         res.json().then((social) => {
-          const count = social.data?.subscriptionCount ?? 0;
           const followingCount = (social.data?.following ?? []).filter((item: { status?: string }) => item.status === "approved").length;
-          setSubscriberCount(count);
           setFollowingCount(followingCount);
           try {
             const raw = localStorage.getItem(MY_PAGE_CACHE_KEY);
@@ -177,7 +174,6 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses, soc
                   socialCounts: {
                     ...parsed.socialCounts,
                     following: followingCount,
-                    subscriptionCount: count,
                   },
                 })
               );
@@ -188,7 +184,7 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses, soc
                 followers: social.data?.followers ?? [],
                 following: social.data?.following ?? [],
                 mySubscribers: social.data?.mySubscribers ?? [],
-                subscriptionCount: count,
+                subscriptionCount: social.data?.subscriptionCount ?? 0,
                 ts: Date.now(),
               })
             );
@@ -385,6 +381,8 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses, soc
   }
 
   const isKoreaSelected = country === "대한민국";
+  const receivedStarCount = profile.received_star_count ?? 0;
+  const starGivers = initialStarGivers;
 
   return (
     <div className="flex flex-col h-full">
@@ -427,13 +425,16 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses, soc
                   <HeartHandshake size={25} className="text-gray-500" />
                   <span className="text-[18px] font-bold text-gray-900 leading-tight">{friendsCount}</span>
                 </Link>
-                <Link
-                  href="/search?tab=followings"
+                <button
+                  type="button"
+                  onClick={() => setStarGiversOpen(true)}
                   className="flex flex-col items-center gap-0.5"
+                  aria-label="별을 준 사람들 보기"
+                  title="별을 준 사람들 보기"
                 >
                   <Star size={25} className="text-gray-500" />
-                  <span className="text-[18px] font-bold text-gray-900 leading-tight">{subscriberCount}</span>
-                </Link>
+                  <span className="text-[18px] font-bold text-gray-900 leading-tight">{receivedStarCount}</span>
+                </button>
                 <Link
                   href="/search?tab=followings"
                   className="flex flex-col items-center gap-0.5"
@@ -505,6 +506,48 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses, soc
           ))}
         </div>
       </div>
+
+      {starGiversOpen && (
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/30 px-4"
+          onClick={() => setStarGiversOpen(false)}
+        >
+          <div
+            className="flex h-[300px] w-[250px] flex-col rounded-2xl bg-white p-3 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-semibold text-gray-900">별을 준 사람들</span>
+              <button
+                type="button"
+                onClick={() => setStarGiversOpen(false)}
+                className="rounded-full p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+                aria-label="닫기"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <div className="mt-3 flex-1 overflow-y-auto">
+              {starGivers.length ? (
+                <div className="grid grid-cols-3 gap-x-2 gap-y-3">
+                  {starGivers.map((giver) => (
+                    <div key={giver.id} className="flex flex-col items-center gap-1">
+                      <Avatar src={giver.profile_image_url} nickname={giver.nickname} size={42} />
+                      <span className="w-full truncate text-center text-[10px] font-medium text-gray-500">
+                        {giver.nickname}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex h-full items-center justify-center px-3 text-center text-xs text-gray-400">
+                  아직 별을 받은 사람이 없어요
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 프로필 편집 슬라이드 */}
       <div
