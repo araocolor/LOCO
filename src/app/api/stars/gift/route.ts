@@ -34,7 +34,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "receiver_required" }, { status: 400 });
     }
 
-    if (!Number.isInteger(count) || count < 1 || count > 3) {
+    if (!Number.isInteger(count) || count < 1 || count > 1) {
       return NextResponse.json({ error: "invalid_count" }, { status: 400 });
     }
 

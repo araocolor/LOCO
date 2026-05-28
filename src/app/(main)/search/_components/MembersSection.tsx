@@ -8,6 +8,7 @@ import type { DancerMember, Follower } from "../_types/search";
 import { MEMBER_GENRE_OPTIONS, SOLO_MEMBER_GENRES } from "../_lib/constants";
 import { formatLocation, getGenreLabel, getMemberTypeLabel } from "../_lib/search-utils";
 import { SubscriptionBadge } from "./SearchBadges";
+import { getStarGiftedIds } from "./ProfileModal";
 
 interface MembersSectionProps {
   memberSearchPanelRef: RefObject<HTMLDivElement | null>;
@@ -68,6 +69,7 @@ export default function MembersSection({
   onViewProfile,
   onOpenMenu,
 }: MembersSectionProps) {
+  const starGiftedIds = getStarGiftedIds();
   return (
     <div className="px-4 pt-0 bg-white">
       <div className="h-[120px] -mx-4 bg-gray-100 relative">
@@ -244,7 +246,7 @@ export default function MembersSection({
                 className="relative aspect-square min-w-0 flex items-center justify-center"
                 aria-label={`${member.nickname} 프로필`}
               >
-                <div className={`relative ${closingProfileMemberId === member.id ? "profile-close-pop" : ""}`}>
+                <div className={`relative ${closingProfileMemberId === member.id ? "profile-close-pop" : ""} ${starGiftedIds.has(member.id) ? "animate-breathe" : ""}`}>
                   <Avatar
                     src={member.profile_image_url}
                     nickname={member.nickname}
@@ -269,7 +271,7 @@ export default function MembersSection({
               return (
                 <div key={member.id} className="flex items-center gap-3 py-3 border-b border-gray-50">
                   <button onClick={() => onOpenProfile(member)}>
-                    <div className={`relative ${closingProfileMemberId === member.id ? "profile-close-pop" : ""}`}>
+                    <div className={`relative ${closingProfileMemberId === member.id ? "profile-close-pop" : ""} ${starGiftedIds.has(member.id) ? "animate-breathe" : ""}`}>
                       <Avatar
                         src={member.profile_image_url}
                         nickname={member.nickname}

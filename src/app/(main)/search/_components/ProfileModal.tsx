@@ -1,10 +1,27 @@
 "use client";
 
 import { useState } from "react";
-import { Ellipsis, Star } from "lucide-react";
+import { Check, Ellipsis, Star } from "lucide-react";
 import Avatar from "@/components/ui/Avatar";
 import type { Follower, MenuRelation, MenuTarget, Tab } from "../_types/search";
 import { USER_VIEW_CACHE_PREFIX, formatLocation, formatRecentActiveTime, getMemberTypeLabel } from "../_lib/search-utils";
+
+const STAR_GIFTED_KEY = "loco_star_gifted_ids";
+
+export function getStarGiftedIds(): Set<string> {
+  try {
+    const raw = sessionStorage.getItem(STAR_GIFTED_KEY);
+    return raw ? new Set(JSON.parse(raw) as string[]) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
+function addStarGiftedId(id: string) {
+  const ids = getStarGiftedIds();
+  ids.add(id);
+  sessionStorage.setItem(STAR_GIFTED_KEY, JSON.stringify([...ids]));
+}
 
 interface ProfileModalProps {
   activeTab: Tab;
@@ -40,9 +57,10 @@ export default function ProfileModal({
   onViewProfile,
   hideViewProfileButton = false,
 }: ProfileModalProps) {
-  const [giftMenuOpen, setGiftMenuOpen] = useState(false);
-  const [selectedGiftCount, setSelectedGiftCount] = useState(1);
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const [giftSubmitting, setGiftSubmitting] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [showCelebration, setShowCelebration] = useState(false);
   const [giftPatch, setGiftPatch] = useState<{
     gifted_star_count_by_me: number;
     my_star_balance: number;
@@ -56,30 +74,38 @@ export default function ProfileModal({
   const receivedStarCount = giftPatch?.received_star_count ?? profileModalData?.received_star_count ?? 0;
   const hasGifted = giftedStarCount > 0;
 
-  async function handleGiftStars(count: number) {
-    if (giftSubmitting || hasGifted || count < 1 || count > 3 || myStarBalance < count) return;
+  async function handleGiftConfirm() {
+    if (giftSubmitting || hasGifted || myStarBalance < 1) return;
 
     setGiftSubmitting(true);
+    setConfirmOpen(false);
     try {
       const response = await fetch("/api/stars/gift", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ receiverId: profileModal.id, count }),
+        body: JSON.stringify({ receiverId: profileModal.id, count: 1 }),
       });
       const json = await response.json().catch(() => ({}));
       if (!response.ok) {
         throw new Error(json?.error ?? "star_gift_failed");
       }
 
-      const remainingBalance = typeof json.remainingBalance === "number" ? json.remainingBalance : Math.max(0, myStarBalance - count);
-      const nextReceivedCount = receivedStarCount + count;
+      const remainingBalance = typeof json.remainingBalance === "number" ? json.remainingBalance : Math.max(0, myStarBalance - 1);
+      const nextReceivedCount = receivedStarCount + 1;
 
       setGiftPatch({
-        gifted_star_count_by_me: count,
+        gifted_star_count_by_me: 1,
         my_star_balance: remainingBalance,
         received_star_count: nextReceivedCount,
       });
-      setGiftMenuOpen(false);
+      addStarGiftedId(profileModal.id);
+
+      setShowSuccess(true);
+      setTimeout(() => {
+        setShowSuccess(false);
+        setShowCelebration(true);
+        setTimeout(() => setShowCelebration(false), 1000);
+      }, 1000);
 
       try {
         const cacheKey = `${USER_VIEW_CACHE_PREFIX}${profileModal.id}`;
@@ -96,7 +122,7 @@ export default function ProfileModal({
               },
               starSummary: {
                 ...(parsed.starSummary ?? {}),
-                gifted_star_count_by_me: count,
+                gifted_star_count_by_me: 1,
                 my_star_balance: remainingBalance,
               },
             })
@@ -142,22 +168,41 @@ export default function ProfileModal({
               <Ellipsis size={20} />
             </button>
           )}
-          <div className="relative">
+          <div className={`relative ${hasGifted ? "animate-breathe" : ""}`}>
             <Avatar src={profileModal.profile_image_url} nickname={profileModal.nickname} size={80} />
-            <button
-              type="button"
-              onClick={() => {
-                if (hasGifted) return;
-                setGiftMenuOpen((open) => !open);
-              }}
-              className={`absolute -right-1 -bottom-1 flex h-8 w-8 items-center justify-center rounded-full border shadow-sm transition-colors ${
-                hasGifted || giftMenuOpen ? "border-yellow-400 bg-yellow-400 text-gray-900" : "border-gray-200 bg-white text-gray-400"
-              } ${hasGifted ? "cursor-default" : "hover:bg-yellow-50"}`}
-              aria-label="별 선물하기"
-              title={hasGifted ? "이미 별을 선물했어요" : "별 선물하기"}
-            >
-              <Star size={16} fill={hasGifted || giftMenuOpen ? "currentColor" : "none"} />
-            </button>
+            {hasGifted && (
+              <span
+                className="absolute -right-2 -bottom-2 flex items-center justify-center"
+                style={showCelebration ? { animation: "star-drop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards" } : undefined}
+              >
+                <Star size={40} className="text-yellow-400" fill="currentColor" />
+                <span className="absolute text-[11px] font-bold text-gray-900">{receivedStarCount}</span>
+              </span>
+            )}
+            {showCelebration && (
+              <span className="absolute inset-0 pointer-events-none overflow-visible">
+                {Array.from({ length: 12 }).map((_, i) => {
+                  const angle = i * 30;
+                  const xOffset = Math.round(Math.cos((angle * Math.PI) / 180) * 40);
+                  return (
+                    <span
+                      key={i}
+                      className="absolute left-1/2 top-1/2"
+                      style={{
+                        width: 6,
+                        height: 6,
+                        borderRadius: i % 2 === 0 ? "50%" : "1px",
+                        backgroundColor: ["#facc15", "#f87171", "#60a5fa", "#34d399", "#c084fc", "#fb923c"][i % 6],
+                        animation: "confetti-pop 1s ease-out forwards",
+                        animationDelay: `${i * 40}ms`,
+                        "--r": `${angle}deg`,
+                        "--x": `${xOffset}px`,
+                      } as React.CSSProperties}
+                    />
+                  );
+                })}
+              </span>
+            )}
           </div>
           <div className="text-center w-full">
             <p className="font-bold text-gray-900 truncate" style={{ fontSize: 16 }}>
@@ -188,50 +233,19 @@ export default function ProfileModal({
                   ]
                 }
               </span>
-              <span className="inline-flex items-center gap-1 rounded-full bg-yellow-50 px-2.5 py-1 text-xs font-semibold text-yellow-900">
-                <Star size={12} className="text-yellow-500" fill="currentColor" />
-                {receivedStarCount}
-              </span>
             </div>
           </div>
-          {giftMenuOpen && !hasGifted && (
-            <div className="w-full rounded-2xl border border-gray-100 bg-gray-50 p-3">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-semibold text-gray-500">별 선물하기</span>
-                <span className="text-xs text-gray-400">잔여 {myStarBalance}</span>
-              </div>
-              <div className="flex items-center justify-center gap-2">
-                {[1, 2, 3].map((count) => (
-                  <button
-                    key={count}
-                    type="button"
-                    onClick={() => setSelectedGiftCount(count)}
-                    className={`h-8 w-8 rounded-full text-sm font-bold transition-colors ${
-                      selectedGiftCount === count
-                        ? "bg-yellow-400 text-gray-900"
-                        : "bg-white text-gray-500 border border-gray-200"
-                    }`}
-                  >
-                    {count}
-                  </button>
-                ))}
-              </div>
+          <div className="flex gap-2 w-full mt-2">
+            {!hasGifted && !giftSubmitting && (
               <button
                 type="button"
-                disabled={giftSubmitting || myStarBalance < selectedGiftCount}
-                onClick={() => handleGiftStars(selectedGiftCount)}
-                className="mt-3 h-9 w-full rounded-full bg-gray-900 text-white text-sm font-semibold disabled:opacity-50"
+                disabled={myStarBalance < 1}
+                onClick={() => setConfirmOpen(true)}
+                className="flex-1 h-9 rounded-full bg-gray-500 text-white text-sm font-semibold disabled:opacity-50"
               >
-                {giftSubmitting ? "전송 중..." : "선물하기"}
+                별 선물하기
               </button>
-            </div>
-          )}
-          {hasGifted && (
-            <div className="w-full rounded-2xl bg-yellow-50 px-3 py-2 text-center text-xs font-semibold text-yellow-900">
-              별 {giftedStarCount}개 선물 완료
-            </div>
-          )}
-          <div className="flex gap-2 w-full mt-2">
+            )}
             {getRelationStatusValue(profileModal.id) === "맞팔" ? (
               <button
                 className="flex-1 h-9 rounded-full bg-[#FEE500] text-gray-900 font-semibold text-[14px]"
@@ -257,20 +271,55 @@ export default function ProfileModal({
                 {getRelationStatusValue(profileModal.id) === "팔로잉" ? "구독하기" : "친구추가"}
               </button>
             )}
-            {!hideViewProfileButton && (
-              <button
-                className="flex-1 h-9 rounded-full bg-[#FEE500] text-gray-900 font-semibold text-[14px]"
-                onClick={() => {
-                  onViewProfile(profileModal.id);
-                  onClose();
-                }}
-              >
-                프로필보기
-              </button>
-            )}
           </div>
+          {!hideViewProfileButton && (
+            <button
+              className="h-9 w-full rounded-full bg-[#FEE500] text-gray-900 font-semibold text-[14px]"
+              onClick={() => {
+                onViewProfile(profileModal.id);
+                onClose();
+              }}
+            >
+              프로필보기
+            </button>
+          )}
         </div>
       </div>
+      {confirmOpen && (
+        <>
+          <div className="fixed inset-0 z-[90] bg-black/40" onClick={() => setConfirmOpen(false)} />
+          <div className="fixed inset-0 z-[100] flex items-center justify-center pointer-events-none">
+            <div className="bg-white rounded-2xl shadow-lg p-6 w-[250px] h-[180px] pointer-events-auto flex flex-col items-center justify-center gap-6">
+              <p className="font-semibold text-gray-900 text-center" style={{ fontSize: 17 }}>
+                {profileModal.nickname}님에게<br />별 1개 선물합니다
+              </p>
+              <div className="flex gap-2 w-full">
+                <button
+                  type="button"
+                  onClick={() => setConfirmOpen(false)}
+                  className="flex-1 h-10 rounded-full border border-gray-200 text-sm font-semibold text-gray-600"
+                >
+                  취소
+                </button>
+                <button
+                  type="button"
+                  onClick={handleGiftConfirm}
+                  className="flex-1 h-10 rounded-full bg-[#FEE500] text-gray-900 text-sm font-semibold"
+                >
+                  확인
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+      {showSuccess && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center pointer-events-none">
+          <div className="w-16 h-16 rounded-full bg-yellow-400 flex items-center justify-center shadow-lg" style={{ animation: "fade-in-out 1s ease forwards" }}>
+            <Check size={32} className="text-gray-900" strokeWidth={3} />
+          </div>
+        </div>
+      )}
     </>
   );
 }
