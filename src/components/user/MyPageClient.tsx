@@ -537,11 +537,6 @@ export default function MyPageClient({
                     <div key={giver.id} className="flex flex-col items-center gap-1">
                       <Avatar src={giver.profile_image_url} nickname={giver.nickname} size={45} />
                       <span className="truncate w-full text-center text-[15px] font-medium text-gray-500">{giver.nickname}</span>
-                      <span className="flex items-center justify-center gap-0">
-                        {Array.from({ length: giver.count }, (_, i) => (
-                          <Star key={i} size={12} className="text-yellow-400" fill="currentColor" />
-                        ))}
-                      </span>
                     </div>
                   ))}
                 </div>
