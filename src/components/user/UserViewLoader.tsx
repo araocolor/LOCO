@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import UserViewClient from "@/components/user/UserViewClient";
+import { USER_VIEW_CACHE_PREFIX } from "@/app/(main)/search/_lib/search-utils";
 import type { ClassImage } from "@/types/class";
 
 const LEGACY_MESSAGE_USER_SESSION_KEY = "message_userid_session";
@@ -25,6 +26,7 @@ interface Profile {
   member_type: string[];
   profile_image_url: string | null;
   region: string | null;
+  received_star_count?: number;
 }
 
 interface UserViewData {
@@ -52,6 +54,7 @@ function normalizeProfile(profile: Profile): Profile {
     ...profile,
     country: profile.country ?? null,
     region: profile.region ?? null,
+    received_star_count: profile.received_star_count ?? 0,
   };
 }
 
@@ -82,7 +85,7 @@ export default function UserViewLoader({ userId }: { userId: string }) {
 
     async function load() {
       try {
-        const cached = sessionStorage.getItem(`user_view_${userId}`);
+        const cached = sessionStorage.getItem(`${USER_VIEW_CACHE_PREFIX}${userId}`);
         if (cached) {
           const json = JSON.parse(cached) as UserViewData;
           const hasFollowerCount = typeof json.followerCount === "number";
@@ -101,7 +104,7 @@ export default function UserViewLoader({ userId }: { userId: string }) {
           if (!res.ok) return;
           const fresh = (await res.json()) as UserViewData;
           if (cancelled) return;
-          sessionStorage.setItem(`user_view_${userId}`, JSON.stringify(fresh));
+          sessionStorage.setItem(`${USER_VIEW_CACHE_PREFIX}${userId}`, JSON.stringify(fresh));
           setData({
             profile: normalizeProfile(fresh.profile),
             myClasses: (fresh.myClasses ?? []).map((c) => ({ ...c, isBookmark: false })),
@@ -128,6 +131,7 @@ export default function UserViewLoader({ userId }: { userId: string }) {
                 member_type: sessionUser.member_type ?? [],
                 profile_image_url: sessionUser.profile_image_url ?? null,
                 region: sessionUser.region ?? null,
+                received_star_count: 0,
               },
               myClasses: (sessionUser.opened_classes ?? []).map((c) => ({ ...c, isBookmark: false })),
               bookmarkClasses: (sessionUser.bookmarked_classes ?? []).map((c) => ({ ...c, isBookmark: true })),

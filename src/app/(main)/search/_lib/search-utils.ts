@@ -2,6 +2,8 @@ import type { CSSProperties } from "react";
 import type { DancerMember, Follower } from "../_types/search";
 import { MEMBER_GENRE_OPTIONS, MYPAGE_CACHE_KEY, SEARCH_CACHE_KEY } from "./constants";
 
+export const USER_VIEW_CACHE_PREFIX = "user_view_v2_";
+
 export function getMemberTypeLabel(type: string) {
   if (type === "인스트럭터") return "강사";
   if (type === "일반회원") return "활동회원";
@@ -154,7 +156,7 @@ export function formatRecentActiveTime(lastActiveAt: string | null | undefined, 
 export function writeProfilePreviewCache(member: Follower) {
   try {
     sessionStorage.setItem(
-      `user_view_${member.id}`,
+      `${USER_VIEW_CACHE_PREFIX}${member.id}`,
       JSON.stringify({
         profile: {
           id: member.id,

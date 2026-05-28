@@ -71,6 +71,28 @@ export async function GET(
     .eq("friend_id", id)
     .in("status", ["approved", "friend"]);
 
+  const [receivedStarRowsResult, giftedStarResult, myStarWalletResult] = await Promise.all([
+    admin
+      .from("star_gifts")
+      .select("count")
+      .eq("receiver_id", id),
+    user
+      ? admin
+          .from("star_gifts")
+          .select("count")
+          .eq("giver_id", user.id)
+          .eq("receiver_id", id)
+          .maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
+    user
+      ? admin
+          .from("star_wallets")
+          .select("balance")
+          .eq("user_id", user.id)
+          .maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
+  ]);
+
   const myClasses = ((myClassesRaw ?? []) as GridClass[]).map((c) => ({
     ...c,
     isBookmark: false,
@@ -102,9 +124,16 @@ export async function GET(
       member_type: profile.member_type ?? [],
       profile_image_url: profile.profile_image_url,
       region: profile.region ?? null,
+      received_star_count: receivedStarRowsResult.error
+        ? 0
+        : (receivedStarRowsResult.data ?? []).reduce((total, row) => total + Number(row.count ?? 0), 0),
     },
     myClasses,
     bookmarkClasses,
     followerCount: followerCount ?? 0,
+    starSummary: {
+      gifted_star_count_by_me: giftedStarResult?.data?.count ?? 0,
+      my_star_balance: myStarWalletResult?.data?.balance ?? 0,
+    },
   });
 }

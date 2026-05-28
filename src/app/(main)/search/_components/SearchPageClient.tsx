@@ -237,6 +237,7 @@ if (tab === "members") {
 
       {profileModal.profileModal && (
         <ProfileModal
+          key={profileModal.profileModal.id}
           activeTab={activeTab}
           profileModal={profileModal.profileModal}
           profileModalData={profileModal.profileModalData}

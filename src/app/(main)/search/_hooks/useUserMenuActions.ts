@@ -2,6 +2,7 @@
 
 import { type Dispatch, type MouseEvent, type SetStateAction, useCallback, useState } from "react";
 import {
+  USER_VIEW_CACHE_PREFIX,
   syncMyPageSocialCounts,
   writeSearchSocialCache,
 } from "../_lib/search-utils";
@@ -275,7 +276,7 @@ export function useUserMenuActions({
     fetch(`/api/users/${member.id}/view-summary`)
       .then((res) => res.json())
       .then((json) => {
-        sessionStorage.setItem(`user_view_${member.id}`, JSON.stringify(json));
+        sessionStorage.setItem(`${USER_VIEW_CACHE_PREFIX}${member.id}`, JSON.stringify(json));
       })
       .catch(() => {});
   }

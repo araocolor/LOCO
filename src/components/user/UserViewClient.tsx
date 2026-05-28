@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { UserCircle } from "lucide-react";
+import { Star, UserCircle } from "lucide-react";
 import { ClassImage } from "@/types/class";
 
 type TabType = "all" | "my" | "bookmark";
@@ -26,6 +26,7 @@ interface Profile {
   member_type: string[];
   profile_image_url: string | null;
   region: string | null;
+  received_star_count?: number;
 }
 
 interface Props {
@@ -60,9 +61,18 @@ export default function UserViewClient({ profile, myClasses, bookmarkClasses, fo
                 )}
               </div>
             </div>
-            <div className="w-1/2 flex flex-col gap-1 items-center">
-              <span className="text-[13px] text-gray-500">팔로워</span>
-              <span className="text-[16px] font-bold text-gray-700">{followerCount}</span>
+            <div className="w-1/2 grid grid-cols-2 gap-2 text-center">
+              <div className="flex flex-col items-center gap-1">
+                <span className="text-[13px] text-gray-500">팔로워</span>
+                <span className="text-[16px] font-bold text-gray-700">{followerCount}</span>
+              </div>
+              <div className="flex flex-col items-center gap-1">
+                <span className="text-[13px] text-gray-500">받은 별</span>
+                <div className="flex items-center gap-1">
+                  <Star size={15} className="text-yellow-500" fill="currentColor" />
+                  <span className="text-[16px] font-bold text-gray-700">{profile.received_star_count ?? 0}</span>
+                </div>
+              </div>
             </div>
           </div>
 

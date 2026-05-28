@@ -21,6 +21,8 @@ interface CachedProfile {
   role: UserRole;
   profile_image_url: string | null;
   kakao_notification_enabled: boolean;
+  received_star_count: number;
+  star_balance: number;
 }
 
 interface CachedAppliedClassInfo {

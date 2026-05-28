@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import type { ClassStatus } from "@/types/class";
 import type { ApplicationStatus } from "@/types/application";
 import type { UserRole } from "@/types/user";
@@ -40,6 +41,8 @@ interface MyPageSummary {
     role: UserRole;
     profile_image_url: string | null;
     kakao_notification_enabled: boolean;
+    received_star_count: number;
+    star_balance: number;
   };
   appliedClasses: AppliedClassRow[];
   myClasses: MyClassRow[];
@@ -63,7 +66,9 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const [profileResult, appliedResult, myClassesResult, proRequestResult, followingResult, followersResult, friendsResult, subscriptionResult] = await Promise.all([
+    const admin = createAdminClient();
+
+    const [profileResult, appliedResult, myClassesResult, proRequestResult, followingResult, followersResult, friendsResult, subscriptionResult, receivedStarRowsResult, starWalletResult] = await Promise.all([
       supabase
         .from("profiles")
         .select("id, email, nickname, bio, country, region, favorite_genre, member_type, role, profile_image_url, kakao_notification_enabled")
@@ -104,6 +109,15 @@ export async function GET() {
         .from("user_subscriptions")
         .select("owner_id", { count: "exact", head: true })
         .eq("target_id", user.id),
+      admin
+        .from("star_gifts")
+        .select("count")
+        .eq("receiver_id", user.id),
+      admin
+        .from("star_wallets")
+        .select("balance")
+        .eq("user_id", user.id)
+        .maybeSingle(),
     ]);
 
     if (profileResult.error && profileResult.error.code !== "PGRST116") {
@@ -122,6 +136,8 @@ export async function GET() {
     if (followersResult.error) console.error("[mypage-summary] followers count failed", followersResult.error);
     if (friendsResult.error) console.error("[mypage-summary] friends count failed", friendsResult.error);
     if (subscriptionResult.error) console.error("[mypage-summary] subscription count failed", subscriptionResult.error);
+    if (receivedStarRowsResult.error) console.error("[mypage-summary] received stars count failed", receivedStarRowsResult.error);
+    if (starWalletResult.error) console.error("[mypage-summary] star wallet failed", starWalletResult.error);
 
     const appliedClasses: AppliedClassRow[] = (appliedResult.error ? [] : appliedResult.data ?? []).map((row) => {
       const cls = row.class as unknown as AppliedClassInfo | null;
@@ -157,6 +173,10 @@ export async function GET() {
         role: profile.role as UserRole,
         profile_image_url: profile.profile_image_url,
         kakao_notification_enabled: profile.kakao_notification_enabled,
+        received_star_count: receivedStarRowsResult.error
+          ? 0
+          : (receivedStarRowsResult.data ?? []).reduce((total, row) => total + Number(row.count ?? 0), 0),
+        star_balance: starWalletResult.error ? 0 : starWalletResult.data?.balance ?? 0,
       },
       appliedClasses,
       myClasses: (myClassesResult.error ? [] : myClassesResult.data ?? []) as MyClassRow[],

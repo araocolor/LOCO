@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
-import { UserCircle, X, Settings, Check, HeartHandshake, Bookmark, SmilePlus } from "lucide-react";
+import { UserCircle, X, Settings, HeartHandshake, Star, SmilePlus } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { fetchWithAuthRetry } from "@/lib/auth/fetch-with-auth-retry";
 import { parseBookmarkEntries } from "@/lib/bookmarks/local";
@@ -81,6 +81,8 @@ interface Profile {
   favorite_genre: string[];
   member_type: string[];
   profile_image_url: string | null;
+  received_star_count?: number;
+  star_balance?: number;
 }
 
 interface Props {
@@ -127,13 +129,6 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses, soc
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [myClasses] = useState<GridClass[]>(initialMyClasses);
   const [bookmarkClasses, setBookmarkClasses] = useState<GridClass[]>([]);
-  const [nicknameModalOpen, setNicknameModalOpen] = useState(false);
-  const [nicknameModalView, setNicknameModalView] = useState<"home" | "edit-nickname" | "edit-social">("home");
-  const [draftNickname, setDraftNickname] = useState("");
-  const [draftSocial, setDraftSocial] = useState("");
-  const [socialName, setSocialName] = useState<string | null>(null);
-  const [displayMode, setDisplayMode] = useState<"nickname" | "social">("nickname");
-  const [showSavedToast, setShowSavedToast] = useState(false);
   const [friendsCount, setFriendsCount] = useState<number>(socialCounts?.friends ?? 0);
   const [followingCount, setFollowingCount] = useState<number>(socialCounts?.following ?? 0);
   const [subscriberCount, setSubscriberCount] = useState<number>(socialCounts?.subscriptionCount ?? 0);
@@ -436,7 +431,7 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses, soc
                   href="/search?tab=followings"
                   className="flex flex-col items-center gap-0.5"
                 >
-                  <Bookmark size={25} className="text-gray-500" />
+                  <Star size={25} className="text-gray-500" />
                   <span className="text-[18px] font-bold text-gray-900 leading-tight">{subscriberCount}</span>
                 </Link>
                 <Link
@@ -457,6 +452,10 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses, soc
             </span>
           )}
           <span className="text-[14px] text-gray-400 -mt-1">{profile.email ?? ""}</span>
+          <span className="inline-flex items-center gap-1 text-[13px] font-semibold text-yellow-700">
+            <Star size={13} className="text-yellow-500" fill="currentColor" />
+            {profile.star_balance ?? 0}개 남음
+          </span>
           {profile.bio && (
             <span className="text-[16px] w-[80%] mt-2" style={{ color: "#000000cc" }}>{profile.bio}</span>
           )}
@@ -558,21 +557,9 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses, soc
                 </span>
               )}
             </button>
-            <button
-              type="button"
-              className="flex items-center gap-2"
-              onClick={() => {
-                setDraftNickname(profile.nickname);
-                setDraftSocial(socialName ?? "");
-                setNicknameModalView("home");
-                setNicknameModalOpen(true);
-              }}
-            >
+            <div className="flex items-center gap-2">
               <span className="text-base font-semibold text-gray-900">{profile.nickname}</span>
-              <span className="rounded-full bg-black text-white px-3 h-6 text-[13px] flex items-center">
-                수정
-              </span>
-            </button>
+            </div>
             {memberTypes[0] && (
               <span className="px-2.5 py-0 rounded-full bg-gray-800 text-[13px]" style={{ color: "rgba(255,255,255,0.9)" }}>
                 {getMemberTypeLabel(memberTypes[0])}
@@ -733,141 +720,6 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses, soc
         />
       )}
 
-      {nicknameModalOpen && (
-        <div
-          className="fixed inset-0 z-[80] bg-black/60 flex items-center justify-center"
-          onClick={() => setNicknameModalOpen(false)}
-        >
-          <div
-            className="bg-white rounded-2xl w-[250px] h-[300px] p-5 flex flex-col"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {nicknameModalView === "home" && (
-              <>
-                <div className="flex flex-col gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setNicknameModalView("edit-nickname")}
-                    className="w-full h-10 rounded-full bg-gray-900 text-white text-sm font-semibold"
-                  >
-                    아이디 수정
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setNicknameModalView("edit-social")}
-                    className="w-full h-10 rounded-full bg-gray-900 text-white text-sm font-semibold"
-                  >
-                    소셜명 추가
-                  </button>
-                </div>
-
-                <div className="mt-auto flex flex-col gap-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-700 truncate">아이디 : {profile.nickname}</span>
-                    <button
-                      type="button"
-                      role="switch"
-                      aria-checked={displayMode === "nickname"}
-                      onClick={() => setDisplayMode("nickname")}
-                      className={`relative w-10 h-6 rounded-full transition-colors ${displayMode === "nickname" ? "bg-green-500" : "bg-gray-300"}`}
-                    >
-                      <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${displayMode === "nickname" ? "left-[18px]" : "left-0.5"}`} />
-                    </button>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-700 truncate">소셜명 : {socialName ?? "-"}</span>
-                    <button
-                      type="button"
-                      role="switch"
-                      aria-checked={displayMode === "social"}
-                      onClick={() => { if (socialName) setDisplayMode("social"); }}
-                      disabled={!socialName}
-                      className={`relative w-10 h-6 rounded-full transition-colors ${displayMode === "social" ? "bg-green-500" : "bg-gray-300"} ${!socialName ? "opacity-50" : ""}`}
-                    >
-                      <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${displayMode === "social" ? "left-[18px]" : "left-0.5"}`} />
-                    </button>
-                  </div>
-                </div>
-              </>
-            )}
-
-            {nicknameModalView === "edit-nickname" && (
-              <>
-                <p className="text-sm font-semibold text-gray-900 mb-3">아이디 수정</p>
-                <input
-                  type="text"
-                  value={draftNickname}
-                  onChange={(e) => setDraftNickname(e.target.value)}
-                  placeholder="2자 이상"
-                  className="w-full h-10 px-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-yellow-400"
-                />
-                <div className="mt-auto flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setNicknameModalView("home")}
-                    className="flex-1 h-10 rounded-full bg-gray-100 text-gray-700 text-sm font-semibold"
-                  >
-                    취소
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setNicknameModalOpen(false);
-                      setShowSavedToast(true);
-                      setTimeout(() => setShowSavedToast(false), 1200);
-                    }}
-                    className="flex-1 h-10 rounded-full bg-yellow-400 text-gray-900 text-sm font-semibold"
-                  >
-                    확인
-                  </button>
-                </div>
-              </>
-            )}
-
-            {nicknameModalView === "edit-social" && (
-              <>
-                <p className="text-sm font-semibold text-gray-900 mb-3">소셜명 등록</p>
-                <input
-                  type="text"
-                  value={draftSocial}
-                  onChange={(e) => setDraftSocial(e.target.value)}
-                  placeholder="소셜명"
-                  className="w-full h-10 px-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-yellow-400"
-                />
-                <div className="mt-auto flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setNicknameModalView("home")}
-                    className="flex-1 h-10 rounded-full bg-gray-100 text-gray-700 text-sm font-semibold"
-                  >
-                    취소
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSocialName(draftSocial.trim() || null);
-                      setNicknameModalOpen(false);
-                      setShowSavedToast(true);
-                      setTimeout(() => setShowSavedToast(false), 1200);
-                    }}
-                    className="flex-1 h-10 rounded-full bg-yellow-400 text-gray-900 text-sm font-semibold"
-                  >
-                    확인
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      )}
-
-      {showSavedToast && (
-        <div className="fixed inset-0 z-[90] flex items-center justify-center pointer-events-none">
-          <div className="bg-yellow-400 rounded-full w-20 h-20 flex items-center justify-center animate-fade-in-out">
-            <Check size={36} className="text-black" strokeWidth={3} />
-          </div>
-        </div>
-      )}
     </div>
   );
 }

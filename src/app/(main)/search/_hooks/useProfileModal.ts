@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { PROFILE_RETURN_FOCUS_USER_KEY } from "@/lib/profile-return-focus";
-import { writeProfilePreviewCache } from "../_lib/search-utils";
+import { USER_VIEW_CACHE_PREFIX, writeProfilePreviewCache } from "../_lib/search-utils";
 import type { DancerMember, Follower, PendingMember, Tab } from "../_types/search";
 
 interface UseProfileModalParams {
@@ -16,21 +16,32 @@ export function useProfileModal({ activeTab, visibleMembers }: UseProfileModalPa
     bio: string | null;
     member_type: string[];
     last_active_at: string | null;
+    received_star_count: number;
+    gifted_star_count_by_me: number;
+    my_star_balance: number;
   } | null>(null);
   const [closingProfileMemberId, setClosingProfileMemberId] = useState<string | null>(null);
 
   function readProfileSummaryCache(memberId: string) {
-    const cached = sessionStorage.getItem(`user_view_${memberId}`);
+    const cached = sessionStorage.getItem(`${USER_VIEW_CACHE_PREFIX}${memberId}`);
     if (cached) {
       try {
         const json = JSON.parse(cached);
         const hasLastActiveAt = !!json.profile && Object.prototype.hasOwnProperty.call(json.profile, "last_active_at");
+        const hasReceivedStarCount = !!json.profile && Object.prototype.hasOwnProperty.call(json.profile, "received_star_count");
+        const hasStarSummary = !!json.starSummary
+          && Object.prototype.hasOwnProperty.call(json.starSummary, "gifted_star_count_by_me")
+          && Object.prototype.hasOwnProperty.call(json.starSummary, "my_star_balance");
         setProfileModalData({
           bio: json.profile?.bio ?? null,
           member_type: json.profile?.member_type ?? [],
           last_active_at: json.profile?.last_active_at ?? null,
+          received_star_count: json.profile?.received_star_count ?? 0,
+          gifted_star_count_by_me: json.starSummary?.gifted_star_count_by_me ?? 0,
+          my_star_balance: json.starSummary?.my_star_balance ?? 0,
         });
         if (!hasLastActiveAt) return false;
+        if (!hasReceivedStarCount || !hasStarSummary) return false;
       } catch {}
       return true;
     }
@@ -42,11 +53,14 @@ export function useProfileModal({ activeTab, visibleMembers }: UseProfileModalPa
     fetch(`/api/users/${memberId}/view-summary`)
       .then((res) => res.json())
       .then((json) => {
-        sessionStorage.setItem(`user_view_${memberId}`, JSON.stringify(json));
+        sessionStorage.setItem(`${USER_VIEW_CACHE_PREFIX}${memberId}`, JSON.stringify(json));
         setProfileModalData({
           bio: json.profile?.bio ?? null,
           member_type: json.profile?.member_type ?? [],
           last_active_at: json.profile?.last_active_at ?? null,
+          received_star_count: json.profile?.received_star_count ?? 0,
+          gifted_star_count_by_me: json.starSummary?.gifted_star_count_by_me ?? 0,
+          my_star_balance: json.starSummary?.my_star_balance ?? 0,
         });
       })
       .catch(() => {});
@@ -82,8 +96,12 @@ export function useProfileModal({ activeTab, visibleMembers }: UseProfileModalPa
       bio: member.bio ?? null,
       member_type: member.member_type ?? [],
       last_active_at: member.last_active_at ?? null,
+      received_star_count: 0,
+      gifted_star_count_by_me: 0,
+      my_star_balance: 0,
     });
     writeProfilePreviewCache(member);
+    loadProfileSummary(member.id);
   }
 
   function closeProfileModal() {
