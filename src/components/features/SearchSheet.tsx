@@ -90,7 +90,7 @@ export default function SearchSheet() {
     const params = new URLSearchParams(searchParams.toString());
     params.delete("search");
     const next = params.toString();
-    window.history.replaceState(null, "", next ? `${pathname}?${next}` : pathname);
+    window.history.replaceState(window.history.state, "", next ? `${pathname}?${next}` : pathname);
     window.dispatchEvent(new CustomEvent("close-search-sheet"));
   }
 
