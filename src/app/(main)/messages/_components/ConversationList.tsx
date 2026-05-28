@@ -43,13 +43,13 @@ export default function ConversationList({
     return getMessagePreviewText(content, { isMine, truncate: truncateMessage });
   }, [truncateMessage]);
   const visibleConversations =
-    activeMenuTab === "messages"
+    activeMenuTab === "direct"
       ? directConversations
       : activeMenuTab === "friends"
         ? []
       : activeMenuTab === "groups"
         ? groupConversations
-        : activeMenuTab === "my-chat"
+        : activeMenuTab === "class"
           ? classConversations
           : [];
 
@@ -69,10 +69,10 @@ export default function ConversationList({
             친구들
           </button>
           <button
-            onClick={() => setActiveMenuTab("messages")}
-            style={{ fontSize: activeMenuTab === "messages" ? 18 : 17 }}
+            onClick={() => setActiveMenuTab("direct")}
+            style={{ fontSize: activeMenuTab === "direct" ? 18 : 17 }}
             className={`pb-2 font-bold border-b-2 transition-colors ${
-              activeMenuTab === "messages"
+              activeMenuTab === "direct"
                 ? "border-black text-black"
                 : "border-transparent text-gray-400"
             }`}
@@ -91,10 +91,10 @@ export default function ConversationList({
             그룹
           </button>
           <button
-            onClick={() => setActiveMenuTab("my-chat")}
-            style={{ fontSize: activeMenuTab === "my-chat" ? 18 : 17 }}
+            onClick={() => setActiveMenuTab("class")}
+            style={{ fontSize: activeMenuTab === "class" ? 18 : 17 }}
             className={`pb-2 font-bold border-b-2 transition-colors ${
-              activeMenuTab === "my-chat"
+              activeMenuTab === "class"
                 ? "border-black text-black"
                 : "border-transparent text-gray-400"
             }`}
@@ -109,11 +109,11 @@ export default function ConversationList({
           <MessageFriendsPanel onlineIds={onlineIds} onMessageSent={onFriendMessageSent} />
         ) : loading ? (
           <div className="flex items-center justify-center h-32 text-gray-400">로딩 중...</div>
-        ) : visibleConversations.length === 0 && activeMenuTab !== "messages" ? (
+        ) : visibleConversations.length === 0 && activeMenuTab !== "direct" ? (
           <div className="flex flex-col items-center justify-center h-32 text-gray-400">
             <p className="text-4xl mb-2">💬</p>
             <p className="text-sm">
-              {activeMenuTab === "my-chat"
+              {activeMenuTab === "class"
                 ? "클래스 대화방이 없습니다"
                 : activeMenuTab === "groups"
                   ? "그룹 대화방이 없습니다"
@@ -122,7 +122,7 @@ export default function ConversationList({
           </div>
         ) : (
           <>
-          {activeMenuTab === "messages" && (
+          {activeMenuTab === "direct" && (
             <div
               onClick={() => selfChat ? onOpenChat(selfChat.id) : onOpenSelfChat()}
               className="border-b border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors"

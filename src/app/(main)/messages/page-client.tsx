@@ -96,9 +96,9 @@ function isConversationInPreviewType(conv: Conversation, type: PreviewRoomType) 
 }
 
 function mapMenuTabToPreviewType(tab: MessageMenuTab): PreviewRoomType | null {
-  if (tab === "messages") return "direct";
+  if (tab === "direct") return "direct";
   if (tab === "groups") return "group";
-  if (tab === "my-chat") return "class";
+  if (tab === "class") return "class";
   return null;
 }
 

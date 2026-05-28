@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { IdCard, Plus } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import type { ClassWithHost } from "@/components/class/ClassCard";
+import ClassCard, { type ClassWithHost } from "@/components/class/ClassCard";
 import ClassMoreMenu from "@/components/class/ClassMoreMenu";
 
 interface MyClassesTabProps {
@@ -18,9 +18,20 @@ interface MyClassesTabProps {
   regionalLabel: string | null;
   onRetry: () => void;
   onClassSelect?: (classId: string) => void;
+  viewMode?: "grid" | "card";
 }
 
 const GRID_FILL_COLORS = ["#E84040", "#B8D44A", "#F5A623", "#5BB8E8"] as const;
+
+function ClassCardList({ classes }: { classes: ClassWithHost[] }) {
+  return (
+    <div className="space-y-0">
+      {classes.map((c, idx) => (
+        <ClassCard key={`${c.id}-${idx}`} classData={c} priorityImage={idx < 2} />
+      ))}
+    </div>
+  );
+}
 
 function ClassGrid({ classes, onClassSelect }: { classes: ClassWithHost[]; onClassSelect?: (classId: string) => void }) {
   const router = useRouter();
@@ -102,6 +113,7 @@ export default function MyClassesTab({
   regionalLoading,
   regionalLabel,
   onClassSelect,
+  viewMode = "grid",
 }: MyClassesTabProps) {
   const router = useRouter();
 
@@ -130,6 +142,8 @@ export default function MyClassesTab({
           </button>
           <div className="aspect-square bg-gray-100" />
         </div>
+      ) : viewMode === "card" ? (
+        <ClassCardList classes={classes} />
       ) : (
         <ClassGrid classes={classes} onClassSelect={onClassSelect} />
       )}
@@ -143,6 +157,8 @@ export default function MyClassesTab({
         <div className="flex items-center justify-center h-24 text-gray-400">
           <p className="text-sm">참여신청 클래스가 없습니다.</p>
         </div>
+      ) : viewMode === "card" ? (
+        <ClassCardList classes={participatingClasses} />
       ) : (
         <ClassGrid classes={participatingClasses} onClassSelect={onClassSelect} />
       )}
@@ -156,6 +172,8 @@ export default function MyClassesTab({
         <div className="flex items-center justify-center h-24 text-gray-400">
           <p className="text-sm">지역 클래스가 없습니다</p>
         </div>
+      ) : viewMode === "card" ? (
+        <ClassCardList classes={regionalClasses} />
       ) : (
         <ClassGrid classes={regionalClasses} onClassSelect={onClassSelect} />
       )}

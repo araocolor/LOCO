@@ -180,10 +180,10 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
           <button
             type="button"
             aria-label="알림"
-            className="ml-auto w-10 h-10 -mr-1 flex items-center justify-center text-gray-700"
+            className="ml-auto w-10 h-10 mr-[-4px] flex items-center justify-center text-gray-700"
             onClick={() => setNotificationOpen(true)}
           >
-            <Heart size={22} strokeWidth={2.2} />
+            <Heart size={25} strokeWidth={2.2} />
           </button>
         </div>
         <div className="flex pl-4 pr-4 gap-5 pb-0 overflow-x-auto scrollbar-hide whitespace-nowrap">
@@ -205,20 +205,18 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
           >
             올클래스
           </button>
-          {activeTab === "allClasses" && (
-            <button
-              type="button"
-              aria-label={viewMode === "grid" ? "카드 보기" : "격자 보기"}
-              className="ml-auto pb-2 text-gray-400"
-              onClick={() => setViewMode(viewMode === "grid" ? "card" : "grid")}
-            >
-              {viewMode === "grid" ? (
-                <Presentation size={20} strokeWidth={1.9} />
-              ) : (
-                <LayoutGrid size={20} strokeWidth={1.9} />
-              )}
-            </button>
-          )}
+          <button
+            type="button"
+            aria-label={viewMode === "grid" ? "카드 보기" : "격자 보기"}
+            className="ml-auto pb-2 text-gray-400"
+            onClick={() => setViewMode(viewMode === "grid" ? "card" : "grid")}
+          >
+            {viewMode === "grid" ? (
+              <Presentation size={20} strokeWidth={1.9} />
+            ) : (
+              <LayoutGrid size={20} strokeWidth={1.9} />
+            )}
+          </button>
         </div>
       </header>
 
@@ -236,6 +234,7 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
           regionalLabel={userRegion}
           onRetry={() => userId && fetchHomeMyClasses(userId)}
           onClassSelect={(id) => setClassDetailId(id)}
+          viewMode={viewMode}
         />
       )}
 
