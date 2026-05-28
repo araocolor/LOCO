@@ -51,8 +51,8 @@ const TOP_SAFE_GAP = 20;
 const BOTTOM_SAFE_GAP = 20;
 const MAX_VISIBLE_USERS = 50;
 const NEARBY_API_CACHE_KEY = "loco_nearby_api_cache_v2";
-const NEARBY_API_TTL_MS = 60 * 1000;
-const NEARBY_ZERO_RESULT_MAX_CALLS = 3;
+const NEARBY_API_TTL_MS = 2 * 60 * 1000;
+const NEARBY_ZERO_RESULT_MAX_CALLS = 2;
 const RIPPLE_DURATION_MS = 2000;
 const RIPPLE_DURATION_SECONDS = RIPPLE_DURATION_MS / 1000;
 const RESULT_FALLBACK_DELAY_MS = 2920;
@@ -325,8 +325,11 @@ export default function NearbyMap({ soundEnabled = true, onRefreshControlChange 
     [nearbyUsers, layoutSize.height, layoutSize.width, nearbyAvatarSize]
   );
 
+  const SONAR_PLAYED_KEY = "loco_sonar_played";
+
   const playSonarPing = useCallback(() => {
     if (!soundEnabled) return;
+    if (sessionStorage.getItem(SONAR_PLAYED_KEY)) return;
     try {
       if (!audioCtxRef.current) {
         audioCtxRef.current = new AudioContext();
@@ -334,7 +337,6 @@ export default function NearbyMap({ soundEnabled = true, onRefreshControlChange 
       const ctx = audioCtxRef.current;
       const now = ctx.currentTime;
 
-      // 주파수가 내려가는 소나 핑
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.connect(gain);
@@ -350,6 +352,7 @@ export default function NearbyMap({ soundEnabled = true, onRefreshControlChange 
 
       osc.start(now);
       osc.stop(now + 2.0);
+      sessionStorage.setItem(SONAR_PLAYED_KEY, "1");
     } catch {}
   }, [soundEnabled]);
 
@@ -360,12 +363,12 @@ export default function NearbyMap({ soundEnabled = true, onRefreshControlChange 
       return pendingNearbyRequest;
     }
 
-    // 사람이 발견된 경우에는 1분 동안 캐시 결과만 반환
+    // 사람이 발견된 경우에는 2분 동안 캐시 결과만 반환
     if (gate.users.length > 0) {
       return { users: gate.users.slice(0, MAX_VISIBLE_USERS), debug: gate.debug, fromCache: true };
     }
 
-    // 0명 결과로 3회 소진된 경우에는 1분 동안 API 재호출을 막음
+    // 0명 결과로 2회 소진된 경우에는 2분 동안 API 재호출을 막음
     if (gate.executed && gate.count >= NEARBY_ZERO_RESULT_MAX_CALLS) {
       return { users: gate.users.slice(0, MAX_VISIBLE_USERS), debug: gate.debug, fromCache: true };
     }

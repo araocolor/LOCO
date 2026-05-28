@@ -6,9 +6,12 @@ import NearbyMap, { type NearbyRefreshControl } from "@/components/features/Near
 
 const FINDER_SOUND_ENABLED_KEY = "loco_finder_sound_enabled";
 
+const SONAR_PLAYED_KEY = "loco_sonar_played";
+
 function readFinderSoundEnabled() {
   if (typeof window === "undefined") return true;
   try {
+    if (sessionStorage.getItem(SONAR_PLAYED_KEY)) return false;
     const raw = localStorage.getItem(FINDER_SOUND_ENABLED_KEY);
     return raw === null ? true : raw === "true";
   } catch {

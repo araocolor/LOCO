@@ -15,6 +15,15 @@ export default function SearchHeader({ activeTab, onTabChange }: SearchHeaderPro
       </div>
       <div className="flex pl-8 pr-4 gap-5 pb-0 overflow-x-auto scrollbar-hide whitespace-nowrap">
         <button
+          onClick={() => onTabChange("finder")}
+          className={`pb-2 font-bold transition-colors ${
+            activeTab === "finder" ? "text-black" : "text-gray-400"
+          }`}
+          style={{ fontSize: activeTab === "finder" ? 18 : 17 }}
+        >
+          이근처
+        </button>
+        <button
           onClick={() => onTabChange("members")}
           className={`pb-2 font-bold transition-colors ${
             activeTab === "members" ? "text-black" : "text-gray-400"
@@ -23,7 +32,7 @@ export default function SearchHeader({ activeTab, onTabChange }: SearchHeaderPro
         >
           댄서들
         </button>
-<button
+        <button
           onClick={() => onTabChange("followings")}
           className={`pb-2 font-bold transition-colors ${
             activeTab === "followings" ? "text-black" : "text-gray-400"
@@ -31,15 +40,6 @@ export default function SearchHeader({ activeTab, onTabChange }: SearchHeaderPro
           style={{ fontSize: activeTab === "followings" ? 18 : 17 }}
         >
           구독자
-        </button>
-        <button
-          onClick={() => onTabChange("finder")}
-          className={`pb-2 font-bold transition-colors ${
-            activeTab === "finder" ? "text-black" : "text-gray-400"
-          }`}
-          style={{ fontSize: activeTab === "finder" ? 18 : 17 }}
-        >
-          이근처
         </button>
       </div>
     </header>

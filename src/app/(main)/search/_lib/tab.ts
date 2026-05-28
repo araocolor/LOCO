@@ -3,7 +3,7 @@ import { SEARCH_TAB_CHANGE_EVENT } from "./constants";
 
 export function getSearchTab(): Tab {
   if (typeof window === "undefined") return "finder";
-  const tab = new URLSearchParams(window.location.search).get("tab");
+  const tab = window.history.state?.tab;
   if (tab === "members") return "members";
   if (tab === "followings") return "followings";
   if (tab === "pending") return "pending";
@@ -22,9 +22,10 @@ export function subscribeSearchTab(onStoreChange: () => void) {
 
 export function replaceSearchTab(tab: Tab) {
   const url = new URL(window.location.href);
-  url.searchParams.set("tab", tab);
+  url.searchParams.delete("tab");
   url.searchParams.delete("mode");
-  window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+  const qs = url.searchParams.toString();
+  window.history.replaceState({ tab }, "", `${url.pathname}${qs ? `?${qs}` : ""}${url.hash}`);
   window.dispatchEvent(new Event(SEARCH_TAB_CHANGE_EVENT));
 }
 
