@@ -553,7 +553,7 @@ export default function CachedClassDetailPage({ classIdOverride, hideChat, onClo
 
   return (
     <div
-      className={`relative max-w-xl mx-auto pb-10 ${animateFromHome ? "page-slide-in-from-left" : ""}`}
+      className={`relative pb-10 ${animateFromHome ? "page-slide-in-from-left" : ""}`}
     >
       {images.length > 0 ? (
         <ClassDetailImageGallery images={images} />

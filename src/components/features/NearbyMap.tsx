@@ -293,7 +293,7 @@ export default function NearbyMap({ soundEnabled = true, onRefreshControlChange 
   const [showMyAvatar, setShowMyAvatar] = useState(false);
   const [myProfile] = useState<{ nickname: string; profile_image_url: string | null } | null>(() => {
     try {
-      const raw = localStorage.getItem("loco_mypage_cache_local_v2");
+      const raw = localStorage.getItem("loco_mypage_cache_local_v3");
       if (!raw) return null;
       const cache = JSON.parse(raw);
       return { nickname: cache.profile?.nickname ?? "", profile_image_url: cache.profile?.profile_image_url ?? null };

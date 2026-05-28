@@ -1027,7 +1027,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
   }
 
   return (
-    <div className="max-w-xl mx-auto bg-white flex min-h-0 flex-col" style={{ height: "calc(100dvh - 126px)" }}>
+    <div className="flex-1 bg-white flex min-h-0 flex-col">
       <ConversationList
         activeMenuTab={activeMenuTab}
         conversations={conversations}

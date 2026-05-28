@@ -126,7 +126,7 @@ export default function MyClassesTab({
   }
 
   return (
-    <div className="max-w-xl mx-auto bg-white pb-6">
+    <div className="bg-white pb-6">
       {classes.length === 0 ? (
         <div className="grid grid-cols-3 gap-[1px] bg-gray-200">
           <div className="aspect-square bg-gray-100" />

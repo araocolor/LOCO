@@ -22,10 +22,13 @@ export function subscribeSearchTab(onStoreChange: () => void) {
 
 export function replaceSearchTab(tab: Tab) {
   const url = new URL(window.location.href);
-  url.searchParams.delete("tab");
   url.searchParams.delete("mode");
   const qs = url.searchParams.toString();
-  window.history.replaceState({ tab }, "", `${url.pathname}${qs ? `?${qs}` : ""}${url.hash}`);
+  window.history.replaceState(
+    { ...window.history.state, tab },
+    "",
+    `${url.pathname}${qs ? `?${qs}` : ""}${url.hash}`
+  );
   window.dispatchEvent(new Event(SEARCH_TAB_CHANGE_EVENT));
 }
 

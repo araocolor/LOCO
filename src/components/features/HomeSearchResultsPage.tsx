@@ -303,7 +303,7 @@ export default function HomeSearchResultsPage({
   }, [filterParam, homeCacheKey, stableInitial, warmImages, warmPageImages, writeHomeCache]);
 
   return (
-    <div className="max-w-xl mx-auto bg-white relative">
+    <div className="bg-white relative">
       {loading && (
         <div className="fixed inset-0 z-40 flex items-center justify-center">
           <div className="w-10 h-10 border-4 border-[#FEE500] border-t-transparent rounded-full animate-spin" />
