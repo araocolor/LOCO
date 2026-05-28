@@ -170,6 +170,27 @@ export async function GET(request: NextRequest) {
     const classMap = new Map((classRows ?? []).map((row) => [row.id, row]));
     const messageMap = new Map((lastMessages ?? []).map((message) => [message.id, message]));
 
+    const membershipMap = new Map((myMemberships ?? []).map((m) => [m.room_id, m]));
+    const activeRoomIds = activeRooms.map((room) => room.id);
+    const unreadCounts = await Promise.all(
+      activeRoomIds.map(async (roomId) => {
+        const lastReadAt = membershipMap.get(roomId)?.last_read_at;
+        let query = admin
+          .from("chat_messages")
+          .select("id", { count: "exact", head: true })
+          .eq("room_id", roomId)
+          .neq("sender_id", user.id)
+          .is("deleted_at", null);
+
+        if (lastReadAt) query = query.gt("created_at", lastReadAt);
+
+        const { count, error } = await query;
+        if (error) throw error;
+        return [roomId, count ?? 0] as const;
+      })
+    );
+    const unreadCountMap = new Map(unreadCounts);
+
     const result = activeRooms
       .map((room) => {
         const roomMembers = memberMap.get(room.id) ?? [];
@@ -204,7 +225,7 @@ export async function GET(request: NextRequest) {
                 created_at: lastMessage.created_at,
               }
             : null,
-          unread_count: 0,
+          unread_count: unreadCountMap.get(room.id) ?? 0,
           updated_at: room.last_message_at ?? room.updated_at,
           created_at: room.created_at,
         };

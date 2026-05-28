@@ -660,6 +660,15 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
   }, [activeMenuTab]);
 
   useEffect(() => {
+    if (activeMenuTab !== "friends") return;
+
+    void fetchConversationsByType("direct");
+    void fetchConversationsByType("group");
+    void fetchConversationsByType("class");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeMenuTab]);
+
+  useEffect(() => {
     if (!roomIdFromQuery) return;
     const timer = window.setTimeout(() => {
       void Promise.allSettled([
