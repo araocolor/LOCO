@@ -516,7 +516,7 @@ export default function MyPageClient({
           onClick={() => setStarGiversOpen(false)}
         >
           <div
-            className="flex h-[400px] w-[300px] flex-col rounded-2xl bg-white p-3 shadow-xl"
+            className="flex max-h-[80vh] w-[300px] flex-col rounded-2xl bg-white p-3 shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="relative flex items-center justify-center">
