@@ -44,7 +44,12 @@ export function useFriendActions({
     fetch("/api/friends/suggestions")
       .then((r) => r.json())
       .then((json) => {
-        if (json.data) setSuggestions(json.data);
+        if (json.data) {
+          setSuggestions(json.data);
+          try {
+            localStorage.setItem("search_suggestions_cache", JSON.stringify({ suggestions: json.data, ts: Date.now() }));
+          } catch {}
+        }
       })
       .catch(() => {})
       .finally(() => setSuggestionsLoading(false));

@@ -452,10 +452,13 @@ export default function MyPageClient({
               {getMemberTypeLabel(profileMeta.member_type[0])}
             </span>
           )}
-          <span className="text-[14px] text-gray-400 -mt-1">{profile.email ?? ""}</span>
-          <span className="inline-flex items-center gap-1 text-[13px] font-semibold text-yellow-700">
-            <Star size={13} className="text-yellow-500" fill="currentColor" />
-            {profile.star_balance ?? 0}개 남음
+          <span className="text-[14px] text-gray-400 -mt-1">
+            {profile.email ?? ""}
+            {" "}
+            <span className="inline-flex items-center gap-1 text-[13px] font-semibold text-yellow-700 align-middle">
+              <Star size={13} className="text-yellow-500" fill="currentColor" />
+              {profile.star_balance ?? 0}개 남음
+            </span>
           </span>
           {profile.bio && (
             <span className="text-[16px] w-[80%] mt-2" style={{ color: "#000000cc" }}>{profile.bio}</span>
@@ -509,32 +512,35 @@ export default function MyPageClient({
 
       {starGiversOpen && (
         <div
-          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/30 px-4"
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/30 px-4 overscroll-contain touch-none"
           onClick={() => setStarGiversOpen(false)}
         >
           <div
-            className="flex h-[300px] w-[250px] flex-col rounded-2xl bg-white p-3 shadow-xl"
+            className="flex h-[400px] w-[300px] flex-col rounded-2xl bg-white p-3 shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-semibold text-gray-900">별을 준 사람들</span>
+            <div className="relative flex items-center justify-center">
+              <span className="text-[16px] font-bold text-gray-900">별을 준 사람들</span>
               <button
                 type="button"
                 onClick={() => setStarGiversOpen(false)}
-                className="rounded-full p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+                className="absolute right-0 rounded-full p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
                 aria-label="닫기"
               >
                 <X size={16} />
               </button>
             </div>
-            <div className="mt-3 flex-1 overflow-y-auto">
+            <div className="mt-3 flex-1 overflow-y-auto scrollbar-hide overscroll-contain">
               {starGivers.length ? (
                 <div className="grid grid-cols-3 gap-x-2 gap-y-3">
                   {starGivers.map((giver) => (
                     <div key={giver.id} className="flex flex-col items-center gap-1">
-                      <Avatar src={giver.profile_image_url} nickname={giver.nickname} size={42} />
-                      <span className="w-full truncate text-center text-[10px] font-medium text-gray-500">
-                        {giver.nickname}
+                      <Avatar src={giver.profile_image_url} nickname={giver.nickname} size={45} />
+                      <span className="truncate w-full text-center text-[15px] font-medium text-gray-500">{giver.nickname}</span>
+                      <span className="flex items-center justify-center gap-0">
+                        {Array.from({ length: giver.count }, (_, i) => (
+                          <Star key={i} size={12} className="text-yellow-400" fill="currentColor" />
+                        ))}
                       </span>
                     </div>
                   ))}
@@ -545,6 +551,13 @@ export default function MyPageClient({
                 </div>
               )}
             </div>
+            <button
+              type="button"
+              onClick={() => setStarGiversOpen(false)}
+              className="mt-2 w-1/2 mx-auto rounded-full bg-yellow-400 py-2 text-[14px] font-semibold text-gray-900"
+            >
+              닫기
+            </button>
           </div>
         </div>
       )}
