@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
-import type { ClassWithHost } from "@/components/class/ClassCard";
+import ClassCard, { type ClassWithHost } from "@/components/class/ClassCard";
 import ClassMoreMenu from "@/components/class/ClassMoreMenu";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -38,6 +38,7 @@ interface Props {
   genreOverride?: string[];
   classTypeOverride?: string[];
   onClassSelect?: (classId: string) => void;
+  viewMode?: "grid" | "card";
 }
 
 const EMPTY_CLASSES: ClassWithHost[] = [];
@@ -48,6 +49,7 @@ export default function HomeSearchResultsPage({
   genreOverride,
   classTypeOverride,
   onClassSelect,
+  viewMode = "grid",
 }: Props) {
   const stableInitial = initialClasses ?? EMPTY_CLASSES;
   const router = useRouter();
@@ -308,69 +310,77 @@ export default function HomeSearchResultsPage({
         </div>
       )}
 
-      <div className="grid grid-cols-3 gap-[1px] bg-gray-200">
-        {filteredClasses.map((c, idx) => (
-          <div
-            key={`${c.id}-${idx}`}
-            onClick={() => onClassSelect ? onClassSelect(c.id) : router.push(`/classes/${c.id}`)}
-            className="aspect-square bg-gray-100 relative overflow-hidden cursor-pointer"
-          >
-            {c.images?.[0]?.card_url ? (
-              <Image
-                src={c.images[0].card_url}
-                alt={c.title}
-                fill
-                sizes="(max-width: 640px) 33vw, 213px"
-                className="object-cover"
-                priority={idx < 6}
-                unoptimized
-              />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center bg-gray-100">
-                <span className="text-gray-300 text-xs">없음</span>
+      {viewMode === "card" ? (
+        <div className="space-y-0">
+          {filteredClasses.map((c, idx) => (
+            <ClassCard key={`${c.id}-${idx}`} classData={c} priorityImage={idx < 2} />
+          ))}
+        </div>
+      ) : (
+        <div className="grid grid-cols-3 gap-[1px] bg-gray-200">
+          {filteredClasses.map((c, idx) => (
+            <div
+              key={`${c.id}-${idx}`}
+              onClick={() => onClassSelect ? onClassSelect(c.id) : router.push(`/classes/${c.id}`)}
+              className="aspect-square bg-gray-100 relative overflow-hidden cursor-pointer"
+            >
+              {c.images?.[0]?.card_url ? (
+                <Image
+                  src={c.images[0].card_url}
+                  alt={c.title}
+                  fill
+                  sizes="(max-width: 640px) 33vw, 213px"
+                  className="object-cover"
+                  priority={idx < 6}
+                  unoptimized
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center bg-gray-100">
+                  <span className="text-gray-300 text-xs">없음</span>
+                </div>
+              )}
+              {c.status !== "recruiting" && (
+                <div className="absolute top-1.5 left-1.5 w-3 h-3 rounded-full bg-black" />
+              )}
+              <div className="absolute top-0 right-0 z-10" onClick={(e) => e.stopPropagation()}>
+                <ClassMoreMenu
+                  classId={c.id}
+                  hostId={c.host_id}
+                  hostNickname={c.host?.nickname}
+                  hostImageUrl={c.host?.profile_image_url}
+                  status={c.status}
+                  buttonClassName="flex items-center justify-center w-8 h-8 text-white drop-shadow-md"
+                  onDetailView={() => onClassSelect ? onClassSelect(c.id) : router.push(`/classes/${c.id}`)}
+                />
               </div>
-            )}
-            {c.status !== "recruiting" && (
-              <div className="absolute top-1.5 left-1.5 w-3 h-3 rounded-full bg-black" />
-            )}
-            <div className="absolute top-0 right-0 z-10" onClick={(e) => e.stopPropagation()}>
-              <ClassMoreMenu
-                classId={c.id}
-                hostId={c.host_id}
-                hostNickname={c.host?.nickname}
-                hostImageUrl={c.host?.profile_image_url}
-                status={c.status}
-                buttonClassName="flex items-center justify-center w-8 h-8 text-white drop-shadow-md"
-                onDetailView={() => onClassSelect ? onClassSelect(c.id) : router.push(`/classes/${c.id}`)}
-              />
+              {isBookmarkMode && (
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="white"
+                  stroke="white"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="absolute top-1.5 right-1.5"
+                >
+                  <polygon points="19 21 12 16 5 21 5 3 19 3" />
+                </svg>
+              )}
             </div>
-            {isBookmarkMode && (
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="white"
-                stroke="white"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="absolute top-1.5 right-1.5"
-              >
-                <polygon points="19 21 12 16 5 21 5 3 19 3" />
-              </svg>
-            )}
-          </div>
-        ))}
-        {fillerCells.map((cell) => (
-          <div
-            key={cell.key}
-            aria-hidden="true"
-            className="aspect-square"
-            style={{ backgroundColor: cell.color }}
-          />
-        ))}
-      </div>
+          ))}
+          {fillerCells.map((cell) => (
+            <div
+              key={cell.key}
+              aria-hidden="true"
+              className="aspect-square"
+              style={{ backgroundColor: cell.color }}
+            />
+          ))}
+        </div>
+      )}
 
       {/* 스크롤 끝 감지 영역 */}
       <div ref={bottomRef} className="h-10" />

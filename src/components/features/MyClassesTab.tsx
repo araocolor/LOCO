@@ -84,32 +84,6 @@ function ClassGrid({ classes, onClassSelect }: { classes: ClassWithHost[]; onCla
   );
 }
 
-function RegionalHeaderGrid({ label }: { label: string | null }) {
-  const router = useRouter();
-  const regionText = label ?? "지역";
-
-  return (
-    <div className="grid grid-cols-3 gap-[1px] bg-gray-200">
-      <div className="aspect-square bg-white flex items-end justify-start px-4 pb-3">
-        <span className="text-gray-900 leading-tight">
-          <span className="block text-[25px] font-bold">{regionText}</span>
-          <span className="block text-[17px]">지역클래스</span>
-        </span>
-      </div>
-      <div className="aspect-square bg-gray-100" />
-      <button
-        type="button"
-        onClick={() => router.push("/classes/new")}
-        className="aspect-square bg-[#fee500] flex flex-col items-center justify-center gap-2 text-gray-900"
-      >
-        <div className="w-10 h-10 rounded-full border-2 border-gray-900 flex items-center justify-center">
-          <Plus size={22} strokeWidth={2.2} />
-        </div>
-        <span className="text-[18px] font-bold">클래스 생성</span>
-      </button>
-    </div>
-  );
-}
 
 function SectionLabel({ children }: { children: ReactNode }) {
   return (
@@ -129,6 +103,8 @@ export default function MyClassesTab({
   regionalLabel,
   onClassSelect,
 }: MyClassesTabProps) {
+  const router = useRouter();
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-32 text-gray-400">
@@ -140,8 +116,19 @@ export default function MyClassesTab({
   return (
     <div className="max-w-xl mx-auto bg-white pb-6">
       {classes.length === 0 ? (
-        <div className="flex flex-col items-center justify-center h-24 text-gray-400">
-          <p className="text-sm">개설한 클래스가 없습니다</p>
+        <div className="grid grid-cols-3 gap-[1px] bg-gray-200">
+          <div className="aspect-square bg-gray-100" />
+          <button
+            type="button"
+            onClick={() => router.push("/classes/new")}
+            className="aspect-square bg-[#fee500] flex flex-col items-center justify-center gap-2 text-gray-900"
+          >
+            <div className="w-10 h-10 rounded-full border-2 border-gray-900 flex items-center justify-center">
+              <Plus size={22} strokeWidth={2.2} />
+            </div>
+            <span className="text-[18px] font-bold">클래스 생성</span>
+          </button>
+          <div className="aspect-square bg-gray-100" />
         </div>
       ) : (
         <ClassGrid classes={classes} onClassSelect={onClassSelect} />
@@ -160,7 +147,7 @@ export default function MyClassesTab({
         <ClassGrid classes={participatingClasses} onClassSelect={onClassSelect} />
       )}
 
-      <RegionalHeaderGrid label={regionalLabel} />
+      <SectionLabel>{regionalLabel ?? "지역"} 지역클래스</SectionLabel>
       {regionalLoading ? (
         <div className="flex items-center justify-center h-24 text-gray-400">
           로딩 중...

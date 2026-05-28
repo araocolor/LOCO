@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, LayoutList, Plus, Search } from "lucide-react";
+import { ArrowLeft, Heart, LayoutGrid, Presentation, Search } from "lucide-react";
+import NotificationDrawer from "@/components/features/NotificationDrawer";
 import { ClassWithHost } from "@/components/class/ClassCard";
 import CachedClassDetailPage from "@/components/class/CachedClassDetailPage";
 import HomeSearchResultsPage from "@/components/features/HomeSearchResultsPage";
@@ -46,6 +47,8 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
   const [regionalClassesLoading, setRegionalClassesLoading] = useState(false);
   const [searchRegion, setSearchRegion] = useState<string | null>(null);
   const [classDetailId, setClassDetailId] = useState<string | null>(null);
+  const [notificationOpen, setNotificationOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<"grid" | "card">("card");
   const isChromeVisible = useScrollChromeVisibility(true);
   const router = useRouter();
 
@@ -147,6 +150,7 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
 
   return (
     <>
+      <NotificationDrawer open={notificationOpen} onClose={() => setNotificationOpen(false)} />
       <header
         className={`sticky top-0 z-50 bg-white border-b border-[#e5e7eb] transition-transform duration-200 ease-out motion-reduce:transition-none ${
           isChromeVisible ? "translate-y-0" : "-translate-y-full"
@@ -175,11 +179,11 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
           </div>
           <button
             type="button"
-            aria-label="클래스 만들기"
+            aria-label="알림"
             className="ml-auto w-10 h-10 -mr-1 flex items-center justify-center text-gray-700"
-            onClick={() => router.push("/classes/new")}
+            onClick={() => setNotificationOpen(true)}
           >
-            <Plus size={22} strokeWidth={2.2} />
+            <Heart size={22} strokeWidth={2.2} />
           </button>
         </div>
         <div className="flex pl-4 pr-4 gap-5 pb-0 overflow-x-auto scrollbar-hide whitespace-nowrap">
@@ -201,14 +205,25 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
           >
             올클래스
           </button>
-          <button type="button" aria-label="목록 보기" className="ml-auto pb-2 text-gray-400">
-            <LayoutList size={18} strokeWidth={1.9} />
-          </button>
+          {activeTab === "allClasses" && (
+            <button
+              type="button"
+              aria-label={viewMode === "grid" ? "카드 보기" : "격자 보기"}
+              className="ml-auto pb-2 text-gray-400"
+              onClick={() => setViewMode(viewMode === "grid" ? "card" : "grid")}
+            >
+              {viewMode === "grid" ? (
+                <Presentation size={20} strokeWidth={1.9} />
+              ) : (
+                <LayoutGrid size={20} strokeWidth={1.9} />
+              )}
+            </button>
+          )}
         </div>
       </header>
 
       {activeTab === "allClasses" && (
-        <HomeSearchResultsPage initialClasses={initialClasses} onClassSelect={(id) => setClassDetailId(id)} />
+        <HomeSearchResultsPage initialClasses={initialClasses} onClassSelect={(id) => setClassDetailId(id)} viewMode={viewMode} />
       )}
       {activeTab === "mySubscriptions" && (
         <MyClassesTab

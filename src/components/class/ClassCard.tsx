@@ -727,6 +727,21 @@ export default function ClassCard({ classData, priorityImage = false }: ClassCar
               <div className="aspect-square w-full">{renderClassImageFallback()}</div>
             </div>
           )}
+          <div className="absolute left-3 top-3 z-30">
+            {host?.profile_image_url ? (
+              <Image
+                src={host.profile_image_url}
+                alt={host?.nickname ?? ""}
+                width={40}
+                height={40}
+                className="h-[40px] w-[40px] rounded-full object-cover"
+              />
+            ) : (
+              <div className="flex h-[40px] w-[40px] items-center justify-center rounded-full bg-gray-200 text-xs font-medium text-gray-500">
+                {host?.nickname?.[0] ?? "?"}
+              </div>
+            )}
+          </div>
           <div className="absolute right-2 top-4 z-30">
             {renderMoreMenu(
               "flex h-5 items-center justify-center rounded-full bg-black/40 px-1.5 text-white font-bold text-xs"
@@ -871,21 +886,8 @@ export default function ClassCard({ classData, priorityImage = false }: ClassCar
 
         {/* 개설자 정보 */}
         <div className={`flex items-center gap-2 px-3 pt-2 pb-1`}>
-          {host?.profile_image_url ? (
-            <Image
-              src={host.profile_image_url}
-              alt={host?.nickname ?? ""}
-              width={35}
-              height={35}
-              className="h-[35px] w-[35px] flex-shrink-0 rounded-full object-cover"
-            />
-          ) : (
-            <div className="flex h-[35px] w-[35px] flex-shrink-0 items-center justify-center rounded-full bg-gray-200 text-xs font-medium text-gray-500">
-              {host?.nickname?.[0] ?? "?"}
-            </div>
-          )}
           <div className="min-w-0 flex-1">
-            <span className="flex min-w-0 items-center gap-1.5 truncate text-[15px] font-bold leading-tight text-gray-900">
+            <span className="flex min-w-0 items-center gap-1.5 truncate text-[16px] font-bold leading-tight text-gray-900">
               <span className="min-w-0 truncate">{title}</span>
               {status === "recruiting" && (
                 <span
@@ -897,9 +899,9 @@ export default function ClassCard({ classData, priorityImage = false }: ClassCar
             <button
               type="button"
               onClick={handleToggleExpanded}
-              className="block w-full truncate text-left text-[13px] leading-tight text-gray-400"
+              className="block w-full truncate text-left text-[14px] leading-tight text-gray-400"
             >
-              {host?.nickname ?? ""} · {formatDate(datetime)} · {region} | {levelLabel} | {genreLabel}
+              {host?.nickname ?? ""} · {formatDate(datetime)} · {region}
               {!expanded && (
                 <span className="inline-flex items-center gap-0.5 font-bold text-gray-500">
                   {" ...더 보기"}
@@ -926,11 +928,12 @@ export default function ClassCard({ classData, priorityImage = false }: ClassCar
             <div ref={descriptionRef} className="scroll-mt-[250px]">
               <MentionText
                 text={description}
-                className={`text-[15px] text-gray-600 mt-2 whitespace-pre-wrap leading-relaxed ${expanded ? "" : "line-clamp-1"}`}
+                className={`text-[15px] text-gray-600 mt-0.5 whitespace-pre-wrap leading-relaxed ${expanded ? "" : "line-clamp-1"}`}
               />
             </div>
           </div>
         )}
+        <div className="h-3" />
       </div>
       {lightboxOpen && totalImages > 0 && (
         <div
@@ -1009,7 +1012,7 @@ export default function ClassCard({ classData, priorityImage = false }: ClassCar
             </button>
           )}
           <div
-            className="relative w-[92vw] max-w-[900px] max-h-[88vh] overflow-hidden"
+            className="relative w-full max-w-[900px] max-h-[88vh] overflow-hidden"
             onClick={(e) => e.stopPropagation()}
             onTouchStart={handleLightboxTouchStart}
             onTouchEnd={handleLightboxTouchEnd}
