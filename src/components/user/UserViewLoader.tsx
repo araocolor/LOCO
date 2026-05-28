@@ -82,9 +82,9 @@ export default function UserViewLoader({ userId }: { userId: string }) {
 
     async function load() {
       try {
-        const prefetched = sessionStorage.getItem(`user_view_${userId}`);
-        if (prefetched) {
-          const json = JSON.parse(prefetched) as UserViewData;
+        const cached = sessionStorage.getItem(`user_view_${userId}`);
+        if (cached) {
+          const json = JSON.parse(cached) as UserViewData;
           const hasFollowerCount = typeof json.followerCount === "number";
           if (!cancelled) {
             setData({

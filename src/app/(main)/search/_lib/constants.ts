@@ -1,6 +1,6 @@
 import type { SocialListMode } from "../_types/search";
 
-export const SEARCH_CACHE_KEY = "search_prefetch_cache";
+export const SEARCH_CACHE_KEY = "search_social_cache";
 export const MEMBERS_CACHE_KEY = "search_members_cache_v3";
 export const PENDING_CACHE_KEY = "search_pending_members_cache_v2";
 export const MYPAGE_CACHE_KEY = "loco_mypage_cache_local_v2";

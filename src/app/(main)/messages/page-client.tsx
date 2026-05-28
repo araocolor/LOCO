@@ -333,7 +333,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
     }
   }
 
-  const roomPrefetchInFlightRef = useRef<Map<string, Promise<ChatRoomPayload>>>(new Map());
+  const roomLoadInFlightRef = useRef<Map<string, Promise<ChatRoomPayload>>>(new Map());
 
   function mapChatMessage(item: ChatMessageApiItem): Message {
     return {
@@ -481,7 +481,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
   }
 
   async function fetchChatRoomPayload(roomId: string): Promise<ChatRoomPayload> {
-    const inFlight = roomPrefetchInFlightRef.current.get(roomId);
+    const inFlight = roomLoadInFlightRef.current.get(roomId);
     if (inFlight) return inFlight;
 
     const task = (async () => {
@@ -519,10 +519,10 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
       return { messages, notices, room };
     })();
 
-    roomPrefetchInFlightRef.current.set(roomId, task);
+    roomLoadInFlightRef.current.set(roomId, task);
     task.then(
-      () => roomPrefetchInFlightRef.current.delete(roomId),
-      () => roomPrefetchInFlightRef.current.delete(roomId)
+      () => roomLoadInFlightRef.current.delete(roomId),
+      () => roomLoadInFlightRef.current.delete(roomId)
     );
 
     return task;
@@ -656,15 +656,6 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
       return () => window.clearTimeout(timer);
     }
     // 탭 전환 시점에만 실행하고 내부 함수 의존성은 고정 동작으로 유지합니다.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeMenuTab]);
-
-  useEffect(() => {
-    if (activeMenuTab !== "friends") return;
-
-    void fetchConversationsByType("direct");
-    void fetchConversationsByType("group");
-    void fetchConversationsByType("class");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeMenuTab]);
 

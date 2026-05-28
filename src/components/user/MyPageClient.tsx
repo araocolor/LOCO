@@ -156,7 +156,7 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses, soc
           if (sc?.subscriptionCount != null) setSubscriberCount(sc.subscriptionCount);
         });
       }
-      const searchRaw = localStorage.getItem("search_prefetch_cache");
+      const searchRaw = localStorage.getItem("search_social_cache");
       if (searchRaw) {
         const searchParsed = JSON.parse(searchRaw);
         if (searchParsed?.subscriptionCount != null && Array.isArray(searchParsed?.mySubscribers)) {
@@ -188,7 +188,7 @@ export default function MyPageClient({ profile, myClasses: initialMyClasses, soc
               );
             }
             localStorage.setItem(
-              "search_prefetch_cache",
+              "search_social_cache",
               JSON.stringify({
                 followers: social.data?.followers ?? [],
                 following: social.data?.following ?? [],

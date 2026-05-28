@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Avatar from "@/components/ui/Avatar";
 import type { ClassWithHost } from "@/components/class/ClassCard";
 
-const SEARCH_CACHE_KEY = "search_prefetch_cache";
+const SEARCH_CACHE_KEY = "search_social_cache";
 
 interface FriendItem {
   id: string;

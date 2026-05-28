@@ -5,7 +5,7 @@ import Image from "next/image";
 import { Search, UserPlus, X } from "lucide-react";
 import type { Conversation, OtherUser } from "../_types";
 
-const SEARCH_CACHE_KEY = "search_prefetch_cache";
+const SEARCH_CACHE_KEY = "search_social_cache";
 const MEMBERS_CACHE_KEY = "search_members_cache_v3";
 const SUGGESTIONS_KEY = "search_suggestions_cache";
 
