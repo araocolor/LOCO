@@ -457,7 +457,7 @@ export default function MyPageClient({
           <span className="text-[14px] text-gray-400 -mt-1">
             {profile.email ?? ""}
             {" "}
-            <span className="inline-flex items-center gap-1 text-[13px] font-semibold text-yellow-700 align-middle">
+            <span className="inline-flex items-center gap-1 text-[13px] text-gray-400 align-middle">
               <Star size={13} className="text-yellow-500" fill="currentColor" />
               {profile.star_balance ?? 0}개 남음
             </span>
