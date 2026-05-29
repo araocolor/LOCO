@@ -1,18 +1,14 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { MouseEvent, ReactNode } from "react";
-import { Check, LayoutGrid, LayoutList, MoreVertical, Plus, UsersRound } from "lucide-react";
+import type { ReactNode } from "react";
+import { Check, LayoutGrid, LayoutList, Plus, UsersRound } from "lucide-react";
 import Avatar from "@/components/ui/Avatar";
 import SendMessageModal from "@/components/modal/SendMessageModal";
-import ProfileModal from "../../search/_components/ProfileModal";
-import SearchToasts from "../../search/_components/SearchToasts";
-import UserActionMenu from "../../search/_components/UserActionMenu";
+import UserProfileModal from "@/components/user/UserProfileModal";
 import { useFriendActions } from "../../search/_hooks/useFriendActions";
-import { useProfileModal } from "../../search/_hooks/useProfileModal";
 import { useSearchSocialData } from "../../search/_hooks/useSearchSocialData";
-import { useUserMenuActions } from "../../search/_hooks/useUserMenuActions";
-import type { DancerMember, Follower, Suggestion } from "../../search/_types/search";
+import type { Follower, Suggestion } from "../../search/_types/search";
 import { formatLocation, getAvatarFloatStyle } from "../../search/_lib/search-utils";
 
 interface MessageFriendsPanelProps {
@@ -40,13 +36,11 @@ function FriendRow({
   member,
   onlineIds,
   onOpenProfile,
-  onOpenMenu,
   action,
 }: {
   member: Follower;
   onlineIds: Set<string>;
-  onOpenProfile: (member: Follower) => void;
-  onOpenMenu?: (member: Follower, event: MouseEvent<HTMLButtonElement>) => void;
+  onOpenProfile: (id: string) => void;
   action?: ReactNode;
 }) {
   const isNotificationOff = !!member.is_greyed;
@@ -54,7 +48,7 @@ function FriendRow({
 
   return (
     <div className={`flex items-center gap-3 border-b border-gray-50 py-3 ${isNotificationOff ? "grayscale" : ""}`}>
-      <button type="button" onClick={() => onOpenProfile(member)} className="relative shrink-0" aria-label={`${member.nickname} 프로필`}>
+      <button type="button" onClick={() => onOpenProfile(member.id)} className="relative shrink-0" aria-label={`${member.nickname} 프로필`}>
         <div className={isNotificationOff ? "opacity-50" : ""}>
           <Avatar
             src={member.profile_image_url}
@@ -67,7 +61,7 @@ function FriendRow({
           <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white bg-green-400" />
         )}
       </button>
-      <button type="button" onClick={() => onOpenProfile(member)} className="min-w-0 flex-1 text-left">
+      <button type="button" onClick={() => onOpenProfile(member.id)} className="min-w-0 flex-1 text-left">
         <p className={`truncate text-[16px] font-semibold text-gray-900 ${isNotificationOff ? "opacity-50" : ""}`}>{member.nickname}</p>
         {formatLocation(member.country, member.region) && (
           <p className="truncate text-xs text-gray-400">{formatLocation(member.country, member.region)}</p>
@@ -79,16 +73,6 @@ function FriendRow({
         </span>
       )}
       {action}
-      {onOpenMenu && (
-        <button
-          type="button"
-          className="p-2 -mr-2 text-gray-400 shrink-0"
-          aria-label="더보기"
-          onClick={(event) => onOpenMenu(member, event)}
-        >
-          <MoreVertical size={18} />
-        </button>
-      )}
     </div>
   );
 }
@@ -100,7 +84,7 @@ function FriendGrid({
 }: {
   members: Follower[];
   onlineIds: Set<string>;
-  onOpenProfile: (member: Follower) => void;
+  onOpenProfile: (id: string) => void;
 }) {
   return (
     <div className="grid grid-cols-5 gap-x-3 gap-y-4 pb-4">
@@ -108,7 +92,7 @@ function FriendGrid({
         <button
           key={member.id}
           type="button"
-          onClick={() => onOpenProfile(member)}
+          onClick={() => onOpenProfile(member.id)}
           className="relative aspect-square min-w-0 flex items-center justify-center"
           aria-label={`${member.nickname} 프로필`}
         >
@@ -125,7 +109,7 @@ function FriendGrid({
 }
 
 export default function MessageFriendsPanel({ onlineIds, onMessageSent }: MessageFriendsPanelProps) {
-  const [emptyMembers, setEmptyMembers] = useState<DancerMember[]>([]);
+
   const socialData = useSearchSocialData("friends");
   const friendActions = useFriendActions({
     followers: socialData.followers,
@@ -134,7 +118,7 @@ export default function MessageFriendsPanel({ onlineIds, onMessageSent }: Messag
     setFollowing: socialData.setFollowing,
     followingStatusById: socialData.followingStatusById,
   });
-  const profileModal = useProfileModal({ activeTab: "friends", visibleMembers: [] });
+  const [profileModalId, setProfileModalId] = useState<string | null>(null);
   const [messageTarget, setMessageTarget] = useState<{
     id: string;
     nickname: string;
@@ -142,29 +126,6 @@ export default function MessageFriendsPanel({ onlineIds, onMessageSent }: Messag
   } | null>(null);
   const [friendViewMode, setFriendViewMode] = useState<"list" | "grid">("grid");
   const [friendSearch, setFriendSearch] = useState("");
-
-  const menuActions = useUserMenuActions({
-    followers: socialData.followers,
-    setFollowers: socialData.setFollowers,
-    following: socialData.following,
-    setFollowing: socialData.setFollowing,
-    mySubscribers: socialData.mySubscribers,
-    setMySubscribers: socialData.setMySubscribers,
-    members: emptyMembers,
-    setMembers: setEmptyMembers,
-    subscriptionCount: socialData.subscriptionCount,
-    memberTotalCount: 0,
-    memberRegions: [],
-    membersFullyLoaded: true,
-    followingStatusById: socialData.followingStatusById,
-    getMenuRelation: socialData.getMenuRelation,
-    setAddedIds: friendActions.setAddedIds,
-    writeMembersCache: () => {},
-    removeMemberFromMemberList: () => {},
-    refreshSocialLists: socialData.refreshSocialLists,
-    invalidatePendingCache: () => {},
-    lockCurrentFriendOrder: socialData.lockCurrentFriendOrder,
-  });
 
   const connectedFriends = useMemo(
     () => socialData.following.filter((member) => member.status === "friend" || member.status === "approved"),
@@ -249,7 +210,7 @@ export default function MessageFriendsPanel({ onlineIds, onMessageSent }: Messag
                   </div>
                   <button
                     type="button"
-                    onClick={() => profileModal.openFriendProfile(suggestionToFollower(suggestion))}
+                    onClick={() => setProfileModalId(suggestion.id)}
                     className="max-w-[62px] text-center font-bold text-gray-900 truncate"
                     style={{ fontSize: 14 }}
                   >
@@ -306,7 +267,7 @@ export default function MessageFriendsPanel({ onlineIds, onMessageSent }: Messag
           <FriendGrid
             members={visibleFriends}
             onlineIds={onlineIds}
-            onOpenProfile={profileModal.openFriendProfile}
+            onOpenProfile={setProfileModalId}
           />
         ) : (
           <div className="flex flex-col">
@@ -315,8 +276,8 @@ export default function MessageFriendsPanel({ onlineIds, onMessageSent }: Messag
                 key={member.id}
                 member={member}
                 onlineIds={onlineIds}
-                onOpenProfile={profileModal.openFriendProfile}
-                onOpenMenu={menuActions.openUserMenu}
+                onOpenProfile={setProfileModalId}
+
               />
             ))}
           </div>
@@ -334,73 +295,26 @@ export default function MessageFriendsPanel({ onlineIds, onMessageSent }: Messag
                 key={member.id}
                 member={member}
                 onlineIds={onlineIds}
-                onOpenProfile={profileModal.openFriendProfile}
-                onOpenMenu={menuActions.openUserMenu}
+                onOpenProfile={setProfileModalId}
+
               />
             ))}
           </div>
         )}
       </section>
 
-      {profileModal.profileModal && (
-        <ProfileModal
-          activeTab="pending"
-          profileModal={profileModal.profileModal}
-          profileModalData={profileModal.profileModalData}
-          onClose={profileModal.closeProfileModal}
-          onSetMenuTarget={() => {}}
-          getMenuRelation={socialData.getMenuRelation}
-          getRelationStatusValue={socialData.getRelationStatusValue}
-          onOpenMessage={setMessageTarget}
-          onFollowFromMenu={friendActions.handleFollowFromMenu}
-          onViewProfile={() => {}}
-          hideViewProfileButton
+      {profileModalId && (
+        <UserProfileModal
+          userId={profileModalId}
+          onClose={() => setProfileModalId(null)}
         />
       )}
 
-      {menuActions.menuTarget && (
-        <UserActionMenu
-          menuTarget={menuActions.menuTarget}
-          onClose={menuActions.closeMenu}
-          onViewProfile={(id) => {
-            const member = connectedFriends.find((item) => item.id === id);
-            menuActions.closeMenu();
-            if (member) profileModal.openFriendProfile(member);
-          }}
-          onToggleSubscription={menuActions.handleToggleSubscription}
-          onSetFollowingGrey={menuActions.handleSetFollowingGrey}
-          onUnsetFollowingGrey={menuActions.handleUnsetFollowingGrey}
-          onCancelFollowing={menuActions.handleCancelFollowing}
-          onAcceptFollower={friendActions.handleAcceptFollower}
-          onFollowFromMenu={(member) => {
-            menuActions.closeMenu();
-            friendActions.handleFollowFromMenu(member);
-          }}
-          onOpenMessage={(receiver) => {
-            menuActions.setMessageModalTarget(receiver);
-            menuActions.closeMenu();
-          }}
-          onHideFriend={menuActions.handleHideFriend}
-          onUnhideFriend={menuActions.closeMenu}
-          onReportUser={menuActions.handleReportUser}
-        />
-      )}
-
-      <SearchToasts
-        showBlackReportToast={menuActions.showBlackReportToast}
-        showHideFriendToast={menuActions.showHideFriendToast}
-        friendLinkedNickname={friendActions.friendLinkedNickname}
-        followingCancelledNickname={menuActions.followingCancelledNickname}
-      />
-
-      {(messageTarget || menuActions.messageModalTarget) && (
+      {messageTarget && (
         <SendMessageModal
-          isOpen={!!(messageTarget || menuActions.messageModalTarget)}
-          receiver={(messageTarget ?? menuActions.messageModalTarget)!}
-          onClose={() => {
-            setMessageTarget(null);
-            menuActions.setMessageModalTarget(null);
-          }}
+          isOpen={!!messageTarget}
+          receiver={messageTarget}
+          onClose={() => setMessageTarget(null)}
           onSent={onMessageSent}
         />
       )}

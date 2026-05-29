@@ -3,23 +3,18 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import SearchHeader from "@/components/layout/SearchHeader";
-import SendMessageModal from "@/components/modal/SendMessageModal";
+import UserProfileModal from "@/components/user/UserProfileModal";
 import { PRESENCE_EVENT } from "@/components/features/PresenceTracker";
 import FinderSection from "./FinderSection";
 import { CheckModal } from "./SearchBadges";
 import ManagementPanel from "./ManagementPanel";
 import MembersSection from "./MembersSection";
-import ProfileModal from "./ProfileModal";
-import SearchToasts from "./SearchToasts";
 import SocialSection from "./SocialSection";
-import UserActionMenu from "./UserActionMenu";
 import { getSearchTab, replaceSearchTab, subscribeSearchTab } from "../_lib/tab";
 import { useFriendActions } from "../_hooks/useFriendActions";
-import { useProfileModal } from "../_hooks/useProfileModal";
 import { useSearchManagementData } from "../_hooks/useSearchManagementData";
 import { useSearchMembersData } from "../_hooks/useSearchMembersData";
 import { useSearchSocialData } from "../_hooks/useSearchSocialData";
-import { useUserMenuActions } from "../_hooks/useUserMenuActions";
 import type { Tab } from "../_types/search";
 
 export default function SearchPage() {
@@ -41,32 +36,7 @@ export default function SearchPage() {
     setFollowing: socialData.setFollowing,
     followingStatusById: socialData.followingStatusById,
   });
-  const menuActions = useUserMenuActions({
-    followers: socialData.followers,
-    setFollowers: socialData.setFollowers,
-    following: socialData.following,
-    setFollowing: socialData.setFollowing,
-    mySubscribers: socialData.mySubscribers,
-    setMySubscribers: socialData.setMySubscribers,
-    members: membersData.members,
-    setMembers: membersData.setMembers,
-    subscriptionCount: socialData.subscriptionCount,
-    memberTotalCount: membersData.memberTotalCount,
-    memberRegions: membersData.memberRegions,
-    membersFullyLoaded: membersData.membersFullyLoaded,
-    followingStatusById: socialData.followingStatusById,
-    getMenuRelation: socialData.getMenuRelation,
-    setAddedIds: friendActions.setAddedIds,
-    writeMembersCache: membersData.writeMembersCache,
-    removeMemberFromMemberList: membersData.removeMemberFromMemberList,
-    refreshSocialLists: socialData.refreshSocialLists,
-    invalidatePendingCache: managementData.invalidatePendingCache,
-    lockCurrentFriendOrder: socialData.lockCurrentFriendOrder,
-  });
-  const profileModal = useProfileModal({
-    activeTab,
-    visibleMembers: membersData.visibleMembers,
-  });
+  const [profileModalId, setProfileModalId] = useState<string | null>(null);
   const { setFriendListMode, setSocialListMode } = socialData;
   const { setMemberViewMode } = membersData;
 
@@ -107,7 +77,7 @@ if (tab === "members") {
       removingPendingIds={managementData.removingPendingIds}
       onPinChange={managementData.handleBlacklistPinInputChange}
       onPinSubmit={managementData.handleBlacklistPinSubmit}
-      onOpenProfile={profileModal.openPendingProfile}
+      onOpenProfile={setProfileModalId}
       onViewProfile={(id) => router.push(`/users/${id}/view`)}
       onUnhideFriend={managementData.handleUnhideFriendFromMenu}
       onUnblockUser={managementData.handleUnblockUser}
@@ -130,9 +100,8 @@ if (tab === "members") {
           socialLoadError={socialData.socialLoadError}
           managementPanel={managementPanel}
           onlineIds={onlineIds}
-          closingProfileMemberId={profileModal.closingProfileMemberId}
-          onOpenProfile={profileModal.openSocialProfile}
-          onOpenMenu={menuActions.openUserMenu}
+          closingProfileMemberId={null}
+          onOpenProfile={setProfileModalId}
         />
       )}
 
@@ -161,10 +130,9 @@ if (tab === "members") {
           membersLoading={membersData.membersLoading}
           visibleMembers={membersData.visibleMembers}
           onlineIds={onlineIds}
-          closingProfileMemberId={profileModal.closingProfileMemberId}
-          onOpenProfile={profileModal.openMemberProfile}
+          closingProfileMemberId={null}
+          onOpenProfile={setProfileModalId}
           onViewProfile={(id) => router.push(`/users/${id}/view`)}
-          onOpenMenu={menuActions.openUserMenu}
         />
       )}
 
@@ -198,64 +166,11 @@ if (tab === "members") {
       `}</style>
 
       {friendActions.showCheck && <CheckModal />}
-      <SearchToasts
-        showBlackReportToast={menuActions.showBlackReportToast}
-        showHideFriendToast={menuActions.showHideFriendToast}
-        friendLinkedNickname={friendActions.friendLinkedNickname}
-        followingCancelledNickname={menuActions.followingCancelledNickname}
-      />
 
-      {menuActions.menuTarget && (
-        <UserActionMenu
-          menuTarget={menuActions.menuTarget}
-          onClose={menuActions.closeMenu}
-          onViewProfile={(id) => {
-            menuActions.closeMenu();
-            router.push(`/users/${id}/view`);
-          }}
-          onToggleSubscription={menuActions.handleToggleSubscription}
-          onSetFollowingGrey={menuActions.handleSetFollowingGrey}
-          onUnsetFollowingGrey={menuActions.handleUnsetFollowingGrey}
-          onCancelFollowing={menuActions.handleCancelFollowing}
-          onAcceptFollower={friendActions.handleAcceptFollower}
-          onFollowFromMenu={(member) => {
-            menuActions.closeMenu();
-            friendActions.handleFollowFromMenu(member);
-          }}
-          onOpenMessage={(receiver) => {
-            menuActions.setMessageModalTarget(receiver);
-            menuActions.closeMenu();
-          }}
-          onHideFriend={menuActions.handleHideFriend}
-          onUnhideFriend={(targetId) => {
-            menuActions.closeMenu();
-            managementData.handleUnhideFriendFromMenu(targetId);
-          }}
-          onReportUser={menuActions.handleReportUser}
-        />
-      )}
-
-      {profileModal.profileModal && (
-        <ProfileModal
-          key={profileModal.profileModal.id}
-          activeTab={activeTab}
-          profileModal={profileModal.profileModal}
-          profileModalData={profileModal.profileModalData}
-          onClose={profileModal.closeProfileModal}
-          onSetMenuTarget={menuActions.setMenuTarget}
-          getMenuRelation={socialData.getMenuRelation}
-          getRelationStatusValue={socialData.getRelationStatusValue}
-          onOpenMessage={menuActions.setMessageModalTarget}
-          onFollowFromMenu={friendActions.handleFollowFromMenu}
-          onViewProfile={(id) => router.push(`/users/${id}/view`)}
-        />
-      )}
-
-      {menuActions.messageModalTarget && (
-        <SendMessageModal
-          isOpen={!!menuActions.messageModalTarget}
-          onClose={() => menuActions.setMessageModalTarget(null)}
-          receiver={menuActions.messageModalTarget}
+      {profileModalId && (
+        <UserProfileModal
+          userId={profileModalId}
+          onClose={() => setProfileModalId(null)}
         />
       )}
     </>

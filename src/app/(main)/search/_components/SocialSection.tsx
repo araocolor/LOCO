@@ -1,8 +1,8 @@
 "use client";
 
-import { LayoutGrid, LayoutList, MoreVertical, Users } from "lucide-react";
+import { LayoutGrid, LayoutList, Users } from "lucide-react";
 import Avatar from "@/components/ui/Avatar";
-import type { Dispatch, MouseEvent, ReactNode, SetStateAction } from "react";
+import type { Dispatch, ReactNode, SetStateAction } from "react";
 import type { Follower, SocialListMode } from "../_types/search";
 import { SOCIAL_LIST_OPTIONS, SOCIAL_LIST_ROWS } from "../_lib/constants";
 import { formatLocation } from "../_lib/search-utils";
@@ -19,8 +19,7 @@ interface SocialSectionProps {
   managementPanel: ReactNode;
   onlineIds: Set<string>;
   closingProfileMemberId: string | null;
-  onOpenProfile: (member: Follower) => void;
-  onOpenMenu: (member: Follower, event: MouseEvent<HTMLButtonElement>, source?: "social" | "members") => void;
+  onOpenProfile: (id: string) => void;
 }
 
 export default function SocialSection({
@@ -35,7 +34,6 @@ export default function SocialSection({
   onlineIds,
   closingProfileMemberId,
   onOpenProfile,
-  onOpenMenu,
 }: SocialSectionProps) {
   return (
     <div className="px-4 pt-0 bg-white">
@@ -97,7 +95,7 @@ export default function SocialSection({
                 <button
                   key={member.id}
                   type="button"
-                  onClick={() => onOpenProfile(member)}
+                  onClick={() => onOpenProfile(member.id)}
                   className={`relative aspect-square min-w-0 flex items-center justify-center ${isNotificationOff ? "grayscale" : ""}`}
                   aria-label={`${member.nickname} 프로필`}
                 >
@@ -125,7 +123,7 @@ export default function SocialSection({
               const isNotificationOff = !!member.is_greyed;
               return (
                 <div key={member.id} className={`flex items-center gap-3 py-3 border-b border-gray-50 ${isNotificationOff ? "grayscale" : ""}`}>
-                  <button onClick={() => onOpenProfile(member)}>
+                  <button onClick={() => onOpenProfile(member.id)}>
                     <div className={`relative ${closingProfileMemberId === member.id ? "profile-close-pop" : ""}`}>
                       <div className={`relative ${isNotificationOff ? "opacity-50" : ""}`}>
                         <Avatar
@@ -149,12 +147,6 @@ export default function SocialSection({
                       <p className="text-xs text-gray-400 truncate">{formatLocation(member.country, member.region)}</p>
                     )}
                   </div>
-                  <button
-                    className="p-2 -mr-2 text-gray-400 hover:text-gray-700 flex-shrink-0"
-                    onClick={(event) => onOpenMenu(member, event)}
-                  >
-                    <MoreVertical size={18} />
-                  </button>
                 </div>
               );
             })}

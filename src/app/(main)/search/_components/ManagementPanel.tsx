@@ -13,7 +13,7 @@ interface ManagementPanelProps {
   removingPendingIds: Set<string>;
   onPinChange: (value: string) => void;
   onPinSubmit: () => void;
-  onOpenProfile: (member: PendingMember) => void;
+  onOpenProfile: (id: string) => void;
   onViewProfile: (id: string) => void;
   onUnhideFriend: (targetId: string) => void;
   onUnblockUser: (targetId: string) => void;
@@ -97,7 +97,7 @@ export default function ManagementPanel({
                     ❤
                   </span>
                 )}
-                <button onClick={() => onOpenProfile(member)}>
+                <button onClick={() => onOpenProfile(member.id)}>
                   <div className="animate-blacklist-avatar" style={getAvatarFloatStyle(member.id)}>
                     <Avatar src={member.profile_image_url} nickname={member.nickname} size={44} />
                   </div>

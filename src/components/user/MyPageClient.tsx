@@ -554,6 +554,17 @@ export default function MyPageClient({
                 </div>
               )}
             </div>
+            <div className="px-4 py-2 mb-8 border-t border-gray-100">
+              <p className="text-[16px] font-bold text-gray-500 mb-2">별선물 사용방법 및 주의사항</p>
+              <ul className="text-[14px] text-gray-400 space-y-0">
+                <li>- 별은 내가 좋아하는 마음에 표시로 사용합니다.</li>
+                <li>- 별은 신규회원에게 10개 지급됩니다.</li>
+                <li>- 별은 한사람당 1개를 선물할 수 있습니다.</li>
+                <li>- 별은 홀딩을 많이 해준사람에게 줄 수 있습니다.</li>
+                <li>- 별은 쇼핑탭에서 구매할 수 있습니다.</li>
+                <li>- 별은 현금으로 교환할 수 없습니다.</li>
+              </ul>
+            </div>
           </div>
         </>
       )}

@@ -79,6 +79,8 @@ export default function UserProfileModal({ userId, onClose }: UserProfileModalPr
   const [messageTarget, setMessageTarget] = useState<{ id: string; nickname: string; profile_image_url: string | null } | null>(null);
 
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [friendCancelOpen, setFriendCancelOpen] = useState(false);
+  const [showFriendCancelSuccess, setShowFriendCancelSuccess] = useState(false);
   const [giftSubmitting, setGiftSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
@@ -436,12 +438,20 @@ export default function UserProfileModal({ userId, onClose }: UserProfileModalPr
                   style={{ fontSize: "16px" }}
                   onClick={async () => {
                     setMenuOpen(false);
-                    const res = await fetch("/api/friends", {
-                      method: "DELETE",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ target_id: userId }),
-                    });
-                    if (res.ok) setRelationStatus("아님");
+                    if (relationStatus === "맞팔") {
+                      setFriendCancelOpen(true);
+                    } else {
+                      const res = await fetch("/api/friends", {
+                        method: "DELETE",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ target_id: userId }),
+                      });
+                      if (res.ok) {
+                        setRelationStatus("아님");
+                        setShowFriendCancelSuccess(true);
+                        setTimeout(() => setShowFriendCancelSuccess(false), 1500);
+                      }
+                    }
                   }}
                 >
                   <span>친구취소</span>
@@ -497,6 +507,57 @@ export default function UserProfileModal({ userId, onClose }: UserProfileModalPr
         <div className="fixed inset-0 z-[110] flex items-center justify-center pointer-events-none">
           <div className="w-16 h-16 rounded-full bg-yellow-400 flex items-center justify-center shadow-lg" style={{ animation: "fade-in-out 1s ease forwards" }}>
             <Check size={32} className="text-gray-900" strokeWidth={3} />
+          </div>
+        </div>
+      )}
+
+      {/* 친구취소 확인 */}
+      {friendCancelOpen && (
+        <>
+          <div className="fixed inset-0 z-[90] bg-black/40" onClick={() => setFriendCancelOpen(false)} />
+          <div className="fixed inset-0 z-[100] flex items-center justify-center pointer-events-none">
+            <div className="bg-white rounded-2xl shadow-lg p-6 w-[250px] pointer-events-auto flex flex-col items-center justify-center gap-5">
+              <p className="font-semibold text-gray-900 text-center" style={{ fontSize: 17 }}>
+                회원삭제는 상대방에게<br />전달하지 않습니다
+              </p>
+              <div className="flex gap-2 w-full">
+                <button
+                  type="button"
+                  onClick={() => setFriendCancelOpen(false)}
+                  className="flex-1 h-10 rounded-full border border-gray-200 text-sm font-semibold text-gray-600"
+                >
+                  취소
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setFriendCancelOpen(false);
+                    const res = await fetch("/api/friends", {
+                      method: "DELETE",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ target_id: userId }),
+                    });
+                    if (res.ok) {
+                      setRelationStatus("아님");
+                      setShowFriendCancelSuccess(true);
+                      setTimeout(() => setShowFriendCancelSuccess(false), 1500);
+                    }
+                  }}
+                  className="flex-1 h-10 rounded-full bg-red-500 text-white text-sm font-semibold"
+                >
+                  확인
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* 친구취소 완료 */}
+      {showFriendCancelSuccess && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center pointer-events-none">
+          <div className="w-16 h-16 rounded-full bg-red-500 flex items-center justify-center shadow-lg" style={{ animation: "fade-in-out 1s ease forwards" }}>
+            <Check size={32} className="text-white" strokeWidth={3} />
           </div>
         </div>
       )}

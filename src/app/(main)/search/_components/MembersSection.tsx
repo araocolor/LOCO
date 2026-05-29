@@ -1,10 +1,10 @@
 "use client";
 
-import { Binoculars, ChevronLeft, ChevronRight, LayoutGrid, LayoutList, Lock, LockOpen, MoreVertical } from "lucide-react";
+import { Binoculars, ChevronLeft, ChevronRight, LayoutGrid, LayoutList, Lock, LockOpen } from "lucide-react";
 import Avatar from "@/components/ui/Avatar";
-import type { Dispatch, MouseEvent, RefObject, SetStateAction } from "react";
+import type { Dispatch, RefObject, SetStateAction } from "react";
 import { MEMBER_TYPES } from "@/lib/constants";
-import type { DancerMember, Follower } from "../_types/search";
+import type { DancerMember } from "../_types/search";
 import { MEMBER_GENRE_OPTIONS, SOLO_MEMBER_GENRES } from "../_lib/constants";
 import { formatLocation, getGenreLabel, getMemberTypeLabel } from "../_lib/search-utils";
 import { SubscriptionBadge } from "./SearchBadges";
@@ -35,9 +35,8 @@ interface MembersSectionProps {
   visibleMembers: DancerMember[];
   onlineIds: Set<string>;
   closingProfileMemberId: string | null;
-  onOpenProfile: (member: Follower) => void;
+  onOpenProfile: (id: string) => void;
   onViewProfile: (id: string) => void;
-  onOpenMenu: (member: Follower, event: MouseEvent<HTMLButtonElement>, source?: "social" | "members") => void;
 }
 
 export default function MembersSection({
@@ -67,7 +66,6 @@ export default function MembersSection({
   closingProfileMemberId,
   onOpenProfile,
   onViewProfile,
-  onOpenMenu,
 }: MembersSectionProps) {
   const starGiftedIds = getStarGiftedIds();
   return (
@@ -242,7 +240,7 @@ export default function MembersSection({
               <button
                 key={member.id}
                 type="button"
-                onClick={() => onOpenProfile(member)}
+                onClick={() => onOpenProfile(member.id)}
                 className="relative aspect-square min-w-0 flex items-center justify-center"
                 aria-label={`${member.nickname} 프로필`}
               >
@@ -270,7 +268,7 @@ export default function MembersSection({
 
               return (
                 <div key={member.id} className="flex items-center gap-3 py-3 border-b border-gray-50">
-                  <button onClick={() => onOpenProfile(member)}>
+                  <button onClick={() => onOpenProfile(member.id)}>
                     <div className={`relative ${closingProfileMemberId === member.id ? "profile-close-pop" : ""} ${starGiftedIds.has(member.id) ? "animate-breathe" : ""}`}>
                       <Avatar
                         src={member.profile_image_url}
@@ -295,12 +293,6 @@ export default function MembersSection({
                       {formatLocation(member.country, member.region) || "지역 미입력"}
                       {genreLabels.length > 0 ? ` · ${genreLabels.join(" · ")}` : ""}
                     </p>
-                  </button>
-                  <button
-                    className="p-2 -mr-2 text-gray-400 hover:text-gray-700 flex-shrink-0"
-                    onClick={(event) => onOpenMenu(member, event, "members")}
-                  >
-                    <MoreVertical size={18} />
                   </button>
                 </div>
               );
