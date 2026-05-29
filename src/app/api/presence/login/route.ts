@@ -5,17 +5,17 @@ export async function POST() {
   try {
     const supabase = await createClient();
     const {
-      data: { user },
-    } = await supabase.auth.getUser();
+      data: { session },
+    } = await supabase.auth.getSession();
 
-    if (!user) {
+    if (!session?.user) {
       return NextResponse.json({ error: "unauthorized" }, { status: 401 });
     }
 
     const { error } = await supabase
       .from("profiles")
       .update({ last_active_at: new Date().toISOString() })
-      .eq("id", user.id);
+      .eq("id", session.user.id);
 
     if (error) {
       throw error;

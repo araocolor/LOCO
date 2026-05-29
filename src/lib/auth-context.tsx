@@ -59,12 +59,14 @@ function sendLastActivePing(userId: string) {
 
   markLastActivePing(userId);
 
-  fetch("/api/presence/login", {
-    method: "POST",
-    keepalive: true,
-  }).catch(() => {
-    clearLastActivePing(userId);
-  });
+  const supabase = createClient();
+  supabase
+    .from("profiles")
+    .update({ last_active_at: new Date().toISOString() })
+    .eq("id", userId)
+    .then(({ error }) => {
+      if (error) clearLastActivePing(userId);
+    });
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
