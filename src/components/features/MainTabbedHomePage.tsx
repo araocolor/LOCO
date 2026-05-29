@@ -2,10 +2,11 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Heart, LayoutGrid, Presentation, Search } from "lucide-react";
+import { ArrowLeft, Heart, LayoutGrid, Plus, Presentation, Search } from "lucide-react";
 import NotificationDrawer from "@/components/features/NotificationDrawer";
 import { ClassWithHost } from "@/components/class/ClassCard";
 import CachedClassDetailPage from "@/components/class/CachedClassDetailPage";
+import FriendClassesSection from "@/components/features/FriendClassesSection";
 import HomeSearchResultsPage from "@/components/features/HomeSearchResultsPage";
 import MyClassesTab from "@/components/features/MyClassesTab";
 import { useScrollChromeVisibility } from "@/hooks/useScrollChromeVisibility";
@@ -13,8 +14,9 @@ import { useAuth } from "@/lib/auth-context";
 import { SEARCH_DEFAULTS_STORAGE_KEY, type SearchOptions } from "@/lib/search-defaults";
 
 const HOME_MY_CLASSES_CACHE_KEY = "loco_home_my_classes_v1";
+const HOME_FRIEND_CLASSES_CACHE_KEY = "loco_home_friend_classes_v1";
 
-type MainTab = "allClasses" | "mySubscriptions";
+type MainTab = "allClasses" | "mySubscriptions" | "friendClasses";
 
 interface MainTabbedHomePageProps {
   initialClasses: ClassWithHost[];
@@ -24,6 +26,8 @@ interface HomeMyClassesPayload {
   profile: {
     id: string;
     region: string | null;
+    nickname: string | null;
+    profile_image_url: string | null;
   };
   myClasses: ClassWithHost[];
   participatingClasses: ClassWithHost[];
@@ -32,6 +36,10 @@ interface HomeMyClassesPayload {
 
 function getHomeMyClassesCacheKey(userId: string) {
   return `${HOME_MY_CLASSES_CACHE_KEY}:${userId}`;
+}
+
+function getHomeFriendClassesCacheKey(userId: string) {
+  return `${HOME_FRIEND_CLASSES_CACHE_KEY}:${userId}`;
 }
 
 export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePageProps) {
@@ -45,6 +53,8 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
   const [participatingClassesLoading, setParticipatingClassesLoading] = useState(false);
   const [regionalClasses, setRegionalClasses] = useState<ClassWithHost[]>([]);
   const [regionalClassesLoading, setRegionalClassesLoading] = useState(false);
+  const [friendClasses, setFriendClasses] = useState<ClassWithHost[]>([]);
+  const [friendClassesLoading, setFriendClassesLoading] = useState(false);
   const [searchRegion, setSearchRegion] = useState<string | null>(null);
   const [classDetailId, setClassDetailId] = useState<string | null>(null);
   const [notificationOpen, setNotificationOpen] = useState(false);
@@ -88,6 +98,22 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
     return () => window.removeEventListener("close-search-sheet", handleSearchClose);
   }, []);
 
+  const fetchFriendClasses = useCallback(async (uid: string, silent?: boolean) => {
+    if (!silent) setFriendClassesLoading(true);
+    try {
+      const res = await fetch("/api/home/friend-classes");
+      if (!res.ok) return;
+      const json = await res.json();
+      setFriendClasses(json.friendClasses ?? []);
+      try {
+        localStorage.setItem(getHomeFriendClassesCacheKey(uid), JSON.stringify(json));
+      } catch {}
+    } catch {
+    } finally {
+      setFriendClassesLoading(false);
+    }
+  }, []);
+
   const fetchHomeMyClasses = useCallback(async (uid: string, silent?: boolean) => {
     if (!silent) {
       setMyClassesLoading(true);
@@ -102,13 +128,14 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
       try {
         localStorage.setItem(getHomeMyClassesCacheKey(uid), JSON.stringify(json));
       } catch {}
+      void fetchFriendClasses(uid, silent);
     } catch {
     } finally {
       setMyClassesLoading(false);
       setParticipatingClassesLoading(false);
       setRegionalClassesLoading(false);
     }
-  }, [applyHomeMyClassesPayload]);
+  }, [applyHomeMyClassesPayload, fetchFriendClasses]);
 
   useEffect(() => {
     if (!userId) {
@@ -116,6 +143,7 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
       queueMicrotask(() => setParticipatingClasses([]));
       queueMicrotask(() => setRegionalClasses([]));
       queueMicrotask(() => setUserRegion(null));
+      queueMicrotask(() => setFriendClasses([]));
       return;
     }
 
@@ -127,10 +155,25 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
       cachedPayload = null;
     }
 
+    let cachedFriendClasses: ClassWithHost[] | null = null;
+    try {
+      const raw = localStorage.getItem(getHomeFriendClassesCacheKey(userId));
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        cachedFriendClasses = parsed.friendClasses ?? null;
+      }
+    } catch {
+      cachedFriendClasses = null;
+    }
+
     const hasCached = cachedPayload?.profile?.id === userId;
+    const hasFriendCached = Array.isArray(cachedFriendClasses) && cachedFriendClasses.length > 0;
     queueMicrotask(() => {
       if (hasCached && cachedPayload) {
         applyHomeMyClassesPayload(cachedPayload);
+      }
+      if (hasFriendCached && cachedFriendClasses) {
+        setFriendClasses(cachedFriendClasses);
       }
       void fetchHomeMyClasses(userId, hasCached);
     });
@@ -144,6 +187,7 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
       setMyClasses(remove);
       setParticipatingClasses(remove);
       setRegionalClasses(remove);
+      setFriendClasses(remove);
     };
     window.addEventListener("class-deleted", handler);
     return () => window.removeEventListener("class-deleted", handler);
@@ -181,7 +225,14 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
               )}
             </button>
           ) : (
-            <div className="w-10 h-10 -ml-1" />
+            <button
+              type="button"
+              aria-label="클래스 만들기"
+              className="h-10 -ml-1 flex items-center text-gray-700"
+              onClick={() => router.push("/classes/new")}
+            >
+              <Plus size={22} strokeWidth={2.2} />
+            </button>
           )}
           <div className="absolute left-1/2 -translate-x-1/2 font-bold text-xl text-[#4d4d4d] leading-none">
             CLASS
@@ -209,6 +260,15 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
             내클래스
           </button>
           <button
+            onClick={() => setActiveTab("friendClasses")}
+            className={`pb-2 font-bold transition-colors ${
+              activeTab === "friendClasses" ? "text-black" : "text-gray-400"
+            }`}
+            style={{ fontSize: activeTab === "friendClasses" ? 18 : 17 }}
+          >
+            친클래스
+          </button>
+          <button
             onClick={() => setActiveTab("allClasses")}
             className={`pb-2 font-bold transition-colors ${
               activeTab === "allClasses" ? "text-black" : "text-gray-400"
@@ -234,6 +294,14 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
 
       {activeTab === "allClasses" && (
         <HomeSearchResultsPage initialClasses={initialClasses} onClassSelect={(id) => setClassDetailId(id)} viewMode={viewMode} />
+      )}
+      {activeTab === "friendClasses" && (
+        <FriendClassesSection
+          classes={friendClasses}
+          loading={friendClassesLoading}
+          onClassSelect={(id) => setClassDetailId(id)}
+          viewMode={viewMode}
+        />
       )}
       {activeTab === "mySubscriptions" && (
         <MyClassesTab

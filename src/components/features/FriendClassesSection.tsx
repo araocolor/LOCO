@@ -2,26 +2,18 @@
 
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { IdCard, Plus } from "lucide-react";
 import { useMemo, useState } from "react";
-import type { ReactNode } from "react";
 import ClassCard, { type ClassWithHost } from "@/components/class/ClassCard";
 import ClassMoreMenu from "@/components/class/ClassMoreMenu";
 
-interface MyClassesTabProps {
+const GRID_FILL_COLORS = ["#E84040", "#B8D44A", "#F5A623", "#5BB8E8"] as const;
+
+interface FriendClassesSectionProps {
   classes: ClassWithHost[];
   loading: boolean;
-  participatingClasses: ClassWithHost[];
-  participatingLoading: boolean;
-  regionalClasses: ClassWithHost[];
-  regionalLoading: boolean;
-  regionalLabel: string | null;
-  onRetry: () => void;
   onClassSelect?: (classId: string) => void;
   viewMode?: "grid" | "card";
 }
-
-const GRID_FILL_COLORS = ["#E84040", "#B8D44A", "#F5A623", "#5BB8E8"] as const;
 
 function ClassCardList({ classes }: { classes: ClassWithHost[] }) {
   return (
@@ -95,28 +87,12 @@ function ClassGrid({ classes, onClassSelect }: { classes: ClassWithHost[]; onCla
   );
 }
 
-
-function SectionLabel({ children }: { children: ReactNode }) {
-  return (
-    <div className="px-4 pt-6 pb-1 bg-white">
-      <h2 className="text-[18px] font-bold text-gray-900">{children}</h2>
-    </div>
-  );
-}
-
-export default function MyClassesTab({
+export default function FriendClassesSection({
   classes,
   loading,
-  participatingClasses,
-  participatingLoading,
-  regionalClasses,
-  regionalLoading,
-  regionalLabel,
   onClassSelect,
   viewMode = "grid",
-}: MyClassesTabProps) {
-  const router = useRouter();
-
+}: FriendClassesSectionProps) {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-32 text-gray-400">
@@ -125,42 +101,20 @@ export default function MyClassesTab({
     );
   }
 
+  if (classes.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-32 text-gray-400">
+        <p className="text-sm">친구가 개설한 클래스가 없습니다</p>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-white pb-6">
-      {classes.length === 0 ? null : viewMode === "card" ? (
+      {viewMode === "card" ? (
         <ClassCardList classes={classes} />
       ) : (
         <ClassGrid classes={classes} onClassSelect={onClassSelect} />
-      )}
-
-      <SectionLabel>신청클래스</SectionLabel>
-      {participatingLoading ? (
-        <div className="flex items-center justify-center h-24 text-gray-400">
-          로딩 중...
-        </div>
-      ) : participatingClasses.length === 0 ? (
-        <div className="flex items-center justify-center h-24 text-gray-400">
-          <p className="text-sm">참여신청 클래스가 없습니다.</p>
-        </div>
-      ) : viewMode === "card" ? (
-        <ClassCardList classes={participatingClasses} />
-      ) : (
-        <ClassGrid classes={participatingClasses} onClassSelect={onClassSelect} />
-      )}
-
-      <SectionLabel>{regionalLabel ?? "지역"} 지역클래스</SectionLabel>
-      {regionalLoading ? (
-        <div className="flex items-center justify-center h-24 text-gray-400">
-          로딩 중...
-        </div>
-      ) : regionalClasses.length === 0 ? (
-        <div className="flex items-center justify-center h-24 text-gray-400">
-          <p className="text-sm">지역 클래스가 없습니다</p>
-        </div>
-      ) : viewMode === "card" ? (
-        <ClassCardList classes={regionalClasses} />
-      ) : (
-        <ClassGrid classes={regionalClasses} onClassSelect={onClassSelect} />
       )}
     </div>
   );

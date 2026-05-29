@@ -97,6 +97,37 @@ export default function MyPageCacheLoader() {
           const cachedData = JSON.parse(raw) as MyPageSummaryCache;
           hasCachedData = true;
           if (!cancelled) setData(cachedData);
+        } else if (!cancelled) {
+          const homeKeys = Object.keys(localStorage).filter((k) => k.startsWith("loco_home_my_classes_v1:"));
+          for (const hk of homeKeys) {
+            const hRaw = localStorage.getItem(hk);
+            if (!hRaw) continue;
+            const hCache = JSON.parse(hRaw);
+            const p = hCache?.profile;
+            if (p?.nickname) {
+              setData({
+                profile: {
+                  id: p.id ?? "",
+                  email: null,
+                  nickname: p.nickname,
+                  bio: null,
+                  country: null,
+                  region: p.region ?? null,
+                  favorite_genre: [],
+                  member_type: [],
+                  role: "member" as const,
+                  profile_image_url: p.profile_image_url ?? null,
+                  kakao_notification_enabled: false,
+                  received_star_count: 0,
+                  star_balance: 0,
+                },
+                appliedClasses: [],
+                myClasses: [],
+                hasPendingProRequest: false,
+              });
+              break;
+            }
+          }
         }
 
         const loaded = await fetchAndUpdate();

@@ -780,26 +780,19 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
 
 
   useEffect(() => {
-    let mounted = true;
-
-    async function fetchMyProfile() {
-      const supabase = createClient();
-      const { data } = await supabase
-        .from("profiles")
-        .select("nickname, profile_image_url")
-        .eq("id", userId)
-        .single();
-
-      if (mounted && data) {
-        setMyProfile(data);
+    try {
+      const keys = Object.keys(localStorage).filter((k) => k.startsWith("loco_home_my_classes_v1:"));
+      for (const key of keys) {
+        const raw = localStorage.getItem(key);
+        if (!raw) continue;
+        const cache = JSON.parse(raw);
+        const p = cache?.profile;
+        if (p?.nickname) {
+          setMyProfile({ nickname: p.nickname, profile_image_url: p.profile_image_url ?? null });
+          return;
+        }
       }
-    }
-
-    fetchMyProfile();
-
-    return () => {
-      mounted = false;
-    };
+    } catch {}
   }, [userId]);
 
   async function openSelfChat() {

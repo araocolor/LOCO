@@ -74,8 +74,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const supabase = createClient();
 
+    let currentUserId: string | null = null;
+
     function syncUser(sessionUser: { id: string; email?: string } | null) {
-      setUser(sessionUser ? { id: sessionUser.id, email: sessionUser.email } : null);
+      const nextId = sessionUser?.id ?? null;
+      if (nextId !== currentUserId) {
+        currentUserId = nextId;
+        setUser(sessionUser ? { id: sessionUser.id, email: sessionUser.email } : null);
+      }
       if (sessionUser) sendLastActivePing(sessionUser.id);
       setLoading(false);
     }

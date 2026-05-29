@@ -1,6 +1,6 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useSyncExternalStore, useRef } from "react";
 import { usePathname } from "next/navigation";
 import { getMainTab, subscribeMainTab } from "@/lib/main-tab";
 import { useAuth } from "@/lib/auth-context";
@@ -15,29 +15,41 @@ export default function TabbedMain() {
   const activeTab = useSyncExternalStore(subscribeMainTab, getMainTab, () => "home" as const);
   const { user } = useAuth();
   const pathname = usePathname();
+  const mountedRef = useRef(new Set<string>(["home"]));
 
   const isSubRoute = pathname.startsWith("/classes/") || pathname.startsWith("/users/");
   if (isSubRoute) return null;
 
+  mountedRef.current.add(activeTab);
+  const mounted = mountedRef.current;
+
   return (
     <div className="flex-1 flex flex-col min-h-0">
-      <div className={activeTab === "home" ? "flex flex-col flex-1" : "hidden"}>
-        <MainTabbedHomePage initialClasses={[]} />
-      </div>
+      {mounted.has("home") && (
+        <div className={activeTab === "home" ? "flex flex-col flex-1" : "hidden"}>
+          <MainTabbedHomePage initialClasses={[]} />
+        </div>
+      )}
 
-      <div className={activeTab === "messages" ? "flex flex-col flex-1" : "hidden"}>
-        <MessagesHeaderClient />
-        {user && <MessagesPageClient userId={user.id} />}
-      </div>
+      {mounted.has("messages") && (
+        <div className={activeTab === "messages" ? "flex flex-col flex-1" : "hidden"}>
+          <MessagesHeaderClient />
+          {user && <MessagesPageClient userId={user.id} />}
+        </div>
+      )}
 
-      <div className={activeTab === "search" ? "flex flex-col flex-1" : "hidden"}>
-        <SearchPageClient />
-      </div>
+      {mounted.has("search") && (
+        <div className={activeTab === "search" ? "flex flex-col flex-1" : "hidden"}>
+          <SearchPageClient />
+        </div>
+      )}
 
-      <div className={activeTab === "mypage" ? "flex flex-col flex-1" : "hidden"}>
-        <MyPageHeader />
-        <MyPageCacheLoader />
-      </div>
+      {mounted.has("mypage") && (
+        <div className={activeTab === "mypage" ? "flex flex-col flex-1" : "hidden"}>
+          <MyPageHeader />
+          <MyPageCacheLoader />
+        </div>
+      )}
     </div>
   );
 }

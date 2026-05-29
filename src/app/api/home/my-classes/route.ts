@@ -25,7 +25,7 @@ export async function GET() {
     const [profileResult, myClassesResult, applicationsResult] = await Promise.all([
       supabase
         .from("profiles")
-        .select("id, region")
+        .select("id, region, nickname, profile_image_url")
         .eq("id", user.id)
         .maybeSingle(),
       supabase
@@ -86,6 +86,8 @@ export async function GET() {
         profile: {
           id: user.id,
           region,
+          nickname: profileResult.data?.nickname ?? null,
+          profile_image_url: profileResult.data?.profile_image_url ?? null,
         },
         myClasses: myClassesResult.data ?? [],
         participatingClasses,
