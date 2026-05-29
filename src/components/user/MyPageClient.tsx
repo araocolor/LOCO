@@ -140,6 +140,12 @@ export default function MyPageClient({
   const [bookmarkClasses, setBookmarkClasses] = useState<GridClass[]>([]);
   const [friendsCount, setFriendsCount] = useState<number>(socialCounts?.friends ?? 0);
   const [followingCount, setFollowingCount] = useState<number>(socialCounts?.following ?? 0);
+
+  useEffect(() => {
+    if (socialCounts?.friends != null) setFriendsCount(socialCounts.friends);
+    if (socialCounts?.following != null) setFollowingCount(socialCounts.following);
+  }, [socialCounts?.friends, socialCounts?.following]);
+
   const [starGiversOpen, setStarGiversOpen] = useState(false);
   const [starGiverProfileId, setStarGiverProfileId] = useState<string | null>(null);
 
