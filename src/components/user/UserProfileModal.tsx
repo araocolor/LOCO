@@ -199,7 +199,10 @@ export default function UserProfileModal({ userId, onClose, initialProfile = nul
     const seedProfile = initialProfile ? buildProfileData(initialProfile) : null;
     const dancerCached = readUserSearchInfoCache(userId);
     const sessionCached = readUserViewSessionCache(userId);
-    const nextCachedProfile = seedProfile ?? socialCached?.profile ?? dancerCached ?? sessionCached;
+    let nextCachedProfile = seedProfile ?? socialCached?.profile ?? dancerCached ?? sessionCached;
+    if (nextCachedProfile && nextCachedProfile !== sessionCached && sessionCached) {
+      nextCachedProfile = { ...nextCachedProfile, received_star_count: sessionCached.received_star_count, gifted_star_count_by_me: sessionCached.gifted_star_count_by_me, my_star_balance: sessionCached.my_star_balance };
+    }
 
     queueMicrotask(() => {
       setProfileData(nextCachedProfile);
