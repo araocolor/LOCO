@@ -216,7 +216,22 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
   async function handlePhotoUpload(file: File) {
     if (!selectedRoomId) return;
 
+    const localPreviewUrl = URL.createObjectURL(file);
+    const tempId = `local-photo-${Date.now()}`;
+    const tempMessage: Message = {
+      id: tempId,
+      sender_id: userId,
+      room_id: selectedRoomId,
+      kind: "image",
+      content: JSON.stringify({ type: "image", thumb: localPreviewUrl, full: localPreviewUrl }),
+      sent_at: new Date().toISOString(),
+      send_status: "sending",
+    };
+
+    setMessages((prev) => [...prev, tempMessage]);
+    setAttachOpen(false);
     setUploading(true);
+
     try {
       const bitmap = await createImageBitmap(file);
       const supabase = createClient();
@@ -252,14 +267,17 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
       const message = json.data ? mapChatMessage(json.data as ChatMessageApiItem) : null;
 
       if (res.ok && message) {
-        setMessages((prev) => [...prev, message]);
+        setMessages((prev) => prev.map((m) => m.id === tempId ? message : m));
         appendMessageCache(selectedRoomId, message);
-        setAttachOpen(false);
         patchConversationWithMessage(selectedRoomId, message);
+      } else {
+        setMessages((prev) => prev.map((m) => m.id === tempId ? { ...m, send_status: "failed" as const } : m));
       }
     } catch (e) {
       console.error("업로드 실패", e);
+      setMessages((prev) => prev.map((m) => m.id === tempId ? { ...m, send_status: "failed" as const } : m));
     } finally {
+      URL.revokeObjectURL(localPreviewUrl);
       setUploading(false);
     }
   }

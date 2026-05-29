@@ -25,6 +25,7 @@ interface MessageBubbleProps {
   onCancelLongPress: () => void;
   onDeleteMessage: (msgId: string) => void;
   onMessageReaction: (msgId: string, reactionType: MessageReactionType) => void;
+  onImageClick?: (messageId: string, fullUrl: string, isMine: boolean) => void;
   formatTime: (dateStr: string) => string;
 }
 
@@ -49,6 +50,7 @@ export default memo(function MessageBubble({
   onCancelLongPress,
   onDeleteMessage,
   onMessageReaction,
+  onImageClick,
   formatTime,
 }: MessageBubbleProps) {
   const isMine = isSelfChat ? messageIndex % 2 === 0 : msg.sender_id === userId;
@@ -173,9 +175,20 @@ export default memo(function MessageBubble({
                 </div>
               )}
               {imageData ? (
-                <a href={imageData.full} target="_blank" rel="noreferrer">
-                  <Image src={imageData.thumb} alt="사진" width={200} height={200} className="rounded-lg object-cover" />
-                </a>
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => !msg.send_status && onImageClick?.(msg.id, imageData.full, isMine)}
+                    className="block"
+                  >
+                    <Image src={imageData.thumb} alt="사진" width={200} height={200} className={`rounded-lg object-cover ${msg.send_status === "sending" ? "opacity-60" : ""}`} />
+                  </button>
+                  {msg.send_status === "sending" && (
+                    <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-black/30">
+                      <Loader2 size={32} className="animate-spin text-white" />
+                    </div>
+                  )}
+                </div>
               ) : videoData ? (
                 videoData.status === "ready" && videoData.video_url ? (
                   <video

@@ -35,6 +35,7 @@ interface ChatTimelineProps {
   onChatScroll: (event: UIEvent<HTMLDivElement>) => void;
   onDeleteMessage: (msgId: string) => void;
   onMessageReaction: (messageId: string, reactionType: MessageReactionType) => void;
+  onImageClick: (messageId: string, fullUrl: string, isMine: boolean) => void;
   onNoticeReaction: (noticeId: string, reactionType: NoticeReactionType) => void;
   onStartLongPress: (msgId: string, isMine: boolean) => void;
   setAttachOpen: Dispatch<SetStateAction<boolean>>;
@@ -57,6 +58,7 @@ export default function ChatTimeline({
   onCancelLongPress,
   onChatScroll,
   onDeleteMessage,
+  onImageClick,
   onMessageReaction,
   onNoticeReaction,
   onStartLongPress,
@@ -100,6 +102,7 @@ export default function ChatTimeline({
                 onCancelLongPress={onCancelLongPress}
                 onDeleteMessage={onDeleteMessage}
                 onMessageReaction={onMessageReaction}
+                onImageClick={onImageClick}
                 formatTime={formatTime}
               />
             );

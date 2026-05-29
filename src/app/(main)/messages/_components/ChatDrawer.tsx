@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { Dispatch, RefObject, SetStateAction, UIEvent } from "react";
 import { Megaphone } from "lucide-react";
 import ChatAttachPanel from "./ChatAttachPanel";
+import ImageViewerDrawer, { type ImageViewerData } from "./ImageViewerDrawer";
 import ArchiveGrid from "./chat/ArchiveGrid";
 import ChatComposer from "./chat/ChatComposer";
 import ChatDrawerHeader from "./chat/ChatDrawerHeader";
@@ -136,6 +137,7 @@ export default function ChatDrawer({
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState("");
   const [now, setNow] = useState(() => Date.now());
+  const [viewerData, setViewerData] = useState<ImageViewerData | null>(null);
 
   const isDirectRoom = roomType === "direct" || roomType === "self";
   const isClassRoom = roomType === "class";
@@ -285,6 +287,8 @@ export default function ChatDrawer({
   }
 
   return (
+    <>
+    <ImageViewerDrawer data={viewerData} onClose={() => setViewerData(null)} onDelete={onDeleteMessage} />
     <div
       className={`fixed inset-0 z-[60] bg-white flex min-h-0 flex-col transition-transform duration-300 ease-in-out ${
         chatOpen ? "translate-x-0" : "translate-x-full"
@@ -362,6 +366,7 @@ export default function ChatDrawer({
           onCancelLongPress={onCancelLongPress}
           onChatScroll={onChatScroll}
           onDeleteMessage={onDeleteMessage}
+          onImageClick={(messageId: string, fullUrl: string, isMine: boolean) => setViewerData({ messageId, fullUrl, isMine })}
           onMessageReaction={onMessageReaction}
           onNoticeReaction={onNoticeReaction}
           onStartLongPress={onStartLongPress}
@@ -460,5 +465,6 @@ export default function ChatDrawer({
 
       <ToastOverlay message={toastMessage} />
     </div>
+    </>
   );
 }
