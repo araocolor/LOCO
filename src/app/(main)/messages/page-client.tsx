@@ -209,7 +209,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
     canvas.height = h;
     canvas.getContext("2d")!.drawImage(bitmap, 0, 0, w, h);
     return new Promise<Blob>((resolve) =>
-      canvas.toBlob((b) => resolve(b!), "image/webp", 0.9)
+      canvas.toBlob((b) => resolve(b!), "image/webp", 0.7)
     );
   }
 
