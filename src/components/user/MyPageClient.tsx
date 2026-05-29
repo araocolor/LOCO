@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
-import { UserCircle, X, Settings, HeartHandshake, Star, SmilePlus } from "lucide-react";
+import { UserCircle, X, Settings, HeartHandshake, Star, SmilePlus, UsersRound } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { fetchWithAuthRetry } from "@/lib/auth/fetch-with-auth-retry";
 import { parseBookmarkEntries } from "@/lib/bookmarks/local";
@@ -13,6 +13,7 @@ import AvatarCropModal from "./AvatarCropModal";
 import { ClassImage } from "@/types/class";
 import Avatar from "@/components/ui/Avatar";
 import type { StarGiver } from "@/types/user";
+import UserProfileModal from "./UserProfileModal";
 
 type TabType = "all" | "my" | "bookmark";
 
@@ -140,6 +141,7 @@ export default function MyPageClient({
   const [friendsCount, setFriendsCount] = useState<number>(socialCounts?.friends ?? 0);
   const [followingCount, setFollowingCount] = useState<number>(socialCounts?.following ?? 0);
   const [starGiversOpen, setStarGiversOpen] = useState(false);
+  const [starGiverProfileId, setStarGiverProfileId] = useState<string | null>(null);
 
   const activeTab: TabType = (() => {
     const rawTab = searchParams.get("tab");
@@ -511,50 +513,56 @@ export default function MyPageClient({
       </div>
 
       {starGiversOpen && (
-        <div
-          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/30 px-4 overscroll-contain touch-none"
-          onClick={() => setStarGiversOpen(false)}
-        >
-          <div
-            className="flex max-h-[80vh] w-[300px] flex-col rounded-2xl bg-white p-3 shadow-xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="relative flex items-center justify-center">
-              <span className="text-[16px] font-bold text-gray-900">별을 준 사람들</span>
+        <>
+          <div className="fixed inset-0 z-[70] bg-black/30" />
+          <div className="fixed inset-y-0 right-0 z-[71] w-full max-w-[500px] bg-white shadow-xl flex flex-col page-slide-in-from-right">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+              <span className="text-[18px] font-bold text-gray-900">별을 준 사람들</span>
               <button
                 type="button"
                 onClick={() => setStarGiversOpen(false)}
-                className="absolute right-0 rounded-full p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+                className="rounded-full p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
                 aria-label="닫기"
               >
-                <X size={16} />
+                <X size={20} />
               </button>
             </div>
-            <div className="mt-3 flex-1 overflow-y-auto scrollbar-hide overscroll-contain">
+            <div className="flex items-center px-4 py-2">
+              <div className="flex items-center gap-1 text-gray-900">
+                <UsersRound size={20} />
+                <span className="font-bold tabular-nums text-[16px]">{starGivers.length}</span>
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto scrollbar-hide overscroll-contain px-4 pb-4">
               {starGivers.length ? (
-                <div className="grid grid-cols-3 gap-x-2 gap-y-3">
+                <div className="grid grid-cols-5 gap-x-3 gap-y-4">
                   {starGivers.map((giver) => (
-                    <div key={giver.id} className="flex flex-col items-center gap-1">
-                      <Avatar src={giver.profile_image_url} nickname={giver.nickname} size={45} />
-                      <span className="truncate w-full text-center text-[15px] font-medium text-gray-500">{giver.nickname}</span>
-                    </div>
+                    <button
+                      key={giver.id}
+                      type="button"
+                      className="flex items-center justify-center"
+                      onClick={() => setStarGiverProfileId(giver.id)}
+                      aria-label={`${giver.nickname} 프로필`}
+                    >
+                      <Avatar src={giver.profile_image_url} nickname={giver.nickname} size={40} />
+                    </button>
                   ))}
                 </div>
               ) : (
-                <div className="flex h-full items-center justify-center px-3 text-center text-xs text-gray-400">
+                <div className="flex h-full items-center justify-center text-sm text-gray-400">
                   아직 별을 받은 사람이 없어요
                 </div>
               )}
             </div>
-            <button
-              type="button"
-              onClick={() => setStarGiversOpen(false)}
-              className="mt-2 w-1/2 mx-auto rounded-full bg-yellow-400 py-2 text-[14px] font-semibold text-gray-900"
-            >
-              닫기
-            </button>
           </div>
-        </div>
+        </>
+      )}
+
+      {starGiverProfileId && (
+        <UserProfileModal
+          userId={starGiverProfileId}
+          onClose={() => setStarGiverProfileId(null)}
+        />
       )}
 
       {/* 프로필 편집 슬라이드 */}
