@@ -97,6 +97,9 @@ export default function UserProfileModal({ userId, onClose }: UserProfileModalPr
 
   useEffect(() => {
     let cancelled = false;
+    setProfileData(null);
+    setRelationStatus("아님");
+    setGiftPatch(null);
 
     function readCache(): ProfileData | null {
       try {
@@ -143,6 +146,13 @@ export default function UserProfileModal({ userId, onClose }: UserProfileModalPr
       })
       .catch(() => {});
 
+    return () => { cancelled = true; };
+  }, [userId]);
+
+  useEffect(() => {
+    if (!profileData) return;
+    let cancelled = false;
+
     fetch("/api/friends/social")
       .then((res) => res.json())
       .then((json) => {
@@ -167,7 +177,7 @@ export default function UserProfileModal({ userId, onClose }: UserProfileModalPr
       .catch(() => {});
 
     return () => { cancelled = true; };
-  }, [userId]);
+  }, [profileData, userId]);
 
   if (!profileData) return null;
 
@@ -567,6 +577,10 @@ export default function UserProfileModal({ userId, onClose }: UserProfileModalPr
         <SendMessageModal
           isOpen={!!messageTarget}
           onClose={() => setMessageTarget(null)}
+          onSent={() => {
+            setMessageTarget(null);
+            onClose();
+          }}
           receiver={messageTarget}
         />
       )}

@@ -80,7 +80,7 @@ export default function SendMessageModal({ isOpen, onClose, onSent, receiver }: 
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/50">
       <div className="w-[300px] bg-white rounded-2xl overflow-hidden shadow-xl">
         {/* 받는사람 정보 */}
         <div className="p-4 border-b border-gray-100">
@@ -108,7 +108,7 @@ export default function SendMessageModal({ isOpen, onClose, onSent, receiver }: 
             value={content}
             onChange={(e) => setContent(e.target.value)}
             placeholder="메시지를 입력하세요"
-            className="w-full h-[120px] p-2 border border-gray-200 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-yellow-400"
+            className="w-full h-[120px] p-2 border border-gray-200 rounded-lg text-[16px] resize-none focus:outline-none focus:ring-2 focus:ring-yellow-400"
             disabled={loading || success}
           />
         </div>
