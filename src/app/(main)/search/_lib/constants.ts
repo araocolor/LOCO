@@ -5,7 +5,9 @@ export const MEMBERS_CACHE_KEY = "search_members_cache_v3";
 export const PENDING_CACHE_KEY = "search_pending_members_cache_v2";
 export const MYPAGE_CACHE_KEY = "loco_mypage_cache_local_v2";
 export const SEARCH_TAB_CHANGE_EVENT = "loco-search-tab-change";
-export const MEMBERS_PAGE_SIZE = 30;
+export const MEMBERS_PAGE_SIZE = 50;
+export const USER_SEARCH_INFO_KEY = "user_search_info";
+export const USER_SEARCH_INFO_MAX = 200;
 
 export const SOCIAL_LIST_OPTIONS: { value: SocialListMode; label: string }[] = [
   { value: "mySubscribers", label: "구독자" },

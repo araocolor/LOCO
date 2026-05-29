@@ -133,6 +133,8 @@ if (tab === "members") {
           closingProfileMemberId={null}
           onOpenProfile={setProfileModalId}
           onViewProfile={(id) => router.push(`/users/${id}/view`)}
+          membersFullyLoaded={membersData.membersFullyLoaded}
+          onLoadMore={membersData.fetchNextPage}
         />
       )}
 

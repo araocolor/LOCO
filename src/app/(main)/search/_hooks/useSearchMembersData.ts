@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useRef, useState, useEffect } from "react";
 import { REGIONS_WITH_ALL } from "@/lib/constants";
 import { MEMBERS_CACHE_KEY, MEMBERS_PAGE_SIZE, SOLO_MEMBER_GENRES } from "../_lib/constants";
-import { mergeMembersById } from "../_lib/search-utils";
+import { mergeMembersById, cacheUserSearchInfoFromMembers } from "../_lib/search-utils";
 import type { DancerMember, Tab } from "../_types/search";
 
 export function useSearchMembersData(activeTab: Tab) {
@@ -35,49 +35,9 @@ export function useSearchMembersData(activeTab: Tab) {
     return ["전체", ...Array.from(regionSet)];
   }, [memberRegions]);
 
-  const applyBasicFilter = useCallback((list: DancerMember[]) => {
-    const search = memberSearch.trim().toLowerCase();
-    return list.filter((member) => {
-      const matchesSearch = search === "" || member.nickname.toLowerCase().includes(search);
-      const matchesRegion = memberRegion === "전체" || member.region === memberRegion;
-      const selectedSalsaBachata = memberGenres.filter((genre) => genre === "salsa" || genre === "bachata");
-      const memberSalsaBachata = (member.favorite_genre ?? []).filter((genre) => genre === "salsa" || genre === "bachata");
-      const matchesGenre =
-        memberGenres.length === 0 ||
-        (memberGenres.includes("kizomba") && member.favorite_genre?.includes("kizomba")) ||
-        (selectedSalsaBachata.length > 0 &&
-          selectedSalsaBachata.length === memberSalsaBachata.length &&
-          selectedSalsaBachata.every((genre) => memberSalsaBachata.includes(genre)));
-      const matchesGender = memberGender === "" || member.gender === memberGender;
-      return matchesSearch && matchesRegion && matchesGenre && matchesGender;
-    });
-  }, [memberSearch, memberRegion, memberGenres, memberGender]);
+  const visibleMembers = members;
 
-  const visibleMembers = useMemo(() => {
-    if (memberSearchMode === "memberType") {
-      let filtered = selectedMemberTypes.length === 0 ? members : members.filter((member) =>
-        selectedMemberTypes.some((type) => member.member_type?.includes(type))
-      );
-      if (basicFilterLocked) filtered = applyBasicFilter(filtered);
-      return filtered;
-    }
-
-    return applyBasicFilter(members);
-  }, [members, memberSearchMode, selectedMemberTypes, basicFilterLocked, applyBasicFilter]);
-
-  const hasBasicFilter =
-    memberSearch.trim() !== "" ||
-    memberRegion !== "전체" ||
-    memberGenres.length > 0 ||
-    memberGender !== "";
-
-  const hasMemberFilter = useMemo(() => {
-    if (memberSearchMode === "memberType") return selectedMemberTypes.length > 0 || (basicFilterLocked && hasBasicFilter);
-
-    return hasBasicFilter;
-  }, [memberSearchMode, selectedMemberTypes, basicFilterLocked, hasBasicFilter]);
-
-  const memberResultCount = hasMemberFilter ? visibleMembers.length : Math.max(memberTotalCount, visibleMembers.length);
+  const memberResultCount = memberTotalCount;
 
   const handleMemberSearchPanelScroll = useCallback(() => {
     const node = memberSearchPanelRef.current;
@@ -91,6 +51,9 @@ export function useSearchMembersData(activeTab: Tab) {
         setMemberRegion("전체");
         setMemberGenres([]);
         setMemberGender("");
+      }
+      if (nextMode === "basic") {
+        setSelectedMemberTypes([]);
       }
       return nextMode;
     });
@@ -178,12 +141,24 @@ export function useSearchMembersData(activeTab: Tab) {
     }
   }, []);
 
+  function buildFilterParams(): string {
+    const params = new URLSearchParams();
+    if (memberRegion !== "전체") params.set("region", memberRegion);
+    if (memberGender) params.set("gender", memberGender);
+    if (memberSearch.trim()) params.set("search", memberSearch.trim());
+    if (memberGenres.length > 0) params.set("genre", memberGenres.join(","));
+    if (selectedMemberTypes.length > 0) params.set("memberType", selectedMemberTypes[0]);
+    return params.toString();
+  }
+
   const fetchMembersBatch = useCallback(
     async (offset: number, limit: number, append: boolean) => {
       if (offset === 0) setMembersLoading(true);
 
       try {
-        const res = await fetch(`/api/users/members?limit=${limit}&offset=${offset}`);
+        const filterStr = buildFilterParams();
+        const qs = `limit=${limit}&offset=${offset}${filterStr ? `&${filterStr}` : ""}`;
+        const res = await fetch(`/api/users/members?${qs}`);
         if (!res.ok) throw new Error();
         const json = await res.json();
         const incoming = (json.data ?? []) as DancerMember[];
@@ -198,6 +173,7 @@ export function useSearchMembersData(activeTab: Tab) {
         setMembers((prev) => {
           const nextMembers = append ? mergeMembersById(prev, incoming) : incoming;
           writeMembersCache(nextMembers, totalCount, availableRegions, fullyLoaded);
+          cacheUserSearchInfoFromMembers(nextMembers);
           return nextMembers;
         });
 
@@ -206,28 +182,14 @@ export function useSearchMembersData(activeTab: Tab) {
         if (offset === 0) setMembersLoading(false);
       }
     },
-    [writeMembersCache]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [writeMembersCache, memberRegion, memberGender, memberSearch, memberGenres, selectedMemberTypes]
   );
 
-  const fetchRemainingMembers = useCallback(
-    (startOffset: number, totalCount: number) => {
-      const run = async () => {
-        let offset = startOffset;
-        let expectedTotal = totalCount;
-
-        while (offset < expectedTotal) {
-          const result = await fetchMembersBatch(offset, 100, true);
-          if (result.incomingCount === 0 || result.fullyLoaded) break;
-          offset += result.incomingCount;
-          expectedTotal = result.totalCount;
-          await new Promise((resolve) => window.setTimeout(resolve, 250));
-        }
-      };
-
-      run().catch(() => {});
-    },
-    [fetchMembersBatch]
-  );
+  const fetchNextPage = useCallback(() => {
+    if (membersFullyLoaded || membersLoading) return;
+    fetchMembersBatch(members.length, MEMBERS_PAGE_SIZE, true).catch(() => {});
+  }, [membersFullyLoaded, membersLoading, members.length, fetchMembersBatch]);
 
   const removeMemberFromMemberList = useCallback(
     (targetId: string) => {
@@ -249,38 +211,35 @@ export function useSearchMembersData(activeTab: Tab) {
 
     queueMicrotask(() => {
       const cached = loadMembersFromCache();
-      if (cached.count > 0) {
-        if (!cached.fullyLoaded) {
-          fetchMembersBatch(cached.count, MEMBERS_PAGE_SIZE, true)
-            .then((result) => {
-              const nextOffset = cached.count + result.incomingCount;
-              if (!result.fullyLoaded && nextOffset < result.totalCount) {
-                fetchRemainingMembers(nextOffset, result.totalCount);
-              }
-            })
-            .catch(() => {});
-        }
-        return;
-      }
+      if (cached.count > 0) return;
 
-      fetchMembersBatch(0, MEMBERS_PAGE_SIZE, false)
-        .then((firstResult) => {
-          if (firstResult.incomingCount === 0 || firstResult.fullyLoaded) return;
-          return fetchMembersBatch(firstResult.incomingCount, MEMBERS_PAGE_SIZE, true).then((secondResult) => {
-            const nextOffset = firstResult.incomingCount + secondResult.incomingCount;
-            if (!secondResult.fullyLoaded && nextOffset < secondResult.totalCount) {
-              fetchRemainingMembers(nextOffset, secondResult.totalCount);
-            }
-          });
-        })
-        .catch(() => {
-          membersBootstrappedRef.current = false;
-          if (activeTab === "members") {
-            setMembersLoaded(true);
-          }
-        });
+      fetchMembersBatch(0, MEMBERS_PAGE_SIZE, false).catch(() => {
+        membersBootstrappedRef.current = false;
+        if (activeTab === "members") {
+          setMembersLoaded(true);
+        }
+      });
     });
-  }, [activeTab, fetchMembersBatch, fetchRemainingMembers, loadMembersFromCache]);
+  }, [activeTab, fetchMembersBatch, loadMembersFromCache]);
+
+  const filterKeyRef = useRef("");
+  useEffect(() => {
+    const key = `${memberRegion}|${memberGender}|${memberSearch.trim()}|${memberGenres.join(",")}|${selectedMemberTypes.join(",")}`;
+    if (filterKeyRef.current === key) return;
+    if (filterKeyRef.current === "") {
+      filterKeyRef.current = key;
+      return;
+    }
+    filterKeyRef.current = key;
+
+    const timer = window.setTimeout(() => {
+      setMembers([]);
+      setMembersFullyLoaded(false);
+      setMemberTotalCount(0);
+      fetchMembersBatch(0, MEMBERS_PAGE_SIZE, false).catch(() => {});
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [memberRegion, memberGender, memberSearch, memberGenres, selectedMemberTypes, fetchMembersBatch]);
 
   return {
     memberSearchPanelRef,
@@ -312,5 +271,6 @@ export function useSearchMembersData(activeTab: Tab) {
     setBasicFilterLocked,
     writeMembersCache,
     removeMemberFromMemberList,
+    fetchNextPage,
   };
 }

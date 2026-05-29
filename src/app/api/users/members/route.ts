@@ -13,10 +13,15 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const requestedLimit = Number.parseInt(searchParams.get("limit") ?? "30", 10);
+    const requestedLimit = Number.parseInt(searchParams.get("limit") ?? "50", 10);
     const requestedOffset = Number.parseInt(searchParams.get("offset") ?? "0", 10);
-    const limit = Number.isFinite(requestedLimit) ? Math.min(Math.max(requestedLimit, 1), 100) : 30;
+    const limit = Number.isFinite(requestedLimit) ? Math.min(Math.max(requestedLimit, 1), 100) : 50;
     const offset = Number.isFinite(requestedOffset) ? Math.max(requestedOffset, 0) : 0;
+    const regionParam = searchParams.get("region") ?? "";
+    const genreParam = searchParams.get("genre") ?? "";
+    const genderParam = searchParams.get("gender") ?? "";
+    const memberTypeParam = searchParams.get("memberType") ?? "";
+    const searchParam = searchParams.get("search") ?? "";
 
     const [{ data: stateRows, error: stateError }, { data: regionRows, error: regionError }] =
       await Promise.all([
@@ -57,13 +62,26 @@ export async function GET(request: NextRequest) {
     ).sort((a, b) => a.localeCompare(b, "ko"));
 
     const excludeList = Array.from(excludedIds);
-    const { data, error, count } = await supabase
+    let query = supabase
       .from("profiles")
       .select(
         "id, nickname, profile_image_url, bio, country, region, last_active_at, gender, member_type, role, favorite_genre, created_at",
         { count: "exact" }
       )
-      .not("id", "in", `(${excludeList.join(",")})`)
+      .not("id", "in", `(${excludeList.join(",")})`);
+
+    if (regionParam) query = query.eq("region", regionParam);
+    if (genderParam) query = query.eq("gender", genderParam);
+    if (searchParam) query = query.ilike("nickname", `%${searchParam}%`);
+    if (memberTypeParam) query = query.contains("member_type", [memberTypeParam]);
+    if (genreParam) {
+      const genres = genreParam.split(",").filter(Boolean);
+      for (const g of genres) {
+        query = query.contains("favorite_genre", [g]);
+      }
+    }
+
+    const { data, error, count } = await query
       .order("created_at", { ascending: false })
       .range(offset, offset + limit - 1);
 

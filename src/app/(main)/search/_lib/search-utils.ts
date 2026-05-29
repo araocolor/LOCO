@@ -1,6 +1,6 @@
 import type { CSSProperties } from "react";
 import type { DancerMember, Follower } from "../_types/search";
-import { MEMBER_GENRE_OPTIONS, MYPAGE_CACHE_KEY, SEARCH_CACHE_KEY } from "./constants";
+import { MEMBER_GENRE_OPTIONS, MYPAGE_CACHE_KEY, SEARCH_CACHE_KEY, USER_SEARCH_INFO_KEY, USER_SEARCH_INFO_MAX } from "./constants";
 
 export const USER_VIEW_CACHE_PREFIX = "user_view_v2_";
 
@@ -173,5 +173,79 @@ export function writeProfilePreviewCache(member: Follower) {
         bookmarkClasses: [],
       })
     );
+  } catch {}
+}
+
+export interface UserSearchInfoEntry {
+  id: string;
+  nickname: string;
+  profile_image_url: string | null;
+  bio: string | null;
+  country: string | null;
+  region: string | null;
+  member_type: string[];
+  last_active_at: string | null;
+}
+
+function isFriendInSocialCache(userId: string): boolean {
+  try {
+    const raw = localStorage.getItem(SEARCH_CACHE_KEY);
+    if (!raw) return false;
+    const parsed = JSON.parse(raw);
+    const lists = [parsed.following, parsed.followers, parsed.mySubscribers];
+    return lists.some((list) => Array.isArray(list) && list.some((m: { id?: string }) => m.id === userId));
+  } catch {
+    return false;
+  }
+}
+
+function readUserSearchInfo(): Map<string, UserSearchInfoEntry> {
+  try {
+    const raw = localStorage.getItem(USER_SEARCH_INFO_KEY);
+    if (!raw) return new Map();
+    const arr = JSON.parse(raw) as UserSearchInfoEntry[];
+    return new Map(arr.map((e) => [e.id, e]));
+  } catch {
+    return new Map();
+  }
+}
+
+function writeUserSearchInfo(entries: Map<string, UserSearchInfoEntry>) {
+  try {
+    const arr = Array.from(entries.values()).slice(0, USER_SEARCH_INFO_MAX);
+    localStorage.setItem(USER_SEARCH_INFO_KEY, JSON.stringify(arr));
+  } catch {}
+}
+
+export function cacheUserSearchInfoFromMembers(members: DancerMember[], maxPerFilter: number = 50) {
+  const current = readUserSearchInfo();
+  let added = 0;
+  for (const m of members) {
+    if (added >= maxPerFilter) break;
+    if (current.has(m.id)) continue;
+    if (isFriendInSocialCache(m.id)) continue;
+    current.set(m.id, {
+      id: m.id,
+      nickname: m.nickname,
+      profile_image_url: m.profile_image_url,
+      bio: m.bio ?? null,
+      country: m.country ?? null,
+      region: m.region ?? null,
+      member_type: m.member_type ?? [],
+      last_active_at: m.last_active_at ?? null,
+    });
+    added++;
+  }
+  writeUserSearchInfo(current);
+}
+
+export function readUserSearchInfoProfile(userId: string): UserSearchInfoEntry | null {
+  const entries = readUserSearchInfo();
+  return entries.get(userId) ?? null;
+}
+
+export function clearUserSearchInfo() {
+  try {
+    localStorage.removeItem(USER_SEARCH_INFO_KEY);
   } catch {}
 }

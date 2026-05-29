@@ -8,6 +8,7 @@ import SendMessageModal from "@/components/modal/SendMessageModal";
 
 const USER_VIEW_CACHE_PREFIX = "user_view_v2_";
 const SEARCH_SOCIAL_CACHE_KEY = "search_social_cache";
+const USER_SEARCH_INFO_KEY = "user_search_info";
 const STAR_GIFTED_KEY = "loco_star_gifted_ids";
 
 function getStarGiftedIds(): Set<string> {
@@ -155,6 +156,19 @@ function readUserViewSessionCache(userId: string): ProfileData | null {
   }
 }
 
+function readUserSearchInfoCache(userId: string): ProfileData | null {
+  try {
+    const raw = localStorage.getItem(USER_SEARCH_INFO_KEY);
+    if (!raw) return null;
+    const arr = JSON.parse(raw) as CachedProfileSeed[];
+    const found = arr.find((e) => e.id === userId);
+    if (!found) return null;
+    return buildProfileData(found);
+  } catch {
+    return null;
+  }
+}
+
 export default function UserProfileModal({ userId, onClose, initialProfile = null }: UserProfileModalProps) {
   const router = useRouter();
   const [profileData, setProfileData] = useState<ProfileData | null>(null);
@@ -183,8 +197,9 @@ export default function UserProfileModal({ userId, onClose, initialProfile = nul
   useEffect(() => {
     const socialCached = readSearchSocialCacheProfile(userId);
     const seedProfile = initialProfile ? buildProfileData(initialProfile) : null;
+    const dancerCached = readUserSearchInfoCache(userId);
     const sessionCached = readUserViewSessionCache(userId);
-    const nextCachedProfile = seedProfile ?? socialCached?.profile ?? sessionCached;
+    const nextCachedProfile = seedProfile ?? socialCached?.profile ?? dancerCached ?? sessionCached;
 
     queueMicrotask(() => {
       setProfileData(nextCachedProfile);

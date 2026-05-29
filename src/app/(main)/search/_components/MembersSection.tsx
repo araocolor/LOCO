@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { Binoculars, ChevronLeft, ChevronRight, LayoutGrid, LayoutList, Lock, LockOpen } from "lucide-react";
 import Avatar from "@/components/ui/Avatar";
 import type { Dispatch, RefObject, SetStateAction } from "react";
@@ -37,6 +38,8 @@ interface MembersSectionProps {
   closingProfileMemberId: string | null;
   onOpenProfile: (id: string) => void;
   onViewProfile: (id: string) => void;
+  membersFullyLoaded: boolean;
+  onLoadMore: () => void;
 }
 
 export default function MembersSection({
@@ -66,8 +69,22 @@ export default function MembersSection({
   closingProfileMemberId,
   onOpenProfile,
   onViewProfile,
+  membersFullyLoaded,
+  onLoadMore,
 }: MembersSectionProps) {
   const starGiftedIds = getStarGiftedIds();
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const node = sentinelRef.current;
+    if (!node || membersFullyLoaded) return;
+    const observer = new IntersectionObserver(
+      (entries) => { if (entries[0]?.isIntersecting) onLoadMore(); },
+      { rootMargin: "200px" }
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [membersFullyLoaded, onLoadMore]);
   return (
     <div className="px-4 pt-0 bg-white">
       <div className="h-[120px] -mx-4 bg-gray-100 relative">
@@ -297,6 +314,11 @@ export default function MembersSection({
                 </div>
               );
             })}
+          </div>
+        )}
+        {!membersFullyLoaded && visibleMembers.length > 0 && (
+          <div ref={sentinelRef} className="flex justify-center py-4">
+            {membersLoading && <span className="text-sm text-gray-400">불러오는 중...</span>}
           </div>
         )}
       </div>
