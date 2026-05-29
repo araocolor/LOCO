@@ -2,11 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Ellipsis, Star, X, UserCircle, Send, Ban, UserPlus, UserMinus } from "lucide-react";
+import { Check, Ellipsis, Star, UserCircle, Send, Ban, UserPlus, UserMinus } from "lucide-react";
 import Avatar from "@/components/ui/Avatar";
 import SendMessageModal from "@/components/modal/SendMessageModal";
 
 const USER_VIEW_CACHE_PREFIX = "user_view_v2_";
+const SEARCH_SOCIAL_CACHE_KEY = "search_social_cache";
 const STAR_GIFTED_KEY = "loco_star_gifted_ids";
 
 function getStarGiftedIds(): Set<string> {
@@ -65,12 +66,96 @@ interface ProfileData {
   my_star_balance: number;
 }
 
+interface CachedProfileSeed {
+  id?: string;
+  nickname?: string;
+  profile_image_url?: string | null;
+  bio?: string | null;
+  member_type?: string[];
+  country?: string | null;
+  region?: string | null;
+  last_active_at?: string | null;
+  status?: "pending" | "approved" | "friend";
+}
+
 interface UserProfileModalProps {
   userId: string;
   onClose: () => void;
+  initialProfile?: CachedProfileSeed | null;
 }
 
-export default function UserProfileModal({ userId, onClose }: UserProfileModalProps) {
+function buildProfileData(member: CachedProfileSeed): ProfileData {
+  return {
+    nickname: member.nickname ?? "",
+    profile_image_url: member.profile_image_url ?? null,
+    bio: member.bio ?? null,
+    member_type: member.member_type ?? [],
+    country: member.country ?? null,
+    region: member.region ?? null,
+    last_active_at: member.last_active_at ?? null,
+    received_star_count: 0,
+    gifted_star_count_by_me: 0,
+    my_star_balance: 0,
+  };
+}
+
+function getRelationStatusFromMember(member: CachedProfileSeed | null): RelationStatus {
+  if (!member?.status) return "아님";
+  if (member.status === "friend") return "맞팔";
+  if (member.status === "approved") return "팔로잉";
+  return "아님";
+}
+
+function readSearchSocialCacheProfile(userId: string): { profile: ProfileData; relationStatus: RelationStatus } | null {
+  try {
+    const raw = localStorage.getItem(SEARCH_SOCIAL_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as {
+      following?: CachedProfileSeed[];
+      followers?: CachedProfileSeed[];
+      mySubscribers?: CachedProfileSeed[];
+    };
+    const following = parsed.following?.find((member) => member.id === userId) ?? null;
+    const follower = parsed.followers?.find((member) => member.id === userId) ?? null;
+    const subscriber = parsed.mySubscribers?.find((member) => member.id === userId) ?? null;
+    const member = following ?? follower ?? subscriber;
+    if (!member) return null;
+    return {
+      profile: buildProfileData(member),
+      relationStatus: following
+        ? getRelationStatusFromMember(following)
+        : follower
+          ? "팔로워"
+          : "구독자",
+    };
+  } catch {
+    return null;
+  }
+}
+
+function readUserViewSessionCache(userId: string): ProfileData | null {
+  try {
+    const raw = sessionStorage.getItem(`${USER_VIEW_CACHE_PREFIX}${userId}`);
+    if (!raw) return null;
+    const json = JSON.parse(raw);
+    return {
+      nickname: json.profile?.nickname ?? "",
+      profile_image_url: json.profile?.profile_image_url ?? null,
+      bio: json.profile?.bio ?? null,
+      member_type: json.profile?.member_type ?? [],
+      country: json.profile?.country ?? null,
+      region: json.profile?.region ?? null,
+      last_active_at: json.profile?.last_active_at ?? null,
+      received_star_count: json.profile?.received_star_count ?? 0,
+      gifted_star_count_by_me: json.starSummary?.gifted_star_count_by_me ?? 0,
+      my_star_balance: json.starSummary?.my_star_balance ?? 0,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export default function UserProfileModal({ userId, onClose, initialProfile = null }: UserProfileModalProps) {
   const router = useRouter();
   const [profileData, setProfileData] = useState<ProfileData | null>(null);
   const [relationStatus, setRelationStatus] = useState<RelationStatus>("아님");
@@ -96,35 +181,24 @@ export default function UserProfileModal({ userId, onClose }: UserProfileModalPr
   const hasGifted = giftedStarCount > 0;
 
   useEffect(() => {
-    let cancelled = false;
-    setProfileData(null);
-    setRelationStatus("아님");
-    setGiftPatch(null);
+    const socialCached = readSearchSocialCacheProfile(userId);
+    const seedProfile = initialProfile ? buildProfileData(initialProfile) : null;
+    const sessionCached = readUserViewSessionCache(userId);
+    const nextCachedProfile = seedProfile ?? socialCached?.profile ?? sessionCached;
 
-    function readCache(): ProfileData | null {
-      try {
-        const raw = sessionStorage.getItem(`${USER_VIEW_CACHE_PREFIX}${userId}`);
-        if (!raw) return null;
-        const json = JSON.parse(raw);
-        return {
-          nickname: json.profile?.nickname ?? "",
-          profile_image_url: json.profile?.profile_image_url ?? null,
-          bio: json.profile?.bio ?? null,
-          member_type: json.profile?.member_type ?? [],
-          country: json.profile?.country ?? null,
-          region: json.profile?.region ?? null,
-          last_active_at: json.profile?.last_active_at ?? null,
-          received_star_count: json.profile?.received_star_count ?? 0,
-          gifted_star_count_by_me: json.starSummary?.gifted_star_count_by_me ?? 0,
-          my_star_balance: json.starSummary?.my_star_balance ?? 0,
-        };
-      } catch {
-        return null;
+    queueMicrotask(() => {
+      setProfileData(nextCachedProfile);
+      setGiftPatch(null);
+      if (initialProfile?.status) {
+        setRelationStatus(getRelationStatusFromMember(initialProfile));
+      } else if (socialCached) {
+        setRelationStatus(socialCached.relationStatus);
+      } else {
+        setRelationStatus("아님");
       }
-    }
+    });
 
-    const cached = readCache();
-    if (cached) setProfileData(cached);
+    let cancelled = false;
 
     fetch(`/api/users/${userId}/view-summary`)
       .then((res) => res.json())
@@ -147,36 +221,14 @@ export default function UserProfileModal({ userId, onClose }: UserProfileModalPr
       .catch(() => {});
 
     return () => { cancelled = true; };
-  }, [userId]);
+  }, [initialProfile, userId]);
 
   useEffect(() => {
     if (!profileData) return;
-    let cancelled = false;
 
-    fetch("/api/friends/social")
-      .then((res) => res.json())
-      .then((json) => {
-        if (cancelled) return;
-        const following = json.data?.following ?? [];
-        const followers = json.data?.followers ?? [];
-        const mySubscribers = json.data?.mySubscribers ?? [];
-
-        const followingMatch = following.find((f: { id: string; status: string }) => f.id === userId);
-        if (followingMatch?.status === "friend") {
-          setRelationStatus("맞팔");
-        } else if (followingMatch?.status === "approved") {
-          setRelationStatus("팔로잉");
-        } else if (followers.some((f: { id: string }) => f.id === userId)) {
-          setRelationStatus("팔로워");
-        } else if (mySubscribers.some((s: { id: string }) => s.id === userId)) {
-          setRelationStatus("구독자");
-        } else {
-          setRelationStatus("아님");
-        }
-      })
-      .catch(() => {});
-
-    return () => { cancelled = true; };
+    const socialCached = readSearchSocialCacheProfile(userId);
+    if (!socialCached) return;
+    queueMicrotask(() => setRelationStatus(socialCached.relationStatus));
   }, [profileData, userId]);
 
   if (!profileData) return null;

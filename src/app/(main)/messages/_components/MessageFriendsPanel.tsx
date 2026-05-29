@@ -40,7 +40,7 @@ function FriendRow({
 }: {
   member: Follower;
   onlineIds: Set<string>;
-  onOpenProfile: (id: string) => void;
+  onOpenProfile: (member: Follower) => void;
   action?: ReactNode;
 }) {
   const isNotificationOff = !!member.is_greyed;
@@ -48,7 +48,7 @@ function FriendRow({
 
   return (
     <div className={`flex items-center gap-3 border-b border-gray-50 py-3 ${isNotificationOff ? "grayscale" : ""}`}>
-      <button type="button" onClick={() => onOpenProfile(member.id)} className="relative shrink-0" aria-label={`${member.nickname} 프로필`}>
+      <button type="button" onClick={() => onOpenProfile(member)} className="relative shrink-0" aria-label={`${member.nickname} 프로필`}>
         <div className={isNotificationOff ? "opacity-50" : ""}>
           <Avatar
             src={member.profile_image_url}
@@ -61,7 +61,7 @@ function FriendRow({
           <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white bg-green-400" />
         )}
       </button>
-      <button type="button" onClick={() => onOpenProfile(member.id)} className="min-w-0 flex-1 text-left">
+      <button type="button" onClick={() => onOpenProfile(member)} className="min-w-0 flex-1 text-left">
         <p className={`truncate text-[16px] font-semibold text-gray-900 ${isNotificationOff ? "opacity-50" : ""}`}>{member.nickname}</p>
         {formatLocation(member.country, member.region) && (
           <p className="truncate text-xs text-gray-400">{formatLocation(member.country, member.region)}</p>
@@ -84,7 +84,7 @@ function FriendGrid({
 }: {
   members: Follower[];
   onlineIds: Set<string>;
-  onOpenProfile: (id: string) => void;
+  onOpenProfile: (member: Follower) => void;
 }) {
   return (
     <div className="grid grid-cols-5 gap-x-3 gap-y-4 pb-4">
@@ -92,7 +92,7 @@ function FriendGrid({
         <button
           key={member.id}
           type="button"
-          onClick={() => onOpenProfile(member.id)}
+          onClick={() => onOpenProfile(member)}
           className="relative aspect-square min-w-0 flex items-center justify-center"
           aria-label={`${member.nickname} 프로필`}
         >
@@ -118,7 +118,7 @@ export default function MessageFriendsPanel({ onlineIds, onMessageSent }: Messag
     setFollowing: socialData.setFollowing,
     followingStatusById: socialData.followingStatusById,
   });
-  const [profileModalId, setProfileModalId] = useState<string | null>(null);
+  const [profileModalTarget, setProfileModalTarget] = useState<Follower | null>(null);
   const [messageTarget, setMessageTarget] = useState<{
     id: string;
     nickname: string;
@@ -210,7 +210,7 @@ export default function MessageFriendsPanel({ onlineIds, onMessageSent }: Messag
                   </div>
                   <button
                     type="button"
-                    onClick={() => setProfileModalId(suggestion.id)}
+                    onClick={() => setProfileModalTarget(suggestionToFollower(suggestion))}
                     className="max-w-[62px] text-center font-bold text-gray-900 truncate"
                     style={{ fontSize: 14 }}
                   >
@@ -267,7 +267,7 @@ export default function MessageFriendsPanel({ onlineIds, onMessageSent }: Messag
           <FriendGrid
             members={visibleFriends}
             onlineIds={onlineIds}
-            onOpenProfile={setProfileModalId}
+            onOpenProfile={setProfileModalTarget}
           />
         ) : (
           <div className="flex flex-col">
@@ -276,7 +276,7 @@ export default function MessageFriendsPanel({ onlineIds, onMessageSent }: Messag
                 key={member.id}
                 member={member}
                 onlineIds={onlineIds}
-                onOpenProfile={setProfileModalId}
+                onOpenProfile={setProfileModalTarget}
 
               />
             ))}
@@ -295,7 +295,7 @@ export default function MessageFriendsPanel({ onlineIds, onMessageSent }: Messag
                 key={member.id}
                 member={member}
                 onlineIds={onlineIds}
-                onOpenProfile={setProfileModalId}
+                onOpenProfile={setProfileModalTarget}
 
               />
             ))}
@@ -303,10 +303,11 @@ export default function MessageFriendsPanel({ onlineIds, onMessageSent }: Messag
         )}
       </section>
 
-      {profileModalId && (
+      {profileModalTarget && (
         <UserProfileModal
-          userId={profileModalId}
-          onClose={() => setProfileModalId(null)}
+          userId={profileModalTarget.id}
+          initialProfile={profileModalTarget}
+          onClose={() => setProfileModalTarget(null)}
         />
       )}
 
