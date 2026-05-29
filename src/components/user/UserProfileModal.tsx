@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Ellipsis, Star, X, UserCircle, Send, Ban } from "lucide-react";
+import { Check, Ellipsis, Star, X, UserCircle, Send, Ban, UserPlus, UserMinus } from "lucide-react";
 import Avatar from "@/components/ui/Avatar";
 import SendMessageModal from "@/components/modal/SendMessageModal";
 
@@ -379,23 +379,19 @@ export default function UserProfileModal({ userId, onClose }: UserProfileModalPr
               <UserCircle size={20} className="text-gray-500" />
             </button>
             <div className="border-t border-gray-100 mx-3" />
-            {!hasGifted && (
-              <>
-                <button
-                  className="flex items-center justify-between w-full px-4 py-3 text-gray-700"
-                  style={{ fontSize: "16px" }}
-                  disabled={myStarBalance < 1}
-                  onClick={() => {
-                    setMenuOpen(false);
-                    setConfirmOpen(true);
-                  }}
-                >
-                  <span>별 선물하기</span>
-                  <Star size={20} className="text-gray-500" />
-                </button>
-                <div className="border-t border-gray-100 mx-3" />
-              </>
-            )}
+            <button
+              className={`flex items-center justify-between w-full px-4 py-3 ${hasGifted ? "text-gray-300" : "text-gray-700"}`}
+              style={{ fontSize: "16px" }}
+              disabled={hasGifted || myStarBalance < 1}
+              onClick={() => {
+                setMenuOpen(false);
+                setConfirmOpen(true);
+              }}
+            >
+              <span>{hasGifted ? "별선물완료" : "별 선물하기"}</span>
+              <Star size={20} className={hasGifted ? "text-yellow-400 fill-yellow-400" : "text-gray-500"} />
+            </button>
+            <div className="border-t border-gray-100 mx-3" />
             <button
               className="flex items-center justify-between w-full px-4 py-3 text-gray-700"
               style={{ fontSize: "16px" }}
@@ -411,6 +407,48 @@ export default function UserProfileModal({ userId, onClose }: UserProfileModalPr
               <span>메시지 전송</span>
               <Send size={20} className="text-gray-500" />
             </button>
+            {relationStatus === "아님" && (
+              <>
+                <div className="border-t border-gray-100 mx-3" />
+                <button
+                  className="flex items-center justify-between w-full px-4 py-3 text-gray-700"
+                  style={{ fontSize: "16px" }}
+                  onClick={async () => {
+                    setMenuOpen(false);
+                    const res = await fetch("/api/friends", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ target_id: userId }),
+                    });
+                    if (res.ok) setRelationStatus("팔로잉");
+                  }}
+                >
+                  <span>친구신청</span>
+                  <UserPlus size={20} className="text-gray-500" />
+                </button>
+              </>
+            )}
+            {(relationStatus === "팔로잉" || relationStatus === "맞팔") && (
+              <>
+                <div className="border-t border-gray-100 mx-3" />
+                <button
+                  className="flex items-center justify-between w-full px-4 py-3 text-gray-700"
+                  style={{ fontSize: "16px" }}
+                  onClick={async () => {
+                    setMenuOpen(false);
+                    const res = await fetch("/api/friends", {
+                      method: "DELETE",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ target_id: userId }),
+                    });
+                    if (res.ok) setRelationStatus("아님");
+                  }}
+                >
+                  <span>친구취소</span>
+                  <UserMinus size={20} className="text-gray-500" />
+                </button>
+              </>
+            )}
             <div className="border-t border-gray-100 mx-3" />
             <button
               className="flex items-center justify-between w-full px-4 py-3 text-gray-700"

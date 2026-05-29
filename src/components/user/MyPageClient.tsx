@@ -544,7 +544,7 @@ export default function MyPageClient({
                       onClick={() => setStarGiverProfileId(giver.id)}
                       aria-label={`${giver.nickname} 프로필`}
                     >
-                      <Avatar src={giver.profile_image_url} nickname={giver.nickname} size={40} />
+                      <Avatar src={giver.profile_image_url} nickname={giver.nickname} size={48} />
                     </button>
                   ))}
                 </div>
