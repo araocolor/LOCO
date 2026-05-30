@@ -19,19 +19,19 @@ function emptyRoomCache(): ChatRoomCache {
 }
 
 function removeLegacyRoomCache(roomId: string) {
-  sessionStorage.removeItem(`${LEGACY_MESSAGES_CACHE_PREFIX}${roomId}`);
-  sessionStorage.removeItem(`${LEGACY_NOTICES_CACHE_PREFIX}${roomId}`);
+  localStorage.removeItem(`${LEGACY_MESSAGES_CACHE_PREFIX}${roomId}`);
+  localStorage.removeItem(`${LEGACY_NOTICES_CACHE_PREFIX}${roomId}`);
 }
 
 function readLegacyRoomCache(roomId: string): ChatRoomCache {
   const next = emptyRoomCache();
 
   try {
-    next.messages = JSON.parse(sessionStorage.getItem(`${LEGACY_MESSAGES_CACHE_PREFIX}${roomId}`) ?? "[]") as Message[];
+    next.messages = JSON.parse(localStorage.getItem(`${LEGACY_MESSAGES_CACHE_PREFIX}${roomId}`) ?? "[]") as Message[];
   } catch {}
 
   try {
-    next.notices = JSON.parse(sessionStorage.getItem(`${LEGACY_NOTICES_CACHE_PREFIX}${roomId}`) ?? "[]") as ChatNotice[];
+    next.notices = JSON.parse(localStorage.getItem(`${LEGACY_NOTICES_CACHE_PREFIX}${roomId}`) ?? "[]") as ChatNotice[];
   } catch {}
 
   return next;
@@ -39,16 +39,16 @@ function readLegacyRoomCache(roomId: string): ChatRoomCache {
 
 export function hasChatRoomCache(roomId: string) {
   try {
-    if (sessionStorage.getItem(getChatRoomCacheKey(roomId))) return true;
-    if (sessionStorage.getItem(`${LEGACY_MESSAGES_CACHE_PREFIX}${roomId}`)) return true;
-    if (sessionStorage.getItem(`${LEGACY_NOTICES_CACHE_PREFIX}${roomId}`)) return true;
+    if (localStorage.getItem(getChatRoomCacheKey(roomId))) return true;
+    if (localStorage.getItem(`${LEGACY_MESSAGES_CACHE_PREFIX}${roomId}`)) return true;
+    if (localStorage.getItem(`${LEGACY_NOTICES_CACHE_PREFIX}${roomId}`)) return true;
   } catch {}
   return false;
 }
 
 function readRoomCache(roomId: string): ChatRoomCache {
   try {
-    const cached = JSON.parse(sessionStorage.getItem(getChatRoomCacheKey(roomId)) ?? "null") as Partial<ChatRoomCache> | null;
+    const cached = JSON.parse(localStorage.getItem(getChatRoomCacheKey(roomId)) ?? "null") as Partial<ChatRoomCache> | null;
     if (cached) {
       return {
         messages: Array.isArray(cached.messages) ? cached.messages : [],
@@ -66,7 +66,7 @@ function readRoomCache(roomId: string): ChatRoomCache {
 
 function writeRoomCache(roomId: string, cache: ChatRoomCache) {
   const nextMessages = limitImageMessages(cache.messages);
-  sessionStorage.setItem(
+  localStorage.setItem(
     getChatRoomCacheKey(roomId),
     JSON.stringify({
       messages: nextMessages,

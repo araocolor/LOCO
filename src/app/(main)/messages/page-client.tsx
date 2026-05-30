@@ -759,9 +759,22 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
         (payload) => {
           const roomId = (payload.new as { id?: string }).id;
           if (!roomId) return;
-          if (conversationsRef.current.some((conv) => conv.id === roomId)) {
-            scheduleListRefresh();
-          }
+          if (!conversationsRef.current.some((conv) => conv.id === roomId)) return;
+          scheduleListRefresh();
+          if (activeChatRoomRef.current === roomId) return;
+          void (async () => {
+            try {
+              const res = await fetch(`/api/chat/rooms/${roomId}/messages?limit=1`);
+              const json = await res.json();
+              if (!res.ok || !json.data) return;
+              const msgs = (json.data as ChatMessageApiItem[]).map(mapChatMessage);
+              if (msgs.length === 0) return;
+              const latest = msgs[0];
+              const cached = readMessageCache(roomId);
+              if (cached.some((m) => m.id === latest.id)) return;
+              appendMessageCache(roomId, latest);
+            } catch {}
+          })();
         }
       )
       .subscribe();
