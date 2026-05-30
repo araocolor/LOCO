@@ -318,7 +318,7 @@ export default function UserProfileModal({ userId, onClose, initialProfile = nul
     <>
       <div className="fixed inset-0 z-[75] bg-black/50" onClick={onClose} />
       <div className="fixed inset-0 z-[80] flex items-center justify-center pointer-events-none">
-        <div className="relative w-[250px] bg-white rounded-2xl shadow-lg p-6 pointer-events-auto flex flex-col items-center gap-2">
+        <div className="relative w-[270px] bg-white rounded-2xl shadow-lg p-6 pointer-events-auto flex flex-col items-center gap-2">
           <button
             type="button"
             className="absolute top-3 right-3 rounded-full p-1 text-gray-500 hover:bg-gray-100"
