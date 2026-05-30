@@ -100,7 +100,7 @@ export default function UserViewLoader({ userId }: { userId: string }) {
           }
           if (hasFollowerCount) return;
           // 구버전 캐시: followerCount가 없으면 API로 보강 후 캐시 업데이트
-          const res = await fetch(`/api/users/${userId}/view-summary`, { method: "GET" });
+          const res = await fetch(`/api/users/${userId}/profile-view-summary`, { method: "GET" });
           if (!res.ok) return;
           const fresh = (await res.json()) as UserViewData;
           if (cancelled) return;
@@ -142,7 +142,7 @@ export default function UserViewLoader({ userId }: { userId: string }) {
           if (hasProfileFields && hasUsableEmail) return;
         }
 
-        const res = await fetch(`/api/users/${userId}/view-summary`, { method: "GET" });
+        const res = await fetch(`/api/users/${userId}/profile-view-summary`, { method: "GET" });
         if (!res.ok) {
           if (!cancelled) setLoading(false);
           return;

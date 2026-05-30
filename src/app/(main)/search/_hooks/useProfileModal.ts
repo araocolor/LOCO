@@ -27,22 +27,19 @@ export function useProfileModal({ activeTab, visibleMembers }: UseProfileModalPa
     if (cached) {
       try {
         const json = JSON.parse(cached);
-        const hasLastActiveAt = !!json.profile && Object.prototype.hasOwnProperty.call(json.profile, "last_active_at");
-        const hasReceivedStarCount = !!json.profile && Object.prototype.hasOwnProperty.call(json.profile, "received_star_count");
-        const hasStarSummary = !!json.starSummary
-          && Object.prototype.hasOwnProperty.call(json.starSummary, "gifted_star_count_by_me")
-          && Object.prototype.hasOwnProperty.call(json.starSummary, "my_star_balance");
+        const hasStarData = Object.prototype.hasOwnProperty.call(json, "received_star_count")
+          && Object.prototype.hasOwnProperty.call(json, "gifted_star_count_by_me")
+          && Object.prototype.hasOwnProperty.call(json, "my_star_balance");
+        if (!hasStarData) return false;
         setProfileModalData({
-          bio: json.profile?.bio ?? null,
-          member_type: json.profile?.member_type ?? [],
-          last_active_at: json.profile?.last_active_at ?? null,
-          received_star_count: json.profile?.received_star_count ?? 0,
-          gifted_star_count_by_me: json.starSummary?.gifted_star_count_by_me ?? 0,
-          my_star_balance: json.starSummary?.my_star_balance ?? 0,
+          bio: null,
+          member_type: [],
+          last_active_at: null,
+          received_star_count: json.received_star_count ?? 0,
+          gifted_star_count_by_me: json.gifted_star_count_by_me ?? 0,
+          my_star_balance: json.my_star_balance ?? 0,
         });
-        if (!hasLastActiveAt) return false;
-        if (!hasReceivedStarCount || !hasStarSummary) return false;
-      } catch {}
+      } catch { return false; }
       return true;
     }
     return false;
@@ -53,14 +50,17 @@ export function useProfileModal({ activeTab, visibleMembers }: UseProfileModalPa
     fetch(`/api/users/${memberId}/view-summary`)
       .then((res) => res.json())
       .then((json) => {
+        const starData = {
+          received_star_count: json.received_star_count ?? 0,
+          gifted_star_count_by_me: json.gifted_star_count_by_me ?? 0,
+          my_star_balance: json.my_star_balance ?? 0,
+        };
         sessionStorage.setItem(`${USER_VIEW_CACHE_PREFIX}${memberId}`, JSON.stringify(json));
         setProfileModalData({
-          bio: json.profile?.bio ?? null,
-          member_type: json.profile?.member_type ?? [],
-          last_active_at: json.profile?.last_active_at ?? null,
-          received_star_count: json.profile?.received_star_count ?? 0,
-          gifted_star_count_by_me: json.starSummary?.gifted_star_count_by_me ?? 0,
-          my_star_balance: json.starSummary?.my_star_balance ?? 0,
+          bio: null,
+          member_type: [],
+          last_active_at: null,
+          ...starData,
         });
       })
       .catch(() => {});

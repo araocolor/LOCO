@@ -1,0 +1,137 @@
+import { NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { ClassImage } from "@/types/class";
+
+interface GridClass {
+  id: string;
+  images: ClassImage[] | null;
+  title: string;
+  status?: string;
+  created_at?: string;
+  isBookmark?: boolean;
+}
+
+interface BookmarkClassRow {
+  created_at: string;
+  classes:
+    | {
+        id: string;
+        images: ClassImage[] | null;
+        title: string;
+        status: string;
+      }
+    | {
+        id: string;
+        images: ClassImage[] | null;
+        title: string;
+        status: string;
+      }[]
+    | null;
+}
+
+export async function GET(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const admin = createAdminClient();
+
+  const [profileResult, myClassesResult, bookmarkResult, followerResult, receivedStarResult, giftedStarResult, myStarWalletResult] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("id, email, nickname, profile_image_url, bio, member_type, country, region, last_active_at")
+      .eq("id", id)
+      .single(),
+    supabase
+      .from("classes")
+      .select("id, images, title, status, created_at")
+      .eq("host_id", id)
+      .order("created_at", { ascending: false })
+      .limit(300),
+    supabase
+      .from("class_bookmarks")
+      .select("created_at, classes(id, images, title, status)")
+      .eq("user_id", id)
+      .order("created_at", { ascending: false })
+      .limit(300),
+    admin
+      .from("friendships")
+      .select("id", { count: "exact", head: true })
+      .eq("friend_id", id)
+      .in("status", ["approved", "friend"]),
+    admin
+      .from("star_gifts")
+      .select("count")
+      .eq("receiver_id", id),
+    user
+      ? admin
+          .from("star_gifts")
+          .select("count")
+          .eq("giver_id", user.id)
+          .eq("receiver_id", id)
+          .maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
+    user
+      ? admin
+          .from("star_wallets")
+          .select("balance")
+          .eq("user_id", user.id)
+          .maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
+  ]);
+
+  const profile = profileResult.data;
+  if (!profile) {
+    return NextResponse.json({ error: "not_found" }, { status: 404 });
+  }
+
+  const myClasses = ((myClassesResult.data ?? []) as GridClass[]).map((c) => ({
+    ...c,
+    isBookmark: false,
+  }));
+
+  const bookmarkRows = (bookmarkResult.data ?? []) as BookmarkClassRow[];
+  const bookmarkClasses: GridClass[] = bookmarkRows.flatMap((row) => {
+    if (!row.classes) return [];
+    const cls = Array.isArray(row.classes) ? row.classes[0] : row.classes;
+    if (!cls) return [];
+    return [{
+      id: cls.id,
+      images: cls.images,
+      title: cls.title,
+      status: cls.status,
+      created_at: row.created_at,
+      isBookmark: true,
+    }];
+  });
+
+  return NextResponse.json({
+    profile: {
+      id: profile.id,
+      email: profile.email ?? (user?.id === id ? user.email ?? null : null),
+      nickname: profile.nickname,
+      bio: profile.bio,
+      country: profile.country ?? null,
+      last_active_at: profile.last_active_at ?? null,
+      member_type: profile.member_type ?? [],
+      profile_image_url: profile.profile_image_url,
+      region: profile.region ?? null,
+      received_star_count: receivedStarResult.error
+        ? 0
+        : (receivedStarResult.data ?? []).reduce((total, row) => total + Number(row.count ?? 0), 0),
+    },
+    myClasses,
+    bookmarkClasses,
+    followerCount: followerResult.count ?? 0,
+    starSummary: {
+      gifted_star_count_by_me: giftedStarResult?.data?.count ?? 0,
+      my_star_balance: myStarWalletResult?.data?.balance ?? 0,
+    },
+  });
+}

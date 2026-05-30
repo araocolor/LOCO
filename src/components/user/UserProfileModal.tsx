@@ -134,22 +134,16 @@ function readSearchSocialCacheProfile(userId: string): { profile: ProfileData; r
   }
 }
 
-function readUserViewSessionCache(userId: string): ProfileData | null {
+function readUserViewSessionStarCache(userId: string): { received_star_count: number; gifted_star_count_by_me: number; my_star_balance: number } | null {
   try {
     const raw = sessionStorage.getItem(`${USER_VIEW_CACHE_PREFIX}${userId}`);
     if (!raw) return null;
     const json = JSON.parse(raw);
+    if (!Object.prototype.hasOwnProperty.call(json, "received_star_count")) return null;
     return {
-      nickname: json.profile?.nickname ?? "",
-      profile_image_url: json.profile?.profile_image_url ?? null,
-      bio: json.profile?.bio ?? null,
-      member_type: json.profile?.member_type ?? [],
-      country: json.profile?.country ?? null,
-      region: json.profile?.region ?? null,
-      last_active_at: json.profile?.last_active_at ?? null,
-      received_star_count: json.profile?.received_star_count ?? 0,
-      gifted_star_count_by_me: json.starSummary?.gifted_star_count_by_me ?? 0,
-      my_star_balance: json.starSummary?.my_star_balance ?? 0,
+      received_star_count: json.received_star_count ?? 0,
+      gifted_star_count_by_me: json.gifted_star_count_by_me ?? 0,
+      my_star_balance: json.my_star_balance ?? 0,
     };
   } catch {
     return null;
@@ -198,10 +192,10 @@ export default function UserProfileModal({ userId, onClose, initialProfile = nul
     const socialCached = readSearchSocialCacheProfile(userId);
     const seedProfile = initialProfile ? buildProfileData(initialProfile) : null;
     const dancerCached = readUserSearchInfoCache(userId);
-    const sessionCached = readUserViewSessionCache(userId);
-    let nextCachedProfile = seedProfile ?? socialCached?.profile ?? dancerCached ?? sessionCached;
-    if (nextCachedProfile && nextCachedProfile !== sessionCached && sessionCached) {
-      nextCachedProfile = { ...nextCachedProfile, received_star_count: sessionCached.received_star_count, gifted_star_count_by_me: sessionCached.gifted_star_count_by_me, my_star_balance: sessionCached.my_star_balance };
+    const starCached = readUserViewSessionStarCache(userId);
+    let nextCachedProfile = seedProfile ?? socialCached?.profile ?? dancerCached;
+    if (nextCachedProfile && starCached) {
+      nextCachedProfile = { ...nextCachedProfile, ...starCached };
     }
 
     queueMicrotask(() => {
@@ -223,18 +217,12 @@ export default function UserProfileModal({ userId, onClose, initialProfile = nul
       .then((json) => {
         if (cancelled) return;
         sessionStorage.setItem(`${USER_VIEW_CACHE_PREFIX}${userId}`, JSON.stringify(json));
-        setProfileData({
-          nickname: json.profile?.nickname ?? "",
-          profile_image_url: json.profile?.profile_image_url ?? null,
-          bio: json.profile?.bio ?? null,
-          member_type: json.profile?.member_type ?? [],
-          country: json.profile?.country ?? null,
-          region: json.profile?.region ?? null,
-          last_active_at: json.profile?.last_active_at ?? null,
-          received_star_count: json.profile?.received_star_count ?? 0,
-          gifted_star_count_by_me: json.starSummary?.gifted_star_count_by_me ?? 0,
-          my_star_balance: json.starSummary?.my_star_balance ?? 0,
-        });
+        setProfileData((prev) => prev ? {
+          ...prev,
+          received_star_count: json.received_star_count ?? 0,
+          gifted_star_count_by_me: json.gifted_star_count_by_me ?? 0,
+          my_star_balance: json.my_star_balance ?? 0,
+        } : prev);
       })
       .catch(() => {});
 
@@ -298,15 +286,11 @@ export default function UserProfileModal({ userId, onClose, initialProfile = nul
 
       try {
         const cacheKey = `${USER_VIEW_CACHE_PREFIX}${userId}`;
-        const raw = sessionStorage.getItem(cacheKey);
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          sessionStorage.setItem(cacheKey, JSON.stringify({
-            ...parsed,
-            profile: { ...parsed.profile, received_star_count: nextReceivedCount },
-            starSummary: { ...(parsed.starSummary ?? {}), gifted_star_count_by_me: 1, my_star_balance: remainingBalance },
-          }));
-        }
+        sessionStorage.setItem(cacheKey, JSON.stringify({
+          received_star_count: nextReceivedCount,
+          gifted_star_count_by_me: 1,
+          my_star_balance: remainingBalance,
+        }));
       } catch {}
     } catch {
       alert("별 선물에 실패했어요. 다시 시도해주세요.");

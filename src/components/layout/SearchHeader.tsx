@@ -30,7 +30,7 @@ export default function SearchHeader({ activeTab, onTabChange }: SearchHeaderPro
           }`}
           style={{ fontSize: activeTab === "members" ? 18 : 17 }}
         >
-          댄서들
+          회원찾기
         </button>
         <button
           onClick={() => onTabChange("followings")}
@@ -39,7 +39,7 @@ export default function SearchHeader({ activeTab, onTabChange }: SearchHeaderPro
           }`}
           style={{ fontSize: activeTab === "followings" ? 18 : 17 }}
         >
-          구독자
+          친구현황
         </button>
       </div>
     </header>

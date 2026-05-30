@@ -109,25 +109,14 @@ export default function ProfileModal({
 
       try {
         const cacheKey = `${USER_VIEW_CACHE_PREFIX}${profileModal.id}`;
-        const raw = sessionStorage.getItem(cacheKey);
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          sessionStorage.setItem(
-            cacheKey,
-            JSON.stringify({
-              ...parsed,
-              profile: {
-                ...parsed.profile,
-                received_star_count: nextReceivedCount,
-              },
-              starSummary: {
-                ...(parsed.starSummary ?? {}),
-                gifted_star_count_by_me: 1,
-                my_star_balance: remainingBalance,
-              },
-            })
-          );
-        }
+        sessionStorage.setItem(
+          cacheKey,
+          JSON.stringify({
+            received_star_count: nextReceivedCount,
+            gifted_star_count_by_me: 1,
+            my_star_balance: remainingBalance,
+          })
+        );
       } catch {}
     } catch {
       alert("별 선물에 실패했어요. 다시 시도해주세요.");
