@@ -731,6 +731,18 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
   const refreshListRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const conversationsRef = useRef(conversations);
   conversationsRef.current = conversations;
+  const arrivedAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  function playArrivedSound() {
+    try {
+      if (!arrivedAudioRef.current) {
+        arrivedAudioRef.current = new Audio("/sound/arrived_message.mp3");
+        arrivedAudioRef.current.volume = 0.7;
+      }
+      arrivedAudioRef.current.currentTime = 0;
+      void arrivedAudioRef.current.play();
+    } catch {}
+  }
 
   function scheduleListRefresh() {
     if (refreshListRef.current) return;
@@ -751,7 +763,10 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "chat_room_members", filter: `user_id=eq.${userId}` },
-        () => { scheduleListRefresh(); }
+        () => {
+          scheduleListRefresh();
+          if (!activeChatRoomRef.current) playArrivedSound();
+        }
       )
       .on(
         "postgres_changes",
@@ -762,6 +777,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
           if (!conversationsRef.current.some((conv) => conv.id === roomId)) return;
           scheduleListRefresh();
           if (activeChatRoomRef.current === roomId) return;
+          playArrivedSound();
           void (async () => {
             try {
               const res = await fetch(`/api/chat/rooms/${roomId}/messages?limit=1`);
