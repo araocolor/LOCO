@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import {
   Ban,
   BadgeCheck,
+  Bell,
   Bookmark,
   ChevronRight,
   FileText,
@@ -61,6 +62,12 @@ const SECTIONS: SectionDef[] = [
   {
     title: "클래스 공개범위 설정",
     items: [
+      {
+        id: "notification-settings",
+        icon: <Bell size={18} />,
+        label: "알림설정",
+        subItems: [{ label: "알림표시" }, { label: "소리설정" }],
+      },
       {
         id: "class-privacy",
         icon: <SlidersHorizontal size={18} />,
