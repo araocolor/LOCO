@@ -618,9 +618,26 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
       const res = await fetch(`/api/chat/rooms/preview?type=${type}`);
       const json = await res.json();
       if (!res.ok || !json.data) return;
-      const incomingConversations = (json.data as ChatRoomApiItem[]).map(mapChatRoom);
+      const apiItems = json.data as ChatRoomApiItem[];
+      const incomingConversations = apiItems.map(mapChatRoom);
       writePreviewCache(type, incomingConversations);
       mergeConversationsByType(type, incomingConversations);
+
+      for (const item of apiItems) {
+        if (!item.last_message) continue;
+        const msg: Message = {
+          id: item.last_message.id,
+          room_id: item.id,
+          sender_id: item.last_message.sender_id,
+          kind: item.last_message.kind,
+          content: item.last_message.content,
+          sent_at: item.last_message.created_at,
+        };
+        const cached = readMessageCache(item.id);
+        if (cached.length === 0 || cached[cached.length - 1].id !== msg.id) {
+          appendMessageCache(item.id, msg);
+        }
+      }
     } catch (error) {
       console.error(`Failed to load ${type} conversations:`, error);
     }
