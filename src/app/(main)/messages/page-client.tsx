@@ -935,27 +935,30 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
       return next;
     });
 
-    void (async () => {
-      try {
-        const payload = await fetchChatRoomPayload(roomId);
-        if (payload.room) {
-          patchConversationWithRoom(payload.room);
+    if (hasCachedRoom) {
+      setChatLoading(false);
+    } else {
+      setChatLoading(true);
+      void (async () => {
+        try {
+          const payload = await fetchChatRoomPayload(roomId);
+          if (payload.room) {
+            patchConversationWithRoom(payload.room);
+          }
+          if (activeChatRoomRef.current === roomId) {
+            setMessages(payload.messages);
+            setNotices(payload.notices);
+            setChatLoading(false);
+            writeChatRoomPayloadCache(roomId, payload);
+          }
+        } catch (error) {
+          console.error("Failed to load chat room:", error);
+          if (activeChatRoomRef.current === roomId) {
+            setChatLoading(false);
+          }
         }
-        if (activeChatRoomRef.current === roomId) {
-          setMessages(payload.messages);
-          setNotices(payload.notices);
-          setChatLoading(false);
-          writeChatRoomPayloadCache(roomId, payload);
-        }
-      } catch (error) {
-        console.error("Failed to load chat room:", error);
-        if (activeChatRoomRef.current === roomId) {
-          setChatLoading(false);
-        }
-      }
-    })();
-
-    if (!hasCachedRoom) setChatLoading(true);
+      })();
+    }
   }
 
   useEffect(() => {
@@ -1038,9 +1041,55 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
     if (longPressTimer.current) clearTimeout(longPressTimer.current);
   }
 
+  const olderLoadingRef = useRef(false);
+  const olderFullyLoadedRef = useRef<Set<string>>(new Set());
+
   function handleChatScroll(event: UIEvent<HTMLDivElement>) {
     const node = event.currentTarget;
     shouldStickToBottomRef.current = node.scrollHeight - node.scrollTop - node.clientHeight < 120;
+
+    if (
+      !selectedRoomId ||
+      olderLoadingRef.current ||
+      olderFullyLoadedRef.current.has(selectedRoomId) ||
+      node.scrollTop > 0
+    ) return;
+
+    olderLoadingRef.current = true;
+    const roomId = selectedRoomId;
+    const oldest = messages[0];
+    const beforeParam = oldest ? `&before=${encodeURIComponent(oldest.sent_at)}` : "";
+
+    void (async () => {
+      try {
+        const res = await fetch(`/api/chat/rooms/${roomId}/messages?limit=50${beforeParam}`);
+        const json = await res.json();
+        if (!res.ok || !json.data) return;
+        const olderMsgs = (json.data as ChatMessageApiItem[]).map(mapChatMessage);
+        if (olderMsgs.length === 0) {
+          olderFullyLoadedRef.current.add(roomId);
+          return;
+        }
+        if (activeChatRoomRef.current === roomId) {
+          const prevHeight = node.scrollHeight;
+          setMessages((prev) => {
+            const existingIds = new Set(prev.map((m) => m.id));
+            const newMsgs = olderMsgs.filter((m) => !existingIds.has(m.id));
+            if (newMsgs.length === 0) return prev;
+            const merged = [...newMsgs, ...prev];
+            writeMessageCache(roomId, merged);
+            return merged;
+          });
+          requestAnimationFrame(() => {
+            node.scrollTop = node.scrollHeight - prevHeight;
+          });
+        }
+      } catch (error) {
+        console.error("이전 메시지 로드 실패", error);
+      } finally {
+        olderLoadingRef.current = false;
+      }
+    })();
   }
 
   async function deleteMessage(msgId: string) {
