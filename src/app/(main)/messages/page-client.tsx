@@ -711,6 +711,54 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
     return () => window.removeEventListener(PRESENCE_EVENT, handler);
   }, []);
 
+  const refreshListRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const conversationsRef = useRef(conversations);
+  conversationsRef.current = conversations;
+
+  function scheduleListRefresh() {
+    if (refreshListRef.current) return;
+    refreshListRef.current = setTimeout(() => {
+      refreshListRef.current = null;
+      void Promise.allSettled([
+        fetchConversationsByType("direct", { force: true }),
+        fetchConversationsByType("group", { force: true }),
+        fetchConversationsByType("class", { force: true }),
+      ]);
+    }, 500);
+  }
+
+  useEffect(() => {
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`chat-room-list-${userId}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "chat_room_members", filter: `user_id=eq.${userId}` },
+        () => { scheduleListRefresh(); }
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "chat_rooms" },
+        (payload) => {
+          const roomId = (payload.new as { id?: string }).id;
+          if (!roomId) return;
+          if (conversationsRef.current.some((conv) => conv.id === roomId)) {
+            scheduleListRefresh();
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+      if (refreshListRef.current) {
+        clearTimeout(refreshListRef.current);
+        refreshListRef.current = null;
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId]);
+
   useEffect(() => {
     if (!selectedRoomId) return;
 
@@ -743,7 +791,6 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-    // 실시간 구독은 현재 열린 방과 현재 사용자 기준으로만 다시 연결합니다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedRoomId, userId]);
 
