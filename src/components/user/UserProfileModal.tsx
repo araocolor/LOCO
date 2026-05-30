@@ -212,16 +212,16 @@ export default function UserProfileModal({ userId, onClose, initialProfile = nul
 
     let cancelled = false;
 
-    fetch(`/api/users/${userId}/view-summary`)
+    fetch(`/api/users/${userId}/profile-view-summary`)
       .then((res) => res.json())
       .then((json) => {
         if (cancelled) return;
         sessionStorage.setItem(`${USER_VIEW_CACHE_PREFIX}${userId}`, JSON.stringify(json));
         setProfileData((prev) => prev ? {
           ...prev,
-          received_star_count: json.received_star_count ?? 0,
-          gifted_star_count_by_me: json.gifted_star_count_by_me ?? 0,
-          my_star_balance: json.my_star_balance ?? 0,
+          received_star_count: json.profile?.received_star_count ?? 0,
+          gifted_star_count_by_me: json.starSummary?.gifted_star_count_by_me ?? 0,
+          my_star_balance: json.starSummary?.my_star_balance ?? 0,
         } : prev);
       })
       .catch(() => {});
@@ -331,7 +331,7 @@ export default function UserProfileModal({ userId, onClose, initialProfile = nul
 
           <div className={`relative ${hasGifted ? "animate-breathe" : ""}`}>
             <Avatar src={profileData.profile_image_url} nickname={profileData.nickname} size={80} />
-            {hasGifted && (
+            {receivedStarCount > 0 && (
               <span
                 className="absolute -right-2 -bottom-2 flex items-center justify-center"
                 style={showCelebration ? { animation: "star-drop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards" } : undefined}
@@ -381,7 +381,7 @@ export default function UserProfileModal({ userId, onClose, initialProfile = nul
               </div>
             )}
             {profileData.bio && (
-              <p className="text-[17px] text-gray-600 line-clamp-4 mt-1 whitespace-pre-wrap">
+              <p className="text-[16px] text-gray-600 line-clamp-4 mt-1 whitespace-pre-wrap">
                 {profileData.bio}
               </p>
             )}
