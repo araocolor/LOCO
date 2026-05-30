@@ -504,7 +504,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
 
     const task = (async () => {
       const [messageRes, noticeRes, roomRes] = await Promise.all([
-        fetch(`/api/chat/rooms/${roomId}/messages`),
+        fetch(`/api/chat/rooms/${roomId}/messages?limit=40`),
         fetch(`/api/chat/rooms/${roomId}/notices`),
         fetch(`/api/chat/rooms/${roomId}`),
       ]);
@@ -930,15 +930,8 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
       setNotices([]);
     }
 
-    try {
-      const cachedMessages = readMessageCache(roomId);
-      setMessages(cachedMessages);
-      if (hasCachedRoom) {
-        setChatLoading(false);
-      }
-    } catch {
-      setMessages([]);
-    }
+    const cachedMessages = readMessageCache(roomId);
+    setMessages(cachedMessages);
 
     setConversations((prev) => {
       const next = prev.map((conv) =>
@@ -948,10 +941,13 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
       return next;
     });
 
-    if (hasCachedRoom) {
+    const INITIAL_MESSAGE_COUNT = 40;
+    const hasSufficientCache = cachedMessages.length >= INITIAL_MESSAGE_COUNT;
+
+    if (hasSufficientCache) {
       setChatLoading(false);
     } else {
-      setChatLoading(true);
+      if (cachedMessages.length > 0) setChatLoading(false);
       void (async () => {
         try {
           const payload = await fetchChatRoomPayload(roomId);
