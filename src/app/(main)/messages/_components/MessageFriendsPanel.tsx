@@ -9,7 +9,7 @@ import UserProfileModal from "@/components/user/UserProfileModal";
 import { useFriendActions } from "../../search/_hooks/useFriendActions";
 import { useSearchSocialData } from "../../search/_hooks/useSearchSocialData";
 import type { Follower, Suggestion } from "../../search/_types/search";
-import { formatLocation, getAvatarFloatStyle } from "../../search/_lib/search-utils";
+import { formatLocation, formatRecentActiveTime, getAvatarFloatStyle } from "../../search/_lib/search-utils";
 
 interface MessageFriendsPanelProps {
   onlineIds: Set<string>;
@@ -93,15 +93,23 @@ function FriendGrid({
           key={member.id}
           type="button"
           onClick={() => onOpenProfile(member)}
-          className="relative aspect-square min-w-0 flex items-center justify-center"
+          className="min-w-0 flex flex-col items-center"
           aria-label={`${member.nickname} 프로필`}
         >
           <div className="relative">
-            <Avatar src={member.profile_image_url} nickname={member.nickname} size={48} className="border-2 border-white shadow-[0_0_0_2px_#ef4444]" />
+            <Avatar src={member.profile_image_url} nickname={member.nickname} size={48} className={member.status === "friend" ? "border-2 border-white shadow-[0_0_0_2px_#ef4444]" : undefined} />
             {onlineIds.has(member.id) && (
               <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white bg-green-400" />
             )}
           </div>
+          <span className="mt-1 max-w-full truncate text-center text-[13px] font-semibold text-gray-900">
+            {member.nickname}
+          </span>
+          {(formatLocation(member.country, member.region) || member.last_active_at) && (
+            <span className="max-w-full truncate text-center text-[11px] text-gray-400">
+              {[formatLocation(member.country, member.region), formatRecentActiveTime(member.last_active_at ?? null)].filter(Boolean).join(",")}
+            </span>
+          )}
         </button>
       ))}
     </div>
@@ -261,6 +269,42 @@ export default function MessageFriendsPanel({ onlineIds, onMessageSent }: Messag
             </div>
           </div>
         </div>
+
+        <section className="pt-3">
+          <h2 className="mb-1 text-[16px] font-bold text-gray-900">프로필 업데이트</h2>
+          {recentlyUpdatedFriends.length === 0 ? (
+            <p className="py-5 text-sm text-gray-400">최근 수정한 친구가 없습니다</p>
+          ) : (
+            <div
+              className="overflow-x-auto scrollbar-hide pt-3 pb-1"
+              style={{ WebkitOverflowScrolling: "touch", touchAction: "pan-x" }}
+            >
+              <div className="flex gap-5 w-max">
+                {recentlyUpdatedFriends.map((member) => (
+                  <button
+                    key={member.id}
+                    type="button"
+                    onClick={() => setProfileModalTarget(member)}
+                    className="flex flex-col items-center gap-1 flex-shrink-0"
+                    aria-label={`${member.nickname} 프로필`}
+                  >
+                    <div className="relative">
+                      <Avatar src={member.profile_image_url} nickname={member.nickname} size={52} />
+                      {onlineIds.has(member.id) && (
+                        <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white bg-green-400" />
+                      )}
+                    </div>
+                    <span className="max-w-[58px] truncate text-center text-[13px] text-gray-700">
+                      {member.nickname}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </section>
+
+        <h2 className="mb-1 mt-3 text-[16px] font-bold text-gray-900">친구들</h2>
         {visibleFriends.length === 0 ? (
           <p className="py-5 text-sm text-gray-400">맞팔 친구가 없습니다</p>
         ) : friendViewMode === "grid" ? (
@@ -272,25 +316,6 @@ export default function MessageFriendsPanel({ onlineIds, onMessageSent }: Messag
         ) : (
           <div className="flex flex-col">
             {visibleFriends.map((member) => (
-              <FriendRow
-                key={member.id}
-                member={member}
-                onlineIds={onlineIds}
-                onOpenProfile={setProfileModalTarget}
-
-              />
-            ))}
-          </div>
-        )}
-      </section>
-
-      <section className="pt-5">
-        <h2 className="mb-1 text-[16px] font-bold text-gray-900">최근 프로필을 수정한 친구</h2>
-        {recentlyUpdatedFriends.length === 0 ? (
-          <p className="py-5 text-sm text-gray-400">최근 수정한 친구가 없습니다</p>
-        ) : (
-          <div className="flex flex-col">
-            {recentlyUpdatedFriends.map((member) => (
               <FriendRow
                 key={member.id}
                 member={member}

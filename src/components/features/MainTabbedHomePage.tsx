@@ -210,7 +210,7 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
         }`}
       >
         <div className="relative h-14 px-4 flex items-center">
-          {activeTab !== "mySubscriptions" ? (
+          {activeTab === "allClasses" ? (
             <button
               type="button"
               aria-label="찾기"
