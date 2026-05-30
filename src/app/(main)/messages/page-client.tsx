@@ -200,7 +200,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
 
 
 
-  async function resizeToBlob(bitmap: ImageBitmap, maxW: number): Promise<Blob> {
+  async function resizeToBlob(bitmap: ImageBitmap, maxW: number, quality: number): Promise<Blob> {
     const scale = bitmap.width > maxW ? maxW / bitmap.width : 1;
     const w = Math.round(bitmap.width * scale);
     const h = Math.round(bitmap.height * scale);
@@ -209,7 +209,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
     canvas.height = h;
     canvas.getContext("2d")!.drawImage(bitmap, 0, 0, w, h);
     return new Promise<Blob>((resolve) =>
-      canvas.toBlob((b) => resolve(b!), "image/webp", 0.7)
+      canvas.toBlob((b) => resolve(b!), "image/webp", quality)
     );
   }
 
@@ -236,10 +236,11 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
       const bitmap = await createImageBitmap(file);
       const supabase = createClient();
       const ts = Date.now();
+      const quality = file.size >= 2 * 1024 * 1024 ? 0.7 : 0.9;
 
       const [blob300, blob1024] = await Promise.all([
-        resizeToBlob(bitmap, 300),
-        resizeToBlob(bitmap, 1024),
+        resizeToBlob(bitmap, 300, quality),
+        resizeToBlob(bitmap, 1024, quality),
       ]);
 
       const path300 = `${userId}/${ts}_300.webp`;
