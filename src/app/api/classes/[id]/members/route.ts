@@ -7,6 +7,7 @@ interface MemberRow {
     id: string;
     nickname: string;
     profile_image_url: string | null;
+    bio: string | null;
   } | null;
 }
 
@@ -20,7 +21,7 @@ export async function GET(
 
     const { data, error } = await supabase
       .from("applications")
-      .select("applicant_id, applicant:profiles!applicant_id(id, nickname, profile_image_url)")
+      .select("applicant_id, applicant:profiles!applicant_id(id, nickname, profile_image_url, bio)")
       .eq("class_id", classId)
       .eq("status", "approved")
       .returns<MemberRow[]>();

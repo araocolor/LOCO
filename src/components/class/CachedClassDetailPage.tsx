@@ -9,8 +9,10 @@ import type { ClassWithHost } from "@/components/class/ClassCard";
 import type { ClassComment } from "@/components/class/ClassCommentsPanel";
 import ClassCommentsPanel from "@/components/class/ClassCommentsPanel";
 import ClassDetailImageGallery from "@/components/class/ClassDetailImageGallery";
+import ClassShareSheet from "@/components/class/ClassShareSheet";
 import MentionText from "@/components/class/MentionText";
 import Avatar from "@/components/ui/Avatar";
+import UserProfileModal from "@/components/user/UserProfileModal";
 import { useAuth } from "@/lib/auth-context";
 import { createClient } from "@/lib/supabase/client";
 
@@ -182,13 +184,15 @@ export default function CachedClassDetailPage({ classIdOverride, hideChat, onClo
   const [approved, setApproved] = useState(false);
   const [enteringChat, setEnteringChat] = useState(false);
   const [commentSheetOpen, setCommentSheetOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
   const [comments, setComments] = useState<ClassComment[]>([]);
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [noticeText, setNoticeText] = useState("");
-  const [classMembers, setClassMembers] = useState<{ id: string; nickname: string; profile_image_url: string | null }[]>([]);
+  const [classMembers, setClassMembers] = useState<{ id: string; nickname: string; profile_image_url: string | null; bio: string | null }[]>([]);
+  const [profileModalTarget, setProfileModalTarget] = useState<{ id: string; nickname: string; profile_image_url: string | null; bio: string | null } | null>(null);
   const requestedRef = useRef(false);
 
   useEffect(() => {
@@ -365,7 +369,6 @@ export default function CachedClassDetailPage({ classIdOverride, hideChat, onClo
   }
 
   const host = displayClass.host ?? null;
-  const classTitle = displayClass.title;
   const images: { card_url?: string; full_url?: string }[] = displayClass.images ?? [];
   const primaryGenre = displayClass.genres?.[0] ?? "other";
   const genreLabel = (displayClass.genres ?? [])
@@ -409,17 +412,6 @@ export default function CachedClassDetailPage({ classIdOverride, hideChat, onClo
     } catch {}
   }
 
-  async function handleShare() {
-    const shareUrl = window.location.href;
-    try {
-      if (navigator.share) {
-        await navigator.share({ title: classTitle, url: shareUrl });
-        return;
-      }
-      await navigator.clipboard.writeText(shareUrl);
-      alert("링크를 복사했습니다.");
-    } catch {}
-  }
 
   async function handleApply() {
     if (!classId || applying) return;
@@ -632,7 +624,7 @@ export default function CachedClassDetailPage({ classIdOverride, hideChat, onClo
             <button
               type="button"
               onClick={() => setCommentSheetOpen(true)}
-              className="text-gray-900"
+              className="flex items-center gap-1.5 text-gray-900"
               aria-label="댓글보기"
             >
               <svg
@@ -648,8 +640,9 @@ export default function CachedClassDetailPage({ classIdOverride, hideChat, onClo
               >
                 <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
               </svg>
+              <span className="text-sm font-semibold">{comments.length}</span>
             </button>
-            <button type="button" onClick={handleShare} className="text-gray-900" aria-label="공유">
+            <button type="button" onClick={() => setShareOpen(true)} className="text-gray-900" aria-label="공유">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 width="24"
@@ -749,9 +742,10 @@ export default function CachedClassDetailPage({ classIdOverride, hideChat, onClo
           </h2>
           <div className="grid grid-cols-5 gap-3">
             {classMembers.map((member) => (
-              <Link
+              <button
                 key={member.id}
-                href={`/users/${member.id}`}
+                type="button"
+                onClick={() => setProfileModalTarget(member)}
                 className="flex flex-col items-center gap-1"
               >
                 <Avatar
@@ -762,7 +756,7 @@ export default function CachedClassDetailPage({ classIdOverride, hideChat, onClo
                 <span className="w-full truncate text-center text-[11px] text-gray-600">
                   {member.nickname}
                 </span>
-              </Link>
+              </button>
             ))}
           </div>
         </section>
@@ -894,6 +888,21 @@ export default function CachedClassDetailPage({ classIdOverride, hideChat, onClo
           </div>
         </div>
       )}
+
+      {profileModalTarget && (
+        <UserProfileModal
+          userId={profileModalTarget.id}
+          initialProfile={profileModalTarget}
+          onClose={() => setProfileModalTarget(null)}
+        />
+      )}
+
+      <ClassShareSheet
+        open={shareOpen}
+        classData={displayClass}
+        onClose={() => setShareOpen(false)}
+        onShared={() => setShareOpen(false)}
+      />
 
       <ClassCommentsPanel
         classId={displayClass.id}
