@@ -83,6 +83,27 @@ export async function GET() {
       .map((classId) => participatingMap.get(classId))
       .filter(Boolean);
 
+    const allClasses = [
+      ...(myClassesResult.data ?? []),
+      ...participatingClasses,
+      ...(regionalClassesResult.data ?? []),
+    ] as ClassIdRow[];
+    const allClassIds = [...new Set(allClasses.map((c) => c.id))];
+    let bookmarkCounts: Record<string, number> = {};
+    if (allClassIds.length > 0) {
+      const { data: bcData } = await supabase
+        .rpc("get_bookmark_counts", { class_ids: allClassIds });
+      if (bcData) {
+        bookmarkCounts = Object.fromEntries(
+          (bcData as { class_id: string; count: number }[]).map((r) => [r.class_id, r.count])
+        );
+      }
+    }
+
+    function attachBookmarkCount<T extends { id: string }>(items: T[]) {
+      return items.map((item) => ({ ...item, bookmark_count: bookmarkCounts[item.id] ?? 0 }));
+    }
+
     return NextResponse.json(
       {
         profile: {
@@ -91,9 +112,9 @@ export async function GET() {
           nickname: profileResult.data?.nickname ?? null,
           profile_image_url: profileResult.data?.profile_image_url ?? null,
         },
-        myClasses: myClassesResult.data ?? [],
-        participatingClasses,
-        regionalClasses: regionalClassesResult.data ?? [],
+        myClasses: attachBookmarkCount(myClassesResult.data ?? []),
+        participatingClasses: attachBookmarkCount(participatingClasses as ClassIdRow[]),
+        regionalClasses: attachBookmarkCount((regionalClassesResult.data ?? []) as ClassIdRow[]),
       },
       {
         headers: {

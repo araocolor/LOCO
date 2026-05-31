@@ -78,8 +78,25 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  const classIds = (data ?? []).map((c: { id: string }) => c.id);
+  let bookmarkCounts: Record<string, number> = {};
+  if (classIds.length > 0) {
+    const { data: bcData } = await supabase
+      .rpc("get_bookmark_counts", { class_ids: classIds });
+    if (bcData) {
+      bookmarkCounts = Object.fromEntries(
+        (bcData as { class_id: string; count: number }[]).map((r) => [r.class_id, r.count])
+      );
+    }
+  }
+
+  const enriched = (data ?? []).map((c: { id: string }) => ({
+    ...c,
+    bookmark_count: bookmarkCounts[c.id] ?? 0,
+  }));
+
   return NextResponse.json({
-    data,
+    data: enriched,
     count,
     hasMore: (count ?? 0) > to + 1,
   });

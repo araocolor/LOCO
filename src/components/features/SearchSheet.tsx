@@ -107,6 +107,7 @@ export default function SearchSheet() {
     }
     setOpts(next);
     localStorage.setItem(SEARCH_DEFAULTS_STORAGE_KEY, JSON.stringify(next));
+    window.dispatchEvent(new Event("search-filter-change"));
 
     if (key === "region" && pathname === "/") {
       const params = new URLSearchParams(searchParams.toString());
@@ -124,6 +125,7 @@ export default function SearchSheet() {
     const next = { ...opts, genre: nextGenres };
     setOpts(next);
     localStorage.setItem(SEARCH_DEFAULTS_STORAGE_KEY, JSON.stringify(next));
+    window.dispatchEvent(new Event("search-filter-change"));
 
     if (pathname === "/") {
       const params = new URLSearchParams(searchParams.toString());
@@ -139,6 +141,7 @@ export default function SearchSheet() {
     const next = { ...opts, genre: [] as string[] };
     setOpts(next);
     localStorage.setItem(SEARCH_DEFAULTS_STORAGE_KEY, JSON.stringify(next));
+    window.dispatchEvent(new Event("search-filter-change"));
 
     if (pathname === "/") {
       const params = new URLSearchParams(searchParams.toString());
@@ -154,6 +157,7 @@ export default function SearchSheet() {
     const next = { ...opts, class_type: nextTypes };
     setOpts(next);
     localStorage.setItem(SEARCH_DEFAULTS_STORAGE_KEY, JSON.stringify(next));
+    window.dispatchEvent(new Event("search-filter-change"));
 
     if (pathname === "/") {
       const params = new URLSearchParams(searchParams.toString());
@@ -169,6 +173,7 @@ export default function SearchSheet() {
     const next = { ...opts, class_type: [] as string[] };
     setOpts(next);
     localStorage.setItem(SEARCH_DEFAULTS_STORAGE_KEY, JSON.stringify(next));
+    window.dispatchEvent(new Event("search-filter-change"));
 
     if (pathname === "/") {
       const params = new URLSearchParams(searchParams.toString());

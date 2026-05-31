@@ -13,9 +13,6 @@ interface MyClassesTabProps {
   loading: boolean;
   participatingClasses: ClassWithHost[];
   participatingLoading: boolean;
-  regionalClasses: ClassWithHost[];
-  regionalLoading: boolean;
-  regionalLabel: string | null;
   onRetry: () => void;
   onClassSelect?: (classId: string) => void;
   viewMode?: "grid" | "card";
@@ -109,9 +106,6 @@ export default function MyClassesTab({
   loading,
   participatingClasses,
   participatingLoading,
-  regionalClasses,
-  regionalLoading,
-  regionalLabel,
   onClassSelect,
   viewMode = "grid",
 }: MyClassesTabProps) {
@@ -148,20 +142,6 @@ export default function MyClassesTab({
         <ClassGrid classes={participatingClasses} onClassSelect={onClassSelect} />
       )}
 
-      <SectionLabel>{regionalLabel ?? "지역"} 지역클래스</SectionLabel>
-      {regionalLoading ? (
-        <div className="flex items-center justify-center h-24 text-gray-400">
-          로딩 중...
-        </div>
-      ) : regionalClasses.length === 0 ? (
-        <div className="flex items-center justify-center h-24 text-gray-400">
-          <p className="text-sm">지역 클래스가 없습니다</p>
-        </div>
-      ) : viewMode === "card" ? (
-        <ClassCardList classes={regionalClasses} />
-      ) : (
-        <ClassGrid classes={regionalClasses} onClassSelect={onClassSelect} />
-      )}
     </div>
   );
 }

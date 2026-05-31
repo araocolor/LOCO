@@ -25,6 +25,7 @@ interface ClassHost {
 
 export interface ClassWithHost extends DanceClass {
   host?: ClassHost;
+  bookmark_count?: number;
 }
 
 interface ClassCardProps {
@@ -807,7 +808,7 @@ export default function ClassCard({ classData, priorityImage = false }: ClassCar
               >
                 <polygon points="19 21 12 16 5 21 5 3 19 3" />
               </svg>
-              <span className="text-sm font-semibold text-gray-800">5</span>
+              <span className="text-sm font-semibold text-gray-800">{classData.bookmark_count ?? 0}</span>
             </button>
             {/* 좋아요 */}
             <button

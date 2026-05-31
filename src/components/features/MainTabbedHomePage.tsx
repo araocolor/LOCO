@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Heart, LayoutGrid, Plus, Presentation, Search } from "lucide-react";
 import NotificationDrawer from "@/components/features/NotificationDrawer";
+import { SEARCH_DEFAULTS_STORAGE_KEY, type SearchOptions, DEFAULT_SEARCH_OPTIONS, CLASS_TYPES } from "@/lib/search-defaults";
+import { GENRES, REGIONS_WITH_ALL } from "@/lib/constants";
 import { ClassWithHost } from "@/components/class/ClassCard";
 import CachedClassDetailPage from "@/components/class/CachedClassDetailPage";
 import FriendClassesSection from "@/components/features/FriendClassesSection";
@@ -11,7 +13,6 @@ import HomeSearchResultsPage from "@/components/features/HomeSearchResultsPage";
 import MyClassesTab from "@/components/features/MyClassesTab";
 import { useScrollChromeVisibility } from "@/hooks/useScrollChromeVisibility";
 import { useAuth } from "@/lib/auth-context";
-import { SEARCH_DEFAULTS_STORAGE_KEY, type SearchOptions } from "@/lib/search-defaults";
 
 const HOME_MY_CLASSES_CACHE_KEY = "loco_home_my_classes_v1";
 const HOME_FRIEND_CLASSES_CACHE_KEY = "loco_home_friend_classes_v1";
@@ -44,58 +45,63 @@ function getHomeFriendClassesCacheKey(userId: string) {
 
 export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePageProps) {
   const [activeTab, setActiveTab] = useState<MainTab>("mySubscriptions");
-  const [userRegion, setUserRegion] = useState<string | null>(null);
   const { user } = useAuth();
   const userId = user?.id ?? null;
   const [myClasses, setMyClasses] = useState<ClassWithHost[]>([]);
   const [myClassesLoading, setMyClassesLoading] = useState(false);
   const [participatingClasses, setParticipatingClasses] = useState<ClassWithHost[]>([]);
   const [participatingClassesLoading, setParticipatingClassesLoading] = useState(false);
-  const [regionalClasses, setRegionalClasses] = useState<ClassWithHost[]>([]);
-  const [regionalClassesLoading, setRegionalClassesLoading] = useState(false);
   const [friendClasses, setFriendClasses] = useState<ClassWithHost[]>([]);
   const [friendClassesLoading, setFriendClassesLoading] = useState(false);
-  const [searchRegion, setSearchRegion] = useState<string | null>(null);
   const [classDetailId, setClassDetailId] = useState<string | null>(null);
   const [notificationOpen, setNotificationOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [viewMode, setViewMode] = useState<"grid" | "card">("card");
+  const [filterOpts, setFilterOpts] = useState<SearchOptions>(DEFAULT_SEARCH_OPTIONS);
+  const [openMenu, setOpenMenu] = useState<"region" | "genre" | "class_type" | null>(null);
   const isChromeVisible = useScrollChromeVisibility(true);
   const router = useRouter();
 
-  const applyHomeMyClassesPayload = useCallback((payload: HomeMyClassesPayload) => {
-    setUserRegion(payload.profile?.region ?? null);
-    setMyClasses(payload.myClasses ?? []);
-    setParticipatingClasses(payload.participatingClasses ?? []);
-    setRegionalClasses(payload.regionalClasses ?? []);
-  }, []);
-
   useEffect(() => {
-    try {
-      let nextSearchRegion: string | null = null;
-      const raw = localStorage.getItem(SEARCH_DEFAULTS_STORAGE_KEY);
-      if (raw) {
-        const opts = JSON.parse(raw) as SearchOptions;
-        nextSearchRegion = opts.region && opts.region !== "전체" ? opts.region : null;
-      }
-      queueMicrotask(() => setSearchRegion(nextSearchRegion));
-    } catch {}
-  }, []);
-
-  useEffect(() => {
-    function handleSearchClose() {
+    function readOpts(): SearchOptions {
       try {
         const raw = localStorage.getItem(SEARCH_DEFAULTS_STORAGE_KEY);
-        if (raw) {
-          const opts = JSON.parse(raw) as SearchOptions;
-          setSearchRegion(opts.region && opts.region !== "전체" ? opts.region : null);
-        } else {
-          setSearchRegion(null);
-        }
-      } catch {}
+        if (!raw) return DEFAULT_SEARCH_OPTIONS;
+        const parsed = JSON.parse(raw) as Partial<SearchOptions>;
+        return {
+          ...DEFAULT_SEARCH_OPTIONS,
+          ...parsed,
+          genre: Array.isArray(parsed.genre) ? parsed.genre : parsed.genre ? [parsed.genre] : [],
+          class_type: Array.isArray(parsed.class_type) ? parsed.class_type : [],
+        };
+      } catch { return DEFAULT_SEARCH_OPTIONS; }
     }
-    window.addEventListener("close-search-sheet", handleSearchClose);
-    return () => window.removeEventListener("close-search-sheet", handleSearchClose);
+    setFilterOpts(readOpts());
+    function handleChange() { setFilterOpts(readOpts()); }
+    window.addEventListener("close-search-sheet", handleChange);
+    window.addEventListener("search-filter-change", handleChange);
+    return () => {
+      window.removeEventListener("close-search-sheet", handleChange);
+      window.removeEventListener("search-filter-change", handleChange);
+    };
+  }, []);
+
+  const updateFilter = useCallback((next: SearchOptions) => {
+    setFilterOpts(next);
+    localStorage.setItem(SEARCH_DEFAULTS_STORAGE_KEY, JSON.stringify(next));
+    window.dispatchEvent(new Event("search-filter-change"));
+  }, []);
+
+  useEffect(() => {
+    if (!openMenu) return;
+    function handleClick() { setOpenMenu(null); }
+    document.addEventListener("click", handleClick);
+    return () => document.removeEventListener("click", handleClick);
+  }, [openMenu]);
+
+  const applyHomeMyClassesPayload = useCallback((payload: HomeMyClassesPayload) => {
+    setMyClasses(payload.myClasses ?? []);
+    setParticipatingClasses(payload.participatingClasses ?? []);
   }, []);
 
   const fetchFriendClasses = useCallback(async (uid: string, silent?: boolean) => {
@@ -118,7 +124,6 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
     if (!silent) {
       setMyClassesLoading(true);
       setParticipatingClassesLoading(true);
-      setRegionalClassesLoading(true);
     }
     try {
       const res = await fetch("/api/home/my-classes");
@@ -133,7 +138,6 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
     } finally {
       setMyClassesLoading(false);
       setParticipatingClassesLoading(false);
-      setRegionalClassesLoading(false);
     }
   }, [applyHomeMyClassesPayload, fetchFriendClasses]);
 
@@ -141,8 +145,6 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
     if (!userId) {
       queueMicrotask(() => setMyClasses([]));
       queueMicrotask(() => setParticipatingClasses([]));
-      queueMicrotask(() => setRegionalClasses([]));
-      queueMicrotask(() => setUserRegion(null));
       queueMicrotask(() => setFriendClasses([]));
       return;
     }
@@ -186,7 +188,6 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
       const remove = (list: ClassWithHost[]) => list.filter((c) => c.id !== deletedId);
       setMyClasses(remove);
       setParticipatingClasses(remove);
-      setRegionalClasses(remove);
       setFriendClasses(remove);
     };
     window.addEventListener("class-deleted", handler);
@@ -210,30 +211,14 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
         }`}
       >
         <div className="relative h-14 px-4 flex items-center">
-          {activeTab === "allClasses" ? (
-            <button
-              type="button"
-              aria-label="찾기"
-              className="h-10 -ml-1 flex items-center gap-1 text-gray-700"
-              onClick={() => {
-                window.dispatchEvent(new CustomEvent("open-search-sheet"));
-              }}
-            >
-              <Search size={20} strokeWidth={2.2} />
-              {searchRegion && (
-                <span className="text-xs font-semibold text-gray-500">{searchRegion}</span>
-              )}
-            </button>
-          ) : (
-            <button
-              type="button"
-              aria-label="클래스 만들기"
-              className="h-10 -ml-1 flex items-center text-gray-700"
-              onClick={() => router.push("/classes/new")}
-            >
-              <Plus size={22} strokeWidth={2.2} />
-            </button>
-          )}
+          <button
+            type="button"
+            aria-label="클래스 만들기"
+            className="h-10 -ml-1 flex items-center text-gray-700"
+            onClick={() => router.push("/classes/new")}
+          >
+            <Plus size={22} strokeWidth={2.2} />
+          </button>
           <div className="absolute left-1/2 -translate-x-1/2 font-bold text-xl text-[#4d4d4d] leading-none">
             CLASS
           </div>
@@ -293,7 +278,116 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
       </header>
 
       {activeTab === "allClasses" && (
-        <HomeSearchResultsPage initialClasses={initialClasses} onClassSelect={(id) => setClassDetailId(id)} viewMode={viewMode} />
+        <>
+          <div className="px-4 py-2 flex items-center gap-3">
+            <button
+              type="button"
+              aria-label="찾기"
+              className="flex items-center text-gray-700 shrink-0"
+              onClick={() => window.dispatchEvent(new CustomEvent("open-search-sheet"))}
+            >
+              <Search size={20} strokeWidth={2.2} />
+            </button>
+
+            <div className="relative" onClick={(e) => e.stopPropagation()}>
+              <button
+                type="button"
+                className={`text-[15px] ${filterOpts.region !== "전체" ? "text-black font-bold" : "text-gray-400"}`}
+                onClick={() => setOpenMenu(openMenu === "region" ? null : "region")}
+              >
+                {filterOpts.region !== "전체" ? filterOpts.region : "지역"}
+              </button>
+              {openMenu === "region" && (
+                <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-60 overflow-y-auto min-w-[80px]">
+                  {REGIONS_WITH_ALL.map((r) => (
+                    <button
+                      key={r}
+                      type="button"
+                      className={`block w-full text-left px-3 py-2 text-sm whitespace-nowrap ${filterOpts.region === r ? "text-black font-bold bg-gray-50" : "text-gray-600"}`}
+                      onClick={() => { updateFilter({ ...filterOpts, region: r, venue: "전체" }); setOpenMenu(null); }}
+                    >
+                      {r}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="relative" onClick={(e) => e.stopPropagation()}>
+              <button
+                type="button"
+                className={`text-[15px] ${filterOpts.genre.length > 0 ? "text-black font-bold" : "text-gray-400"}`}
+                onClick={() => setOpenMenu(openMenu === "genre" ? null : "genre")}
+              >
+                {filterOpts.genre.length > 0
+                  ? GENRES.find((g) => g.value === filterOpts.genre[0])?.label ?? filterOpts.genre[0]
+                  : "장르"}
+              </button>
+              {openMenu === "genre" && (
+                <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-[80px]">
+                  <button
+                    type="button"
+                    className={`block w-full text-left px-3 py-2 text-sm whitespace-nowrap ${filterOpts.genre.length === 0 ? "text-black font-bold bg-gray-50" : "text-gray-600"}`}
+                    onClick={() => { updateFilter({ ...filterOpts, genre: [] }); setOpenMenu(null); }}
+                  >
+                    전체
+                  </button>
+                  {GENRES.map((g) => (
+                    <button
+                      key={g.value}
+                      type="button"
+                      className={`block w-full text-left px-3 py-2 text-sm whitespace-nowrap ${filterOpts.genre.includes(g.value) ? "text-black font-bold bg-gray-50" : "text-gray-600"}`}
+                      onClick={() => { updateFilter({ ...filterOpts, genre: filterOpts.genre.includes(g.value) ? [] : [g.value] }); setOpenMenu(null); }}
+                    >
+                      {g.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="relative" onClick={(e) => e.stopPropagation()}>
+              <button
+                type="button"
+                className={`text-[15px] ${filterOpts.class_type.length > 0 ? "text-black font-bold" : "text-gray-400"}`}
+                onClick={() => setOpenMenu(openMenu === "class_type" ? null : "class_type")}
+              >
+                {filterOpts.class_type.length > 0
+                  ? CLASS_TYPES.find((t) => t.value === filterOpts.class_type[0])?.label ?? filterOpts.class_type[0]
+                  : "카테고리"}
+              </button>
+              {openMenu === "class_type" && (
+                <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-[80px]">
+                  <button
+                    type="button"
+                    className={`block w-full text-left px-3 py-2 text-sm whitespace-nowrap ${filterOpts.class_type.length === 0 ? "text-black font-bold bg-gray-50" : "text-gray-600"}`}
+                    onClick={() => { updateFilter({ ...filterOpts, class_type: [] }); setOpenMenu(null); }}
+                  >
+                    전체
+                  </button>
+                  {CLASS_TYPES.map((t) => (
+                    <button
+                      key={t.value}
+                      type="button"
+                      className={`block w-full text-left px-3 py-2 text-sm whitespace-nowrap ${filterOpts.class_type.includes(t.value) ? "text-black font-bold bg-gray-50" : "text-gray-600"}`}
+                      onClick={() => { updateFilter({ ...filterOpts, class_type: filterOpts.class_type.includes(t.value) ? [] : [t.value] }); setOpenMenu(null); }}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+          <HomeSearchResultsPage
+            initialClasses={initialClasses}
+            onClassSelect={(id) => setClassDetailId(id)}
+            viewMode={viewMode}
+            regionOverride={filterOpts.region}
+            genreOverride={filterOpts.genre}
+            classTypeOverride={filterOpts.class_type}
+          />
+        </>
       )}
       {activeTab === "friendClasses" && (
         <FriendClassesSection
@@ -309,9 +403,6 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
           loading={myClassesLoading}
           participatingClasses={participatingClasses}
           participatingLoading={participatingClassesLoading}
-          regionalClasses={regionalClasses}
-          regionalLoading={regionalClassesLoading}
-          regionalLabel={userRegion}
           onRetry={() => userId && fetchHomeMyClasses(userId)}
           onClassSelect={(id) => setClassDetailId(id)}
           viewMode={viewMode}
