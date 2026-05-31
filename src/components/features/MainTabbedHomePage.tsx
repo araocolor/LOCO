@@ -260,7 +260,7 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
             }`}
             style={{ fontSize: activeTab === "allClasses" ? 18 : 17 }}
           >
-            올클래스
+            클래스찾기
           </button>
           {activeTab === "allClasses" && (
             <button
@@ -297,7 +297,7 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
                 className={`text-[15px] ${filterOpts.region !== "전체" ? "text-black font-bold" : "text-gray-400"}`}
                 onClick={() => setOpenMenu(openMenu === "region" ? null : "region")}
               >
-                {filterOpts.region !== "전체" ? filterOpts.region : "지역"}
+                {filterOpts.region !== "전체" ? filterOpts.region : "전지역"}
               </button>
               {openMenu === "region" && (
                 <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-60 overflow-y-auto min-w-[80px]">
@@ -323,7 +323,7 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
               >
                 {filterOpts.genre.length > 0
                   ? GENRES.find((g) => g.value === filterOpts.genre[0])?.label ?? filterOpts.genre[0]
-                  : "장르"}
+                  : "모든장르"}
               </button>
               {openMenu === "genre" && (
                 <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-[80px]">
@@ -356,7 +356,7 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
               >
                 {filterOpts.class_type.length > 0
                   ? CLASS_TYPES.find((t) => t.value === filterOpts.class_type[0])?.label ?? filterOpts.class_type[0]
-                  : "카테고리"}
+                  : "행사/수업들"}
               </button>
               {openMenu === "class_type" && (
                 <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-[80px]">

@@ -29,6 +29,18 @@ interface CachedHomeResult {
   count: number;
 }
 
+function readCachedClass(classId: string | undefined): ClassWithHost | null {
+  if (!classId || typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(HOME_RESULTS_LOCAL_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as CachedHomeResult;
+    return (parsed.data ?? []).find((item) => item.id === classId) ?? null;
+  } catch {
+    return null;
+  }
+}
+
 interface ClassCommentsSessionCache {
   comments: ClassComment[];
   ts: number;
@@ -174,8 +186,7 @@ export default function CachedClassDetailPage({ classIdOverride, hideChat, onClo
   const { user } = useAuth();
   const classId = classIdOverride ?? params?.id;
   const animateFromHome = searchParams.get("from") === "home";
-  const [loaded, setLoaded] = useState(false);
-  const [displayClass, setDisplayClass] = useState<ClassWithHost | null>(null);
+  const [displayClass, setDisplayClass] = useState<ClassWithHost | null>(() => readCachedClass(classId));
   const [liked, setLiked] = useState(false);
   const [bookmarked, setBookmarked] = useState(false);
   const [likeCount, setLikeCount] = useState(0);
@@ -196,30 +207,12 @@ export default function CachedClassDetailPage({ classIdOverride, hideChat, onClo
   const requestedRef = useRef(false);
 
   useEffect(() => {
-    if (!classId) {
-      queueMicrotask(() => setLoaded(true));
-      return;
-    }
-
-    const raw = localStorage.getItem(HOME_RESULTS_LOCAL_KEY);
-    if (!raw) {
-      queueMicrotask(() => setLoaded(true));
-      return;
-    }
-
-    try {
-      const parsed = JSON.parse(raw) as CachedHomeResult;
-      const found = (parsed.data ?? []).find((item) => item.id === classId) ?? null;
-      queueMicrotask(() => setDisplayClass(found));
-    } catch {
-      queueMicrotask(() => setDisplayClass(null));
-    } finally {
-      queueMicrotask(() => setLoaded(true));
-    }
+    setDisplayClass(readCachedClass(classId));
+    requestedRef.current = false;
   }, [classId]);
 
   useEffect(() => {
-    if (!loaded || !classId) return;
+    if (!classId) return;
     if (requestedRef.current) return;
 
     const run = async () => {
@@ -244,7 +237,7 @@ export default function CachedClassDetailPage({ classIdOverride, hideChat, onClo
     };
     window.addEventListener("load", onLoad, { once: true });
     return () => window.removeEventListener("load", onLoad);
-  }, [loaded, classId, displayClass]);
+  }, [classId]);
 
   useEffect(() => {
     if (!classId) return;
@@ -321,7 +314,7 @@ export default function CachedClassDetailPage({ classIdOverride, hideChat, onClo
   }, [classId, user]);
 
   useEffect(() => {
-    if (!classId || !loaded) return;
+    if (!classId) return;
 
     const cacheKey = `${CLASS_MEMBERS_CACHE_PREFIX}${classId}`;
 
@@ -358,11 +351,7 @@ export default function CachedClassDetailPage({ classIdOverride, hideChat, onClo
       cancelled = true;
       window.removeEventListener("load", refresh);
     };
-  }, [classId, loaded]);
-
-  if (!loaded) {
-    return <div className="max-w-xl mx-auto px-4 py-6 text-sm text-gray-400">불러오는 중...</div>;
-  }
+  }, [classId]);
 
   if (!displayClass) {
     return <div className="max-w-xl mx-auto h-full bg-white" />;
