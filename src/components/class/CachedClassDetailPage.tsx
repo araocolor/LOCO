@@ -20,6 +20,8 @@ const LIKES_CACHE_KEY = "loco_liked_posts";
 const BOOKMARKS_CACHE_KEY = "loco_bookmark_ids_v1";
 const COMMENT_PREVIEW_LIMIT = 8;
 const CLASS_COMMENTS_SESSION_CACHE_PREFIX = "loco_class_comments_cache_v1:";
+const CLASS_MEMBERS_CACHE_PREFIX = "loco_class_members_v1:";
+const CHAT_ROOMS_PREVIEW_CACHE_PREFIX = "loco_chat_rooms_preview_cache_v1:";
 
 interface CachedHomeResult {
   data: ClassWithHost[];
@@ -187,6 +189,7 @@ export default function CachedClassDetailPage({ classIdOverride, hideChat, onClo
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [noticeText, setNoticeText] = useState("");
+  const [classMembers, setClassMembers] = useState<{ id: string; nickname: string; profile_image_url: string | null }[]>([]);
   const requestedRef = useRef(false);
 
   useEffect(() => {
@@ -313,6 +316,52 @@ export default function CachedClassDetailPage({ classIdOverride, hideChat, onClo
     };
     void checkMyApplication();
   }, [classId, user]);
+
+  useEffect(() => {
+    if (!classId || !loaded || !user) return;
+
+    const membersCached = sessionStorage.getItem(`${CLASS_MEMBERS_CACHE_PREFIX}${classId}`);
+    if (membersCached) {
+      try { setClassMembers(JSON.parse(membersCached)); } catch {}
+      return;
+    }
+
+    function findMembersFromChatCache(): { id: string; nickname: string; profile_image_url: string | null }[] | null {
+      try {
+        const cacheKey = `${CHAT_ROOMS_PREVIEW_CACHE_PREFIX}${user!.id}:class`;
+        const raw = localStorage.getItem(cacheKey);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        const rooms = parsed?.data ?? parsed;
+        if (!Array.isArray(rooms)) return null;
+        const room = rooms.find((r: { class_id?: string }) => r.class_id === classId);
+        if (!room?.members) return null;
+        return room.members
+          .filter((m: { profile?: { id: string } | null }) => m.profile)
+          .map((m: { profile: { id: string; nickname: string; profile_image_url: string | null } }) => m.profile);
+      } catch { return null; }
+    }
+
+    const fromChat = findMembersFromChatCache();
+    if (fromChat && fromChat.length > 0) {
+      setClassMembers(fromChat);
+      sessionStorage.setItem(`${CLASS_MEMBERS_CACHE_PREFIX}${classId}`, JSON.stringify(fromChat));
+      return;
+    }
+
+    let cancelled = false;
+    fetch(`/api/classes/${classId}/members`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (cancelled) return;
+        const members = data.members ?? [];
+        setClassMembers(members);
+        sessionStorage.setItem(`${CLASS_MEMBERS_CACHE_PREFIX}${classId}`, JSON.stringify(members));
+      })
+      .catch(() => {});
+
+    return () => { cancelled = true; };
+  }, [classId, loaded, user]);
 
   if (!loaded) {
     return <div className="max-w-xl mx-auto px-4 py-6 text-sm text-gray-400">불러오는 중...</div>;
@@ -699,6 +748,32 @@ export default function CachedClassDetailPage({ classIdOverride, hideChat, onClo
           <InfoRow icon="📞" label="연락처" value={displayClass.contact} />
         </div>
       </section>
+
+      {classMembers.length > 0 && (
+        <section className="mt-6 border-t border-gray-100 px-4 pt-5">
+          <h2 className="text-base font-bold text-gray-900 mb-3">
+            참여중인 회원들 <span className="text-gray-400 font-medium">{classMembers.length}</span>
+          </h2>
+          <div className="grid grid-cols-5 gap-3">
+            {classMembers.map((member) => (
+              <Link
+                key={member.id}
+                href={`/users/${member.id}`}
+                className="flex flex-col items-center gap-1"
+              >
+                <Avatar
+                  src={member.profile_image_url}
+                  nickname={member.nickname}
+                  size={48}
+                />
+                <span className="w-full truncate text-center text-[11px] text-gray-600">
+                  {member.nickname}
+                </span>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className="mt-6 border-t border-gray-100 px-4 pt-5">
         <div className="mb-1 flex items-center justify-between">
