@@ -63,7 +63,7 @@ const NAV_ITEMS: {
 export default function BottomNav() {
   const pathname = usePathname();
   const [hydrated, setHydrated] = useState(false);
-  const shouldAutoHide = false;
+  const shouldAutoHide = true;
   const isChromeVisible = useScrollChromeVisibility(shouldAutoHide);
   const activeTab = useSyncExternalStore(subscribeMainTab, getMainTab, () => "home" as const);
 
