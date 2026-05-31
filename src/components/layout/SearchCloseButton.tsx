@@ -11,7 +11,7 @@ export default function SearchCloseButton() {
 
     window.setTimeout(() => {
       if (window.history.length > 1) router.back();
-      else router.push("/search/results");
+      else router.push("/search");
     }, 180);
   }
 
