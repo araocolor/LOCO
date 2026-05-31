@@ -59,6 +59,7 @@ export default function ClassCard({ classData, priorityImage = false }: ClassCar
   const [menuOpen, setMenuOpen] = useState(false);
   const [friendMsg, setFriendMsg] = useState("");
   const [commentOpen, setCommentOpen] = useState(false);
+  const [latestComment, setLatestComment] = useState<{ nickname: string; content: string; like_count: number } | null>(null);
   const [liked, setLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(classData.like_count ?? 0);
   const [commentCount, setCommentCount] = useState(classData.comment_count ?? 0);
@@ -114,6 +115,29 @@ export default function ClassCard({ classData, priorityImage = false }: ClassCar
       }
     };
   }, []);
+
+  useEffect(() => {
+    if ((classData.comment_count ?? 0) === 0) return;
+    let cancelled = false;
+    fetch(`/api/classes/${id}/comments`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (cancelled) return;
+        const roots = (data.comments ?? []).filter(
+          (c: { parent_id: string | null; is_deleted: boolean }) => !c.parent_id && !c.is_deleted
+        );
+        const last = roots[roots.length - 1];
+        if (last) {
+          setLatestComment({
+            nickname: last.profile?.nickname ?? "사용자",
+            content: last.content,
+            like_count: last.like_count ?? 0,
+          });
+        }
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [id, classData.comment_count]);
 
   function handleImageClick() {
     setLightboxIndex(imgIndex);
@@ -734,10 +758,10 @@ export default function ClassCard({ classData, priorityImage = false }: ClassCar
                 alt={host?.nickname ?? ""}
                 width={40}
                 height={40}
-                className="h-[40px] w-[40px] rounded-full object-cover"
+                className="h-[40px] w-[40px] rounded-full object-cover shadow-[0_2px_6px_rgba(255,255,255,0.6)]"
               />
             ) : (
-              <div className="flex h-[40px] w-[40px] items-center justify-center rounded-full bg-gray-200 text-xs font-medium text-gray-500">
+              <div className="flex h-[40px] w-[40px] items-center justify-center rounded-full bg-gray-200 text-xs font-medium text-gray-500 shadow-[0_2px_6px_rgba(255,255,255,0.6)]">
                 {host?.nickname?.[0] ?? "?"}
               </div>
             )}
@@ -931,6 +955,32 @@ export default function ClassCard({ classData, priorityImage = false }: ClassCar
               />
             </div>
           </div>
+        )}
+        {latestComment && (
+          <button
+            type="button"
+            onClick={() => setCommentOpen(true)}
+            className="flex w-full items-center gap-2 px-3 pb-2"
+          >
+            <span className="min-w-0 flex-1 truncate text-left">
+              <span className="font-bold" style={{ fontSize: "16px", color: "rgba(0,0,0,0.8)" }}>{latestComment.nickname}</span>
+              {" "}
+              <span style={{ fontSize: "16px", color: "rgba(0,0,0,0.6)" }}>{latestComment.content}</span>
+            </span>
+            {latestComment.like_count > 0 && (
+              <span className="flex flex-shrink-0 items-center gap-0.5">
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="#ff3b5c" stroke="#ff3b5c" strokeWidth="1.5">
+                  <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+                </svg>
+                <span className="text-[11px]" style={{ color: "#ff3b5c" }}>{latestComment.like_count}</span>
+              </span>
+            )}
+            {latestComment.like_count === 0 && (
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="#ff3b5c" stroke="#ff3b5c" strokeWidth="2" className="flex-shrink-0">
+                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+              </svg>
+            )}
+          </button>
         )}
         <div className="h-3" />
       </div>

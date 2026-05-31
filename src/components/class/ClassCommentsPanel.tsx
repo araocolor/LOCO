@@ -26,6 +26,7 @@ export interface ClassComment {
 }
 
 interface CurrentProfile {
+  id: string;
   nickname: string;
   profile_image_url: string | null;
 }
@@ -83,18 +84,33 @@ function displayName(comment: ClassComment) {
 function CommentItem({
   comment,
   compact = false,
+  isMine = false,
   onReply,
   onLike,
+  onEdit,
+  onDelete,
+  justDeleted = false,
 }: {
   comment: ClassComment;
   compact?: boolean;
+  isMine?: boolean;
   onReply: (comment: ClassComment) => void;
   onLike: (comment: ClassComment) => void;
+  onEdit: (comment: ClassComment) => void;
+  onDelete: (comment: ClassComment) => void;
+  justDeleted?: boolean;
 }) {
   const name = displayName(comment);
 
   return (
-    <div className={`flex gap-2 ${compact ? "py-2" : "py-2.5"}`}>
+    <div className={`relative flex gap-2 ${compact ? "py-2" : "py-2.5"} ${justDeleted ? "opacity-40" : ""}`}>
+      {justDeleted && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center">
+          <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+        </div>
+      )}
       <Avatar
         src={comment.profile?.profile_image_url ?? null}
         nickname={name}
@@ -109,7 +125,7 @@ function CommentItem({
         </div>
         <p
           className="whitespace-pre-wrap leading-relaxed"
-          style={{ fontSize: "16px", color: "#333333", marginTop: "0px" }}
+          style={{ fontSize: "16px", color: "rgba(0,0,0,0.8)", marginTop: "0px" }}
         >
           {comment.is_deleted ? "삭제된 댓글입니다." : comment.content}
         </p>
@@ -124,11 +140,32 @@ function CommentItem({
               댓글쓰기
             </button>
           )}
+          {!comment.is_deleted && isMine && (
+            <div className="ml-1 flex items-center rounded-full border border-gray-200" style={{ padding: "2px 0" }}>
+              <button
+                type="button"
+                onClick={() => onEdit(comment)}
+                className="font-semibold"
+                style={{ fontSize: "11px", color: "rgba(0,0,0,0.5)", padding: "0 8px" }}
+              >
+                수정
+              </button>
+              <button
+                type="button"
+                onClick={() => onDelete(comment)}
+                className="font-semibold"
+                style={{ fontSize: "11px", color: "rgba(0,0,0,0.5)", padding: "0 8px" }}
+              >
+                삭제
+              </button>
+            </div>
+          )}
           {!comment.is_deleted && (
             <button
               type="button"
               onClick={() => onLike(comment)}
-              className="ml-auto flex items-center gap-1 font-semibold text-gray-500"
+              className={`ml-auto flex items-center gap-1 font-semibold ${comment.my_liked ? "" : "text-gray-500"}`}
+              style={comment.my_liked ? { color: "#ff3b5c" } : undefined}
             >
               {comment.like_count > 0 && <span>{comment.like_count}</span>}
               <svg
@@ -136,8 +173,8 @@ function CommentItem({
                 width="14"
                 height="14"
                 viewBox="0 0 24 24"
-                fill={comment.my_liked ? "currentColor" : "none"}
-                stroke="currentColor"
+                fill={comment.my_liked ? "#ff3b5c" : "none"}
+                stroke={comment.my_liked ? "#ff3b5c" : "currentColor"}
                 strokeWidth="2"
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -164,9 +201,12 @@ export default function ClassCommentsPanel({
   const [loading, setLoading] = useState(false);
   const [input, setInput] = useState("");
   const [replyTarget, setReplyTarget] = useState<ClassComment | null>(null);
+  const [editTarget, setEditTarget] = useState<ClassComment | null>(null);
+  const [deletedId, setDeletedId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [sheetFull, setSheetFull] = useState(false);
   const [currentProfile, setCurrentProfile] = useState<CurrentProfile | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const touchStartY = useRef(0);
   const likeTimersRef = useRef<Map<string, number>>(new Map());
   const likePendingRef = useRef<
@@ -241,6 +281,7 @@ export default function ClassCommentsPanel({
 
         if (!cancelled) {
           setCurrentProfile({
+            id: user.id,
             nickname: data?.nickname ?? user.email ?? "나",
             profile_image_url: data?.profile_image_url ?? null,
           });
@@ -272,6 +313,7 @@ export default function ClassCommentsPanel({
       queueMicrotask(() => {
         setSheetFull(false);
         setReplyTarget(null);
+        setEditTarget(null);
       });
     }
   }, [mode, open]);
@@ -283,6 +325,106 @@ export default function ClassCommentsPanel({
       likeTimers.clear();
     };
   }, []);
+
+  function handleEdit(comment: ClassComment) {
+    setEditTarget(comment);
+    setReplyTarget(null);
+    setInput(comment.content);
+    requestAnimationFrame(() => {
+      const el = textareaRef.current;
+      if (el) {
+        el.style.height = "auto";
+        el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
+        el.focus();
+      }
+    });
+  }
+
+  function cancelEdit() {
+    setEditTarget(null);
+    setInput("");
+    requestAnimationFrame(() => {
+      const el = textareaRef.current;
+      if (el) el.style.height = "auto";
+    });
+  }
+
+  async function submitEdit() {
+    if (!editTarget || submitting) return;
+    const content = input.trim();
+    if (!content) return;
+
+    setSubmitting(true);
+    try {
+      const res = await fetch(`/api/classes/${classId}/comments/${editTarget.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content }),
+      });
+
+      if (res.status === 401) {
+        router.push("/login");
+        return;
+      }
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        alert(data.error ?? "댓글 수정에 실패했습니다.");
+        return;
+      }
+
+      setComments((prev) => {
+        const nextComments = prev.map((item) =>
+          item.id === editTarget.id ? { ...item, content } : item
+        );
+        writeCachedComments(classId, nextComments);
+        return nextComments;
+      });
+      setEditTarget(null);
+      setInput("");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function deleteComment(commentId: string) {
+    if (submitting) return;
+
+    setSubmitting(true);
+    try {
+      const res = await fetch(`/api/classes/${classId}/comments/${commentId}`, {
+        method: "DELETE",
+      });
+
+      if (res.status === 401) {
+        router.push("/login");
+        return;
+      }
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        alert(data.error ?? "댓글 삭제에 실패했습니다.");
+        return;
+      }
+
+      setDeletedId(commentId);
+      setTimeout(() => {
+        setDeletedId(null);
+        setComments((prev) => {
+          const nextComments = prev.map((item) =>
+            item.id === commentId ? { ...item, is_deleted: true, content: "", deleted_at: new Date().toISOString() } : item
+          );
+          writeCachedComments(classId, nextComments);
+          return nextComments;
+        });
+        onCommentCreated?.();
+      }, 1000);
+      setEditTarget(null);
+      setInput("");
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   async function submitComment(parentId: string | null = replyTarget?.id ?? null, value = input) {
     const content = value.trim();
@@ -455,10 +597,16 @@ export default function ClassCommentsPanel({
               <CommentItem
                 comment={comment}
                 compact={compact}
+                isMine={!!currentProfile?.id && comment.profile_id === currentProfile.id}
                 onReply={setReplyTarget}
                 onLike={(targetComment) => {
                   void handleCommentLike(targetComment);
                 }}
+                onEdit={handleEdit}
+                onDelete={(c) => {
+                  if (confirm("댓글을 삭제하시겠습니까?")) void deleteComment(c.id);
+                }}
+                justDeleted={deletedId === comment.id}
               />
               {replies.length > 0 && (
                 <div className="ml-10 border-t border-gray-50 pt-0.5">
@@ -467,10 +615,16 @@ export default function ClassCommentsPanel({
                       key={reply.id}
                       comment={reply}
                       compact
+                      isMine={!!currentProfile?.id && reply.profile_id === currentProfile.id}
                       onReply={setReplyTarget}
                       onLike={(targetComment) => {
                         void handleCommentLike(targetComment);
                       }}
+                      onEdit={handleEdit}
+                      onDelete={(c) => {
+                        if (confirm("댓글을 삭제하시겠습니까?")) void deleteComment(c.id);
+                      }}
+                      justDeleted={deletedId === reply.id}
                     />
                   ))}
                 </div>
@@ -498,7 +652,15 @@ export default function ClassCommentsPanel({
             </button>
           ))}
         </div>
-        {replyTarget && (
+        {editTarget && (
+          <div className="mb-2 flex items-center justify-between rounded-full bg-gray-100 px-3 py-1.5 text-xs text-gray-600">
+            <span>댓글 수정중...</span>
+            <button type="button" onClick={cancelEdit} className="font-semibold">
+              취소
+            </button>
+          </div>
+        )}
+        {replyTarget && !editTarget && (
           <div className="mb-2 flex items-center justify-between rounded-full bg-gray-100 px-3 py-1.5 text-xs text-gray-600">
             <span>{displayName(replyTarget)}님에게 답글</span>
             <button type="button" onClick={() => setReplyTarget(null)} className="font-semibold">
@@ -507,24 +669,39 @@ export default function ClassCommentsPanel({
           </div>
         )}
         <div className="flex items-center gap-2">
-          <Avatar
-            src={currentProfile?.profile_image_url ?? null}
-            nickname={currentProfile?.nickname ?? "나"}
-            size={34}
-          />
-          <input
+          <div className="flex-shrink-0 pb-1">
+            <Avatar
+              src={currentProfile?.profile_image_url ?? null}
+              nickname={currentProfile?.nickname ?? "나"}
+              size={34}
+            />
+          </div>
+          <textarea
+            ref={textareaRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder={placeholder}
-            className="h-11 min-w-0 flex-1 rounded-full border border-gray-200 px-4 text-sm outline-none focus:border-gray-400"
+            placeholder={editTarget ? "수정할 내용을 입력하세요" : placeholder}
+            rows={1}
+            onInput={(e) => {
+              const el = e.currentTarget;
+              el.style.height = "auto";
+              el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
+            }}
+            className={`min-h-[44px] min-w-0 flex-1 resize-none rounded-2xl border px-4 py-2.5 text-sm outline-none focus:border-gray-400 ${editTarget ? "border-gray-400" : "border-gray-200"}`}
           />
           <button
             type="button"
-            onClick={() => void submitComment()}
+            onClick={() => {
+              if (editTarget) {
+                void submitEdit();
+              } else {
+                void submitComment();
+              }
+            }}
             disabled={submitting || input.trim().length === 0}
-            className="h-11 rounded-full bg-gray-950 px-5 text-sm font-semibold text-white disabled:opacity-40"
+            className="h-10 flex-shrink-0 rounded-full bg-gray-950 px-5 text-sm font-semibold text-white disabled:opacity-40"
           >
-            등록
+            {editTarget ? "수정" : "등록"}
           </button>
         </div>
       </div>
