@@ -56,8 +56,6 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
   const [classDetailId, setClassDetailId] = useState<string | null>(null);
   const [notificationOpen, setNotificationOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [myViewMode, setMyViewMode] = useState<"grid" | "card">("card");
-  const [friendViewMode, setFriendViewMode] = useState<"grid" | "card">("card");
   const [allViewMode, setAllViewMode] = useState<"grid" | "card">("card");
   const [filterOpts, setFilterOpts] = useState<SearchOptions>(DEFAULT_SEARCH_OPTIONS);
   const [openMenu, setOpenMenu] = useState<"region" | "genre" | "class_type" | null>(null);
@@ -264,26 +262,20 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
           >
             올클래스
           </button>
-          <button
-            type="button"
-            aria-label={
-              (activeTab === "mySubscriptions" ? myViewMode : activeTab === "friendClasses" ? friendViewMode : allViewMode) === "grid"
-                ? "카드 보기"
-                : "격자 보기"
-            }
-            className="ml-auto pb-2 text-gray-400"
-            onClick={() => {
-              if (activeTab === "mySubscriptions") setMyViewMode((v) => v === "grid" ? "card" : "grid");
-              else if (activeTab === "friendClasses") setFriendViewMode((v) => v === "grid" ? "card" : "grid");
-              else setAllViewMode((v) => v === "grid" ? "card" : "grid");
-            }}
-          >
-            {(activeTab === "mySubscriptions" ? myViewMode : activeTab === "friendClasses" ? friendViewMode : allViewMode) === "grid" ? (
-              <Presentation size={20} strokeWidth={1.9} />
-            ) : (
-              <LayoutGrid size={20} strokeWidth={1.9} />
-            )}
-          </button>
+          {activeTab === "allClasses" && (
+            <button
+              type="button"
+              aria-label={allViewMode === "grid" ? "카드 보기" : "격자 보기"}
+              className="ml-auto pb-2 text-gray-400"
+              onClick={() => setAllViewMode((v) => v === "grid" ? "card" : "grid")}
+            >
+              {allViewMode === "grid" ? (
+                <Presentation size={20} strokeWidth={1.9} />
+              ) : (
+                <LayoutGrid size={20} strokeWidth={1.9} />
+              )}
+            </button>
+          )}
         </div>
       </header>
 
@@ -404,7 +396,7 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
           classes={friendClasses}
           loading={friendClassesLoading}
           onClassSelect={(id) => setClassDetailId(id)}
-          viewMode={friendViewMode}
+          viewMode="grid"
         />
       )}
       {activeTab === "mySubscriptions" && (
@@ -415,7 +407,7 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
           participatingLoading={participatingClassesLoading}
           onRetry={() => userId && fetchHomeMyClasses(userId)}
           onClassSelect={(id) => setClassDetailId(id)}
-          viewMode={myViewMode}
+          viewMode="grid"
         />
       )}
 
