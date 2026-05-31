@@ -121,13 +121,18 @@ export default function MyClassesTab({
 
   return (
     <div className="bg-white pb-6">
-      {classes.length === 0 ? null : viewMode === "card" ? (
+      <SectionLabel>내클래스 <span className="text-gray-400 font-medium">{classes.length}</span></SectionLabel>
+      {classes.length === 0 ? (
+        <div className="flex items-center justify-center h-24 text-gray-400">
+          <p className="text-sm">등록한 클래스가 없습니다.</p>
+        </div>
+      ) : viewMode === "card" ? (
         <ClassCardList classes={classes} />
       ) : (
         <ClassGrid classes={classes} onClassSelect={onClassSelect} />
       )}
 
-      <SectionLabel>신청클래스</SectionLabel>
+      <SectionLabel>신청한클래스 <span className="text-gray-400 font-medium">{participatingClasses.length}</span></SectionLabel>
       {participatingLoading ? (
         <div className="flex items-center justify-center h-24 text-gray-400">
           로딩 중...
