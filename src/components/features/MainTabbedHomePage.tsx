@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Heart, LayoutGrid, Lock, LockOpen, Plus, Presentation, Search } from "lucide-react";
+import { ArrowLeft, Heart, LayoutGrid, Lock, LockOpen, Plus, Presentation, Search, SearchCheck } from "lucide-react";
 import NotificationDrawer from "@/components/features/NotificationDrawer";
 import { createClient } from "@/lib/supabase/client";
 import { SEARCH_DEFAULTS_STORAGE_KEY, type SearchOptions, DEFAULT_SEARCH_OPTIONS, CLASS_TYPES } from "@/lib/search-defaults";
@@ -276,8 +276,18 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
             }`}
             style={{ fontSize: activeTab === "allClasses" ? 18 : 17 }}
           >
-            클래스찾기
+            전체클래스
           </button>
+          {activeTab === "allClasses" && (
+            <button
+              type="button"
+              aria-label="검색"
+              className="pb-2 text-gray-400"
+              onClick={() => window.dispatchEvent(new CustomEvent("open-search-sheet"))}
+            >
+              <Search size={18} strokeWidth={2.2} />
+            </button>
+          )}
           {activeTab === "allClasses" && (
             <button
               type="button"
@@ -297,21 +307,15 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
 
       {activeTab === "allClasses" && (
         <>
+          {(filterOpts.region !== "전체" || filterOpts.genre.length > 0 || filterOpts.class_type.length > 0) && (
           <div className="px-4 py-2 flex items-center gap-3">
-            <button
-              type="button"
-              aria-label="찾기"
-              className="flex items-center text-gray-700 shrink-0"
-              onClick={() => window.dispatchEvent(new CustomEvent("open-search-sheet"))}
-            >
-              <Search size={20} strokeWidth={2.2} />
-            </button>
+            <SearchCheck size={28} className="text-gray-700 shrink-0" />
 
             <div className="relative" onClick={(e) => e.stopPropagation()}>
               <button
                 type="button"
                 disabled={isMySetting}
-                className={`text-[15px] ${isMySetting ? "opacity-50" : ""} ${filterOpts.region !== "전체" ? "text-black font-bold" : "text-gray-400"}`}
+                className={`text-[13px] px-2.5 py-1 rounded-full ${isMySetting ? "opacity-50" : ""} ${filterOpts.region !== "전체" ? "bg-black text-white font-bold" : "bg-gray-100 text-gray-400"}`}
                 onClick={() => setOpenMenu(openMenu === "region" ? null : "region")}
               >
                 {filterOpts.region !== "전체" ? filterOpts.region : "전지역"}
@@ -336,7 +340,7 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
               <button
                 type="button"
                 disabled={isMySetting}
-                className={`text-[15px] ${isMySetting ? "opacity-50" : ""} ${filterOpts.genre.length > 0 ? "text-black font-bold" : "text-gray-400"}`}
+                className={`text-[13px] px-2.5 py-1 rounded-full ${isMySetting ? "opacity-50" : ""} ${filterOpts.genre.length > 0 ? "bg-black text-white font-bold" : "bg-gray-100 text-gray-400"}`}
                 onClick={() => setOpenMenu(openMenu === "genre" ? null : "genre")}
               >
                 {filterOpts.genre.length > 0
@@ -370,7 +374,7 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
               <button
                 type="button"
                 disabled={isMySetting}
-                className={`text-[15px] ${isMySetting ? "opacity-50" : ""} ${filterOpts.class_type.length > 0 ? "text-black font-bold" : "text-gray-400"}`}
+                className={`text-[13px] px-2.5 py-1 rounded-full ${isMySetting ? "opacity-50" : ""} ${filterOpts.class_type.length > 0 ? "bg-black text-white font-bold" : "bg-gray-100 text-gray-400"}`}
                 onClick={() => setOpenMenu(openMenu === "class_type" ? null : "class_type")}
               >
                 {filterOpts.class_type.length > 0
@@ -409,6 +413,7 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
               {isMySetting ? <Lock size={20} strokeWidth={2.5} /> : <LockOpen size={20} />}
             </button>
           </div>
+          )}
           <HomeSearchResultsPage
             initialClasses={initialClasses}
             onClassSelect={(id) => setClassDetailId(id)}

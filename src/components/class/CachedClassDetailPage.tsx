@@ -712,6 +712,62 @@ export default function CachedClassDetailPage({ classIdOverride, hideChat, onClo
             className="text-[15px] text-gray-700 whitespace-pre-wrap leading-relaxed"
           />
         </div>
+
+        <div className="flex justify-center gap-2 mt-6">
+          {isOwnClass ? (
+            <>
+              <button
+                type="button"
+                onClick={handleDeleteClick}
+                disabled={deleteLoading}
+                className="inline-flex h-12 items-center justify-center rounded-full bg-red-500 px-7 text-[15px] font-bold text-white shadow-sm transition-colors hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {deleteLoading ? "삭제 중..." : "삭제하기"}
+              </button>
+              <Link
+                href={`/classes/${displayClass.id}/edit`}
+                className="inline-flex h-12 items-center justify-center rounded-full border border-gray-200 bg-white px-7 text-[15px] font-bold text-gray-900 shadow-sm"
+              >
+                편집하기
+              </Link>
+            </>
+          ) : approved && !hideChat ? (
+            <button
+              type="button"
+              disabled={enteringChat}
+              onClick={async () => {
+                if (!classId || enteringChat) return;
+                setEnteringChat(true);
+                try {
+                  const res = await fetch(`/api/chat/rooms/class/${classId}`, { method: "POST" });
+                  if (res.ok) {
+                    const roomId = (await res.json()).data?.id;
+                    onClose?.();
+                    router.push(`/messages?roomId=${roomId}`);
+                  } else {
+                    showCenterNotice("대화방 입장에 실패했습니다.");
+                  }
+                } catch {
+                  showCenterNotice("대화방 입장에 실패했습니다.");
+                } finally {
+                  setEnteringChat(false);
+                }
+              }}
+              className="inline-flex h-12 items-center justify-center rounded-full bg-[#fee500] px-7 text-[15px] font-bold text-[#191600] shadow-sm transition-colors hover:bg-[#f5dc00] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {enteringChat ? "입장 중..." : "클래스 대화방"}
+            </button>
+          ) : !hideChat ? (
+            <button
+              type="button"
+              onClick={handleApply}
+              disabled={applying || applied || displayClass.status !== "recruiting"}
+              className="inline-flex h-12 items-center justify-center rounded-full bg-[#fee500] px-7 text-[15px] font-bold text-[#191600] shadow-sm transition-colors hover:bg-[#f5dc00] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {applyLabel}
+            </button>
+          ) : null}
+        </div>
       </section>
 
       <section className="mt-6 border-t border-gray-100 px-4 pt-5">
@@ -775,63 +831,17 @@ export default function CachedClassDetailPage({ classIdOverride, hideChat, onClo
         ) : (
           <p className="py-8 text-center text-sm text-gray-400">아직 댓글이 없습니다.</p>
         )}
+        <div className="flex justify-center pt-4 pb-2">
+          <button
+            type="button"
+            onClick={() => setCommentSheetOpen(true)}
+            className="rounded-full border border-gray-300 px-5 py-2 text-sm font-semibold text-gray-700"
+          >
+            댓글쓰기
+          </button>
+        </div>
       </section>
 
-      <div className="flex justify-center gap-2 px-4 pb-[max(16px,env(safe-area-inset-bottom))] pt-6">
-        {isOwnClass ? (
-          <button
-            type="button"
-            onClick={handleDeleteClick}
-            disabled={deleteLoading}
-            className="inline-flex h-12 items-center justify-center rounded-full bg-red-500 px-7 text-[15px] font-bold text-white shadow-sm transition-colors hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {deleteLoading ? "삭제 중..." : "삭제하기"}
-          </button>
-        ) : approved && !hideChat ? (
-          <button
-            type="button"
-            disabled={enteringChat}
-            onClick={async () => {
-              if (!classId || enteringChat) return;
-              setEnteringChat(true);
-              try {
-                const res = await fetch(`/api/chat/rooms/class/${classId}`, { method: "POST" });
-                if (res.ok) {
-                  const roomId = (await res.json()).data?.id;
-                  onClose?.();
-                  router.push(`/messages?roomId=${roomId}`);
-                } else {
-                  showCenterNotice("대화방 입장에 실패했습니다.");
-                }
-              } catch {
-                showCenterNotice("대화방 입장에 실패했습니다.");
-              } finally {
-                setEnteringChat(false);
-              }
-            }}
-            className="inline-flex h-12 items-center justify-center rounded-full bg-[#fee500] px-7 text-[15px] font-bold text-[#191600] shadow-sm transition-colors hover:bg-[#f5dc00] disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {enteringChat ? "입장 중..." : "클래스 대화방"}
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={handleApply}
-            disabled={applying || applied || displayClass.status !== "recruiting"}
-            className="inline-flex h-12 items-center justify-center rounded-full bg-[#fee500] px-7 text-[15px] font-bold text-[#191600] shadow-sm transition-colors hover:bg-[#f5dc00] disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {applyLabel}
-          </button>
-        )}
-        {isOwnClass && (
-          <Link
-            href={`/classes/${displayClass.id}/edit`}
-            className="inline-flex h-12 items-center justify-center rounded-full border border-gray-200 bg-white px-7 text-[15px] font-bold text-gray-900 shadow-sm"
-          >
-            편집하기
-          </Link>
-        )}
-      </div>
 
       {deleteModalOpen && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/35 px-4">
