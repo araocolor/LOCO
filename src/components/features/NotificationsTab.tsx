@@ -2,8 +2,8 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Image from "next/image";
-import { ArrowLeft, Check, Settings } from "lucide-react";
-import UserViewLoader from "@/components/user/UserViewLoader";
+import { Heart, Settings } from "lucide-react";
+import UserProfileModal from "@/components/user/UserProfileModal";
 
 interface NotificationItem {
   id: string;
@@ -76,6 +76,12 @@ function writeNotificationCache(userId: string | null | undefined, notifications
   } catch {}
 }
 
+function hasStaleApplicationNotification(notifications: NotificationItem[]) {
+  return notifications.some(
+    (item) => item.type === "class_application" && typeof item.meta?.application_id !== "string"
+  );
+}
+
 function formatTime(dateStr: string) {
   const now = Date.now();
   const diff = now - new Date(dateStr).getTime();
@@ -89,14 +95,18 @@ function formatTime(dateStr: string) {
   return new Date(dateStr).toLocaleDateString("ko-KR", { month: "short", day: "numeric" });
 }
 
-function formatMessage(item: NotificationItem): string {
+function truncate(text: string, max: number) {
+  return text.length > max ? text.slice(0, max) + "..." : text;
+}
+
+function formatMessage(item: NotificationItem): React.ReactNode {
   const nickname = item.actor?.nickname ?? "알 수 없음";
   const meta = item.meta ?? {};
   const classTitle = typeof meta.class_title === "string" ? meta.class_title : "";
-  const truncTitle = classTitle.length > 6 ? classTitle.slice(0, 6) + "..." : classTitle;
   const region = typeof meta.region === "string" ? meta.region : "";
   const category = typeof meta.category === "string" ? meta.category : "";
   const starCount = typeof meta.count === "number" ? meta.count : 0;
+  const commentContent = typeof meta.comment_content === "string" ? meta.comment_content : "";
 
   switch (item.type) {
     case "friend_class_created": {
@@ -106,30 +116,30 @@ function formatMessage(item: NotificationItem): string {
     case "star_gift_received":
       return `${nickname}님이 별${starCount}개를 선물하였습니다.`;
     case "class_application":
-      return `${nickname}님이 ${truncTitle} 신청요청 함`;
+      return <><b className="text-[16px]">{nickname}</b>님이 <b className="text-[16px]">{truncate(classTitle, 30)}</b> 신청함</>;
     case "class_comment":
-      return `내 클래스에 ${nickname}님이 댓글을 남겼습니다`;
+      return <><b className="text-[16px]">{nickname}</b>님이 <b className="text-[16px]">{truncate(classTitle, 30)}</b>에 댓글남김</>;
     case "class_like":
-      return `내 클래스에 ${nickname}님이 하트를 남겼습니다.`;
+      return <><b className="text-[16px]">{nickname}</b>님이 <b className="text-[16px]">{truncate(classTitle, 30)}</b>에 하트남김</>;
     case "comment_reply":
-      return `내 글에 ${nickname}님이 댓글을 남겼어요`;
+      return <><b className="text-[16px]">{nickname}</b>님이 <b className="text-[16px]">{truncate(commentContent, 30)}</b>에 댓글남김</>;
     default:
       return "알림";
   }
 }
 
-type NotificationTab = "class" | "comment";
+type NotificationTab = "class" | "comment" | "heart";
 
 export default function NotificationsTab({ userId, onOpenClassDetail }: NotificationsTabProps) {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [loading, setLoading] = useState(false);
-  const [profileUserId, setProfileUserId] = useState<string | null>(null);
+  const [profileModalTarget, setProfileModalTarget] = useState<NotificationItem["actor"]>(null);
   const [hasFetched, setHasFetched] = useState(false);
   const [activeTab, setActiveTab] = useState<NotificationTab>("class");
 
   const fetchNotifications = useCallback(async () => {
     const cachedNotifications = readNotificationCache(userId);
-    if (cachedNotifications) {
+    if (cachedNotifications && !hasStaleApplicationNotification(cachedNotifications)) {
       setNotifications(cachedNotifications);
       setLoading(false);
       setHasFetched(true);
@@ -152,7 +162,9 @@ export default function NotificationsTab({ userId, onOpenClassDetail }: Notifica
 
   useEffect(() => {
     if (!hasFetched) {
-      void fetchNotifications();
+      queueMicrotask(() => {
+        void fetchNotifications();
+      });
     }
   }, [hasFetched, fetchNotifications]);
 
@@ -170,40 +182,47 @@ export default function NotificationsTab({ userId, onOpenClassDetail }: Notifica
     } catch {}
   };
 
+  const [approvingId, setApprovingId] = useState<string | null>(null);
+  const [approvedIds, setApprovedIds] = useState<Set<string>>(new Set());
+
+  const handleApprove = async (applicationId: string) => {
+    setApprovingId(applicationId);
+    try {
+      const res = await fetch(`/api/applications/${applicationId}`, { method: "PATCH" });
+      if (res.ok) {
+        setApprovedIds((prev) => new Set(prev).add(applicationId));
+        setNotifications((prev) => {
+          const nextNotifications = prev.map((item) =>
+            item.meta?.application_id === applicationId
+              ? { ...item, meta: { ...item.meta, application_status: "approved" } }
+              : item
+          );
+          writeNotificationCache(userId, nextNotifications);
+          return nextNotifications;
+        });
+      }
+    } finally {
+      setApprovingId(null);
+    }
+  };
+
   const handleNotificationClick = (item: NotificationItem) => {
     void markAsRead(item.id);
-    if (item.type === "class_comment" && item.ref_id) {
+    if ((item.type === "class_comment" || item.type === "comment_reply") && item.ref_id) {
       onOpenClassDetail?.(item.ref_id);
     }
   };
 
-  if (profileUserId) {
-    return (
-      <div className="flex flex-col flex-1">
-        <header className="sticky top-0 z-50 bg-white h-14 px-4 relative">
-          <button
-            onClick={() => setProfileUserId(null)}
-            className="absolute left-4 top-1/2 -translate-y-1/2 w-[37px] h-[37px] flex items-center justify-center text-gray-600"
-          >
-            <ArrowLeft size={20} />
-          </button>
-          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-            <span className="font-bold text-[#4d4d4d]" style={{ fontSize: 18 }}>프로필</span>
-          </div>
-        </header>
-        <div className="flex-1 overflow-y-auto">
-          <UserViewLoader userId={profileUserId} />
-        </div>
-      </div>
-    );
-  }
-
   const COMMENT_TYPES = new Set(["class_comment", "comment_reply"]);
+  const HEART_TYPES = new Set(["class_like"]);
   const filteredNotifications = activeTab === "comment"
     ? notifications.filter((n) => COMMENT_TYPES.has(n.type))
-    : notifications.filter((n) => !COMMENT_TYPES.has(n.type));
+    : activeTab === "heart"
+    ? notifications.filter((n) => HEART_TYPES.has(n.type))
+    : notifications.filter((n) => !COMMENT_TYPES.has(n.type) && !HEART_TYPES.has(n.type));
 
   return (
+    <>
     <div className="flex flex-col flex-1">
       <header className="sticky top-0 z-50 bg-white border-b border-[#e5e7eb]">
         <div className="relative h-14 px-4 flex items-center">
@@ -235,6 +254,14 @@ export default function NotificationsTab({ userId, onOpenClassDetail }: Notifica
           >
             댓글
           </button>
+          <button
+            onClick={() => setActiveTab("heart")}
+            className={`px-3.5 py-1.5 rounded-full text-[14px] font-semibold transition-colors ${
+              activeTab === "heart" ? "bg-black text-white" : "bg-gray-100 text-gray-400"
+            }`}
+          >
+            <Heart size={14} fill={activeTab === "heart" ? "white" : "#9ca3af"} stroke="none" />
+          </button>
         </div>
       </header>
 
@@ -257,7 +284,7 @@ export default function NotificationsTab({ userId, onOpenClassDetail }: Notifica
                 <button
                   type="button"
                   className="flex-shrink-0 w-[38px] h-[38px] rounded-full overflow-hidden bg-gray-200"
-                  onClick={() => item.actor?.id && setProfileUserId(item.actor.id)}
+                  onClick={() => item.actor?.id && setProfileModalTarget(item.actor)}
                 >
                   {item.actor?.profile_image_url ? (
                     <Image
@@ -280,28 +307,53 @@ export default function NotificationsTab({ userId, onOpenClassDetail }: Notifica
                   className="flex-1 min-w-0 text-left"
                   onClick={() => handleNotificationClick(item)}
                 >
-                  <p className="text-[16px] text-gray-800 leading-snug">
-                    {formatMessage(item)}
-                  </p>
-                  <p className="text-[11px] text-gray-400 mt-0.5">
-                    {formatTime(item.created_at)}
+                  <p className="text-[14px] text-gray-800 leading-snug">
+                    {formatMessage(item)} <span className="text-[11px] text-gray-400 ml-1">{formatTime(item.created_at)}</span>
+                    {item.type === "class_application" && (() => {
+                      const appId = typeof item.meta?.application_id === "string" ? item.meta.application_id : null;
+                      const isApproved = appId
+                        ? approvedIds.has(appId) || item.meta?.application_status === "approved"
+                        : false;
+                      return isApproved ? (
+                        <span className="ml-1 whitespace-nowrap rounded-full bg-black/50 px-2 py-0.5 text-[14px] font-medium text-white">승인완료</span>
+                      ) : null;
+                    })()}
                   </p>
                 </button>
 
-                {!item.is_read && (
-                  <button
-                    type="button"
-                    className="flex-shrink-0 w-7 h-7 flex items-center justify-center text-gray-400 hover:text-green-500"
-                    onClick={() => markAsRead(item.id)}
-                  >
-                    <Check size={16} strokeWidth={2.5} />
-                  </button>
-                )}
+                {item.type === "class_application" && (() => {
+                  const appId = typeof item.meta?.application_id === "string" ? item.meta.application_id : null;
+                  if (!appId) return null;
+                  const isApproved =
+                    approvedIds.has(appId) || item.meta?.application_status === "approved";
+                  return isApproved ? (
+                    <span aria-hidden="true" className="self-center h-[28px] w-[46px] flex-shrink-0" />
+                  ) : (
+                    <button
+                      type="button"
+                      className="self-center flex-shrink-0 whitespace-nowrap rounded-full bg-[#FEE500] px-3 py-1 text-[14px] font-medium text-gray-900"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void handleApprove(appId);
+                      }}
+                    >
+                      {approvingId === appId ? "..." : "승인"}
+                    </button>
+                  );
+                })()}
               </li>
             ))}
           </ul>
         )}
       </div>
     </div>
+    {profileModalTarget?.id && (
+      <UserProfileModal
+        userId={profileModalTarget.id}
+        initialProfile={profileModalTarget}
+        onClose={() => setProfileModalTarget(null)}
+      />
+    )}
+    </>
   );
 }

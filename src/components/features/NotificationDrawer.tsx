@@ -2,8 +2,8 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Image from "next/image";
-import { ArrowLeft, Check, X } from "lucide-react";
-import UserViewLoader from "@/components/user/UserViewLoader";
+import { X } from "lucide-react";
+import UserProfileModal from "@/components/user/UserProfileModal";
 
 interface NotificationItem {
   id: string;
@@ -96,14 +96,18 @@ function formatTime(dateStr: string) {
   return new Date(dateStr).toLocaleDateString("ko-KR", { month: "short", day: "numeric" });
 }
 
-function formatMessage(item: NotificationItem): string {
+function truncate(text: string, max: number) {
+  return text.length > max ? text.slice(0, max) + "..." : text;
+}
+
+function formatMessage(item: NotificationItem): React.ReactNode {
   const nickname = item.actor?.nickname ?? "알 수 없음";
   const meta = item.meta ?? {};
   const classTitle = typeof meta.class_title === "string" ? meta.class_title : "";
-  const truncTitle = classTitle.length > 6 ? classTitle.slice(0, 6) + "..." : classTitle;
   const region = typeof meta.region === "string" ? meta.region : "";
   const category = typeof meta.category === "string" ? meta.category : "";
   const starCount = typeof meta.count === "number" ? meta.count : 0;
+  const commentContent = typeof meta.comment_content === "string" ? meta.comment_content : "";
 
   switch (item.type) {
     case "friend_class_created": {
@@ -113,13 +117,13 @@ function formatMessage(item: NotificationItem): string {
     case "star_gift_received":
       return `${nickname}님이 별${starCount}개를 선물하였습니다.`;
     case "class_application":
-      return `${nickname}님이 ${truncTitle} 신청요청 함`;
+      return <><b className="text-[16px]">{nickname}</b>님이 <b className="text-[16px]">{truncate(classTitle, 30)}</b> 신청함</>;
     case "class_comment":
-      return `내 클래스에 ${nickname}님이 댓글을 남겼습니다`;
+      return <><b className="text-[16px]">{nickname}</b>님이 <b className="text-[16px]">{truncate(classTitle, 30)}</b>에 댓글남김</>;
     case "class_like":
-      return `내 클래스에 ${nickname}님이 하트를 남겼습니다.`;
+      return <><b className="text-[16px]">{nickname}</b>님이 <b className="text-[16px]">{truncate(classTitle, 30)}</b>에 하트남김</>;
     case "comment_reply":
-      return `내 글에 ${nickname}님이 댓글을 남겼어요`;
+      return <><b className="text-[16px]">{nickname}</b>님이 <b className="text-[16px]">{truncate(commentContent, 30)}</b>에 댓글남김</>;
     default:
       return "알림";
   }
@@ -128,7 +132,7 @@ function formatMessage(item: NotificationItem): string {
 export default function NotificationDrawer({ open, onClose, userId, onUnreadCountChange, onOpenClassDetail }: NotificationDrawerProps) {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [loading, setLoading] = useState(false);
-  const [profileUserId, setProfileUserId] = useState<string | null>(null);
+  const [profileModalTarget, setProfileModalTarget] = useState<NotificationItem["actor"]>(null);
 
   const fetchNotifications = useCallback(async () => {
     const cachedNotifications = readNotificationCache(userId);
@@ -182,7 +186,7 @@ export default function NotificationDrawer({ open, onClose, userId, onUnreadCoun
   const handleNotificationClick = (item: NotificationItem) => {
     void markAsRead(item.id);
 
-    if (item.type === "class_comment" && item.ref_id) {
+    if ((item.type === "class_comment" || item.type === "comment_reply") && item.ref_id) {
       onClose();
       onOpenClassDetail?.(item.ref_id);
     }
@@ -227,7 +231,7 @@ export default function NotificationDrawer({ open, onClose, userId, onUnreadCoun
                   <button
                     type="button"
                     className="flex-shrink-0 w-[38px] h-[38px] rounded-full overflow-hidden bg-gray-200"
-                    onClick={() => item.actor?.id && setProfileUserId(item.actor.id)}
+                    onClick={() => item.actor?.id && setProfileModalTarget(item.actor)}
                   >
                     {item.actor?.profile_image_url ? (
                       <Image
@@ -258,15 +262,6 @@ export default function NotificationDrawer({ open, onClose, userId, onUnreadCoun
                     </p>
                   </button>
 
-                  {!item.is_read && (
-                    <button
-                      type="button"
-                      className="flex-shrink-0 w-7 h-7 flex items-center justify-center text-gray-400 hover:text-green-500"
-                      onClick={() => markAsRead(item.id)}
-                    >
-                      <Check size={16} strokeWidth={2.5} />
-                    </button>
-                  )}
                 </li>
               ))}
             </ul>
@@ -274,27 +269,13 @@ export default function NotificationDrawer({ open, onClose, userId, onUnreadCoun
         </div>
       </div>
 
-      {/* 프로필 드로어 */}
-      <div
-        className={`fixed inset-0 z-[250] bg-white flex flex-col transition-transform duration-300 ease-in-out ${
-          profileUserId ? "translate-x-0" : "translate-x-full"
-        }`}
-      >
-        <header className="sticky top-0 z-50 bg-white h-14 px-4 relative">
-          <button
-            onClick={() => setProfileUserId(null)}
-            className="absolute left-4 top-1/2 -translate-y-1/2 w-[37px] h-[37px] flex items-center justify-center text-gray-600"
-          >
-            <ArrowLeft size={20} />
-          </button>
-          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-            <span className="font-bold text-[#4d4d4d]" style={{ fontSize: 18 }}>프로필</span>
-          </div>
-        </header>
-        <div className="flex-1 overflow-y-auto">
-          {profileUserId && <UserViewLoader userId={profileUserId} />}
-        </div>
-      </div>
+      {profileModalTarget?.id && (
+        <UserProfileModal
+          userId={profileModalTarget.id}
+          initialProfile={profileModalTarget}
+          onClose={() => setProfileModalTarget(null)}
+        />
+      )}
     </>
   );
 }
