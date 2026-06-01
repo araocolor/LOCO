@@ -17,6 +17,8 @@ interface MyClassesTabProps {
   loading: boolean;
   participatingClasses: ClassWithApplicationStatus[];
   participatingLoading: boolean;
+  friendClasses?: ClassWithHost[];
+  friendClassesLoading?: boolean;
   onRetry: () => void;
   onClassSelect?: (classId: string) => void;
   viewMode?: "grid" | "card";
@@ -110,6 +112,8 @@ export default function MyClassesTab({
   loading,
   participatingClasses,
   participatingLoading,
+  friendClasses = [],
+  friendClassesLoading = false,
   onClassSelect,
   viewMode = "grid",
 }: MyClassesTabProps) {
@@ -157,6 +161,23 @@ export default function MyClassesTab({
         <ClassCardList classes={participatingClasses} />
       ) : (
         <ClassGrid classes={participatingClasses} onClassSelect={onClassSelect} />
+      )}
+
+      <SectionLabel>
+        친구클래스 <span className="text-gray-400 font-medium">{friendClasses.length}</span>
+      </SectionLabel>
+      {friendClassesLoading ? (
+        <div className="flex items-center justify-center h-24 text-gray-400">
+          로딩 중...
+        </div>
+      ) : friendClasses.length === 0 ? (
+        <div className="flex items-center justify-center h-24 text-gray-400">
+          <p className="text-sm">친구가 개설한 클래스가 없습니다</p>
+        </div>
+      ) : viewMode === "card" ? (
+        <ClassCardList classes={friendClasses} />
+      ) : (
+        <ClassGrid classes={friendClasses} onClassSelect={onClassSelect} />
       )}
 
     </div>

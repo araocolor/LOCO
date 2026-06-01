@@ -2,13 +2,12 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, LayoutGrid, Lock, LockOpen, Plus, Presentation, Search, SearchCheck } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
+import { ArrowLeft, LayoutGrid, Plus, Presentation, Search } from "lucide-react";
 import { SEARCH_DEFAULTS_STORAGE_KEY, type SearchOptions, DEFAULT_SEARCH_OPTIONS, getPeriodOptions, CLASS_TYPES } from "@/lib/search-defaults";
 import { GENRES, REGIONS_WITH_ALL } from "@/lib/constants";
 import { ClassWithHost } from "@/components/class/ClassCard";
 import CachedClassDetailPage from "@/components/class/CachedClassDetailPage";
-import FriendClassesSection from "@/components/features/FriendClassesSection";
+import HotClassesTab from "@/components/features/HotClassesTab";
 import HomeSearchResultsPage from "@/components/features/HomeSearchResultsPage";
 import MyClassesTab from "@/components/features/MyClassesTab";
 import { useScrollChromeVisibility } from "@/hooks/useScrollChromeVisibility";
@@ -44,7 +43,7 @@ function getHomeFriendClassesCacheKey(userId: string) {
 }
 
 export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePageProps) {
-  const [activeTab, setActiveTab] = useState<MainTab>("mySubscriptions");
+  const [activeTab, setActiveTab] = useState<MainTab>("allClasses");
   const { user } = useAuth();
   const userId = user?.id ?? null;
   const [myClasses, setMyClasses] = useState<ClassWithHost[]>([]);
@@ -96,20 +95,6 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
     setFilterOpts(next);
     localStorage.setItem(SEARCH_DEFAULTS_STORAGE_KEY, JSON.stringify(next));
     window.dispatchEvent(new Event("search-filter-change"));
-  }, []);
-
-  const selectMyDisplay = useCallback(async () => {
-    setIsMySetting(true);
-    localStorage.setItem(SEARCH_DEFAULTS_STORAGE_KEY, JSON.stringify(filterOpts));
-    const supabase = createClient();
-    const { data: { user: authUser } } = await supabase.auth.getUser();
-    if (authUser) {
-      await supabase.from("profiles").update({ default_search_options: filterOpts }).eq("id", authUser.id);
-    }
-  }, [filterOpts]);
-
-  const selectAllDisplay = useCallback(() => {
-    setIsMySetting(false);
   }, []);
 
   useEffect(() => {
@@ -222,54 +207,51 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
         }`}
       >
         <div className="relative h-14 px-4 flex items-center">
+          <div className="font-black text-[22px] text-[#4d4d4d] leading-none">
+            클래스
+          </div>
           <button
             type="button"
             aria-label="클래스 만들기"
-            className="h-10 -ml-1 flex items-center text-gray-700"
+            className="ml-auto h-10 -mr-1 flex items-center text-gray-700"
             onClick={() => router.push("/classes/new/choose")}
           >
             <Plus size={22} strokeWidth={2.2} />
           </button>
-          <div className="absolute left-1/2 -translate-x-1/2 font-bold text-xl text-[#4d4d4d] leading-none">
-            XLATIN
-          </div>
         </div>
-        <div className="flex pl-4 pr-4 gap-5 pb-0 overflow-x-auto scrollbar-hide whitespace-nowrap">
+        <div className="flex pl-4 pr-4 gap-2 pb-2 overflow-x-auto scrollbar-hide whitespace-nowrap">
           <button
             onClick={() => setActiveTab("mySubscriptions")}
-            className={`pb-2 font-bold transition-colors ${
-              activeTab === "mySubscriptions" ? "text-black" : "text-gray-400"
+            className={`px-3.5 py-1.5 rounded-full text-[14px] font-semibold transition-colors ${
+              activeTab === "mySubscriptions" ? "bg-black text-white" : "bg-gray-100 text-gray-400"
             }`}
-            style={{ fontSize: activeTab === "mySubscriptions" ? 18 : 17 }}
           >
-            내클래스
+            내클
           </button>
           <button
             onClick={() => setActiveTab("friendClasses")}
-            className={`pb-2 font-bold transition-colors ${
-              activeTab === "friendClasses" ? "text-black" : "text-gray-400"
+            className={`px-3.5 py-1.5 rounded-full text-[14px] font-semibold transition-colors ${
+              activeTab === "friendClasses" ? "bg-black text-white" : "bg-gray-100 text-gray-400"
             }`}
-            style={{ fontSize: activeTab === "friendClasses" ? 18 : 17 }}
           >
-            친클래스
+            핫클
           </button>
           <button
             onClick={() => setActiveTab("allClasses")}
-            className={`pb-2 font-bold transition-colors ${
-              activeTab === "allClasses" ? "text-black" : "text-gray-400"
+            className={`px-3.5 py-1.5 rounded-full text-[14px] font-semibold transition-colors ${
+              activeTab === "allClasses" ? "bg-black text-white" : "bg-gray-100 text-gray-400"
             }`}
-            style={{ fontSize: activeTab === "allClasses" ? 18 : 17 }}
           >
-            전체클래스
+            올클
           </button>
           {activeTab === "allClasses" && (
             <button
               type="button"
               aria-label="검색"
-              className="pb-2 text-gray-400"
+              className="mt-1 ml-2 text-gray-400"
               onClick={() => window.dispatchEvent(new CustomEvent("open-search-sheet"))}
             >
-              <Search size={18} strokeWidth={2.2} />
+              <Search size={20} strokeWidth={2.8} />
             </button>
           )}
           {activeTab === "allClasses" && (
@@ -293,8 +275,6 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
         <>
           {(filterOpts.region !== "전체" || filterOpts.period !== "전체" || filterOpts.genre.length > 0 || filterOpts.class_type.length > 0) && (
           <div className="px-4 py-2 flex items-center gap-3">
-            <SearchCheck size={28} className="text-gray-700 shrink-0" />
-
             <div className="relative" onClick={(e) => e.stopPropagation()}>
               <button
                 type="button"
@@ -413,14 +393,6 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
               )}
             </div>
 
-            <button
-              type="button"
-              aria-label={isMySetting ? "필터 잠금 해제" : "필터 잠금"}
-              className={`ml-auto shrink-0 ${isMySetting ? "text-black font-bold" : "text-gray-500"}`}
-              onClick={() => isMySetting ? selectAllDisplay() : selectMyDisplay()}
-            >
-              {isMySetting ? <Lock size={20} strokeWidth={2.5} /> : <LockOpen size={20} />}
-            </button>
           </div>
           )}
           <HomeSearchResultsPage
@@ -440,11 +412,9 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
         </>
       )}
       {activeTab === "friendClasses" && (
-        <FriendClassesSection
-          classes={friendClasses}
-          loading={friendClassesLoading}
+        <HotClassesTab
+          cachedClasses={[...myClasses, ...participatingClasses, ...friendClasses]}
           onClassSelect={(id) => setClassDetailId(id)}
-          viewMode="grid"
         />
       )}
       {activeTab === "mySubscriptions" && (
@@ -453,6 +423,8 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
           loading={myClassesLoading}
           participatingClasses={participatingClasses}
           participatingLoading={participatingClassesLoading}
+          friendClasses={friendClasses}
+          friendClassesLoading={friendClassesLoading}
           onRetry={() => userId && fetchHomeMyClasses(userId)}
           onClassSelect={(id) => setClassDetailId(id)}
           viewMode="grid"

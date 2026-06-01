@@ -55,53 +55,39 @@ export default function ConversationList({
 
   return (
     <>
-      <div className="flex items-end justify-between px-4 border-b border-[#e5e7eb]">
-        <div className="ml-2 flex gap-5">
+      <div className="flex pl-4 pr-4 gap-2 pb-2 overflow-x-auto scrollbar-hide whitespace-nowrap">
           <button
             onClick={() => setActiveMenuTab("friends")}
-            style={{ fontSize: activeMenuTab === "friends" ? 18 : 17 }}
-            className={`pb-2 font-bold border-b-2 transition-colors ${
-              activeMenuTab === "friends"
-                ? "border-black text-black"
-                : "border-transparent text-gray-400"
+            className={`px-3.5 py-1.5 rounded-full text-[14px] font-semibold transition-colors ${
+              activeMenuTab === "friends" ? "bg-black text-white" : "bg-gray-100 text-gray-400"
             }`}
           >
             친구들
           </button>
           <button
             onClick={() => setActiveMenuTab("direct")}
-            style={{ fontSize: activeMenuTab === "direct" ? 18 : 17 }}
-            className={`pb-2 font-bold border-b-2 transition-colors ${
-              activeMenuTab === "direct"
-                ? "border-black text-black"
-                : "border-transparent text-gray-400"
+            className={`px-3.5 py-1.5 rounded-full text-[14px] font-semibold transition-colors ${
+              activeMenuTab === "direct" ? "bg-black text-white" : "bg-gray-100 text-gray-400"
             }`}
           >
             1:1
           </button>
           <button
             onClick={() => setActiveMenuTab("groups")}
-            style={{ fontSize: activeMenuTab === "groups" ? 18 : 17 }}
-            className={`pb-2 font-bold border-b-2 transition-colors ${
-              activeMenuTab === "groups"
-                ? "border-black text-black"
-                : "border-transparent text-gray-400"
+            className={`px-3.5 py-1.5 rounded-full text-[14px] font-semibold transition-colors ${
+              activeMenuTab === "groups" ? "bg-black text-white" : "bg-gray-100 text-gray-400"
             }`}
           >
             그룹
           </button>
           <button
             onClick={() => setActiveMenuTab("class")}
-            style={{ fontSize: activeMenuTab === "class" ? 18 : 17 }}
-            className={`pb-2 font-bold border-b-2 transition-colors ${
-              activeMenuTab === "class"
-                ? "border-black text-black"
-                : "border-transparent text-gray-400"
+            className={`px-3.5 py-1.5 rounded-full text-[14px] font-semibold transition-colors ${
+              activeMenuTab === "class" ? "bg-black text-white" : "bg-gray-100 text-gray-400"
             }`}
           >
             클래스
           </button>
-        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto">

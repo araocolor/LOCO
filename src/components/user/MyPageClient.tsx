@@ -477,7 +477,7 @@ export default function MyPageClient({
       {/* 하단 클래스 그리드 */}
       <div className="flex-1 bg-white">
         {/* 3x3 그리드 */}
-        <div className="grid grid-cols-3 gap-[1px] bg-gray-200">
+        <div className="grid grid-cols-3 gap-[1px] bg-white">
           {(activeTab === "all"
             ? [...myClasses, ...bookmarkClasses].sort((a, b) =>
                 new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime()

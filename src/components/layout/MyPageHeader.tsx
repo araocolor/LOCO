@@ -255,22 +255,23 @@ export default function MyPageHeader() {
   return (
     <>
       <header className="sticky top-0 z-50 bg-white border-b border-[#e5e7eb]">
-        <div className="h-14 px-4 relative flex items-center">
-          <button type="button" onClick={() => setOpen(true)} className="p-1 -mr-1 ml-auto">
-            <Settings className="w-6 h-6 text-gray-700" />
-          </button>
-          <div className="absolute left-1/2 -translate-x-1/2 font-bold text-xl text-[#4d4d4d] leading-none">
-            XLATIN
+        <div className="relative h-14 px-4 flex items-center">
+          <div className="font-black text-[22px] text-[#4d4d4d] leading-none">
+            프로필
           </div>
+          <button type="button" onClick={() => setOpen(true)} className="ml-auto h-10 -mr-1 flex items-center text-gray-700">
+            <Settings size={22} strokeWidth={2.2} />
+          </button>
         </div>
-        <div className="flex pl-4 pr-4 gap-5 pb-0 overflow-x-auto scrollbar-hide whitespace-nowrap">
+        <div className="flex pl-4 pr-4 gap-2 pb-2 overflow-x-auto scrollbar-hide whitespace-nowrap">
           {MY_PAGE_TABS.map(({ key, label }) => (
             <button
               key={key}
               type="button"
               onClick={() => router.push(key === "all" ? "/?tab=mypage" : `/?tab=mypage&section=${key}`)}
-              className={`pb-2 font-bold transition-colors ${currentTab === key ? "text-black" : "text-gray-400"}`}
-              style={{ fontSize: currentTab === key ? 18 : 17 }}
+              className={`px-3.5 py-1.5 rounded-full text-[14px] font-semibold transition-colors ${
+                currentTab === key ? "bg-black text-white" : "bg-gray-100 text-gray-400"
+              }`}
             >
               {label}
             </button>
