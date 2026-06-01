@@ -2,16 +2,20 @@
 
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { IdCard, Plus } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import ClassCard, { type ClassWithHost } from "@/components/class/ClassCard";
 import ClassMoreMenu from "@/components/class/ClassMoreMenu";
+import type { ApplicationStatus } from "@/types/application";
+
+type ClassWithApplicationStatus = ClassWithHost & {
+  application_status?: ApplicationStatus;
+};
 
 interface MyClassesTabProps {
   classes: ClassWithHost[];
   loading: boolean;
-  participatingClasses: ClassWithHost[];
+  participatingClasses: ClassWithApplicationStatus[];
   participatingLoading: boolean;
   onRetry: () => void;
   onClassSelect?: (classId: string) => void;
@@ -56,7 +60,7 @@ function ClassGrid({ classes, onClassSelect }: { classes: ClassWithHost[]; onCla
               alt={classData.title}
               fill
               sizes="(max-width: 640px) 33vw, 213px"
-              className="object-cover"
+              className={`object-cover ${classData.status !== "recruiting" ? "grayscale" : ""}`}
               unoptimized
             />
           ) : (
@@ -64,8 +68,8 @@ function ClassGrid({ classes, onClassSelect }: { classes: ClassWithHost[]; onCla
               <span className="text-gray-300 text-xs">없음</span>
             </div>
           )}
-          {classData.status !== "recruiting" && (
-            <div className="absolute top-1.5 left-1.5 w-3 h-3 rounded-full bg-black" />
+          {"application_status" in classData && classData.application_status === "pending" && (
+            <div className="absolute top-1.5 left-1.5 w-3 h-3 rounded-full bg-yellow-400 ring-2 ring-white shadow-sm" />
           )}
           <div className="absolute top-0 right-0 z-10" onClick={(e) => e.stopPropagation()}>
             <ClassMoreMenu
@@ -109,7 +113,8 @@ export default function MyClassesTab({
   onClassSelect,
   viewMode = "grid",
 }: MyClassesTabProps) {
-  const router = useRouter();
+  const approvedCount = participatingClasses.filter((classData) => classData.application_status === "approved").length;
+  const pendingCount = participatingClasses.filter((classData) => classData.application_status === "pending").length;
 
   if (loading) {
     return (
@@ -132,7 +137,14 @@ export default function MyClassesTab({
         <ClassGrid classes={classes} onClassSelect={onClassSelect} />
       )}
 
-      <SectionLabel>신청한클래스 <span className="text-gray-400 font-medium">{participatingClasses.length}</span></SectionLabel>
+      <SectionLabel>
+        신청한클래스 <span className="text-gray-400 font-medium">{participatingClasses.length}</span>
+        <span className="ml-2 text-sm font-medium text-gray-500">
+          완료 <span className="text-gray-900">{approvedCount}</span>
+          <span className="mx-1 text-gray-300">|</span>
+          확인중 <span className="text-yellow-600">{pendingCount}</span>
+        </span>
+      </SectionLabel>
       {participatingLoading ? (
         <div className="flex items-center justify-center h-24 text-gray-400">
           로딩 중...

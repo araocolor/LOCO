@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/lib/auth-context";
 import { parseBookmarkEntries } from "@/lib/bookmarks/local";
+import { refreshHomeMyClassesCache, upsertParticipatingClassCache } from "@/lib/home-my-classes-cache";
 import { DanceClass, DANCE_GENRE_LABELS, CLASS_LEVEL_LABELS } from "@/types/class";
 import ClassCommentsPanel from "@/components/class/ClassCommentsPanel";
 import ClassApplicantSheet from "@/components/class/ClassApplicantSheet";
@@ -311,7 +312,11 @@ export default function ClassCard({ classData, priorityImage = false, isFirst = 
       });
       const json = await res.json().catch(() => ({}));
       setFriendMsg(res.ok ? "수업 신청 완료!" : (json.error ?? "수업 신청에 실패했습니다."));
-      if (res.ok) setMyApplicationStatus("pending");
+      if (res.ok) {
+        setMyApplicationStatus("pending");
+        upsertParticipatingClassCache(user.id, classData, "pending");
+        void refreshHomeMyClassesCache(user.id);
+      }
       setTimeout(() => setFriendMsg(""), 3000);
     } catch {
       setFriendMsg("수업 신청에 실패했습니다.");

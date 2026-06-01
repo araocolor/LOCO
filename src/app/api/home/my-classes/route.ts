@@ -5,6 +5,7 @@ const HOME_CLASS_LIMIT = 50;
 
 type ApplicationClassRow = {
   class_id: string;
+  status: "pending" | "approved";
 };
 
 type ClassIdRow = {
@@ -38,9 +39,9 @@ export async function GET() {
         .limit(HOME_CLASS_LIMIT),
       supabase
         .from("applications")
-        .select("class_id")
+        .select("class_id, status")
         .eq("applicant_id", user.id)
-        .eq("status", "approved")
+        .in("status", ["pending", "approved"])
         .order("created_at", { ascending: false })
         .limit(HOME_CLASS_LIMIT),
     ]);
@@ -54,6 +55,9 @@ export async function GET() {
       new Set(
         ((applicationsResult.data ?? []) as ApplicationClassRow[]).map((item) => item.class_id)
       )
+    );
+    const applicationStatusMap = new Map(
+      ((applicationsResult.data ?? []) as ApplicationClassRow[]).map((item) => [item.class_id, item.status])
     );
 
     const [participatingClassesResult, regionalClassesResult] = await Promise.all([
@@ -81,7 +85,11 @@ export async function GET() {
     );
     const participatingClasses = participatingClassIds
       .map((classId) => participatingMap.get(classId))
-      .filter(Boolean);
+      .filter((classItem): classItem is ClassIdRow => Boolean(classItem))
+      .map((classItem) => ({
+        ...classItem,
+        application_status: applicationStatusMap.get(classItem.id),
+      }));
 
     return NextResponse.json(
       {

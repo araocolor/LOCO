@@ -14,10 +14,10 @@ import MentionText from "@/components/class/MentionText";
 import Avatar from "@/components/ui/Avatar";
 import UserProfileModal from "@/components/user/UserProfileModal";
 import { useAuth } from "@/lib/auth-context";
+import { HOME_MY_CLASSES_CACHE_KEY, refreshHomeMyClassesCache, upsertParticipatingClassCache } from "@/lib/home-my-classes-cache";
 import { createClient } from "@/lib/supabase/client";
 
 const HOME_RESULTS_LOCAL_KEY = "loco_home_results_local_v1";
-const HOME_MY_CLASSES_CACHE_KEY = "loco_home_my_classes_v1";
 const LIKES_CACHE_KEY = "loco_liked_posts";
 const BOOKMARKS_CACHE_KEY = "loco_bookmark_ids_v1";
 const COMMENT_PREVIEW_LIMIT = 8;
@@ -416,6 +416,11 @@ export default function CachedClassDetailPage({ classIdOverride, hideChat, onClo
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
         setApplied(true);
+        const applicantId = typeof data.applicant_id === "string" ? data.applicant_id : user?.id;
+        if (applicantId && displayClass) {
+          upsertParticipatingClassCache(applicantId, displayClass, "pending");
+          void refreshHomeMyClassesCache(applicantId);
+        }
         showCenterNotice("신청완료되었습니다.");
       } else {
         showCenterNotice(data.error ?? "신청에 실패했습니다.");
