@@ -142,7 +142,7 @@ export default function MyClassesTab({
         <span className="ml-2 text-sm font-medium text-gray-500">
           완료 <span className="text-gray-900">{approvedCount}</span>
           <span className="mx-1 text-gray-300">|</span>
-          확인중 <span className="text-yellow-600">{pendingCount}</span>
+          대기중 <span className="text-yellow-600">{pendingCount}</span>
         </span>
       </SectionLabel>
       {participatingLoading ? (

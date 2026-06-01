@@ -1,4 +1,4 @@
-export type MainTabId = "home" | "messages" | "search" | "mypage";
+export type MainTabId = "home" | "messages" | "notifications" | "search" | "mypage";
 
 const MAIN_TAB_CHANGE_EVENT = "main-tab-change";
 
@@ -6,6 +6,7 @@ export function getMainTab(): MainTabId {
   if (typeof window === "undefined") return "home";
   const tab = new URLSearchParams(window.location.search).get("tab");
   if (tab === "messages") return "messages";
+  if (tab === "notifications") return "notifications";
   if (tab === "search") return "search";
   if (tab === "mypage") return "mypage";
   return "home";

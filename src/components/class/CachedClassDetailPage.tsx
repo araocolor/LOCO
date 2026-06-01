@@ -577,7 +577,7 @@ export default function CachedClassDetailPage({ classIdOverride, hideChat, onClo
   const hasMoreComments = comments.length > previewCommentCount;
   const isOwnClass = user?.id === displayClass.host_id;
   const applyLabel =
-    displayClass.status !== "recruiting" ? "신청 마감" : applied ? "신청확인중" : applying ? "신청 중..." : "신청하기";
+    displayClass.status !== "recruiting" ? "신청 마감" : applied ? "승인대기중" : applying ? "신청 중..." : "신청하기";
 
   return (
     <div

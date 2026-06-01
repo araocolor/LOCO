@@ -1,12 +1,8 @@
 "use client";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { usePathname } from "next/navigation";
-import Avatar from "@/components/ui/Avatar";
 import { useScrollChromeVisibility } from "@/hooks/useScrollChromeVisibility";
-import { useAuth } from "@/lib/auth-context";
 import { type MainTabId, getMainTab, subscribeMainTab, replaceMainTab } from "@/lib/main-tab";
-import { createClient } from "@/lib/supabase/client";
-
 const NAV_ITEMS: {
   tabId: MainTabId;
   label: string;
@@ -32,6 +28,18 @@ const NAV_ITEMS: {
       <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
         <rect x="8" y="8" width="8" height="6" rx="1.2" fill={isActive ? "currentColor" : "none"} stroke="none" opacity={isActive ? 0.9 : undefined} />
+      </svg>
+    ),
+  },
+  {
+    tabId: "notifications",
+    label: "알림",
+    activeColor: "#E84040",
+    renderIcon: (isActive: boolean) => (
+      <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+        <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+        {isActive && <circle cx="12" cy="11" r="3" fill="currentColor" stroke="none" opacity={0.9} />}
       </svg>
     ),
   },
@@ -65,10 +73,7 @@ const NAV_ITEMS: {
 
 export default function BottomNav() {
   const pathname = usePathname();
-  const { user } = useAuth();
   const [hydrated, setHydrated] = useState(false);
-  const [nickname, setNickname] = useState("me");
-  const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null);
   const shouldAutoHide = true;
   const isChromeVisible = useScrollChromeVisibility(shouldAutoHide);
   const activeTab = useSyncExternalStore(subscribeMainTab, getMainTab, () => "home" as const);
@@ -77,32 +82,12 @@ export default function BottomNav() {
     queueMicrotask(() => setHydrated(true));
   }, []);
 
-  useEffect(() => {
-    if (!user) {
-      setNickname("me");
-      setProfileImageUrl(null);
-      return;
-    }
-
-    const supabase = createClient();
-    supabase
-      .from("profiles")
-      .select("nickname, profile_image_url")
-      .eq("id", user.id)
-      .single()
-      .then(({ data }) => {
-        if (!data) return;
-        setNickname(data.nickname ?? "me");
-        setProfileImageUrl(data.profile_image_url ?? null);
-      });
-  }, [user]);
-
   if (pathname.startsWith("/classes/") || pathname.startsWith("/users/")) return null;
   if (!hydrated) return null;
 
   return (
     <nav
-      className={`fixed bottom-0 left-1/2 grid w-full max-w-[500px] z-50 h-[65px] grid-cols-4 bg-white shadow-[0_-8px_24px_rgba(0,0,0,0.08)] touch-manipulation overscroll-contain select-none transition-transform duration-200 ease-out motion-reduce:transition-none ${
+      className={`fixed bottom-0 left-1/2 grid w-full max-w-[500px] z-50 h-[65px] grid-cols-5 bg-white shadow-[0_-8px_24px_rgba(0,0,0,0.08)] touch-manipulation overscroll-contain select-none transition-transform duration-200 ease-out motion-reduce:transition-none ${
         isChromeVisible ? "-translate-x-1/2 translate-y-0" : "-translate-x-1/2 translate-y-full"
       }`}
     >
@@ -119,16 +104,7 @@ export default function BottomNav() {
             className={className}
             style={isActive ? { color: activeColor } : undefined}
           >
-            {tabId === "mypage" && user ? (
-              <span
-                className="rounded-full"
-                style={isActive ? { boxShadow: "0 0 0 1px #fff, 0 0 0 2px #E84040" } : undefined}
-              >
-                <Avatar src={profileImageUrl} nickname={nickname} size={28} />
-              </span>
-            ) : (
-              renderIcon(isActive)
-            )}
+            {renderIcon(isActive)}
             <span className="sr-only">{label}</span>
           </button>
         );

@@ -2,8 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Heart, LayoutGrid, Lock, LockOpen, Plus, Presentation, Search, SearchCheck } from "lucide-react";
-import NotificationDrawer from "@/components/features/NotificationDrawer";
+import { ArrowLeft, LayoutGrid, Lock, LockOpen, Plus, Presentation, Search, SearchCheck } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { SEARCH_DEFAULTS_STORAGE_KEY, type SearchOptions, DEFAULT_SEARCH_OPTIONS, getPeriodOptions, CLASS_TYPES } from "@/lib/search-defaults";
 import { GENRES, REGIONS_WITH_ALL } from "@/lib/constants";
@@ -55,8 +54,6 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
   const [friendClasses, setFriendClasses] = useState<ClassWithHost[]>([]);
   const [friendClassesLoading, setFriendClassesLoading] = useState(false);
   const [classDetailId, setClassDetailId] = useState<string | null>(null);
-  const [notificationOpen, setNotificationOpen] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
   const [allViewMode, setAllViewMode] = useState<"grid" | "card">("card");
   const [filterOpts, setFilterOpts] = useState<SearchOptions>(DEFAULT_SEARCH_OPTIONS);
   const [openMenu, setOpenMenu] = useState<"region" | "period" | "genre" | "class_type" | null>(null);
@@ -217,23 +214,8 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
     return () => window.removeEventListener("class-deleted", handler);
   }, []);
 
-  useEffect(() => {
-    if (!userId) return;
-    fetch("/api/notifications/unread-count")
-      .then((r) => r.json())
-      .then((j) => setUnreadCount(j.count ?? 0))
-      .catch(() => {});
-  }, [userId]);
-
   return (
     <>
-      <NotificationDrawer
-        open={notificationOpen}
-        onClose={() => setNotificationOpen(false)}
-        userId={userId}
-        onUnreadCountChange={setUnreadCount}
-        onOpenClassDetail={(id) => setClassDetailId(id)}
-      />
       <header
         className={`sticky top-0 z-50 bg-white border-b border-[#e5e7eb] transition-transform duration-200 ease-out motion-reduce:transition-none ${
           isChromeVisible ? "translate-y-0" : "-translate-y-full"
@@ -251,17 +233,6 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
           <div className="absolute left-1/2 -translate-x-1/2 font-bold text-xl text-[#4d4d4d] leading-none">
             XLATIN
           </div>
-          <button
-            type="button"
-            aria-label="알림"
-            className="ml-auto w-10 h-10 mr-[-8px] flex items-center justify-center text-gray-700 relative"
-            onClick={() => setNotificationOpen(true)}
-          >
-            <Heart size={25} strokeWidth={2.2} />
-            {unreadCount > 0 && (
-              <span className="absolute top-1 right-0.5 w-2.5 h-2.5 bg-red-500 rounded-full" />
-            )}
-          </button>
         </div>
         <div className="flex pl-4 pr-4 gap-5 pb-0 overflow-x-auto scrollbar-hide whitespace-nowrap">
           <button
