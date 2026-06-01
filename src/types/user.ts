@@ -2,7 +2,7 @@ export type UserRole = "member" | "pro" | "admin";
 
 export interface SearchOptions {
   region?: string;
-  status?: string;
+  period?: string;
   class_type?: string;
   genre?: string;
 }

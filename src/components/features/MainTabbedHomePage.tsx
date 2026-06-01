@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, Heart, LayoutGrid, Lock, LockOpen, Plus, Presentation, Search, SearchCheck } from "lucide-react";
 import NotificationDrawer from "@/components/features/NotificationDrawer";
 import { createClient } from "@/lib/supabase/client";
-import { SEARCH_DEFAULTS_STORAGE_KEY, type SearchOptions, DEFAULT_SEARCH_OPTIONS, CLASS_TYPES } from "@/lib/search-defaults";
+import { SEARCH_DEFAULTS_STORAGE_KEY, type SearchOptions, DEFAULT_SEARCH_OPTIONS, getPeriodOptions, CLASS_TYPES } from "@/lib/search-defaults";
 import { GENRES, REGIONS_WITH_ALL } from "@/lib/constants";
 import { ClassWithHost } from "@/components/class/ClassCard";
 import CachedClassDetailPage from "@/components/class/CachedClassDetailPage";
@@ -59,26 +59,33 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
   const [unreadCount, setUnreadCount] = useState(0);
   const [allViewMode, setAllViewMode] = useState<"grid" | "card">("card");
   const [filterOpts, setFilterOpts] = useState<SearchOptions>(DEFAULT_SEARCH_OPTIONS);
-  const [openMenu, setOpenMenu] = useState<"region" | "genre" | "class_type" | null>(null);
+  const [openMenu, setOpenMenu] = useState<"region" | "period" | "genre" | "class_type" | null>(null);
   const [isMySetting, setIsMySetting] = useState(false);
   const isChromeVisible = useScrollChromeVisibility(true);
   const router = useRouter();
+  const periodOptions = getPeriodOptions();
 
   useEffect(() => {
     function readOpts(): SearchOptions {
       try {
         const raw = localStorage.getItem(SEARCH_DEFAULTS_STORAGE_KEY);
         if (!raw) return DEFAULT_SEARCH_OPTIONS;
-        const parsed = JSON.parse(raw) as Partial<SearchOptions>;
+        const parsed = JSON.parse(raw) as Partial<Omit<SearchOptions, "genre" | "class_type">> & {
+          genre?: string | string[];
+          class_type?: string[];
+          status?: string;
+        };
         return {
           ...DEFAULT_SEARCH_OPTIONS,
-          ...parsed,
+          region: parsed.region === "없음" ? "전체" : parsed.region ?? "전체",
+          period: parsed.period ?? "전체",
+          venue: parsed.venue ?? "전체",
           genre: Array.isArray(parsed.genre) ? parsed.genre : parsed.genre ? [parsed.genre] : [],
           class_type: Array.isArray(parsed.class_type) ? parsed.class_type : [],
         };
       } catch { return DEFAULT_SEARCH_OPTIONS; }
     }
-    setFilterOpts(readOpts());
+    queueMicrotask(() => setFilterOpts(readOpts()));
     function handleChange() { setFilterOpts(readOpts()); }
     window.addEventListener("close-search-sheet", handleChange);
     window.addEventListener("search-filter-change", handleChange);
@@ -313,7 +320,7 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
 
       {activeTab === "allClasses" && (
         <>
-          {(filterOpts.region !== "전체" || filterOpts.genre.length > 0 || filterOpts.class_type.length > 0) && (
+          {(filterOpts.region !== "전체" || filterOpts.period !== "전체" || filterOpts.genre.length > 0 || filterOpts.class_type.length > 0) && (
           <div className="px-4 py-2 flex items-center gap-3">
             <SearchCheck size={28} className="text-gray-700 shrink-0" />
 
@@ -336,6 +343,31 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
                       onClick={() => { updateFilter({ ...filterOpts, region: r, venue: "전체" }); setOpenMenu(null); }}
                     >
                       {r}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="relative" onClick={(e) => e.stopPropagation()}>
+              <button
+                type="button"
+                disabled={isMySetting}
+                className={`text-[13px] px-2.5 py-1 rounded-full ${isMySetting ? "opacity-50" : ""} ${filterOpts.period !== "전체" ? "bg-black text-white font-bold" : "bg-gray-100 text-gray-400"}`}
+                onClick={() => setOpenMenu(openMenu === "period" ? null : "period")}
+              >
+                {periodOptions.find((p) => p.value === filterOpts.period)?.label ?? "전체"}
+              </button>
+              {openMenu === "period" && !isMySetting && (
+                <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-60 overflow-y-auto min-w-[80px]">
+                  {periodOptions.map((p) => (
+                    <button
+                      key={p.value}
+                      type="button"
+                      className={`block w-full text-left px-3 py-2 text-sm whitespace-nowrap ${filterOpts.period === p.value ? "text-black font-bold bg-gray-50" : "text-gray-600"}`}
+                      onClick={() => { updateFilter({ ...filterOpts, period: p.value }); setOpenMenu(null); }}
+                    >
+                      {p.label}
                     </button>
                   ))}
                 </div>
@@ -423,8 +455,14 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
           <HomeSearchResultsPage
             initialClasses={initialClasses}
             onClassSelect={(id) => setClassDetailId(id)}
+            onResetFilters={() => {
+              setFilterOpts(DEFAULT_SEARCH_OPTIONS);
+              setOpenMenu(null);
+              setIsMySetting(false);
+            }}
             viewMode={allViewMode}
             regionOverride={filterOpts.region}
+            periodOverride={filterOpts.period}
             genreOverride={filterOpts.genre}
             classTypeOverride={filterOpts.class_type}
           />

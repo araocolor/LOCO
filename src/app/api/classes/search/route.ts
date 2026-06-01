@@ -1,19 +1,38 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { PREVIOUS_YEAR_PERIOD_VALUE, getSearchYear } from "@/lib/search-defaults";
 
 function expandCategory(value: string) {
   if (value === "party") return ["party", "event"];
   if (value === "level_class") return ["level_class", "regular"];
   if (value === "private_training") return ["private_training", "training"];
+  if (value === "choreo_class") return ["choreo_class", "choreography"];
   if (value === "etc") return ["etc", "other"];
   return [value];
+}
+
+function getPeriodRange(period: string | null, year = getSearchYear()) {
+  if (!period || period === "전체") return null;
+  if (period === PREVIOUS_YEAR_PERIOD_VALUE) {
+    return {
+      start: `${year - 1}-01-01T00:00:00`,
+      end: `${year}-01-01T00:00:00`,
+    };
+  }
+  const month = Number(period);
+  if (!Number.isInteger(month) || month < 1 || month > 12) return null;
+  const start = `${year}-${String(month).padStart(2, "0")}-01T00:00:00`;
+  const endMonth = month === 12 ? 1 : month + 1;
+  const endYear = month === 12 ? year + 1 : year;
+  const end = `${endYear}-${String(endMonth).padStart(2, "0")}-01T00:00:00`;
+  return { start, end };
 }
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
 
   const region = searchParams.get("region");
-  const status = searchParams.get("status");
+  const period = searchParams.get("period");
   const categoryFilters = searchParams.getAll("class_type");
   const genres = searchParams.getAll("genre");
   const host_id = searchParams.get("host_id");
@@ -39,7 +58,8 @@ export async function GET(request: NextRequest) {
 
   if (host_id) query = query.eq("host_id", host_id);
   if (region && region !== "전체") query = query.eq("region", region);
-  if (status && status !== "전체") query = query.eq("status", status);
+  const periodRange = getPeriodRange(period);
+  if (periodRange) query = query.gte("datetime", periodRange.start).lt("datetime", periodRange.end);
   const filteredCategories = Array.from(
     new Set(categoryFilters.filter((t) => t && t !== "전체").flatMap(expandCategory))
   );

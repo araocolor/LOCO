@@ -7,7 +7,9 @@ import ClassCard, { type ClassWithHost } from "@/components/class/ClassCard";
 import ClassMoreMenu from "@/components/class/ClassMoreMenu";
 import { createClient } from "@/lib/supabase/client";
 import {
+  PREVIOUS_YEAR_PERIOD_VALUE,
   SEARCH_DEFAULTS_STORAGE_KEY,
+  getSearchYear,
 } from "@/lib/search-defaults";
 import { parseBookmarkEntries } from "@/lib/bookmarks/local";
 
@@ -28,16 +30,28 @@ function expandCategory(value: string) {
   if (value === "party") return ["party", "event"];
   if (value === "level_class") return ["level_class", "regular"];
   if (value === "private_training") return ["private_training", "training"];
+  if (value === "choreo_class") return ["choreo_class", "choreography"];
   if (value === "etc") return ["etc", "other"];
   return [value];
+}
+
+function isInPeriod(datetime: string, period: string, year = getSearchYear()) {
+  if (period === "전체") return true;
+  const date = new Date(datetime);
+  if (period === PREVIOUS_YEAR_PERIOD_VALUE) return date.getFullYear() === year - 1;
+  const month = Number(period);
+  if (!Number.isInteger(month) || month < 1 || month > 12) return true;
+  return date.getFullYear() === year && date.getMonth() + 1 === month;
 }
 
 interface Props {
   initialClasses?: ClassWithHost[];
   regionOverride?: string | null;
+  periodOverride?: string | null;
   genreOverride?: string[];
   classTypeOverride?: string[];
   onClassSelect?: (classId: string) => void;
+  onResetFilters?: () => void;
   viewMode?: "grid" | "card";
 }
 
@@ -46,15 +60,18 @@ const EMPTY_CLASSES: ClassWithHost[] = [];
 export default function HomeSearchResultsPage({
   initialClasses,
   regionOverride,
+  periodOverride,
   genreOverride,
   classTypeOverride,
   onClassSelect,
+  onResetFilters,
   viewMode = "grid",
 }: Props) {
   const stableInitial = initialClasses ?? EMPTY_CLASSES;
   const router = useRouter();
   const searchParams = useSearchParams();
   const region = regionOverride ?? searchParams.get("region") ?? "전체";
+  const period = periodOverride ?? searchParams.get("period") ?? "전체";
   const genres = genreOverride ?? searchParams.getAll("genre");
   const classTypes = classTypeOverride ?? searchParams.getAll("class_type");
   const isBookmarkMode = searchParams.get("bookmark") === "true";
@@ -70,11 +87,12 @@ export default function HomeSearchResultsPage({
   const filterParam = useMemo(() => {
     const params = new URLSearchParams();
     if (region && region !== "전체") params.set("region", region);
+    if (period && period !== "전체") params.set("period", period);
     genres.forEach((genre) => params.append("genre", genre));
     classTypes.forEach((classType) => params.append("class_type", classType));
     const qs = params.toString();
     return qs ? `&${qs}` : "";
-  }, [region, genres, classTypes]);
+  }, [region, period, genres, classTypes]);
   const homeCacheKey = `${HOME_RESULTS_LOCAL_KEY}:${filterParam || "all"}`;
 
   const warmedImageUrlsRef = useRef<Set<string>>(new Set());
@@ -108,6 +126,9 @@ export default function HomeSearchResultsPage({
       }
     }
     let filtered = region === "전체" ? classes : classes.filter((item) => item.region === region);
+    if (period !== "전체") {
+      filtered = filtered.filter((item) => isInPeriod(item.datetime, period));
+    }
     if (genres.length > 0) {
       const genreSet = new Set(genres);
       filtered = filtered.filter((item) => item.genres?.some((g) => genreSet.has(g)));
@@ -117,7 +138,7 @@ export default function HomeSearchResultsPage({
       filtered = filtered.filter((item) => item.category && typeSet.has(item.category));
     }
     return filtered;
-  }, [classes, region, genres, classTypes, isBookmarkMode, bookmarkVersion]);
+  }, [classes, region, period, genres, classTypes, isBookmarkMode, bookmarkVersion]);
 
   const fillerCells = useMemo(() => {
     const remain = filteredClasses.length % 3;
@@ -164,8 +185,8 @@ export default function HomeSearchResultsPage({
         await supabase.from("profiles").update({ default_search_options: null }).eq("id", user.id);
       }
     } catch {}
-    router.push("/");
-    router.refresh();
+    onResetFilters?.();
+    window.history.replaceState(window.history.state, "", "/");
   }
 
   // 다음 페이지 로드

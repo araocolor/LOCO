@@ -7,6 +7,7 @@ import { LockOpen, Lock } from "lucide-react";
 import {
   DEFAULT_SEARCH_OPTIONS,
   SEARCH_DEFAULTS_STORAGE_KEY,
+  getPeriodOptions,
   CLASS_TYPES,
   type SearchOptions,
 } from "@/lib/search-defaults";
@@ -14,23 +15,25 @@ import SearchKeywordTab from "@/components/features/SearchKeywordTab";
 
 type SheetTab = "keyword" | "filter";
 
-const STATUS_OPTIONS = [
-  { value: "전체", label: "전체" },
-  { value: "recruiting", label: "모집중" },
-  { value: "closed", label: "마감" },
-];
+type StoredSearchOptions = Partial<Omit<SearchOptions, "genre" | "class_type">> & {
+  status?: string;
+  genre?: string | string[];
+  class_type?: string[];
+};
 
 function normalizeSearchOptions(
-  value: SearchOptions | (Omit<SearchOptions, "genre"> & { genre: string })
+  value: StoredSearchOptions
 ): SearchOptions {
   return {
-    ...value,
+    region: value.region === "없음" ? "전체" : value.region ?? "전체",
+    period: value.period ?? "전체",
+    venue: value.venue ?? "전체",
     genre: Array.isArray(value.genre)
       ? value.genre
       : value.genre && value.genre !== "전체"
       ? [value.genre]
       : [],
-    class_type: Array.isArray((value as any).class_type) ? (value as any).class_type : [],
+    class_type: Array.isArray(value.class_type) ? value.class_type : [],
   };
 }
 
@@ -39,9 +42,7 @@ function readLocalSearchOptions(): SearchOptions | null {
   const raw = localStorage.getItem(SEARCH_DEFAULTS_STORAGE_KEY);
   if (!raw) return null;
   try {
-    return normalizeSearchOptions(
-      JSON.parse(raw) as SearchOptions | (Omit<SearchOptions, "genre"> & { genre: string })
-    );
+    return normalizeSearchOptions(JSON.parse(raw) as StoredSearchOptions);
   } catch {
     return null;
   }
@@ -57,6 +58,7 @@ export default function SearchSheet() {
   const [isMySetting, setIsMySetting] = useState(false);
   const [dragY, setDragY] = useState(0);
   const touchStartY = useRef(0);
+  const periodOptions = getPeriodOptions();
 
   useEffect(() => {
     function handleOpen() {
@@ -94,14 +96,14 @@ export default function SearchSheet() {
     window.dispatchEvent(new CustomEvent("close-search-sheet"));
   }
 
-  function set(key: "region" | "status" | "venue", value: string) {
+  function set(key: "region" | "period" | "venue", value: string) {
     let next: SearchOptions;
     if (key === "region" && value === "전체") {
       next = { ...opts, region: "전체", venue: "전체" };
     } else if (key === "region" && value !== "전체") {
       next = { ...opts, region: value, venue: "전체" };
     } else if (key === "venue" && value !== "전체") {
-      next = { ...opts, venue: value, region: "없음" };
+      next = { ...opts, venue: value, region: "전체" };
     } else {
       next = { ...opts, [key]: value };
     }
@@ -111,9 +113,20 @@ export default function SearchSheet() {
 
     if (key === "region" && pathname === "/") {
       const params = new URLSearchParams(searchParams.toString());
+      params.delete("tab");
       if (value === "전체") params.delete("region");
       else params.set("region", value);
       params.delete("venue");
+      params.set("search", "open");
+      const next = params.toString();
+      router.replace(next ? `/?${next}` : "/?search=open");
+    }
+
+    if (key === "period" && pathname === "/") {
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete("tab");
+      if (value === "전체") params.delete("period");
+      else params.set("period", value);
       params.set("search", "open");
       const next = params.toString();
       router.replace(next ? `/?${next}` : "/?search=open");
@@ -129,6 +142,7 @@ export default function SearchSheet() {
 
     if (pathname === "/") {
       const params = new URLSearchParams(searchParams.toString());
+      params.delete("tab");
       params.delete("genre");
       nextGenres.forEach((genre) => params.append("genre", genre));
       params.set("search", "open");
@@ -145,6 +159,7 @@ export default function SearchSheet() {
 
     if (pathname === "/") {
       const params = new URLSearchParams(searchParams.toString());
+      params.delete("tab");
       params.delete("genre");
       params.set("search", "open");
       const next = params.toString();
@@ -161,6 +176,7 @@ export default function SearchSheet() {
 
     if (pathname === "/") {
       const params = new URLSearchParams(searchParams.toString());
+      params.delete("tab");
       params.delete("class_type");
       nextTypes.forEach((t) => params.append("class_type", t));
       params.set("search", "open");
@@ -177,6 +193,7 @@ export default function SearchSheet() {
 
     if (pathname === "/") {
       const params = new URLSearchParams(searchParams.toString());
+      params.delete("tab");
       params.delete("class_type");
       params.set("search", "open");
       const qs = params.toString();
@@ -255,14 +272,14 @@ export default function SearchSheet() {
         )}
 
         {sheetTab === "filter" && <>
-        {/* 지역 / 클래스구분 / 상태 */}
-        <div className="mb-5 grid grid-cols-2 gap-2 items-end text-center">
+        {/* 지역 / 기간 */}
+        <div className="mx-auto mb-5 grid w-[80%] grid-cols-2 gap-2 items-end text-center">
           <div>
             <label className="field-label">지역선택</label>
             <div>
               <select
                 disabled={isMySetting}
-                className={`w-full h-11 rounded-xl border px-3 text-sm appearance-auto font-semibold ${isMySetting ? "opacity-50" : ""} ${opts.venue === "전체" ? "bg-[#fee500] border-[#e6cf00] text-[#1d1d1f]" : "bg-white border-[#d2d2d7] text-gray-400"}`}
+                className={`w-full h-10 rounded-full border px-4 text-sm appearance-auto font-semibold text-center ${isMySetting ? "opacity-50" : ""} ${opts.venue === "전체" ? "bg-[#fee500] border-[#e6cf00] text-[#1d1d1f]" : "bg-white border-[#d2d2d7] text-gray-400"}`}
                 value={opts.region}
                 onChange={(e) => set("region", e.target.value)}
               >
@@ -275,20 +292,19 @@ export default function SearchSheet() {
                 <option value="광주">광주</option>
                 <option value="부산">부산</option>
                 <option value="제주">제주</option>
-                <option value="없음">없음</option>
               </select>
             </div>
           </div>
           <div>
-            <label className="field-label">상태</label>
+            <label className="field-label">기간</label>
             <div>
               <select
                 disabled={isMySetting}
-                className={`w-full h-11 rounded-xl border border-[#d2d2d7] bg-white px-3 text-sm text-[#1d1d1f] appearance-auto ${isMySetting ? "opacity-50" : ""}`}
-                value={opts.status}
-                onChange={(e) => set("status", e.target.value)}
+                className={`w-full h-10 rounded-full border border-[#d2d2d7] bg-white px-4 text-sm text-center text-[#1d1d1f] appearance-auto ${isMySetting ? "opacity-50" : ""}`}
+                value={opts.period}
+                onChange={(e) => set("period", e.target.value)}
               >
-                {STATUS_OPTIONS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+                {periodOptions.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
               </select>
             </div>
           </div>
