@@ -1,8 +1,11 @@
 "use client";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { usePathname } from "next/navigation";
+import Avatar from "@/components/ui/Avatar";
 import { useScrollChromeVisibility } from "@/hooks/useScrollChromeVisibility";
+import { useAuth } from "@/lib/auth-context";
 import { type MainTabId, getMainTab, subscribeMainTab, replaceMainTab } from "@/lib/main-tab";
+import { createClient } from "@/lib/supabase/client";
 
 const NAV_ITEMS: {
   tabId: MainTabId;
@@ -62,7 +65,10 @@ const NAV_ITEMS: {
 
 export default function BottomNav() {
   const pathname = usePathname();
+  const { user } = useAuth();
   const [hydrated, setHydrated] = useState(false);
+  const [nickname, setNickname] = useState("me");
+  const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null);
   const shouldAutoHide = true;
   const isChromeVisible = useScrollChromeVisibility(shouldAutoHide);
   const activeTab = useSyncExternalStore(subscribeMainTab, getMainTab, () => "home" as const);
@@ -70,6 +76,26 @@ export default function BottomNav() {
   useEffect(() => {
     queueMicrotask(() => setHydrated(true));
   }, []);
+
+  useEffect(() => {
+    if (!user) {
+      setNickname("me");
+      setProfileImageUrl(null);
+      return;
+    }
+
+    const supabase = createClient();
+    supabase
+      .from("profiles")
+      .select("nickname, profile_image_url")
+      .eq("id", user.id)
+      .single()
+      .then(({ data }) => {
+        if (!data) return;
+        setNickname(data.nickname ?? "me");
+        setProfileImageUrl(data.profile_image_url ?? null);
+      });
+  }, [user]);
 
   if (pathname.startsWith("/classes/") || pathname.startsWith("/users/")) return null;
   if (!hydrated) return null;
@@ -93,7 +119,16 @@ export default function BottomNav() {
             className={className}
             style={isActive ? { color: activeColor } : undefined}
           >
-            {renderIcon(isActive)}
+            {tabId === "mypage" && user ? (
+              <span
+                className="rounded-full"
+                style={isActive ? { boxShadow: "0 0 0 1px #fff, 0 0 0 2px #E84040" } : undefined}
+              >
+                <Avatar src={profileImageUrl} nickname={nickname} size={28} />
+              </span>
+            ) : (
+              renderIcon(isActive)
+            )}
             <span className="sr-only">{label}</span>
           </button>
         );
