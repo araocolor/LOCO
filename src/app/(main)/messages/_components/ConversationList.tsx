@@ -59,7 +59,7 @@ export default function ConversationList({
           <button
             onClick={() => setActiveMenuTab("friends")}
             className={`px-3.5 py-1.5 rounded-full text-[14px] font-semibold transition-colors ${
-              activeMenuTab === "friends" ? "bg-black text-white" : "bg-gray-100 text-gray-400"
+              activeMenuTab === "friends" ? "bg-black text-white" : "bg-gray-100 text-black/60"
             }`}
           >
             친구들
@@ -67,7 +67,7 @@ export default function ConversationList({
           <button
             onClick={() => setActiveMenuTab("direct")}
             className={`px-3.5 py-1.5 rounded-full text-[14px] font-semibold transition-colors ${
-              activeMenuTab === "direct" ? "bg-black text-white" : "bg-gray-100 text-gray-400"
+              activeMenuTab === "direct" ? "bg-black text-white" : "bg-gray-100 text-black/60"
             }`}
           >
             1:1
@@ -75,7 +75,7 @@ export default function ConversationList({
           <button
             onClick={() => setActiveMenuTab("groups")}
             className={`px-3.5 py-1.5 rounded-full text-[14px] font-semibold transition-colors ${
-              activeMenuTab === "groups" ? "bg-black text-white" : "bg-gray-100 text-gray-400"
+              activeMenuTab === "groups" ? "bg-black text-white" : "bg-gray-100 text-black/60"
             }`}
           >
             그룹
@@ -83,7 +83,7 @@ export default function ConversationList({
           <button
             onClick={() => setActiveMenuTab("class")}
             className={`px-3.5 py-1.5 rounded-full text-[14px] font-semibold transition-colors ${
-              activeMenuTab === "class" ? "bg-black text-white" : "bg-gray-100 text-gray-400"
+              activeMenuTab === "class" ? "bg-black text-white" : "bg-gray-100 text-black/60"
             }`}
           >
             클래스

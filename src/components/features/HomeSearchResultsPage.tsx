@@ -334,7 +334,7 @@ export default function HomeSearchResultsPage({
       {viewMode === "card" ? (
         <div className="space-y-0">
           {filteredClasses.map((c, idx) => (
-            <ClassCard key={`${c.id}-${idx}`} classData={c} priorityImage={idx < 2} isFirst={idx === 0} onClassSelect={onClassSelect} />
+            <ClassCard key={`${c.id}-${idx}`} classData={c} priorityImage={idx < 2} onClassSelect={onClassSelect} />
           ))}
         </div>
       ) : (

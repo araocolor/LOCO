@@ -238,7 +238,7 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
           <button
             onClick={() => setActiveTab("mySubscriptions")}
             className={`px-3.5 py-1.5 rounded-full text-[14px] font-semibold transition-colors ${
-              activeTab === "mySubscriptions" ? "bg-black text-white" : "bg-gray-100 text-gray-400"
+              activeTab === "mySubscriptions" ? "bg-black text-white" : "bg-gray-100 text-black/[0.65]"
             }`}
           >
             내클
@@ -246,7 +246,7 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
           <button
             onClick={() => setActiveTab("friendClasses")}
             className={`px-3.5 py-1.5 rounded-full text-[14px] font-semibold transition-colors ${
-              activeTab === "friendClasses" ? "bg-black text-white" : "bg-gray-100 text-gray-400"
+              activeTab === "friendClasses" ? "bg-black text-white" : "bg-gray-100 text-black/[0.65]"
             }`}
           >
             핫클
@@ -254,7 +254,7 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
           <button
             onClick={() => setActiveTab("allClasses")}
             className={`px-3.5 py-1.5 rounded-full text-[14px] font-semibold transition-colors ${
-              activeTab === "allClasses" ? "bg-black text-white" : "bg-gray-100 text-gray-400"
+              activeTab === "allClasses" ? "bg-black text-white" : "bg-gray-100 text-black/[0.65]"
             }`}
           >
             올클
