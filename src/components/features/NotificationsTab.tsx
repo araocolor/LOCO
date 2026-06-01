@@ -2,8 +2,9 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Image from "next/image";
-import { Heart, Settings } from "lucide-react";
+import { ArrowLeft, Heart, Settings } from "lucide-react";
 import UserProfileModal from "@/components/user/UserProfileModal";
+import CachedClassDetailPage from "@/components/class/CachedClassDetailPage";
 
 interface NotificationItem {
   id: string;
@@ -26,7 +27,6 @@ interface NotificationCachePayload {
 
 interface NotificationsTabProps {
   userId?: string | null;
-  onOpenClassDetail?: (classId: string) => void;
 }
 
 const NOTIFICATION_CACHE_KEY = "loco_notifications_v1";
@@ -130,12 +130,14 @@ function formatMessage(item: NotificationItem): React.ReactNode {
 
 type NotificationTab = "class" | "comment" | "heart";
 
-export default function NotificationsTab({ userId, onOpenClassDetail }: NotificationsTabProps) {
+export default function NotificationsTab({ userId }: NotificationsTabProps) {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [profileModalTarget, setProfileModalTarget] = useState<NotificationItem["actor"]>(null);
   const [hasFetched, setHasFetched] = useState(false);
   const [activeTab, setActiveTab] = useState<NotificationTab>("class");
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [classDetailId, setClassDetailId] = useState<string | null>(null);
 
   const fetchNotifications = useCallback(async () => {
     const cachedNotifications = readNotificationCache(userId);
@@ -167,6 +169,13 @@ export default function NotificationsTab({ userId, onOpenClassDetail }: Notifica
       });
     }
   }, [hasFetched, fetchNotifications]);
+
+  useEffect(() => {
+    document.body.style.overflow = settingsOpen || Boolean(classDetailId) ? "hidden" : "";
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [settingsOpen, classDetailId]);
 
   const markAsRead = async (id: string) => {
     const nextNotifications = notifications.map((n) => (n.id === id ? { ...n, is_read: true } : n));
@@ -208,8 +217,9 @@ export default function NotificationsTab({ userId, onOpenClassDetail }: Notifica
 
   const handleNotificationClick = (item: NotificationItem) => {
     void markAsRead(item.id);
-    if ((item.type === "class_comment" || item.type === "comment_reply") && item.ref_id) {
-      onOpenClassDetail?.(item.ref_id);
+
+    if ((item.type === "class_comment" || item.type === "comment_reply" || item.type === "class_like") && item.ref_id) {
+      setClassDetailId(item.ref_id);
     }
   };
 
@@ -233,6 +243,7 @@ export default function NotificationsTab({ userId, onOpenClassDetail }: Notifica
             type="button"
             aria-label="설정"
             className="ml-auto h-10 -mr-1 flex items-center text-gray-700"
+            onClick={() => setSettingsOpen(true)}
           >
             <Settings size={22} strokeWidth={2.2} />
           </button>
@@ -354,6 +365,61 @@ export default function NotificationsTab({ userId, onOpenClassDetail }: Notifica
         onClose={() => setProfileModalTarget(null)}
       />
     )}
+
+    <div
+      className={`fixed inset-0 z-[140] bg-black/40 transition-opacity duration-300 ${
+        settingsOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
+      }`}
+      onClick={() => setSettingsOpen(false)}
+    />
+    <aside
+      className={`fixed top-0 right-0 z-[150] h-full w-full max-w-[500px] bg-white transition-transform duration-300 ease-in-out ${
+        settingsOpen ? "translate-x-0" : "translate-x-full"
+      }`}
+      aria-label="알림설정"
+    >
+      <div className="relative flex h-14 items-center justify-center border-b border-gray-100">
+        <button
+          type="button"
+          aria-label="알림설정 닫기"
+          onClick={() => setSettingsOpen(false)}
+          className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-semibold text-gray-600"
+        >
+          닫기
+        </button>
+        <h2 className="text-[20px] font-bold text-[#333333]">알림설정</h2>
+      </div>
+    </aside>
+
+    <div
+      className={`fixed inset-0 z-[160] bg-white flex flex-col transition-transform duration-300 ease-in-out ${
+        classDetailId ? "translate-x-0" : "translate-x-full"
+      }`}
+    >
+      <header className="sticky top-0 z-50 bg-white h-14 px-4 relative border-b border-gray-100">
+        <button
+          type="button"
+          onClick={() => setClassDetailId(null)}
+          className="absolute left-4 top-1/2 -translate-y-1/2 w-[37px] h-[37px] flex items-center justify-center text-gray-600"
+          aria-label="클래스 상세 닫기"
+        >
+          <ArrowLeft size={20} />
+        </button>
+        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+          <span className="font-bold text-[#4d4d4d]" style={{ fontSize: 18 }}>
+            클래스 정보
+          </span>
+        </div>
+      </header>
+      <div className="flex-1 overflow-y-auto">
+        {classDetailId && (
+          <CachedClassDetailPage
+            classIdOverride={classDetailId}
+            onClose={() => setClassDetailId(null)}
+          />
+        )}
+      </div>
+    </div>
     </>
   );
 }

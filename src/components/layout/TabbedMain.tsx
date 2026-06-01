@@ -1,6 +1,6 @@
 "use client";
 
-import { useSyncExternalStore, useRef } from "react";
+import { useSyncExternalStore, useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { getMainTab, subscribeMainTab } from "@/lib/main-tab";
 import { useAuth } from "@/lib/auth-context";
@@ -16,13 +16,22 @@ export default function TabbedMain() {
   const activeTab = useSyncExternalStore(subscribeMainTab, getMainTab, () => "home" as const);
   const { user } = useAuth();
   const pathname = usePathname();
-  const mountedRef = useRef(new Set<string>(["home"]));
+  const [mountedTabs, setMountedTabs] = useState<Set<string>>(() => new Set(["home"]));
 
   const isSubRoute = pathname.startsWith("/classes/") || pathname.startsWith("/users/");
+
+  useEffect(() => {
+    queueMicrotask(() => {
+      setMountedTabs((prev) => {
+        if (prev.has(activeTab)) return prev;
+        return new Set(prev).add(activeTab);
+      });
+    });
+  }, [activeTab]);
+
   if (isSubRoute) return null;
 
-  mountedRef.current.add(activeTab);
-  const mounted = mountedRef.current;
+  const mounted = mountedTabs;
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
