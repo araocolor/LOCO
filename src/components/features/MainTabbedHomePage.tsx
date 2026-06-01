@@ -220,7 +220,13 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
 
   return (
     <>
-      <NotificationDrawer open={notificationOpen} onClose={() => setNotificationOpen(false)} onUnreadCountChange={setUnreadCount} />
+      <NotificationDrawer
+        open={notificationOpen}
+        onClose={() => setNotificationOpen(false)}
+        userId={userId}
+        onUnreadCountChange={setUnreadCount}
+        onOpenClassDetail={(id) => setClassDetailId(id)}
+      />
       <header
         className={`sticky top-0 z-50 bg-white border-b border-[#e5e7eb] transition-transform duration-200 ease-out motion-reduce:transition-none ${
           isChromeVisible ? "translate-y-0" : "-translate-y-full"
@@ -236,7 +242,7 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
             <Plus size={22} strokeWidth={2.2} />
           </button>
           <div className="absolute left-1/2 -translate-x-1/2 font-bold text-xl text-[#4d4d4d] leading-none">
-            CLASS
+            XLATIN
           </div>
           <button
             type="button"

@@ -22,7 +22,65 @@ interface NotificationItem {
 interface NotificationDrawerProps {
   open: boolean;
   onClose: () => void;
+  userId?: string | null;
   onUnreadCountChange?: (count: number) => void;
+  onOpenClassDetail?: (classId: string) => void;
+}
+
+interface NotificationCachePayload {
+  savedAt: number;
+  notifications: NotificationItem[];
+}
+
+const NOTIFICATION_CACHE_KEY = "loco_notifications_v1";
+const NOTIFICATION_CACHE_TTL_MS = 3 * 60 * 1000;
+
+function getNotificationCacheKey(userId?: string | null) {
+  return userId ? `${NOTIFICATION_CACHE_KEY}:${userId}` : null;
+}
+
+function getUnreadCount(notifications: NotificationItem[]) {
+  return notifications.filter((n) => !n.is_read).length;
+}
+
+function readNotificationCache(userId?: string | null) {
+  const key = getNotificationCacheKey(userId);
+  if (!key) return null;
+
+  try {
+    const raw = sessionStorage.getItem(key);
+    if (!raw) return null;
+
+    const parsed = JSON.parse(raw) as Partial<NotificationCachePayload>;
+    if (
+      typeof parsed.savedAt !== "number" ||
+      !Array.isArray(parsed.notifications) ||
+      Date.now() - parsed.savedAt > NOTIFICATION_CACHE_TTL_MS
+    ) {
+      sessionStorage.removeItem(key);
+      return null;
+    }
+
+    return parsed.notifications;
+  } catch {
+    sessionStorage.removeItem(key);
+    return null;
+  }
+}
+
+function writeNotificationCache(userId: string | null | undefined, notifications: NotificationItem[]) {
+  const key = getNotificationCacheKey(userId);
+  if (!key) return;
+
+  try {
+    sessionStorage.setItem(
+      key,
+      JSON.stringify({
+        savedAt: Date.now(),
+        notifications,
+      } satisfies NotificationCachePayload)
+    );
+  } catch {}
 }
 
 function formatTime(dateStr: string) {
@@ -67,28 +125,37 @@ function formatMessage(item: NotificationItem): string {
   }
 }
 
-export default function NotificationDrawer({ open, onClose, onUnreadCountChange }: NotificationDrawerProps) {
+export default function NotificationDrawer({ open, onClose, userId, onUnreadCountChange, onOpenClassDetail }: NotificationDrawerProps) {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [profileUserId, setProfileUserId] = useState<string | null>(null);
 
   const fetchNotifications = useCallback(async () => {
+    const cachedNotifications = readNotificationCache(userId);
+    if (cachedNotifications) {
+      setNotifications(cachedNotifications);
+      onUnreadCountChange?.(getUnreadCount(cachedNotifications));
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     try {
       const res = await fetch("/api/notifications?page=0");
       if (!res.ok) return;
       const json = await res.json();
-      setNotifications(json.notifications ?? []);
-      const unread = (json.notifications ?? []).filter((n: NotificationItem) => !n.is_read).length;
-      onUnreadCountChange?.(unread);
+      const nextNotifications = json.notifications ?? [];
+      setNotifications(nextNotifications);
+      writeNotificationCache(userId, nextNotifications);
+      onUnreadCountChange?.(getUnreadCount(nextNotifications));
     } catch {} finally {
       setLoading(false);
     }
-  }, [onUnreadCountChange]);
+  }, [onUnreadCountChange, userId]);
 
   useEffect(() => {
     if (open) {
-      fetchNotifications();
+      void Promise.resolve().then(fetchNotifications);
     }
   }, [open, fetchNotifications]);
 
@@ -98,11 +165,10 @@ export default function NotificationDrawer({ open, onClose, onUnreadCountChange 
   }, [open]);
 
   const markAsRead = async (id: string) => {
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, is_read: true } : n))
-    );
-    const remaining = notifications.filter((n) => !n.is_read && n.id !== id).length;
-    onUnreadCountChange?.(remaining);
+    const nextNotifications = notifications.map((n) => (n.id === id ? { ...n, is_read: true } : n));
+    setNotifications(nextNotifications);
+    writeNotificationCache(userId, nextNotifications);
+    onUnreadCountChange?.(getUnreadCount(nextNotifications));
 
     try {
       await fetch("/api/notifications/read", {
@@ -111,6 +177,15 @@ export default function NotificationDrawer({ open, onClose, onUnreadCountChange 
         body: JSON.stringify({ id }),
       });
     } catch {}
+  };
+
+  const handleNotificationClick = (item: NotificationItem) => {
+    void markAsRead(item.id);
+
+    if (item.type === "class_comment" && item.ref_id) {
+      onClose();
+      onOpenClassDetail?.(item.ref_id);
+    }
   };
 
   return (
@@ -146,7 +221,7 @@ export default function NotificationDrawer({ open, onClose, onUnreadCountChange 
                 <li
                   key={item.id}
                   className={`flex items-start gap-3 px-4 py-3 border-b border-gray-50 ${
-                    item.is_read ? "opacity-50" : ""
+                    item.is_read ? "bg-white" : "bg-yellow-50"
                   }`}
                 >
                   <button
@@ -173,9 +248,9 @@ export default function NotificationDrawer({ open, onClose, onUnreadCountChange 
                   <button
                     type="button"
                     className="flex-1 min-w-0 text-left"
-                    onClick={() => markAsRead(item.id)}
+                    onClick={() => handleNotificationClick(item)}
                   >
-                    <p className="text-[13px] text-gray-800 leading-snug">
+                    <p className="text-[16px] text-gray-800 leading-snug">
                       {formatMessage(item)}
                     </p>
                     <p className="text-[11px] text-gray-400 mt-0.5">
