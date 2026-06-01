@@ -30,6 +30,8 @@ export interface ClassWithHost extends DanceClass {
 interface ClassCardProps {
   classData: ClassWithHost;
   priorityImage?: boolean;
+  isFirst?: boolean;
+  onClassSelect?: (classId: string) => void;
 }
 
 const GENRE_BG: Record<string, string> = {
@@ -51,7 +53,7 @@ function formatDate(dateStr: string) {
   return `${m}/${dd}(${day}) ${hh}:${mm}`;
 }
 
-export default function ClassCard({ classData, priorityImage = false }: ClassCardProps) {
+export default function ClassCard({ classData, priorityImage = false, isFirst = false, onClassSelect }: ClassCardProps) {
   const { id, host_id, title, genres, level, datetime, region, status, images, host, description } =
     classData;
   const [expanded, setExpanded] = useState(false);
@@ -59,7 +61,7 @@ export default function ClassCard({ classData, priorityImage = false }: ClassCar
   const [menuOpen, setMenuOpen] = useState(false);
   const [friendMsg, setFriendMsg] = useState("");
   const [commentOpen, setCommentOpen] = useState(false);
-  const [latestComment, setLatestComment] = useState<{ nickname: string; content: string; like_count: number } | null>(null);
+  const [latestComments, setLatestComments] = useState<{ nickname: string; content: string; like_count: number }[]>([]);
   const [liked, setLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(classData.like_count ?? 0);
   const [commentCount, setCommentCount] = useState(classData.comment_count ?? 0);
@@ -126,14 +128,12 @@ export default function ClassCard({ classData, priorityImage = false }: ClassCar
         const roots = (data.comments ?? []).filter(
           (c: { parent_id: string | null; is_deleted: boolean }) => !c.parent_id && !c.is_deleted
         );
-        const last = roots[roots.length - 1];
-        if (last) {
-          setLatestComment({
-            nickname: last.profile?.nickname ?? "사용자",
-            content: last.content,
-            like_count: last.like_count ?? 0,
-          });
-        }
+        const recent = roots.slice(-2).map((c: { profile?: { nickname?: string }; content: string; like_count?: number }) => ({
+          nickname: c.profile?.nickname ?? "사용자",
+          content: c.content,
+          like_count: c.like_count ?? 0,
+        }));
+        setLatestComments(recent);
       })
       .catch(() => {});
     return () => { cancelled = true; };
@@ -535,7 +535,7 @@ export default function ClassCard({ classData, priorityImage = false }: ClassCar
                     className="flex w-full items-center px-4 py-3 text-sm text-gray-700"
                     onClick={() => {
                       setMenuOpen(false);
-                      router.push(`/classes/${id}`);
+                      onClassSelect ? onClassSelect(id) : router.push(`/classes/${id}`);
                     }}
                   >
                     상세보기
@@ -581,7 +581,7 @@ export default function ClassCard({ classData, priorityImage = false }: ClassCar
                     className="flex w-full items-center justify-between px-4 py-3 text-sm text-gray-700"
                     onClick={() => {
                       setMenuOpen(false);
-                      router.push(`/classes/${id}`);
+                      onClassSelect ? onClassSelect(id) : router.push(`/classes/${id}`);
                     }}
                   >
                     <span>상세보기</span>
@@ -711,6 +711,47 @@ export default function ClassCard({ classData, priorityImage = false }: ClassCar
   return (
     <>
       <div className="bg-white">
+        {isFirst && (
+          <div className="flex items-center gap-2.5 px-3 pt-2.5 pb-2">
+            {host?.profile_image_url ? (
+              <Image
+                src={host.profile_image_url}
+                alt={host?.nickname ?? ""}
+                width={36}
+                height={36}
+                className="h-[36px] w-[36px] rounded-full object-cover shrink-0"
+              />
+            ) : (
+              <div className="flex h-[36px] w-[36px] items-center justify-center rounded-full bg-gray-200 text-xs font-medium text-gray-500 shrink-0">
+                {host?.nickname?.[0] ?? "?"}
+              </div>
+            )}
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5">
+                <span className="min-w-0 truncate text-[16px] font-bold leading-tight text-gray-900">
+                  {title}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => onClassSelect ? onClassSelect(id) : router.push(`/classes/${id}`)}
+                  className="text-[11px] font-bold text-white shrink-0 px-2 py-0.5 rounded-full bg-black leading-tight"
+                >
+                  상세보기
+                </button>
+                <div className="shrink-0 ml-auto">
+                  {renderMoreMenu("flex items-center justify-center text-gray-500")}
+                </div>
+              </div>
+              <p className="truncate text-[13px] leading-tight text-gray-400 flex items-center gap-1">
+                <span className="truncate">{host?.nickname ?? ""} (개설자) | {region} | {genreLabel}</span>
+                {status === "recruiting" && (
+                  <span className="h-2 w-2 flex-shrink-0 rounded-full bg-green-400" aria-label="모집중" />
+                )}
+              </p>
+            </div>
+          </div>
+        )}
+
         <div ref={sliderRef} className="relative w-full">
           {totalImages > 0 ? (
             <div className="block w-full cursor-default overflow-hidden" onClick={handleImageClick}>
@@ -751,26 +792,48 @@ export default function ClassCard({ classData, priorityImage = false }: ClassCar
               <div className="aspect-square w-full">{renderClassImageFallback()}</div>
             </div>
           )}
-          <div className="absolute left-3 top-3 z-30">
-            {host?.profile_image_url ? (
-              <Image
-                src={host.profile_image_url}
-                alt={host?.nickname ?? ""}
-                width={40}
-                height={40}
-                className="h-[40px] w-[40px] rounded-full object-cover shadow-[0_2px_6px_rgba(255,255,255,0.6)]"
-              />
-            ) : (
-              <div className="flex h-[40px] w-[40px] items-center justify-center rounded-full bg-gray-200 text-xs font-medium text-gray-500 shadow-[0_2px_6px_rgba(255,255,255,0.6)]">
-                {host?.nickname?.[0] ?? "?"}
+          {!isFirst && (
+            <div className="absolute top-0 left-0 right-0 z-20" style={{ height: 150, background: "linear-gradient(to bottom, rgba(0,0,0,0.55), transparent)" }}>
+              <div className="flex items-center gap-2.5 px-3 pt-2.5">
+                {host?.profile_image_url ? (
+                  <Image
+                    src={host.profile_image_url}
+                    alt={host?.nickname ?? ""}
+                    width={36}
+                    height={36}
+                    className="h-[36px] w-[36px] rounded-full object-cover shrink-0"
+                  />
+                ) : (
+                  <div className="flex h-[36px] w-[36px] items-center justify-center rounded-full bg-white/30 text-xs font-medium text-white shrink-0">
+                    {host?.nickname?.[0] ?? "?"}
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className="min-w-0 truncate text-[16px] font-bold leading-tight text-white">
+                      {title}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => onClassSelect ? onClassSelect(id) : router.push(`/classes/${id}`)}
+                      className="text-[11px] font-bold text-white shrink-0 px-2 py-0.5 rounded-full bg-white/30 leading-tight"
+                    >
+                      상세보기
+                    </button>
+                    <div className="shrink-0 ml-auto">
+                      {renderMoreMenu("flex items-center justify-center text-white/80")}
+                    </div>
+                  </div>
+                  <p className="truncate text-[13px] leading-tight text-white flex items-center gap-1">
+                    <span className="truncate">{host?.nickname ?? ""} (개설자) | {region} | {genreLabel}</span>
+                    {status === "recruiting" && (
+                      <span className="h-2 w-2 flex-shrink-0 rounded-full bg-green-400" aria-label="모집중" />
+                    )}
+                  </p>
+                </div>
               </div>
-            )}
-          </div>
-          <div className="absolute right-2 top-4 z-30">
-            {renderMoreMenu(
-              "flex h-5 items-center justify-center rounded-full bg-black/40 px-1.5 text-white font-bold text-xs"
-            )}
-          </div>
+            </div>
+          )}
           {totalImages > 1 && (
             <div className="absolute bottom-3 right-3 z-20 rounded-full bg-black/45 px-2.5 py-0.5 text-xs font-medium text-white">
               {imgIndex + 1}/{totalImages}
@@ -907,81 +970,73 @@ export default function ClassCard({ classData, priorityImage = false }: ClassCar
           </div>
         </div>
 
-        {/* 개설자 정보 */}
-        <div className={`flex items-center gap-2 px-3 pt-2 pb-1`}>
-          <div className="min-w-0 flex-1">
-            <span className="flex min-w-0 items-center gap-1.5 truncate text-[16px] font-bold leading-tight text-gray-900">
-              <span className="min-w-0 truncate">{title}</span>
-              {status === "recruiting" && (
-                <span
-                  className="h-2 w-2 flex-shrink-0 rounded-full bg-green-400"
-                  aria-label="모집중"
-                />
-              )}
-            </span>
-            <button
-              type="button"
-              onClick={handleToggleExpanded}
-              className="block w-full truncate text-left text-[14px] leading-tight text-gray-400"
-            >
-              {host?.nickname ?? ""} · {formatDate(datetime)} · {region}
-              {!expanded && (
-                <span className="inline-flex items-center gap-0.5 font-bold text-gray-500">
-                  {" ...더 보기"}
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="13"
-                    height="13"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
+        <div className="px-3 pt-2 pb-1">
+          <div ref={descriptionRef} className="scroll-mt-[250px]">
+            {expanded ? (
+              <div>
+                <div>
+                  {description && (
+                    <div className="cursor-pointer" onClick={handleToggleExpanded}>
+                      <MentionText
+                        text={description}
+                        className="text-[15px] text-gray-600 whitespace-pre-wrap leading-relaxed"
+                      />
+                    </div>
+                  )}
+                </div>
+                <p className="text-[13px] text-gray-400 mt-1">마감일: {formatDate(datetime)}</p>
+              </div>
+            ) : (
+              <div>
+                <div className="flex items-start gap-2">
+                  {description && (
+                    <div className="min-w-0 flex-1 cursor-pointer" onClick={handleToggleExpanded}>
+                      <MentionText
+                        text={description}
+                        className="text-[15px] text-gray-600 whitespace-pre-wrap leading-relaxed line-clamp-2"
+                      />
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleToggleExpanded}
+                    className="text-[15px] font-bold text-gray-500 shrink-0 mt-0.5 flex items-center gap-0.5"
                   >
-                    <polyline points="6 9 12 15 18 9" />
-                  </svg>
-                </span>
-              )}
-            </button>
+                    내용표시
+                    <span className="text-[16px]">▼</span>
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
-        {description && (
-          <div className="px-3 pb-3">
-            <div ref={descriptionRef} className="scroll-mt-[250px]">
-              <MentionText
-                text={description}
-                className={`text-[15px] text-gray-600 mt-0.5 whitespace-pre-wrap leading-relaxed ${expanded ? "" : "line-clamp-1"}`}
-              />
-            </div>
-          </div>
-        )}
-        {latestComment && (
+        {latestComments.map((comment, idx) => (
           <button
+            key={idx}
             type="button"
             onClick={() => setCommentOpen(true)}
-            className="flex w-full items-center gap-2 px-3 pb-2"
+            className="flex w-full items-center gap-2 px-3 pb-1"
           >
             <span className="min-w-0 flex-1 truncate text-left">
-              <span className="font-bold" style={{ fontSize: "16px", color: "rgba(0,0,0,0.8)" }}>{latestComment.nickname}</span>
+              <span className="font-bold" style={{ fontSize: "16px", color: "rgba(0,0,0,0.8)" }}>{comment.nickname}</span>
               {" "}
-              <span style={{ fontSize: "16px", color: "rgba(0,0,0,0.6)" }}>{latestComment.content}</span>
+              <span style={{ fontSize: "16px", color: "rgba(0,0,0,0.6)" }}>{comment.content}</span>
             </span>
-            {latestComment.like_count > 0 && (
+            {comment.like_count > 0 && (
               <span className="flex flex-shrink-0 items-center gap-0.5">
                 <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="#ff3b5c" stroke="#ff3b5c" strokeWidth="1.5">
                   <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
                 </svg>
-                <span className="text-[11px]" style={{ color: "#ff3b5c" }}>{latestComment.like_count}</span>
+                <span className="text-[11px]" style={{ color: "#ff3b5c" }}>{comment.like_count}</span>
               </span>
             )}
-            {latestComment.like_count === 0 && (
+            {comment.like_count === 0 && (
               <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="#ff3b5c" stroke="#ff3b5c" strokeWidth="2" className="flex-shrink-0">
                 <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
               </svg>
             )}
           </button>
-        )}
+        ))}
         <div className="h-3" />
       </div>
       {lightboxOpen && totalImages > 0 && (

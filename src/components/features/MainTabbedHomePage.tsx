@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Heart, LayoutGrid, Plus, Presentation, Search } from "lucide-react";
+import { ArrowLeft, Heart, LayoutGrid, Lock, LockOpen, Plus, Presentation, Search } from "lucide-react";
 import NotificationDrawer from "@/components/features/NotificationDrawer";
+import { createClient } from "@/lib/supabase/client";
 import { SEARCH_DEFAULTS_STORAGE_KEY, type SearchOptions, DEFAULT_SEARCH_OPTIONS, CLASS_TYPES } from "@/lib/search-defaults";
 import { GENRES, REGIONS_WITH_ALL } from "@/lib/constants";
 import { ClassWithHost } from "@/components/class/ClassCard";
@@ -59,6 +60,7 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
   const [allViewMode, setAllViewMode] = useState<"grid" | "card">("card");
   const [filterOpts, setFilterOpts] = useState<SearchOptions>(DEFAULT_SEARCH_OPTIONS);
   const [openMenu, setOpenMenu] = useState<"region" | "genre" | "class_type" | null>(null);
+  const [isMySetting, setIsMySetting] = useState(false);
   const isChromeVisible = useScrollChromeVisibility(true);
   const router = useRouter();
 
@@ -90,6 +92,20 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
     setFilterOpts(next);
     localStorage.setItem(SEARCH_DEFAULTS_STORAGE_KEY, JSON.stringify(next));
     window.dispatchEvent(new Event("search-filter-change"));
+  }, []);
+
+  const selectMyDisplay = useCallback(async () => {
+    setIsMySetting(true);
+    localStorage.setItem(SEARCH_DEFAULTS_STORAGE_KEY, JSON.stringify(filterOpts));
+    const supabase = createClient();
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    if (authUser) {
+      await supabase.from("profiles").update({ default_search_options: filterOpts }).eq("id", authUser.id);
+    }
+  }, [filterOpts]);
+
+  const selectAllDisplay = useCallback(() => {
+    setIsMySetting(false);
   }, []);
 
   useEffect(() => {
@@ -294,12 +310,13 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
             <div className="relative" onClick={(e) => e.stopPropagation()}>
               <button
                 type="button"
-                className={`text-[15px] ${filterOpts.region !== "전체" ? "text-black font-bold" : "text-gray-400"}`}
+                disabled={isMySetting}
+                className={`text-[15px] ${isMySetting ? "opacity-50" : ""} ${filterOpts.region !== "전체" ? "text-black font-bold" : "text-gray-400"}`}
                 onClick={() => setOpenMenu(openMenu === "region" ? null : "region")}
               >
                 {filterOpts.region !== "전체" ? filterOpts.region : "전지역"}
               </button>
-              {openMenu === "region" && (
+              {openMenu === "region" && !isMySetting && (
                 <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-60 overflow-y-auto min-w-[80px]">
                   {REGIONS_WITH_ALL.map((r) => (
                     <button
@@ -318,14 +335,15 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
             <div className="relative" onClick={(e) => e.stopPropagation()}>
               <button
                 type="button"
-                className={`text-[15px] ${filterOpts.genre.length > 0 ? "text-black font-bold" : "text-gray-400"}`}
+                disabled={isMySetting}
+                className={`text-[15px] ${isMySetting ? "opacity-50" : ""} ${filterOpts.genre.length > 0 ? "text-black font-bold" : "text-gray-400"}`}
                 onClick={() => setOpenMenu(openMenu === "genre" ? null : "genre")}
               >
                 {filterOpts.genre.length > 0
                   ? GENRES.find((g) => g.value === filterOpts.genre[0])?.label ?? filterOpts.genre[0]
                   : "모든장르"}
               </button>
-              {openMenu === "genre" && (
+              {openMenu === "genre" && !isMySetting && (
                 <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-[80px]">
                   <button
                     type="button"
@@ -351,14 +369,15 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
             <div className="relative" onClick={(e) => e.stopPropagation()}>
               <button
                 type="button"
-                className={`text-[15px] ${filterOpts.class_type.length > 0 ? "text-black font-bold" : "text-gray-400"}`}
+                disabled={isMySetting}
+                className={`text-[15px] ${isMySetting ? "opacity-50" : ""} ${filterOpts.class_type.length > 0 ? "text-black font-bold" : "text-gray-400"}`}
                 onClick={() => setOpenMenu(openMenu === "class_type" ? null : "class_type")}
               >
                 {filterOpts.class_type.length > 0
                   ? CLASS_TYPES.find((t) => t.value === filterOpts.class_type[0])?.label ?? filterOpts.class_type[0]
                   : "행사/수업들"}
               </button>
-              {openMenu === "class_type" && (
+              {openMenu === "class_type" && !isMySetting && (
                 <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-[80px]">
                   <button
                     type="button"
@@ -380,6 +399,15 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
                 </div>
               )}
             </div>
+
+            <button
+              type="button"
+              aria-label={isMySetting ? "필터 잠금 해제" : "필터 잠금"}
+              className={`ml-auto shrink-0 ${isMySetting ? "text-black font-bold" : "text-gray-500"}`}
+              onClick={() => isMySetting ? selectAllDisplay() : selectMyDisplay()}
+            >
+              {isMySetting ? <Lock size={20} strokeWidth={2.5} /> : <LockOpen size={20} />}
+            </button>
           </div>
           <HomeSearchResultsPage
             initialClasses={initialClasses}
