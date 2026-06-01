@@ -3,7 +3,13 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, LayoutGrid, Plus, Presentation, Search } from "lucide-react";
-import { SEARCH_DEFAULTS_STORAGE_KEY, type SearchOptions, DEFAULT_SEARCH_OPTIONS, getPeriodOptions, CLASS_TYPES } from "@/lib/search-defaults";
+import {
+  SEARCH_DEFAULTS_STORAGE_KEY,
+  type SearchOptions,
+  DEFAULT_SEARCH_OPTIONS,
+  getPeriodOptions,
+  CLASS_TYPES,
+} from "@/lib/search-defaults";
 import { GENRES, REGIONS_WITH_ALL } from "@/lib/constants";
 import { ClassWithHost } from "@/components/class/ClassCard";
 import CachedClassDetailPage from "@/components/class/CachedClassDetailPage";
@@ -55,7 +61,9 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
   const [classDetailId, setClassDetailId] = useState<string | null>(null);
   const [allViewMode, setAllViewMode] = useState<"grid" | "card">("card");
   const [filterOpts, setFilterOpts] = useState<SearchOptions>(DEFAULT_SEARCH_OPTIONS);
-  const [openMenu, setOpenMenu] = useState<"region" | "period" | "genre" | "class_type" | null>(null);
+  const [openMenu, setOpenMenu] = useState<"region" | "period" | "genre" | "class_type" | null>(
+    null
+  );
   const [isMySetting, setIsMySetting] = useState(false);
   const isChromeVisible = useScrollChromeVisibility(true);
   const router = useRouter();
@@ -73,16 +81,20 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
         };
         return {
           ...DEFAULT_SEARCH_OPTIONS,
-          region: parsed.region === "없음" ? "전체" : parsed.region ?? "전체",
+          region: parsed.region === "없음" ? "전체" : (parsed.region ?? "전체"),
           period: parsed.period ?? "전체",
           venue: parsed.venue ?? "전체",
           genre: Array.isArray(parsed.genre) ? parsed.genre : parsed.genre ? [parsed.genre] : [],
           class_type: Array.isArray(parsed.class_type) ? parsed.class_type : [],
         };
-      } catch { return DEFAULT_SEARCH_OPTIONS; }
+      } catch {
+        return DEFAULT_SEARCH_OPTIONS;
+      }
     }
     queueMicrotask(() => setFilterOpts(readOpts()));
-    function handleChange() { setFilterOpts(readOpts()); }
+    function handleChange() {
+      setFilterOpts(readOpts());
+    }
     window.addEventListener("close-search-sheet", handleChange);
     window.addEventListener("search-filter-change", handleChange);
     return () => {
@@ -99,7 +111,9 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
 
   useEffect(() => {
     if (!openMenu) return;
-    function handleClick() { setOpenMenu(null); }
+    function handleClick() {
+      setOpenMenu(null);
+    }
     document.addEventListener("click", handleClick);
     return () => document.removeEventListener("click", handleClick);
   }, [openMenu]);
@@ -125,26 +139,29 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
     }
   }, []);
 
-  const fetchHomeMyClasses = useCallback(async (uid: string, silent?: boolean) => {
-    if (!silent) {
-      setMyClassesLoading(true);
-      setParticipatingClassesLoading(true);
-    }
-    try {
-      const res = await fetch("/api/home/my-classes");
-      if (!res.ok) return;
-      const json = await res.json() as HomeMyClassesPayload;
-      applyHomeMyClassesPayload(json);
+  const fetchHomeMyClasses = useCallback(
+    async (uid: string, silent?: boolean) => {
+      if (!silent) {
+        setMyClassesLoading(true);
+        setParticipatingClassesLoading(true);
+      }
       try {
-        localStorage.setItem(getHomeMyClassesCacheKey(uid), JSON.stringify(json));
-      } catch {}
-      void fetchFriendClasses(uid, silent);
-    } catch {
-    } finally {
-      setMyClassesLoading(false);
-      setParticipatingClassesLoading(false);
-    }
-  }, [applyHomeMyClassesPayload, fetchFriendClasses]);
+        const res = await fetch("/api/home/my-classes");
+        if (!res.ok) return;
+        const json = (await res.json()) as HomeMyClassesPayload;
+        applyHomeMyClassesPayload(json);
+        try {
+          localStorage.setItem(getHomeMyClassesCacheKey(uid), JSON.stringify(json));
+        } catch {}
+        void fetchFriendClasses(uid, silent);
+      } catch {
+      } finally {
+        setMyClassesLoading(false);
+        setParticipatingClassesLoading(false);
+      }
+    },
+    [applyHomeMyClassesPayload, fetchFriendClasses]
+  );
 
   useEffect(() => {
     if (!userId) {
@@ -157,7 +174,7 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
     let cachedPayload: HomeMyClassesPayload | null = null;
     try {
       const raw = localStorage.getItem(getHomeMyClassesCacheKey(userId));
-      cachedPayload = raw ? JSON.parse(raw) as HomeMyClassesPayload : null;
+      cachedPayload = raw ? (JSON.parse(raw) as HomeMyClassesPayload) : null;
     } catch {
       cachedPayload = null;
     }
@@ -207,9 +224,7 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
         }`}
       >
         <div className="relative h-14 px-4 flex items-center">
-          <div className="font-black text-[22px] text-[#4d4d4d] leading-none">
-            클래스
-          </div>
+          <div className="font-black text-[22px] text-[#4d4d4d] leading-none">클래스</div>
           <button
             type="button"
             aria-label="클래스 만들기"
@@ -259,7 +274,7 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
               type="button"
               aria-label={allViewMode === "grid" ? "카드 보기" : "격자 보기"}
               className="ml-auto pb-2 text-gray-400"
-              onClick={() => setAllViewMode((v) => v === "grid" ? "card" : "grid")}
+              onClick={() => setAllViewMode((v) => (v === "grid" ? "card" : "grid"))}
             >
               {allViewMode === "grid" ? (
                 <Presentation size={20} strokeWidth={1.9} />
@@ -273,127 +288,155 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
 
       {activeTab === "allClasses" && (
         <>
-          {(filterOpts.region !== "전체" || filterOpts.period !== "전체" || filterOpts.genre.length > 0 || filterOpts.class_type.length > 0) && (
-          <div className="px-4 py-2 flex items-center gap-3">
-            <div className="relative" onClick={(e) => e.stopPropagation()}>
-              <button
-                type="button"
-                disabled={isMySetting}
-                className={`text-[13px] px-2.5 py-1 rounded-full ${isMySetting ? "opacity-50" : ""} ${filterOpts.region !== "전체" ? "bg-black text-white font-bold" : "bg-gray-100 text-gray-400"}`}
-                onClick={() => setOpenMenu(openMenu === "region" ? null : "region")}
-              >
-                {filterOpts.region !== "전체" ? filterOpts.region : "전지역"}
-              </button>
-              {openMenu === "region" && !isMySetting && (
-                <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-60 overflow-y-auto min-w-[80px]">
-                  {REGIONS_WITH_ALL.map((r) => (
-                    <button
-                      key={r}
-                      type="button"
-                      className={`block w-full text-left px-3 py-2 text-sm whitespace-nowrap ${filterOpts.region === r ? "text-black font-bold bg-gray-50" : "text-gray-600"}`}
-                      onClick={() => { updateFilter({ ...filterOpts, region: r, venue: "전체" }); setOpenMenu(null); }}
-                    >
-                      {r}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+          {(filterOpts.region !== "전체" ||
+            filterOpts.period !== "전체" ||
+            filterOpts.genre.length > 0 ||
+            filterOpts.class_type.length > 0) && (
+            <div className="px-4 py-2 flex items-center gap-3">
+              <div className="relative" onClick={(e) => e.stopPropagation()}>
+                <button
+                  type="button"
+                  disabled={isMySetting}
+                  className={`text-[13px] px-2.5 py-1 rounded-full ${isMySetting ? "opacity-50" : ""} ${filterOpts.region !== "전체" ? "bg-black text-white font-bold" : "bg-gray-100 text-gray-400"}`}
+                  onClick={() => setOpenMenu(openMenu === "region" ? null : "region")}
+                >
+                  {filterOpts.region !== "전체" ? filterOpts.region : "전지역"}
+                </button>
+                {openMenu === "region" && !isMySetting && (
+                  <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-60 overflow-y-auto min-w-[80px]">
+                    {REGIONS_WITH_ALL.map((r) => (
+                      <button
+                        key={r}
+                        type="button"
+                        className={`block w-full text-left px-3 py-2 text-sm whitespace-nowrap ${filterOpts.region === r ? "text-black font-bold bg-gray-50" : "text-gray-600"}`}
+                        onClick={() => {
+                          updateFilter({ ...filterOpts, region: r, venue: "전체" });
+                          setOpenMenu(null);
+                        }}
+                      >
+                        {r}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
 
-            <div className="relative" onClick={(e) => e.stopPropagation()}>
-              <button
-                type="button"
-                disabled={isMySetting}
-                className={`text-[13px] px-2.5 py-1 rounded-full ${isMySetting ? "opacity-50" : ""} ${filterOpts.period !== "전체" ? "bg-black text-white font-bold" : "bg-gray-100 text-gray-400"}`}
-                onClick={() => setOpenMenu(openMenu === "period" ? null : "period")}
-              >
-                {periodOptions.find((p) => p.value === filterOpts.period)?.label ?? "전체"}
-              </button>
-              {openMenu === "period" && !isMySetting && (
-                <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-60 overflow-y-auto min-w-[80px]">
-                  {periodOptions.map((p) => (
-                    <button
-                      key={p.value}
-                      type="button"
-                      className={`block w-full text-left px-3 py-2 text-sm whitespace-nowrap ${filterOpts.period === p.value ? "text-black font-bold bg-gray-50" : "text-gray-600"}`}
-                      onClick={() => { updateFilter({ ...filterOpts, period: p.value }); setOpenMenu(null); }}
-                    >
-                      {p.label}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+              <div className="relative" onClick={(e) => e.stopPropagation()}>
+                <button
+                  type="button"
+                  disabled={isMySetting}
+                  className={`text-[13px] px-2.5 py-1 rounded-full ${isMySetting ? "opacity-50" : ""} ${filterOpts.period !== "전체" ? "bg-black text-white font-bold" : "bg-gray-100 text-gray-400"}`}
+                  onClick={() => setOpenMenu(openMenu === "period" ? null : "period")}
+                >
+                  {periodOptions.find((p) => p.value === filterOpts.period)?.label ?? "전체"}
+                </button>
+                {openMenu === "period" && !isMySetting && (
+                  <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-60 overflow-y-auto min-w-[80px]">
+                    {periodOptions.map((p) => (
+                      <button
+                        key={p.value}
+                        type="button"
+                        className={`block w-full text-left px-3 py-2 text-sm whitespace-nowrap ${filterOpts.period === p.value ? "text-black font-bold bg-gray-50" : "text-gray-600"}`}
+                        onClick={() => {
+                          updateFilter({ ...filterOpts, period: p.value });
+                          setOpenMenu(null);
+                        }}
+                      >
+                        {p.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
 
-            <div className="relative" onClick={(e) => e.stopPropagation()}>
-              <button
-                type="button"
-                disabled={isMySetting}
-                className={`text-[13px] px-2.5 py-1 rounded-full ${isMySetting ? "opacity-50" : ""} ${filterOpts.genre.length > 0 ? "bg-black text-white font-bold" : "bg-gray-100 text-gray-400"}`}
-                onClick={() => setOpenMenu(openMenu === "genre" ? null : "genre")}
-              >
-                {filterOpts.genre.length > 0
-                  ? GENRES.find((g) => g.value === filterOpts.genre[0])?.label ?? filterOpts.genre[0]
-                  : "모든장르"}
-              </button>
-              {openMenu === "genre" && !isMySetting && (
-                <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-[80px]">
-                  <button
-                    type="button"
-                    className={`block w-full text-left px-3 py-2 text-sm whitespace-nowrap ${filterOpts.genre.length === 0 ? "text-black font-bold bg-gray-50" : "text-gray-600"}`}
-                    onClick={() => { updateFilter({ ...filterOpts, genre: [] }); setOpenMenu(null); }}
-                  >
-                    전체
-                  </button>
-                  {GENRES.map((g) => (
+              <div className="relative" onClick={(e) => e.stopPropagation()}>
+                <button
+                  type="button"
+                  disabled={isMySetting}
+                  className={`text-[13px] px-2.5 py-1 rounded-full ${isMySetting ? "opacity-50" : ""} ${filterOpts.genre.length > 0 ? "bg-black text-white font-bold" : "bg-gray-100 text-gray-400"}`}
+                  onClick={() => setOpenMenu(openMenu === "genre" ? null : "genre")}
+                >
+                  {filterOpts.genre.length > 0
+                    ? (GENRES.find((g) => g.value === filterOpts.genre[0])?.label ??
+                      filterOpts.genre[0])
+                    : "모든장르"}
+                </button>
+                {openMenu === "genre" && !isMySetting && (
+                  <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-[80px]">
                     <button
-                      key={g.value}
                       type="button"
-                      className={`block w-full text-left px-3 py-2 text-sm whitespace-nowrap ${filterOpts.genre.includes(g.value) ? "text-black font-bold bg-gray-50" : "text-gray-600"}`}
-                      onClick={() => { updateFilter({ ...filterOpts, genre: filterOpts.genre.includes(g.value) ? [] : [g.value] }); setOpenMenu(null); }}
+                      className={`block w-full text-left px-3 py-2 text-sm whitespace-nowrap ${filterOpts.genre.length === 0 ? "text-black font-bold bg-gray-50" : "text-gray-600"}`}
+                      onClick={() => {
+                        updateFilter({ ...filterOpts, genre: [] });
+                        setOpenMenu(null);
+                      }}
                     >
-                      {g.label}
+                      전체
                     </button>
-                  ))}
-                </div>
-              )}
-            </div>
+                    {GENRES.map((g) => (
+                      <button
+                        key={g.value}
+                        type="button"
+                        className={`block w-full text-left px-3 py-2 text-sm whitespace-nowrap ${filterOpts.genre.includes(g.value) ? "text-black font-bold bg-gray-50" : "text-gray-600"}`}
+                        onClick={() => {
+                          updateFilter({
+                            ...filterOpts,
+                            genre: filterOpts.genre.includes(g.value) ? [] : [g.value],
+                          });
+                          setOpenMenu(null);
+                        }}
+                      >
+                        {g.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
 
-            <div className="relative" onClick={(e) => e.stopPropagation()}>
-              <button
-                type="button"
-                disabled={isMySetting}
-                className={`text-[13px] px-2.5 py-1 rounded-full ${isMySetting ? "opacity-50" : ""} ${filterOpts.class_type.length > 0 ? "bg-black text-white font-bold" : "bg-gray-100 text-gray-400"}`}
-                onClick={() => setOpenMenu(openMenu === "class_type" ? null : "class_type")}
-              >
-                {filterOpts.class_type.length > 0
-                  ? CLASS_TYPES.find((t) => t.value === filterOpts.class_type[0])?.label ?? filterOpts.class_type[0]
-                  : "행사/수업들"}
-              </button>
-              {openMenu === "class_type" && !isMySetting && (
-                <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-[80px]">
-                  <button
-                    type="button"
-                    className={`block w-full text-left px-3 py-2 text-sm whitespace-nowrap ${filterOpts.class_type.length === 0 ? "text-black font-bold bg-gray-50" : "text-gray-600"}`}
-                    onClick={() => { updateFilter({ ...filterOpts, class_type: [] }); setOpenMenu(null); }}
-                  >
-                    전체
-                  </button>
-                  {CLASS_TYPES.map((t) => (
+              <div className="relative" onClick={(e) => e.stopPropagation()}>
+                <button
+                  type="button"
+                  disabled={isMySetting}
+                  className={`text-[13px] px-2.5 py-1 rounded-full ${isMySetting ? "opacity-50" : ""} ${filterOpts.class_type.length > 0 ? "bg-black text-white font-bold" : "bg-gray-100 text-gray-400"}`}
+                  onClick={() => setOpenMenu(openMenu === "class_type" ? null : "class_type")}
+                >
+                  {filterOpts.class_type.length > 0
+                    ? (CLASS_TYPES.find((t) => t.value === filterOpts.class_type[0])?.label ??
+                      filterOpts.class_type[0])
+                    : "행사/수업들"}
+                </button>
+                {openMenu === "class_type" && !isMySetting && (
+                  <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-[80px]">
                     <button
-                      key={t.value}
                       type="button"
-                      className={`block w-full text-left px-3 py-2 text-sm whitespace-nowrap ${filterOpts.class_type.includes(t.value) ? "text-black font-bold bg-gray-50" : "text-gray-600"}`}
-                      onClick={() => { updateFilter({ ...filterOpts, class_type: filterOpts.class_type.includes(t.value) ? [] : [t.value] }); setOpenMenu(null); }}
+                      className={`block w-full text-left px-3 py-2 text-sm whitespace-nowrap ${filterOpts.class_type.length === 0 ? "text-black font-bold bg-gray-50" : "text-gray-600"}`}
+                      onClick={() => {
+                        updateFilter({ ...filterOpts, class_type: [] });
+                        setOpenMenu(null);
+                      }}
                     >
-                      {t.label}
+                      전체
                     </button>
-                  ))}
-                </div>
-              )}
+                    {CLASS_TYPES.map((t) => (
+                      <button
+                        key={t.value}
+                        type="button"
+                        className={`block w-full text-left px-3 py-2 text-sm whitespace-nowrap ${filterOpts.class_type.includes(t.value) ? "text-black font-bold bg-gray-50" : "text-gray-600"}`}
+                        onClick={() => {
+                          updateFilter({
+                            ...filterOpts,
+                            class_type: filterOpts.class_type.includes(t.value) ? [] : [t.value],
+                          });
+                          setOpenMenu(null);
+                        }}
+                      >
+                        {t.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
-
-          </div>
           )}
           <HomeSearchResultsPage
             initialClasses={initialClasses}
@@ -433,7 +476,7 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
 
       <div
         className={`fixed inset-0 z-[70] bg-white flex flex-col transition-transform duration-300 ease-in-out ${
-          classDetailId ? "translate-x-0" : "-translate-x-full"
+          classDetailId ? "translate-x-0" : "translate-x-full"
         }`}
       >
         <header className="sticky top-0 z-50 bg-white h-14 px-4 relative">
@@ -450,7 +493,12 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
           </div>
         </header>
         <div className="flex-1 overflow-y-auto">
-          {classDetailId && <CachedClassDetailPage classIdOverride={classDetailId} onClose={() => setClassDetailId(null)} />}
+          {classDetailId && (
+            <CachedClassDetailPage
+              classIdOverride={classDetailId}
+              onClose={() => setClassDetailId(null)}
+            />
+          )}
         </div>
       </div>
     </>
