@@ -56,6 +56,8 @@ function formatDate(dateStr: string) {
 export default function ClassCard({ classData, priorityImage = false, isFirst = false, onClassSelect }: ClassCardProps) {
   const { id, host_id, title, genres, level, datetime, region, status, images, host, description } =
     classData;
+  const titleChars = Array.from(title);
+  const cardTitle = titleChars.length > 20 ? titleChars.slice(0, 20).join("") : title;
   const [expanded, setExpanded] = useState(false);
   const [imgIndex, setImgIndex] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -729,7 +731,7 @@ export default function ClassCard({ classData, priorityImage = false, isFirst = 
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5">
                 <span className="min-w-0 truncate text-[16px] font-bold leading-tight text-gray-900">
-                  {title}
+                  {cardTitle}
                 </span>
                 <button
                   type="button"
@@ -811,12 +813,12 @@ export default function ClassCard({ classData, priorityImage = false, isFirst = 
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5">
                     <span className="min-w-0 truncate text-[16px] font-bold leading-tight text-white">
-                      {title}
+                      {cardTitle}
                     </span>
                     <button
                       type="button"
                       onClick={() => onClassSelect ? onClassSelect(id) : router.push(`/classes/${id}`)}
-                      className="text-[11px] font-bold text-white shrink-0 px-2 py-0.5 rounded-full bg-white/30 leading-tight"
+                      className="text-[11px] font-bold text-white shrink-0 px-2 py-0.5 rounded-full bg-black leading-tight"
                     >
                       상세보기
                     </button>
@@ -1020,21 +1022,8 @@ export default function ClassCard({ classData, priorityImage = false, isFirst = 
             <span className="min-w-0 flex-1 truncate text-left">
               <span className="font-bold" style={{ fontSize: "16px", color: "rgba(0,0,0,0.8)" }}>{comment.nickname}</span>
               {" "}
-              <span style={{ fontSize: "16px", color: "rgba(0,0,0,0.6)" }}>{comment.content}</span>
+              <span style={{ fontSize: "16px", color: "rgba(0,0,0,0.9)" }}>{comment.content}</span>
             </span>
-            {comment.like_count > 0 && (
-              <span className="flex flex-shrink-0 items-center gap-0.5">
-                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="#ff3b5c" stroke="#ff3b5c" strokeWidth="1.5">
-                  <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
-                </svg>
-                <span className="text-[11px]" style={{ color: "#ff3b5c" }}>{comment.like_count}</span>
-              </span>
-            )}
-            {comment.like_count === 0 && (
-              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="#ff3b5c" stroke="#ff3b5c" strokeWidth="2" className="flex-shrink-0">
-                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
-              </svg>
-            )}
           </button>
         ))}
         <div className="h-3" />
