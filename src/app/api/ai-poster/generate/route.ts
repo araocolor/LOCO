@@ -6,7 +6,15 @@ import type { AiPosterSourceImage } from "@/types/ai-poster";
 
 const POSTER_IMAGE_BUCKET = "class-images";
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+function createOpenAIClient() {
+  const apiKey = process.env.OPENAI_API_KEY;
+
+  if (!apiKey) {
+    throw new Error("OPENAI_API_KEY 환경 변수가 설정되지 않았습니다.");
+  }
+
+  return new OpenAI({ apiKey });
+}
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
@@ -71,6 +79,7 @@ export async function POST(request: NextRequest) {
     };
 
     const admin = createAdminClient();
+    const openai = createOpenAIClient();
 
     const imageFiles = await Promise.all(
       sourceImages.map(async (img, i) => {
