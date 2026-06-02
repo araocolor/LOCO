@@ -1,5 +1,4 @@
 import Image from "next/image";
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import type { Metadata } from "next";
 import ClassHeader from "@/components/layout/ClassHeader";
@@ -9,6 +8,7 @@ import type {
   AiPosterOptions,
   AiPosterSourceImage,
 } from "@/types/ai-poster";
+import AiPosterReviewEditable from "./review-editable";
 
 export const metadata: Metadata = { title: "프롬프트 확인하기" };
 
@@ -112,17 +112,12 @@ export default async function AiPosterReviewPage({
             </div>
           </section>
 
-          <section className="rounded-2xl bg-white p-4 shadow-sm">
-            <h2 className="text-base font-bold text-[#111111]">정리된 정보</h2>
-            <div className="mt-4 space-y-3">
-              {renderInfoLine("제목", title)}
-              {renderInfoLine("수업 소개", extractedFields.summary)}
-              {renderInfoLine("모집기간", extractedFields.recruitDeadline)}
-              {renderInfoLine("장소", extractedFields.location)}
-              {renderInfoLine("회비", extractedFields.fee)}
-              {renderInfoLine("연락처", extractedFields.contact)}
-            </div>
-          </section>
+          <AiPosterReviewEditable
+            requestId={requestId}
+            initialTitle={title}
+            initialExtractedFields={extractedFields}
+            initialPromptText={promptText}
+          />
 
           <section className="rounded-2xl bg-white p-4 shadow-sm">
             <h2 className="text-base font-bold text-[#111111]">선택한 옵션</h2>
@@ -133,24 +128,8 @@ export default async function AiPosterReviewPage({
               {renderInfoLine("비율", options.ratio)}
             </div>
           </section>
-
-          <section className="rounded-2xl bg-white p-4 shadow-sm">
-            <h2 className="text-base font-bold text-[#111111]">AI에 전달될 최종 프롬프트</h2>
-            <pre className="mt-4 whitespace-pre-wrap rounded-2xl bg-[#111111] px-4 py-4 text-sm leading-6 text-white">
-              {promptText}
-            </pre>
-          </section>
         </div>
       </main>
-
-      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-[#e5e7eb] bg-white px-4 py-3">
-        <div className="mx-auto flex w-full max-w-[520px] gap-3">
-          <Link href="/classes/new/ai-poster" className="btn-outline flex-1 text-center">
-            다시 수정하기
-          </Link>
-          <div className="btn-primary flex-1 text-center opacity-70">저장 완료</div>
-        </div>
-      </div>
     </div>
   );
 }
