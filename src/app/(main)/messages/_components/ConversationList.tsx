@@ -2,6 +2,7 @@
 
 import { useCallback } from "react";
 import Image from "next/image";
+import { MessageCirclePlus } from "lucide-react";
 import type { Conversation, MessageMenuTab, MyProfile } from "../_types";
 import { getMessagePreviewText, parseMessageContent } from "../_lib/message-content";
 import MessageFriendsPanel from "./MessageFriendsPanel";
@@ -16,6 +17,7 @@ interface ConversationListProps {
   onOpenSelfChat: () => void;
   onOpenProfile: (userId: string) => void;
   onFriendMessageSent: (roomId: string) => void;
+  onCreateChat?: () => void;
   setActiveMenuTab: (tab: MessageMenuTab) => void;
   formatDate: (dateStr: string) => string;
   truncateMessage: (content: string, length?: number) => string;
@@ -31,6 +33,7 @@ export default function ConversationList({
   onOpenProfile,
   onOpenSelfChat,
   onFriendMessageSent,
+  onCreateChat,
   setActiveMenuTab,
   formatDate,
   truncateMessage,
@@ -55,39 +58,46 @@ export default function ConversationList({
 
   return (
     <>
-      <div className="flex pl-4 pr-4 gap-2 pb-2 overflow-x-auto scrollbar-hide whitespace-nowrap">
-          <button
-            onClick={() => setActiveMenuTab("friends")}
-            className={`px-3.5 py-1.5 rounded-full text-[14px] font-semibold transition-colors ${
-              activeMenuTab === "friends" ? "bg-black text-white" : "bg-gray-100 text-black/60"
-            }`}
-          >
-            친구들
-          </button>
-          <button
-            onClick={() => setActiveMenuTab("direct")}
-            className={`px-3.5 py-1.5 rounded-full text-[14px] font-semibold transition-colors ${
-              activeMenuTab === "direct" ? "bg-black text-white" : "bg-gray-100 text-black/60"
-            }`}
-          >
-            1:1
-          </button>
-          <button
-            onClick={() => setActiveMenuTab("groups")}
-            className={`px-3.5 py-1.5 rounded-full text-[14px] font-semibold transition-colors ${
-              activeMenuTab === "groups" ? "bg-black text-white" : "bg-gray-100 text-black/60"
-            }`}
-          >
-            그룹
-          </button>
-          <button
-            onClick={() => setActiveMenuTab("class")}
-            className={`px-3.5 py-1.5 rounded-full text-[14px] font-semibold transition-colors ${
-              activeMenuTab === "class" ? "bg-black text-white" : "bg-gray-100 text-black/60"
-            }`}
-          >
-            클래스
-          </button>
+      <div className="flex pl-4 pr-4 gap-2 pb-2 items-center">
+          <div className="flex gap-2 overflow-x-auto scrollbar-hide whitespace-nowrap flex-1">
+            <button
+              onClick={() => setActiveMenuTab("friends")}
+              className={`px-3.5 py-1.5 rounded-full text-[14px] font-semibold transition-colors ${
+                activeMenuTab === "friends" ? "bg-black text-white" : "bg-gray-100 text-black/60"
+              }`}
+            >
+              친구들
+            </button>
+            <button
+              onClick={() => setActiveMenuTab("direct")}
+              className={`px-3.5 py-1.5 rounded-full text-[14px] font-semibold transition-colors ${
+                activeMenuTab === "direct" ? "bg-black text-white" : "bg-gray-100 text-black/60"
+              }`}
+            >
+              1:1
+            </button>
+            <button
+              onClick={() => setActiveMenuTab("groups")}
+              className={`px-3.5 py-1.5 rounded-full text-[14px] font-semibold transition-colors ${
+                activeMenuTab === "groups" ? "bg-black text-white" : "bg-gray-100 text-black/60"
+              }`}
+            >
+              그룹
+            </button>
+            <button
+              onClick={() => setActiveMenuTab("class")}
+              className={`px-3.5 py-1.5 rounded-full text-[14px] font-semibold transition-colors ${
+                activeMenuTab === "class" ? "bg-black text-white" : "bg-gray-100 text-black/60"
+              }`}
+            >
+              클래스
+            </button>
+          </div>
+          {onCreateChat && (
+            <button type="button" onClick={onCreateChat} className="shrink-0 ml-1">
+              <MessageCirclePlus size={24} className="text-[#4d4d4d]" />
+            </button>
+          )}
       </div>
 
       <div className="flex-1 overflow-y-auto">

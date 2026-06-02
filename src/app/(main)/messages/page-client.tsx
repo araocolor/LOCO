@@ -8,6 +8,7 @@ import { PRESENCE_EVENT } from "@/components/features/PresenceTracker";
 import ConversationList from "./_components/ConversationList";
 import ChatDrawer from "./_components/ChatDrawer";
 import ChatMemberDrawer from "./_components/ChatMemberDrawer";
+import CreateChatDrawer from "./_components/CreateChatDrawer";
 import type { ChatNotice, Conversation, Message, MessageMenuTab, MessageReactionType, MyProfile, OtherUser } from "./_types";
 import { useChatNotices } from "./_hooks/useChatNotices";
 import {
@@ -155,6 +156,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
   const [chatLoading, setChatLoading] = useState(false);
   const [newMessage, setNewMessage] = useState("");
   const [memberDrawerOpen, setMemberDrawerOpen] = useState(false);
+  const [createChatOpen, setCreateChatOpen] = useState(false);
   const [attachOpen, setAttachOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [shakingMsgId, setShakingMsgId] = useState<string | null>(null);
@@ -1190,6 +1192,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
         onFriendMessageSent={(roomId) => {
           void handleFriendMessageSent(roomId);
         }}
+        onCreateChat={() => setCreateChatOpen(true)}
         setActiveMenuTab={setActiveMenuTab}
         formatDate={formatDate}
         truncateMessage={truncateMessage}
@@ -1262,6 +1265,16 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
         onClose={() => setMemberDrawerOpen(false)}
         onMemberAdded={(room) => {
           patchConversationWithRoom(room);
+        }}
+      />
+      <CreateChatDrawer
+        open={createChatOpen}
+        onClose={() => setCreateChatOpen(false)}
+        onRoomCreated={(roomId) => {
+          setCreateChatOpen(false);
+          void fetchConversationsByType("direct", { force: true });
+          void fetchConversationsByType("group", { force: true });
+          void openChat(roomId);
         }}
       />
     </div>
