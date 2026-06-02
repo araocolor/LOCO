@@ -36,12 +36,11 @@ export default function ImageFullscreen({ src, alt = "AI 포스터", onClose }: 
       <button
         type="button"
         onClick={(e) => { e.stopPropagation(); onClose(); }}
-        className="absolute top-safe-or-4 right-4 z-[110] flex h-10 w-10 items-center justify-center rounded-full bg-white/20 text-white"
-        style={{ top: "max(env(safe-area-inset-top, 16px), 16px)" }}
+        className="absolute right-4 top-4 z-[110] flex h-11 w-11 items-center justify-center rounded-full bg-white/80 text-black shadow-lg"
         aria-label="닫기"
       >
-        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-          <path d="M5 5l10 10M15 5L5 15" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+          <path d="M6 6l10 10M16 6L6 16" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
         </svg>
       </button>
     </div>
