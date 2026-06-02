@@ -3,6 +3,17 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 const PAGE_SIZE = 30;
+type NotificationTab = "class" | "comment" | "heart";
+
+const NOTIFICATION_TYPES_BY_TAB: Record<NotificationTab, string[]> = {
+  class: ["friend_class_created", "star_gift_received", "class_application"],
+  comment: ["class_comment", "comment_reply"],
+  heart: ["class_like"],
+};
+
+function getNotificationTab(value: string | null): NotificationTab {
+  return value === "comment" || value === "heart" ? value : "class";
+}
 
 interface NotificationRow {
   id: string;
@@ -36,23 +47,24 @@ export async function GET(request: NextRequest) {
   }
 
   const page = Number(request.nextUrl.searchParams.get("page") ?? "0");
+  const tab = getNotificationTab(request.nextUrl.searchParams.get("tab"));
   const admin = createAdminClient();
 
   const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-  await admin
+  void admin
     .from("notifications")
     .update({ is_read: true })
     .eq("user_id", user.id)
     .eq("is_read", false)
     .lt("created_at", oneWeekAgo);
 
-  const { data, error, count } = await admin
+  const { data, error } = await admin
     .from("notifications")
     .select(
-      "id, type, ref_id, meta, is_read, created_at, actor:profiles!actor_id(id, nickname, profile_image_url)",
-      { count: "exact" }
+      "id, type, ref_id, meta, is_read, created_at, actor:profiles!actor_id(id, nickname, profile_image_url)"
     )
     .eq("user_id", user.id)
+    .in("type", NOTIFICATION_TYPES_BY_TAB[tab])
     .order("created_at", { ascending: false })
     .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1)
     .returns<NotificationRow[]>();
@@ -110,7 +122,6 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json({
     notifications,
-    total: count ?? 0,
-    hasMore: (count ?? 0) > (page + 1) * PAGE_SIZE,
+    hasMore: rows.length === PAGE_SIZE,
   });
 }

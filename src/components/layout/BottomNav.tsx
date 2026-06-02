@@ -74,12 +74,20 @@ const NAV_ITEMS: {
 export default function BottomNav() {
   const pathname = usePathname();
   const [hydrated, setHydrated] = useState(false);
-  const shouldAutoHide = true;
+  const [hasUnreadNotifications, setHasUnreadNotifications] = useState(false);
+  const shouldAutoHide = pathname === "/";
   const isChromeVisible = useScrollChromeVisibility(shouldAutoHide);
   const activeTab = useSyncExternalStore(subscribeMainTab, getMainTab, () => "home" as const);
 
   useEffect(() => {
     queueMicrotask(() => setHydrated(true));
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/notifications/unread-count")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json) => setHasUnreadNotifications((json?.count ?? 0) > 0))
+      .catch(() => {});
   }, []);
 
   if (pathname.startsWith("/classes/") || pathname.startsWith("/users/")) return null;
@@ -104,7 +112,12 @@ export default function BottomNav() {
             className={className}
             style={isActive ? { color: activeColor } : undefined}
           >
-            {renderIcon(isActive)}
+            <span className="relative">
+              {renderIcon(isActive)}
+              {tabId === "notifications" && !isActive && hasUnreadNotifications && (
+                <span className="absolute right-0.5 top-0.5 h-2.5 w-2.5 rounded-full bg-red-500" />
+              )}
+            </span>
             <span className="sr-only">{label}</span>
           </button>
         );

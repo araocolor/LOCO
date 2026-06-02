@@ -395,7 +395,7 @@ export default function UserProfileModal({ userId, onClose, initialProfile = nul
               </div>
             )}
             {profileData.bio && (
-              <p className="text-[16px] text-gray-600 line-clamp-4 mt-1 whitespace-pre-wrap">
+              <p className="text-[15px] text-gray-600 line-clamp-4 mt-1 whitespace-pre-wrap">
                 {profileData.bio}
               </p>
             )}

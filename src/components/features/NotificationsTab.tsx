@@ -31,13 +31,14 @@ interface NotificationsTabProps {
 
 const NOTIFICATION_CACHE_KEY = "loco_notifications_v1";
 const NOTIFICATION_CACHE_TTL_MS = 3 * 60 * 1000;
+type NotificationTab = "class" | "comment" | "heart";
 
-function getNotificationCacheKey(userId?: string | null) {
-  return userId ? `${NOTIFICATION_CACHE_KEY}:${userId}` : null;
+function getNotificationCacheKey(userId: string | null | undefined, tab: NotificationTab) {
+  return userId ? `${NOTIFICATION_CACHE_KEY}:${userId}:${tab}` : null;
 }
 
-function readNotificationCache(userId?: string | null) {
-  const key = getNotificationCacheKey(userId);
+function readNotificationCache(userId: string | null | undefined, tab: NotificationTab) {
+  const key = getNotificationCacheKey(userId, tab);
   if (!key) return null;
 
   try {
@@ -63,9 +64,10 @@ function readNotificationCache(userId?: string | null) {
 
 function writeNotificationCache(
   userId: string | null | undefined,
+  tab: NotificationTab,
   notifications: NotificationItem[]
 ) {
-  const key = getNotificationCacheKey(userId);
+  const key = getNotificationCacheKey(userId, tab);
   if (!key) return;
 
   try {
@@ -77,12 +79,6 @@ function writeNotificationCache(
       } satisfies NotificationCachePayload)
     );
   } catch {}
-}
-
-function hasStaleApplicationNotification(notifications: NotificationItem[]) {
-  return notifications.some(
-    (item) => item.type === "class_application" && typeof item.meta?.application_id !== "string"
-  );
 }
 
 function formatTime(dateStr: string) {
@@ -151,48 +147,73 @@ function formatMessage(item: NotificationItem): React.ReactNode {
   }
 }
 
-type NotificationTab = "class" | "comment" | "heart";
+const NOTIFICATION_TABS: NotificationTab[] = ["class", "comment", "heart"];
+
+function getEmptyNotificationMap(): Record<NotificationTab, NotificationItem[]> {
+  return { class: [], comment: [], heart: [] };
+}
+
+function getEmptyLoadingMap(): Record<NotificationTab, boolean> {
+  return { class: false, comment: false, heart: false };
+}
+
+function getEmptyLoadedMap(): Record<NotificationTab, boolean> {
+  return { class: false, comment: false, heart: false };
+}
 
 export default function NotificationsTab({ userId }: NotificationsTabProps) {
-  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [notificationsByTab, setNotificationsByTab] =
+    useState<Record<NotificationTab, NotificationItem[]>>(getEmptyNotificationMap);
+  const [loadingMap, setLoadingMap] = useState<Record<NotificationTab, boolean>>(getEmptyLoadingMap);
+  const [loadedTabs, setLoadedTabs] = useState<Record<NotificationTab, boolean>>(getEmptyLoadedMap);
   const [profileModalTarget, setProfileModalTarget] = useState<NotificationItem["actor"]>(null);
-  const [hasFetched, setHasFetched] = useState(false);
   const [activeTab, setActiveTab] = useState<NotificationTab>("class");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [classDetailId, setClassDetailId] = useState<string | null>(null);
 
-  const fetchNotifications = useCallback(async () => {
-    const cachedNotifications = readNotificationCache(userId);
-    if (cachedNotifications && !hasStaleApplicationNotification(cachedNotifications)) {
-      setNotifications(cachedNotifications);
-      setLoading(false);
-      setHasFetched(true);
+  const fetchNotifications = useCallback(async (tab: NotificationTab, silent = false) => {
+    if (loadedTabs[tab]) return;
+
+    const cachedNotifications = readNotificationCache(userId, tab);
+    if (cachedNotifications) {
+      setNotificationsByTab((prev) => ({ ...prev, [tab]: cachedNotifications }));
+      setLoadedTabs((prev) => ({ ...prev, [tab]: true }));
       return;
     }
 
-    setLoading(true);
+    if (!silent) {
+      setLoadingMap((prev) => ({ ...prev, [tab]: true }));
+    }
+
     try {
-      const res = await fetch("/api/notifications?page=0");
+      const res = await fetch(`/api/notifications?page=0&tab=${tab}`);
       if (!res.ok) return;
       const json = await res.json();
       const nextNotifications = json.notifications ?? [];
-      setNotifications(nextNotifications);
-      writeNotificationCache(userId, nextNotifications);
+      setNotificationsByTab((prev) => ({ ...prev, [tab]: nextNotifications }));
+      writeNotificationCache(userId, tab, nextNotifications);
+      setLoadedTabs((prev) => ({ ...prev, [tab]: true }));
     } catch {
     } finally {
-      setLoading(false);
-      setHasFetched(true);
+      if (!silent) {
+        setLoadingMap((prev) => ({ ...prev, [tab]: false }));
+      }
     }
-  }, [userId]);
+  }, [loadedTabs, userId]);
 
   useEffect(() => {
-    if (!hasFetched) {
-      queueMicrotask(() => {
-        void fetchNotifications();
-      });
-    }
-  }, [hasFetched, fetchNotifications]);
+    queueMicrotask(() => {
+      void fetchNotifications(activeTab);
+    });
+  }, [activeTab, fetchNotifications]);
+
+  useEffect(() => {
+    if (!loadedTabs.class || activeTab !== "class") return;
+    queueMicrotask(() => {
+      void fetchNotifications("comment", true);
+      void fetchNotifications("heart", true);
+    });
+  }, [activeTab, fetchNotifications, loadedTabs.class]);
 
   useEffect(() => {
     document.body.style.overflow = settingsOpen || Boolean(classDetailId) ? "hidden" : "";
@@ -202,9 +223,14 @@ export default function NotificationsTab({ userId }: NotificationsTabProps) {
   }, [settingsOpen, classDetailId]);
 
   const markAsRead = async (id: string) => {
-    const nextNotifications = notifications.map((n) => (n.id === id ? { ...n, is_read: true } : n));
-    setNotifications(nextNotifications);
-    writeNotificationCache(userId, nextNotifications);
+    setNotificationsByTab((prev) => {
+      const next = { ...prev };
+      for (const tab of NOTIFICATION_TABS) {
+        next[tab] = prev[tab].map((n) => (n.id === id ? { ...n, is_read: true } : n));
+        if (loadedTabs[tab]) writeNotificationCache(userId, tab, next[tab]);
+      }
+      return next;
+    });
 
     try {
       await fetch("/api/notifications/read", {
@@ -224,14 +250,14 @@ export default function NotificationsTab({ userId }: NotificationsTabProps) {
       const res = await fetch(`/api/applications/${applicationId}`, { method: "PATCH" });
       if (res.ok) {
         setApprovedIds((prev) => new Set(prev).add(applicationId));
-        setNotifications((prev) => {
-          const nextNotifications = prev.map((item) =>
+        setNotificationsByTab((prev) => {
+          const nextNotifications = prev.class.map((item) =>
             item.meta?.application_id === applicationId
               ? { ...item, meta: { ...item.meta, application_status: "approved" } }
               : item
           );
-          writeNotificationCache(userId, nextNotifications);
-          return nextNotifications;
+          writeNotificationCache(userId, "class", nextNotifications);
+          return { ...prev, class: nextNotifications };
         });
       }
     } finally {
@@ -252,14 +278,8 @@ export default function NotificationsTab({ userId }: NotificationsTabProps) {
     }
   };
 
-  const COMMENT_TYPES = new Set(["class_comment", "comment_reply"]);
-  const HEART_TYPES = new Set(["class_like"]);
-  const filteredNotifications =
-    activeTab === "comment"
-      ? notifications.filter((n) => COMMENT_TYPES.has(n.type))
-      : activeTab === "heart"
-        ? notifications.filter((n) => HEART_TYPES.has(n.type))
-        : notifications.filter((n) => !COMMENT_TYPES.has(n.type) && !HEART_TYPES.has(n.type));
+  const filteredNotifications = notificationsByTab[activeTab];
+  const loading = loadingMap[activeTab];
 
   return (
     <>
@@ -323,7 +343,10 @@ export default function NotificationsTab({ userId }: NotificationsTabProps) {
                   <button
                     type="button"
                     className="flex-shrink-0 w-[38px] h-[38px] rounded-full overflow-hidden bg-gray-200"
-                    onClick={() => item.actor?.id && setProfileModalTarget(item.actor)}
+                    onClick={() => {
+                      if (activeTab === "class") void markAsRead(item.id);
+                      if (item.actor?.id) setProfileModalTarget(item.actor);
+                    }}
                   >
                     {item.actor?.profile_image_url ? (
                       <Image
@@ -361,9 +384,7 @@ export default function NotificationsTab({ userId }: NotificationsTabProps) {
                             ? approvedIds.has(appId) || item.meta?.application_status === "approved"
                             : false;
                           return isApproved ? (
-                            <span className="ml-1 whitespace-nowrap rounded-full bg-black/50 px-2 py-0.5 text-[14px] font-medium text-white">
-                              승인완료
-                            </span>
+                            <span className="ml-1 inline-block h-2 w-2 rounded-full bg-green-500 align-middle" aria-label="승인완료" />
                           ) : null;
                         })()}
                     </p>
