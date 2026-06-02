@@ -23,7 +23,7 @@ export default function ImageFullscreen({ src, alt = "AI 포스터", onClose }: 
       className="fixed inset-0 z-[100] flex items-center justify-center bg-black animate-fade-in"
       onClick={onClose}
     >
-      <div className="relative h-full w-full" onClick={(e) => e.stopPropagation()}>
+      <div className="relative h-full w-full" onClick={onClose}>
         <Image
           src={src}
           alt={alt}
