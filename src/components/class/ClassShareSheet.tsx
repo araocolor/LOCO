@@ -143,7 +143,9 @@ export default function ClassShareSheet({ open, classData, onClose, onShared }: 
         </div>
 
         <div className="min-h-[72px] px-4 py-3">
-          {selectedFriends.length > 0 && (
+          {selectedFriends.length === 0 ? (
+            <p className="flex h-full items-end justify-center text-center text-[16px] font-semibold text-gray-900">공유할 친구를 선택하세요</p>
+          ) : (
             <div className="flex gap-3 overflow-x-auto">
               {selectedFriends.map((friend) => (
                 <button key={friend.id} type="button" onClick={() => toggleFriend(friend.id)} className="flex shrink-0 flex-col items-center gap-1">

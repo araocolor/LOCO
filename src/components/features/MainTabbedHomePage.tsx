@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, LayoutGrid, Plus, Presentation, Search } from "lucide-react";
+import { ArrowLeft, LayoutGrid, Plus, Presentation, Search, X } from "lucide-react";
 import {
   SEARCH_DEFAULTS_STORAGE_KEY,
   type SearchOptions,
@@ -108,6 +108,12 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
     localStorage.setItem(SEARCH_DEFAULTS_STORAGE_KEY, JSON.stringify(next));
     window.dispatchEvent(new Event("search-filter-change"));
   }, []);
+
+  const resetFilters = useCallback(() => {
+    updateFilter(DEFAULT_SEARCH_OPTIONS);
+    setOpenMenu(null);
+    setIsMySetting(false);
+  }, [updateFilter]);
 
   useEffect(() => {
     if (!openMenu) return;
@@ -436,16 +442,20 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
                   </div>
                 )}
               </div>
+              <button
+                type="button"
+                aria-label="검색조건 초기화"
+                className="-mr-1 ml-auto flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-500"
+                onClick={resetFilters}
+              >
+                <X size={14} strokeWidth={2.4} />
+              </button>
             </div>
           )}
           <HomeSearchResultsPage
             initialClasses={initialClasses}
             onClassSelect={(id) => setClassDetailId(id)}
-            onResetFilters={() => {
-              setFilterOpts(DEFAULT_SEARCH_OPTIONS);
-              setOpenMenu(null);
-              setIsMySetting(false);
-            }}
+            onResetFilters={resetFilters}
             viewMode={allViewMode}
             regionOverride={filterOpts.region}
             periodOverride={filterOpts.period}

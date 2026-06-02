@@ -53,8 +53,22 @@ function formatDate(dateStr: string) {
   return `${m}/${dd}(${day}) ${hh}:${mm}`;
 }
 
+function formatDeadlineDistance(dateStr: string) {
+  const deadlineTime = new Date(dateStr).getTime();
+  if (Number.isNaN(deadlineTime)) return "";
+
+  const diffMs = deadlineTime - Date.now();
+  if (diffMs < 0) return "마감 종료";
+
+  const dayMs = 24 * 60 * 60 * 1000;
+  const days = Math.max(1, Math.ceil(diffMs / dayMs));
+  if (days < 7) return `마감 ${days}일전`;
+  if (days < 30) return `마감 ${Math.ceil(days / 7)}주전`;
+  return `마감 ${Math.ceil(days / 30)}달전`;
+}
+
 export default function ClassCard({ classData, priorityImage = false, onClassSelect }: ClassCardProps) {
-  const { id, host_id, title, genres, level, datetime, region, status, images, host, description } =
+  const { id, host_id, title, genres, level, datetime, deadline, region, status, images, host, description } =
     classData;
   const titleChars = Array.from(title);
   const cardTitle = titleChars.length > 20 ? titleChars.slice(0, 20).join("") : title;
@@ -415,6 +429,7 @@ export default function ClassCard({ classData, priorityImage = false, onClassSel
   const genreLabel =
     genres?.map((g) => DANCE_GENRE_LABELS[g as keyof typeof DANCE_GENRE_LABELS] ?? g).join(" · ") ??
     "";
+  const deadlineLabel = formatDeadlineDistance(deadline);
   const levelLabel = CLASS_LEVEL_LABELS[level] ?? level;
   const isOwnClass = currentUserId === host_id;
   const isPendingApplication = myApplicationStatus === "pending";
@@ -734,18 +749,18 @@ export default function ClassCard({ classData, priorityImage = false, onClassSel
           <button
             type="button"
             onClick={() => onClassSelect ? onClassSelect(id) : router.push(`/classes/${id}`)}
-            className="min-w-0 flex-1 text-left"
+            className="flex min-w-0 flex-1 flex-col gap-0 text-left"
           >
             <div className="flex items-center gap-1.5">
               <span className="min-w-0 truncate text-[16px] font-bold leading-tight text-gray-900">
                 {cardTitle}
               </span>
-            </div>
-            <p className="truncate text-[13px] leading-tight text-gray-400 flex items-center gap-1">
-              <span className="truncate">{host?.nickname ?? ""} | {region} | {genreLabel}</span>
               {status === "recruiting" && (
                 <span className="h-2 w-2 flex-shrink-0 rounded-full bg-green-400" aria-label="모집중" />
               )}
+            </div>
+            <p className="truncate text-[13px] leading-tight text-gray-400 flex items-center gap-1">
+              <span className="truncate">{host?.nickname ?? ""} | {region} | {genreLabel}{deadlineLabel ? ` | ${deadlineLabel}` : ""}</span>
             </p>
           </button>
           <div className="shrink-0">
