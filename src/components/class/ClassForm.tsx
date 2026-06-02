@@ -88,10 +88,17 @@ function toFormState(d: Partial<DanceClass>): FormState {
   };
 }
 
+interface AiPosterPrefill {
+  imageUrl: string;
+  title: string;
+  rawContent: string;
+}
+
 interface ClassFormProps {
   initialData?: Partial<DanceClass>;
   classId?: string;
   userRole: "member" | "pro" | "admin";
+  aiPosterData?: AiPosterPrefill;
 }
 
 interface MentionCandidate {
@@ -237,7 +244,7 @@ async function resizeImageToWidth(file: File, width: number): Promise<File> {
   return canvasToWebpFile(canvas, `${file.name.replace(/\.[^.]+$/, "") || "image"}.webp`, 0.9);
 }
 
-export default function ClassForm({ initialData, classId, userRole: _userRole }: ClassFormProps) {
+export default function ClassForm({ initialData, classId, userRole: _userRole, aiPosterData }: ClassFormProps) {
   const router = useRouter();
   const isCreateMode = !classId;
   const isEditMode = !!classId;
@@ -265,8 +272,45 @@ export default function ClassForm({ initialData, classId, userRole: _userRole }:
   const [mentionCandidates, setMentionCandidates] = useState<MentionCandidate[]>([]);
   const totalImages = existingImages.length + newFiles.length;
 
+  function scheduleResize(files: File[]) {
+    for (const file of files) {
+      if (!preResizeRef.current.has(file)) {
+        preResizeRef.current.set(
+          file,
+          Promise.all([
+            resizeImageToWidth(file, 200),
+            resizeImageToWidth(file, 600),
+            resizeImageToWidth(file, 1024),
+          ]).then(([icon, card, full]) => ({ icon, card, full }))
+        );
+      }
+    }
+  }
+
   useEffect(() => {
     if (!isCreateMode) return;
+
+    if (aiPosterData) {
+      window.sessionStorage.removeItem(CREATE_DRAFT_KEY);
+      queueMicrotask(() => {
+        setForm((prev) => ({
+          ...prev,
+          title: aiPosterData.title || prev.title,
+          description: aiPosterData.rawContent || prev.description,
+        }));
+      });
+      fetch(aiPosterData.imageUrl)
+        .then((res) => res.blob())
+        .then((blob) => {
+          const file = new File([blob], "ai-poster.webp", { type: "image/webp" });
+          setNewFiles((prev) => [...prev, file]);
+          setPreviews((prev) => [...prev, URL.createObjectURL(file)]);
+          if (genreSelectedRef.current) scheduleResize([file]);
+        })
+        .catch(() => {});
+      draftHydratedRef.current = true;
+      return;
+    }
 
     let queuedRestore = false;
     try {
@@ -291,7 +335,7 @@ export default function ClassForm({ initialData, classId, userRole: _userRole }:
     } finally {
       if (!queuedRestore) draftHydratedRef.current = true;
     }
-  }, [isCreateMode]);
+  }, [aiPosterData, isCreateMode]);
 
   useEffect(() => {
     if (!isCreateMode || !draftHydratedRef.current) return;
@@ -351,23 +395,6 @@ export default function ClassForm({ initialData, classId, userRole: _userRole }:
     s.src = "https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js";
     document.head.appendChild(s);
   }, []);
-
-
-  function scheduleResize(files: File[]) {
-    for (const file of files) {
-      if (!preResizeRef.current.has(file)) {
-        preResizeRef.current.set(
-          file,
-          Promise.all([
-            resizeImageToWidth(file, 200),
-            resizeImageToWidth(file, 600),
-            resizeImageToWidth(file, 1024),
-          ]).then(([icon, card, full]) => ({ icon, card, full }))
-        );
-      }
-    }
-  }
-
   function set<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
     if (key === "genres" && !genreSelectedRef.current) {
