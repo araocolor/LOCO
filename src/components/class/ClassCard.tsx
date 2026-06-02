@@ -31,7 +31,6 @@ export interface ClassWithHost extends DanceClass {
 interface ClassCardProps {
   classData: ClassWithHost;
   priorityImage?: boolean;
-  isFirst?: boolean;
   onClassSelect?: (classId: string) => void;
 }
 
@@ -54,7 +53,7 @@ function formatDate(dateStr: string) {
   return `${m}/${dd}(${day}) ${hh}:${mm}`;
 }
 
-export default function ClassCard({ classData, priorityImage = false, isFirst = false, onClassSelect }: ClassCardProps) {
+export default function ClassCard({ classData, priorityImage = false, onClassSelect }: ClassCardProps) {
   const { id, host_id, title, genres, level, datetime, region, status, images, host, description } =
     classData;
   const titleChars = Array.from(title);
@@ -718,48 +717,43 @@ export default function ClassCard({ classData, priorityImage = false, isFirst = 
   return (
     <>
       <div className="bg-white">
-        {isFirst && (
-          <div className="flex items-center gap-2.5 px-3 pt-2.5 pb-2">
-            {host?.profile_image_url ? (
-              <Image
-                src={host.profile_image_url}
-                alt={host?.nickname ?? ""}
-                width={36}
-                height={36}
-                className="h-[36px] w-[36px] rounded-full object-cover shrink-0"
-              />
-            ) : (
-              <div className="flex h-[36px] w-[36px] items-center justify-center rounded-full bg-gray-200 text-xs font-medium text-gray-500 shrink-0">
-                {host?.nickname?.[0] ?? "?"}
-              </div>
-            )}
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-1.5">
-                <span className="min-w-0 truncate text-[16px] font-bold leading-tight text-gray-900">
-                  {cardTitle}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => onClassSelect ? onClassSelect(id) : router.push(`/classes/${id}`)}
-                  className="text-[11px] font-bold text-white shrink-0 px-2 py-0.5 rounded-full bg-black leading-tight"
-                >
-                  상세보기
-                </button>
-                <div className="shrink-0 ml-auto">
-                  {renderMoreMenu("flex items-center justify-center text-gray-500")}
-                </div>
-              </div>
-              <p className="truncate text-[13px] leading-tight text-gray-400 flex items-center gap-1">
-                <span className="truncate">{host?.nickname ?? ""} (개설자) | {region} | {genreLabel}</span>
-                {status === "recruiting" && (
-                  <span className="h-2 w-2 flex-shrink-0 rounded-full bg-green-400" aria-label="모집중" />
-                )}
-              </p>
+        <div className="flex items-center gap-2.5 px-3 pt-2.5 pb-2">
+          {host?.profile_image_url ? (
+            <Image
+              src={host.profile_image_url}
+              alt={host?.nickname ?? ""}
+              width={36}
+              height={36}
+              className="h-[36px] w-[36px] rounded-full object-cover shrink-0"
+            />
+          ) : (
+            <div className="flex h-[36px] w-[36px] items-center justify-center rounded-full bg-gray-200 text-xs font-medium text-gray-500 shrink-0">
+              {host?.nickname?.[0] ?? "?"}
             </div>
+          )}
+          <button
+            type="button"
+            onClick={() => onClassSelect ? onClassSelect(id) : router.push(`/classes/${id}`)}
+            className="min-w-0 flex-1 text-left"
+          >
+            <div className="flex items-center gap-1.5">
+              <span className="min-w-0 truncate text-[16px] font-bold leading-tight text-gray-900">
+                {cardTitle}
+              </span>
+            </div>
+            <p className="truncate text-[13px] leading-tight text-gray-400 flex items-center gap-1">
+              <span className="truncate">{host?.nickname ?? ""} | {region} | {genreLabel}</span>
+              {status === "recruiting" && (
+                <span className="h-2 w-2 flex-shrink-0 rounded-full bg-green-400" aria-label="모집중" />
+              )}
+            </p>
+          </button>
+          <div className="shrink-0">
+            {renderMoreMenu("flex items-center justify-center text-gray-500")}
           </div>
-        )}
+        </div>
 
-        <div ref={sliderRef} className="relative w-full">
+        <div ref={sliderRef} className="relative w-full border-t border-black/30">
           {totalImages > 0 ? (
             <div className="block w-full cursor-default overflow-hidden" onClick={handleImageClick}>
               <div
@@ -797,48 +791,6 @@ export default function ClassCard({ classData, priorityImage = false, isFirst = 
           ) : (
             <div className="block w-full cursor-default overflow-hidden">
               <div className="aspect-square w-full">{renderClassImageFallback()}</div>
-            </div>
-          )}
-          {!isFirst && (
-            <div className="absolute top-0 left-0 right-0 z-20" style={{ height: 150, background: "linear-gradient(to bottom, rgba(0,0,0,0.55), transparent)" }}>
-              <div className="flex items-center gap-2.5 px-3 pt-2.5">
-                {host?.profile_image_url ? (
-                  <Image
-                    src={host.profile_image_url}
-                    alt={host?.nickname ?? ""}
-                    width={36}
-                    height={36}
-                    className="h-[36px] w-[36px] rounded-full object-cover shrink-0"
-                  />
-                ) : (
-                  <div className="flex h-[36px] w-[36px] items-center justify-center rounded-full bg-white/30 text-xs font-medium text-white shrink-0">
-                    {host?.nickname?.[0] ?? "?"}
-                  </div>
-                )}
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5">
-                    <span className="min-w-0 truncate text-[16px] font-bold leading-tight text-white">
-                      {cardTitle}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => onClassSelect ? onClassSelect(id) : router.push(`/classes/${id}`)}
-                      className="text-[11px] font-bold text-white shrink-0 px-2 py-0.5 rounded-full bg-black leading-tight"
-                    >
-                      상세보기
-                    </button>
-                    <div className="shrink-0 ml-auto">
-                      {renderMoreMenu("flex items-center justify-center text-white/80")}
-                    </div>
-                  </div>
-                  <p className="truncate text-[13px] leading-tight text-white flex items-center gap-1">
-                    <span className="truncate">{host?.nickname ?? ""} (개설자) | {region} | {genreLabel}</span>
-                    {status === "recruiting" && (
-                      <span className="h-2 w-2 flex-shrink-0 rounded-full bg-green-400" aria-label="모집중" />
-                    )}
-                  </p>
-                </div>
-              </div>
             </div>
           )}
           {totalImages > 1 && (
@@ -880,28 +832,6 @@ export default function ClassCard({ classData, priorityImage = false, isFirst = 
         {/* 액션 아이콘 */}
         <div className="flex items-center justify-between px-3 pt-2">
           <div className="flex items-center gap-4">
-            {/* 북마크 */}
-            <button
-              type="button"
-              onClick={handleBookmark}
-              aria-label="북마크"
-              className="flex items-center gap-1"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="24"
-                height="24"
-                viewBox="0 0 24 24"
-                fill={bookmarked ? "#1a1a1a" : "none"}
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="text-gray-800"
-              >
-                <polygon points="19 21 12 16 5 21 5 3 19 3" />
-              </svg>
-            </button>
             {/* 좋아요 */}
             <button
               type="button"
@@ -925,8 +855,6 @@ export default function ClassCard({ classData, priorityImage = false, isFirst = 
               </svg>
               <span className="text-sm font-semibold text-gray-800">{likeCount}</span>
             </button>
-          </div>
-          <div className="flex items-center gap-4">
             {/* 댓글 */}
             <button
               type="button"
@@ -975,6 +903,28 @@ export default function ClassCard({ classData, priorityImage = false, isFirst = 
               <span className="text-sm font-semibold text-gray-800">{shareCount}</span>
             </button>
           </div>
+          {/* 북마크 */}
+          <button
+            type="button"
+            onClick={handleBookmark}
+            aria-label="북마크"
+            className="flex items-center gap-1"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill={bookmarked ? "#1a1a1a" : "none"}
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="text-gray-800"
+            >
+              <polygon points="19 21 12 16 5 21 5 3 19 3" />
+            </svg>
+          </button>
         </div>
 
         <div className="px-3 pt-2 pb-1">
@@ -1000,7 +950,7 @@ export default function ClassCard({ classData, priorityImage = false, isFirst = 
                     <div className="min-w-0 flex-1 cursor-pointer" onClick={handleToggleExpanded}>
                       <MentionText
                         text={description}
-                        className="text-[15px] text-gray-600 whitespace-pre-wrap leading-relaxed line-clamp-2"
+                        className="text-[15px] text-gray-600 whitespace-pre-wrap leading-tight line-clamp-2"
                       />
                     </div>
                   )}
@@ -1187,7 +1137,7 @@ export default function ClassCard({ classData, priorityImage = false, isFirst = 
       />
       {shareComplete && (
         <div className="pointer-events-none fixed inset-0 z-[310] flex items-center justify-center">
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-white text-3xl font-bold text-green-500 shadow-2xl">
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#FEE500] text-3xl font-bold text-black shadow-2xl">
             ✓
           </div>
         </div>

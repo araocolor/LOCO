@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { CircleChevronLeft } from "lucide-react";
 import Avatar from "@/components/ui/Avatar";
 import { createClient } from "@/lib/supabase/client";
 
@@ -739,10 +740,10 @@ export default function ClassCommentsPanel({
               <button
                 type="button"
                 onClick={onClose}
-                className="mr-3 text-2xl text-gray-800"
+                className="mr-3 text-gray-800"
                 aria-label="닫기"
               >
-                ‹
+                <CircleChevronLeft size={25} />
               </button>
               <h2 className="text-lg font-bold text-gray-900">댓글</h2>
             </div>

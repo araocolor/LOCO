@@ -171,7 +171,7 @@ export default function ClassShareSheet({ open, classData, onClose, onShared }: 
                   >
                     <Avatar src={friend.profile_image_url} nickname={friend.nickname} size={50} />
                     {selected && (
-                      <span className="absolute right-0 top-0 flex h-5 w-5 items-center justify-center rounded-full bg-green-500 text-xs font-bold text-white">
+                      <span className="absolute right-0 top-0 flex h-5 w-5 items-center justify-center rounded-full bg-[#FEE500] text-xs font-bold text-black">
                         ✓
                       </span>
                     )}
@@ -192,14 +192,14 @@ export default function ClassShareSheet({ open, classData, onClose, onShared }: 
           />
           {error && <p className="mb-2 text-sm text-red-500">{error}</p>}
           <div className="flex gap-2">
-            <button type="button" onClick={onClose} className="flex-1 rounded-2xl border border-gray-200 py-3 text-sm font-semibold text-gray-700">
+            <button type="button" onClick={onClose} className="flex-1 rounded-full border border-gray-200 py-3 text-sm font-semibold text-gray-700">
               취소
             </button>
             <button
               type="button"
               onClick={() => void handleSend()}
               disabled={selectedIds.length === 0 || sending}
-              className="flex-1 rounded-2xl bg-gray-950 py-3 text-sm font-bold text-white disabled:opacity-40"
+              className="flex-1 rounded-full bg-[#FEE500] py-3 text-sm font-bold text-black disabled:opacity-40"
             >
               {sending ? "전송 중" : "전송"}
             </button>
