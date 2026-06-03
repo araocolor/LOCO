@@ -179,11 +179,9 @@ export default function AiPosterReviewEditable({
       <section className="rounded-2xl bg-white p-4 shadow-sm">
         <div className="space-y-2">
           {isGenerationBlocked && (
-            <div
-              className="rounded-2xl px-4 py-3 text-center leading-6"
-              style={{ color: "rgba(0, 0, 0, 0.8)", fontSize: "16px" }}
-            >
-              <p className="font-bold">포스터 만들기 기능은 현재 월1회만 가능</p>
+            <div className="rounded-2xl px-4 py-3 text-center leading-6">
+              <p className="text-[16px] font-bold text-[#111111]">포스터만들기 기능은 현재 월1회만 가능</p>
+              <p className="mt-1 text-[15px] font-semibold text-[#888888]">현재 사용가능한 크레딧 0개</p>
             </div>
           )}
           {error && <p className="text-center text-sm text-red-500">{error}</p>}
