@@ -3,7 +3,6 @@ import { notFound, redirect } from "next/navigation";
 import type { Metadata } from "next";
 import ClassHeader from "@/components/layout/ClassHeader";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 import type { AiPosterSourceImage } from "@/types/ai-poster";
 import AiPosterReviewEditable from "./review-editable";
 
@@ -42,8 +41,7 @@ export default async function AiPosterReviewPage({
   const promptText = stripReferenceSection(
     typeof record.prompt_text === "string" ? record.prompt_text : ""
   );
-  const admin = createAdminClient();
-  const { data: profile } = await admin
+  const { data: profile } = await supabase
     .from("profiles")
     .select("role")
     .eq("id", user.id)
