@@ -239,7 +239,7 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
           <button
             type="button"
             aria-label="클래스 만들기"
-            className="ml-auto h-10 -mr-1 flex items-center text-gray-700"
+            className="ml-auto h-11 w-11 -mr-2 flex items-center justify-center text-gray-700"
             onClick={() => router.push("/classes/new/choose")}
           >
             <Plus size={22} strokeWidth={2.2} />
