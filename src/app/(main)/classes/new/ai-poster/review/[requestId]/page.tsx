@@ -41,18 +41,6 @@ export default async function AiPosterReviewPage({
   const promptText = stripReferenceSection(
     typeof record.prompt_text === "string" ? record.prompt_text : ""
   );
-  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-
-  const { data: recentGeneratedRequest } = await supabase
-    .from("ai_poster_requests")
-    .select("id, generated_at")
-    .eq("user_id", user.id)
-    .eq("status", "generated")
-    .gte("generated_at", sevenDaysAgo)
-    .order("generated_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
   const { data: profile } = await supabase
     .from("profiles")
     .select("role")
@@ -60,7 +48,21 @@ export default async function AiPosterReviewPage({
     .single();
 
   const isAdmin = profile?.role === "admin";
-  const isGenerationBlocked = !isAdmin && Boolean(recentGeneratedRequest);
+
+  let isGenerationBlocked = false;
+  if (!isAdmin) {
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const { data: recentGeneratedRequest } = await supabase
+      .from("ai_poster_requests")
+      .select("id, generated_at")
+      .eq("user_id", user.id)
+      .eq("status", "generated")
+      .gte("generated_at", sevenDaysAgo)
+      .order("generated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    isGenerationBlocked = Boolean(recentGeneratedRequest);
+  }
 
   return (
     <div data-page-shell className="min-h-dvh bg-white page-slide-in-from-top">
