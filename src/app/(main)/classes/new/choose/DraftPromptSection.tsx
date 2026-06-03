@@ -72,7 +72,7 @@ export default function DraftPromptSection() {
             onClick={() => router.push(`/classes/new/ai-poster/review/${draft.id}`)}
             className="flex flex-col rounded-2xl border border-[#e5e7eb] bg-white px-5 py-4 shadow-sm transition active:scale-[0.99] text-left"
           >
-            <span className="inline-flex items-center justify-center w-11 h-11 rounded-full bg-[#111111] text-white text-[11px] font-semibold mb-2">임시저장</span>
+            <span className="inline-flex items-center justify-center w-[50px] h-[50px] rounded-full bg-[#111111] text-white text-[11px] font-semibold mb-2">임시저장</span>
             <div className="flex items-center justify-between w-full">
               <span className="text-[22px] font-bold text-[#111111] truncate pr-2">
                 {draft.title || "제목 없음"}
