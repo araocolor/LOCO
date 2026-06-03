@@ -17,7 +17,6 @@ export default function ClassCreateChoicePage() {
       />
 
       <main className="px-4 pt-5 pb-8 flex flex-col gap-6">
-        <DraftPromptSection />
         <div className="mx-auto flex w-full max-w-[520px] flex-col gap-4">
           <Link
             href="/classes/new/ai-poster"
@@ -49,6 +48,7 @@ export default function ClassCreateChoicePage() {
             </span>
           </Link>
         </div>
+        <DraftPromptSection />
       </main>
     </div>
   );

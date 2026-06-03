@@ -64,19 +64,21 @@ export default function DraftPromptSection() {
 
   return (
     <section className="mx-auto w-full max-w-[520px]">
-      <h2 className="mb-2 text-[13px] font-semibold text-[#888888]">임시저장 프롬프트</h2>
       <div className="flex flex-col gap-2">
         {drafts.map((draft) => (
           <button
             key={draft.id}
             type="button"
             onClick={() => router.push(`/classes/new/ai-poster/review/${draft.id}`)}
-            className="flex items-center justify-between rounded-2xl border border-[#e5e7eb] bg-white px-5 py-4 shadow-sm transition active:scale-[0.99]"
+            className="flex flex-col rounded-2xl border border-[#e5e7eb] bg-white px-5 py-4 shadow-sm transition active:scale-[0.99] text-left"
           >
-            <span className="text-[16px] font-bold text-[#111111] truncate pr-2">
-              {draft.title || "제목 없음"}
-            </span>
-            <ChevronRight size={18} className="shrink-0 text-[#aaaaaa]" />
+            <span className="text-[13px] font-semibold text-[#888888] mb-1">포스터 임시저장</span>
+            <div className="flex items-center justify-between w-full">
+              <span className="text-[22px] font-bold text-[#111111] truncate pr-2">
+                {draft.title || "제목 없음"}
+              </span>
+              <ChevronRight size={20} className="shrink-0 text-[#aaaaaa]" />
+            </div>
           </button>
         ))}
       </div>
