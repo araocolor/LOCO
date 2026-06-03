@@ -631,7 +631,7 @@ export default function MemberBreakoutGame({ members }: MemberBreakoutGameProps)
           <button
             type="button"
             onClick={game.launched ? undefined : launchGame}
-            className={`absolute z-20 -translate-x-1/2 border border-yellow-100 bg-yellow-300 px-5 shadow-[0_12px_24px_rgba(250,204,21,0.35)] transition-all ${
+            className={`absolute z-20 -translate-x-1/2 border border-yellow-100 bg-yellow-300 px-5 shadow-[0_12px_24px_rgba(250,204,21,0.35)] will-change-transform ${
               game.launched
                 ? "rounded-full"
                 : "flex items-center justify-center rounded-full"
