@@ -17,6 +17,31 @@ function getFileExtension(file: File, fallbackIndex: number) {
   return `img-${fallbackIndex}`;
 }
 
+export async function GET() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { data, error } = await supabase
+    .from("ai_poster_requests")
+    .select("id, title, created_at")
+    .eq("user_id", user.id)
+    .eq("status", "reviewed")
+    .order("created_at", { ascending: false })
+    .limit(10);
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ drafts: data ?? [] });
+}
+
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
   const {

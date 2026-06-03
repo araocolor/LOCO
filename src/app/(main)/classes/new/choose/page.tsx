@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ImagePlus, Upload } from "lucide-react";
 import ClassHeader from "@/components/layout/ClassHeader";
+import DraftPromptSection from "./DraftPromptSection";
 
 export const metadata: Metadata = { title: "포스터 만들기 선택" };
 
@@ -15,7 +16,8 @@ export default function ClassCreateChoicePage() {
         backExitDelayMs={200}
       />
 
-      <main className="px-4 pt-5 pb-8">
+      <main className="px-4 pt-5 pb-8 flex flex-col gap-6">
+        <DraftPromptSection />
         <div className="mx-auto flex w-full max-w-[520px] flex-col gap-4">
           <Link
             href="/classes/new/ai-poster"
