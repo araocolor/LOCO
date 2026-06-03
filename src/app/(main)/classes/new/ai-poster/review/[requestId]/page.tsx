@@ -53,7 +53,9 @@ export default async function AiPosterReviewPage({
     .limit(1)
     .maybeSingle();
 
-  const isGenerationBlocked = Boolean(recentGeneratedRequest);
+  const ALLOWED_EMAILS = ["araocoloor@gmail.com", "jejuputty@gmail.com"];
+  const isAllowed = user.email ? ALLOWED_EMAILS.includes(user.email) : false;
+  const isGenerationBlocked = !isAllowed && Boolean(recentGeneratedRequest);
 
   return (
     <div data-page-shell className="min-h-dvh bg-white page-slide-in-from-top">

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { Copy } from "lucide-react";
+import { useRouter } from "next/navigation";
 import TypingLoader from "../../typing-loader";
 import ImageFullscreen from "../../image-fullscreen";
 
@@ -17,6 +18,7 @@ export default function AiPosterReviewEditable({
   initialPromptText,
   isGenerationBlocked,
 }: Props) {
+  const router = useRouter();
   const [promptText, setPromptText] = useState(initialPromptText);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState("");
@@ -39,6 +41,16 @@ export default function AiPosterReviewEditable({
     textarea.style.height = "0px";
     textarea.style.height = `${textarea.scrollHeight}px`;
   }, [promptText]);
+
+  function handleBack() {
+    const shell = document.querySelector("[data-page-shell]");
+    if (shell) {
+      shell.classList.add("page-slide-out-to-top");
+      window.setTimeout(() => router.back(), 200);
+    } else {
+      router.back();
+    }
+  }
 
   async function handleGenerate() {
     if (isGenerationBlocked) return;
@@ -185,14 +197,33 @@ export default function AiPosterReviewEditable({
             </div>
           )}
           {error && <p className="text-center text-sm text-red-500">{error}</p>}
-          <button
-            type="button"
-            onClick={handleGenerate}
-            disabled={generating || isGenerationBlocked}
-            className="btn-primary w-full text-center disabled:opacity-60"
-          >
-            {generating ? "생성 중..." : "이미지 생성하기"}
-          </button>
+          {isGenerationBlocked ? (
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={handleBack}
+                className="btn-outline flex-1 text-center"
+              >
+                홈으로
+              </button>
+              <button
+                type="button"
+                disabled
+                className="btn-primary flex-1 text-center opacity-40 cursor-not-allowed"
+              >
+                충전하기
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={handleGenerate}
+              disabled={generating}
+              className="btn-primary w-full text-center disabled:opacity-60"
+            >
+              {generating ? "생성 중..." : "이미지 생성하기"}
+            </button>
+          )}
         </div>
       </section>
 
