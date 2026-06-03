@@ -53,7 +53,7 @@ export default async function AiPosterReviewPage({
     .limit(1)
     .maybeSingle();
 
-  const ALLOWED_EMAILS = ["araocoloor@gmail.com", "jejuputty@gmail.com"];
+  const ALLOWED_EMAILS = ["araocolor@gmail.com", "jejuputty@gmail.com"];
   const isAllowed = user.email ? ALLOWED_EMAILS.includes(user.email) : false;
   const isGenerationBlocked = !isAllowed && Boolean(recentGeneratedRequest);
 
