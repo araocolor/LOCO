@@ -46,9 +46,9 @@ export default function AiPosterReviewEditable({
     const shell = document.querySelector("[data-page-shell]");
     if (shell) {
       shell.classList.add("page-slide-out-to-top");
-      window.setTimeout(() => router.back(), 200);
+      window.setTimeout(() => router.push("/?section=bookmark"), 200);
     } else {
-      router.back();
+      router.push("/?section=bookmark");
     }
   }
 
