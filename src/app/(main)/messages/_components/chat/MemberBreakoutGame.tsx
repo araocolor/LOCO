@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Power } from "lucide-react";
 import Avatar from "@/components/ui/Avatar";
 
 export interface MemberGameProfile {
@@ -12,6 +13,7 @@ export interface MemberGameProfile {
 
 interface MemberBreakoutGameProps {
   members: MemberGameProfile[];
+  onExitGame: () => void;
 }
 
 interface GameBounds {
@@ -51,6 +53,7 @@ interface GameState {
   endedAt: number | null;
   launched: boolean;
   status: "running" | "completed";
+  completionReason: "rescue" | "bricks" | null;
   finalScore: number | null;
 }
 
@@ -72,8 +75,8 @@ const PADDLE_WIDTH_RATIO = 0.34;
 const START_BUTTON_HEIGHT = 44;
 const BALL_RADIUS = 7;
 const MEMBER_AVATAR_SIZE = 30;
-const BASE_SPEED = 148;
-const MAX_EXTRA_SPEED = 150;
+const BASE_SPEED = 188;
+const MAX_EXTRA_SPEED = 340;
 const MEMBER_HIT_DELAY_MS = 280;
 const RESCUE_FALL_MS = 820;
 const RELAUNCH_DELAY_MS = 720;
@@ -207,11 +210,12 @@ function createInitialGame(bounds: GameBounds): GameState {
     endedAt: null,
     launched: false,
     status: "running",
+    completionReason: null,
     finalScore: null,
   };
 }
 
-export default function MemberBreakoutGame({ members }: MemberBreakoutGameProps) {
+export default function MemberBreakoutGame({ members, onExitGame }: MemberBreakoutGameProps) {
   const frameRef = useRef<number | null>(null);
   const boardRef = useRef<HTMLDivElement>(null);
   const [bounds, setBounds] = useState<GameBounds>({ width: 0, height: 0 });
@@ -289,7 +293,7 @@ export default function MemberBreakoutGame({ members }: MemberBreakoutGameProps)
         const liveBrickCount = current.bricks.filter((brick) => brick.alive).length;
         const brokenRatio = totalBreakableBricks > 0 ? (totalBreakableBricks - liveBrickCount) / totalBreakableBricks : 0;
         const rescuedRatio = members.length > 0 ? current.rescuedOrder.length / members.length : 0;
-        const speedTarget = BASE_SPEED + (brokenRatio * 0.7 + rescuedRatio * 0.3) * MAX_EXTRA_SPEED;
+        const speedTarget = BASE_SPEED + (brokenRatio * 0.82 + rescuedRatio * 0.18) * MAX_EXTRA_SPEED;
 
         let nextBall = { ...current.ball };
         let nextBricks = current.bricks;
@@ -449,6 +453,7 @@ export default function MemberBreakoutGame({ members }: MemberBreakoutGameProps)
             endedAt: time,
             launched,
             status: "completed",
+            completionReason: rescuedAllMembers ? "rescue" : "bricks",
             finalScore,
           };
         }
@@ -532,7 +537,7 @@ export default function MemberBreakoutGame({ members }: MemberBreakoutGameProps)
           <h3 className="mt-1 text-[22px] font-black tracking-[-0.03em]">채팅방회원 구출하기</h3>
         </div>
         <div className="rounded-full border border-white/15 bg-white/10 px-3 py-2 text-right backdrop-blur">
-          <p className="text-[11px] font-bold text-white/60">구출시간</p>
+          <p className="text-[11px] font-bold text-white/60">미션완료</p>
           <p className="text-sm font-bold text-white">{elapsedWholeSeconds}초</p>
         </div>
       </div>
@@ -649,6 +654,15 @@ export default function MemberBreakoutGame({ members }: MemberBreakoutGameProps)
           </button>
         )}
 
+        <button
+          type="button"
+          onClick={onExitGame}
+          aria-label="게임 종료"
+          className="absolute bottom-4 left-4 z-20 flex h-11 w-11 items-center justify-center rounded-full border border-white/18 bg-[#0f172a]/72 text-white shadow-[0_12px_24px_rgba(15,23,42,0.32)] transition hover:bg-[#162033]"
+        >
+          <Power size={18} strokeWidth={2.4} />
+        </button>
+
         {game?.status === "completed" && (
           <div className="absolute inset-0 z-40 flex items-center justify-center bg-[#0b1220]/68 backdrop-blur-[3px]">
             <div className="pointer-events-none absolute inset-0 overflow-hidden">
@@ -668,21 +682,32 @@ export default function MemberBreakoutGame({ members }: MemberBreakoutGameProps)
                 />
               ))}
             </div>
-            <div className="mx-6 w-full max-w-[320px] rounded-[28px] border border-white/15 bg-white/12 px-6 py-7 text-center text-white shadow-[0_18px_60px_rgba(15,23,42,0.35)]">
+            <div className="mx-6 w-full max-w-[320px] rounded-[28px] border border-white/12 bg-[#0f172a]/72 px-6 py-7 text-center text-white shadow-[0_18px_60px_rgba(15,23,42,0.35)]">
               <p className="text-[11px] font-black uppercase tracking-[0.34em] text-yellow-200/90">Game Clear</p>
               <h4 className="mt-3 text-[28px] font-black tracking-[-0.04em]">
                 {game.finalScore ?? 0}점
               </h4>
               <p className="mt-2 text-sm font-semibold text-white/78">
-                {elapsedSeconds.toFixed(1)}초 만에 벽돌을 모두 깼어요
+                {game.completionReason === "rescue"
+                  ? `${elapsedSeconds.toFixed(1)}초 만에 회원구출을 성공했어요 !`
+                  : `${elapsedSeconds.toFixed(1)}초 만에 벽돌을 모두 깼어요`}
               </p>
-              <button
-                type="button"
-                onClick={restartGame}
-                className="mt-6 inline-flex h-11 items-center justify-center rounded-full bg-yellow-300 px-6 text-sm font-black text-gray-900 shadow-[0_12px_24px_rgba(250,204,21,0.3)] transition hover:bg-yellow-200"
-              >
-                다시시작하기
-              </button>
+              <div className="mt-6 flex items-center justify-center gap-3">
+                <button
+                  type="button"
+                  onClick={onExitGame}
+                  className="inline-flex h-11 items-center justify-center rounded-full border border-white/18 bg-white/10 px-6 text-sm font-black text-white transition hover:bg-white/16"
+                >
+                  끝내기
+                </button>
+                <button
+                  type="button"
+                  onClick={restartGame}
+                  className="inline-flex h-11 items-center justify-center rounded-full bg-yellow-300 px-6 text-sm font-black text-gray-900 shadow-[0_12px_24px_rgba(250,204,21,0.3)] transition hover:bg-yellow-200"
+                >
+                  게임시작
+                </button>
+              </div>
             </div>
           </div>
         )}

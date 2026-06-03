@@ -126,8 +126,6 @@ export default function ChatDrawer({
   setShakingMsgId,
   formatTime,
 }: ChatDrawerProps) {
-  void canAddMembers;
-  void onOpenMemberDrawer;
   const [activeTab, setActiveTab] = useState<ChatDrawerTab>("all");
   const [noticeDrawerOpen, setNoticeDrawerOpen] = useState(false);
   const [noticeDraft, setNoticeDraft] = useState("");
@@ -389,7 +387,9 @@ export default function ChatDrawer({
         >
           {displayedActiveTab === "members" ? (
             <MemberGrid
+              canAddMembers={canAddMembers}
               members={memberProfiles}
+              onOpenMemberDrawer={onOpenMemberDrawer}
             />
           ) : displayedActiveTab === "class" ? (
             <ClassNoticePanel
