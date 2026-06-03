@@ -50,13 +50,7 @@ type SectionDef = {
   items: MenuItemDef[];
 };
 
-type MyPageTab = "all" | "my" | "bookmark";
-
-const MY_PAGE_TABS: Array<{ key: MyPageTab; label: string }> = [
-  { key: "all", label: "프로필" },
-  { key: "my", label: "내클래스" },
-  { key: "bookmark", label: "북마크" },
-];
+type MyPageTab = "all";
 
 const SECTIONS: SectionDef[] = [
   {
@@ -263,19 +257,14 @@ export default function MyPageHeader() {
             <Settings size={22} strokeWidth={2.2} />
           </button>
         </div>
-        <div className="flex pl-4 pr-4 gap-2 pb-2 overflow-x-auto scrollbar-hide whitespace-nowrap">
-          {MY_PAGE_TABS.map(({ key, label }) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => router.push(key === "all" ? "/?tab=mypage" : `/?tab=mypage&section=${key}`)}
-              className={`px-3.5 py-1.5 rounded-full text-[14px] font-semibold transition-colors ${
-                currentTab === key ? "bg-black text-white" : "bg-gray-100 text-gray-400"
-              }`}
-            >
-              {label}
-            </button>
-          ))}
+        <div className="flex pl-4 pr-4 gap-2 pb-2">
+          <button
+            type="button"
+            onClick={() => router.push("/?tab=mypage")}
+            className="px-3.5 py-1.5 rounded-full text-[14px] font-semibold bg-black text-white"
+          >
+            프로필
+          </button>
         </div>
       </header>
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import { UserCircle, X, Settings, HeartHandshake, Star, SmilePlus, UsersRound } from "lucide-react";
@@ -15,7 +15,6 @@ import Avatar from "@/components/ui/Avatar";
 import type { StarGiver } from "@/types/user";
 import UserProfileModal from "./UserProfileModal";
 
-type TabType = "all" | "my" | "bookmark";
 
 function getMemberTypeLabel(type: string) {
   if (type === "인스트럭터") return "강사";
@@ -117,7 +116,6 @@ export default function MyPageClient({
   ] as const;
   const MAX_FAVORITE_GENRE = 2;
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [editOpen, setEditOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(profile.profile_image_url);
@@ -149,11 +147,6 @@ export default function MyPageClient({
   const [starGiversOpen, setStarGiversOpen] = useState(false);
   const [starGiverProfileId, setStarGiverProfileId] = useState<string | null>(null);
 
-  const activeTab: TabType = (() => {
-    const rawTab = searchParams.get("tab");
-    if (rawTab === "my" || rawTab === "bookmark" || rawTab === "all") return rawTab;
-    return "all";
-  })();
 
   useEffect(() => {
     try {
@@ -478,13 +471,8 @@ export default function MyPageClient({
       <div className="flex-1 bg-white">
         {/* 3x3 그리드 */}
         <div className="grid grid-cols-3 gap-[1px] bg-white">
-          {(activeTab === "all"
-            ? [...myClasses, ...bookmarkClasses].sort((a, b) =>
-                new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime()
-              )
-            : activeTab === "my"
-            ? myClasses
-            : bookmarkClasses
+          {[...myClasses, ...bookmarkClasses].sort((a, b) =>
+            new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime()
           ).map((item) => (
             <button
               key={item.id + (item.isBookmark ? "-bm" : "")}
