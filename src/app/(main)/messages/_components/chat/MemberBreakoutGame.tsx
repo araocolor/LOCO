@@ -74,7 +74,10 @@ const PADDLE_Y_GAP = 98;
 const PADDLE_WIDTH_RATIO = 0.34;
 const START_BUTTON_HEIGHT = 44;
 const BALL_RADIUS = 7;
-const MEMBER_AVATAR_SIZE = 30;
+const MEMBER_AVATAR_SIZE = 35;
+const MEMBER_COLUMNS = 7;
+const MEMBER_GAP_X = 9;
+const MEMBER_GAP_Y = 12;
 const BASE_SPEED = 188;
 const MAX_EXTRA_SPEED = 340;
 const MEMBER_HIT_DELAY_MS = 280;
@@ -143,17 +146,15 @@ function getPaddleY(bounds: GameBounds) {
 function buildMemberLayouts(bounds: GameBounds, members: MemberGameProfile[]) {
   if (members.length === 0) return [];
 
-  const cols = Math.min(5, Math.max(1, members.length));
+  const cols = Math.min(MEMBER_COLUMNS, Math.max(1, members.length));
   const rows = Math.ceil(members.length / cols);
-  const top = -12;
-  const bottom = BRICK_TOP - 18;
+  const top = 10;
+  const bottom = BRICK_TOP - 16;
   const areaHeight = Math.max(MEMBER_AVATAR_SIZE, bottom - top);
-  const gapX = 12;
-  const gapY = 10;
   const cellWidth = MEMBER_AVATAR_SIZE;
   const cellHeight = MEMBER_AVATAR_SIZE;
-  const totalWidth = cols * cellWidth + gapX * (cols - 1);
-  const totalHeight = rows * cellHeight + gapY * (rows - 1);
+  const totalWidth = cols * cellWidth + MEMBER_GAP_X * (cols - 1);
+  const totalHeight = rows * cellHeight + MEMBER_GAP_Y * (rows - 1);
   const startX = (bounds.width - totalWidth) / 2;
   const startY = top + Math.max(0, (areaHeight - totalHeight) / 2);
 
@@ -162,8 +163,8 @@ function buildMemberLayouts(bounds: GameBounds, members: MemberGameProfile[]) {
     const col = index % cols;
     return {
       member,
-      x: startX + col * (cellWidth + gapX),
-      y: startY + row * (cellHeight + gapY),
+      x: startX + col * (cellWidth + MEMBER_GAP_X),
+      y: startY + row * (cellHeight + MEMBER_GAP_Y),
       width: MEMBER_AVATAR_SIZE,
       height: MEMBER_AVATAR_SIZE,
     } satisfies MemberLayout;
@@ -245,6 +246,10 @@ export default function MemberBreakoutGame({ members, onExitGame }: MemberBreako
     () => buildBricks(bounds).filter((brick) => brick.alive).length,
     [bounds]
   );
+  const memberCeiling = useMemo(() => {
+    if (memberLayouts.length === 0) return 56;
+    return Math.max(0, Math.min(...memberLayouts.map((layout) => layout.y)) - BALL_RADIUS - 4);
+  }, [memberLayouts]);
 
   useEffect(() => {
     if (!boardRef.current) return;
@@ -355,8 +360,8 @@ export default function MemberBreakoutGame({ members, onExitGame }: MemberBreako
             nextBall.vx = -Math.abs(nextBall.vx);
           }
 
-          if (nextBall.y - nextBall.radius <= 56) {
-            nextBall.y = 56 + nextBall.radius;
+          if (nextBall.y - nextBall.radius <= memberCeiling) {
+            nextBall.y = memberCeiling + nextBall.radius;
             nextBall.vy = Math.abs(nextBall.vy);
           }
 
@@ -482,7 +487,7 @@ export default function MemberBreakoutGame({ members, onExitGame }: MemberBreako
         frameRef.current = null;
       }
     };
-  }, [bounds, hasGame, isRunning, memberLayouts, members.length, totalBreakableBricks]);
+  }, [bounds, hasGame, isRunning, memberCeiling, memberLayouts, members.length, totalBreakableBricks]);
 
   const elapsedSeconds = useMemo(() => {
     if (!game) return 0;

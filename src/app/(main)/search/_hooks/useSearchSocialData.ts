@@ -39,10 +39,11 @@ export function useSearchSocialData(activeTab: Tab) {
     try {
       const cached = localStorage.getItem(SEARCH_CACHE_KEY);
       if (cached) {
-        const { followers, following, mySubscribers } = JSON.parse(cached);
+        const { followers, following, mySubscribers, subscriptionCount } = JSON.parse(cached);
         if (Array.isArray(following)) setFollowing(following);
         if (Array.isArray(followers)) setFollowers(followers);
         if (Array.isArray(mySubscribers)) setMySubscribers(mySubscribers);
+        if (typeof subscriptionCount === "number") setSubscriptionCount(subscriptionCount);
       }
     } catch {}
   }, []);
@@ -78,6 +79,7 @@ export function useSearchSocialData(activeTab: Tab) {
     const hasCache = hasSocialCache();
     if (hasCache) {
       queueMicrotask(() => loadFromCache());
+      return;
     }
     fetchFollowersAndFollowing();
   }, [activeTab, hasSocialCache, loadFromCache, fetchFollowersAndFollowing]);

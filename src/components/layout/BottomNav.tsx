@@ -3,6 +3,10 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import { usePathname } from "next/navigation";
 import { useScrollChromeVisibility } from "@/hooks/useScrollChromeVisibility";
 import { type MainTabId, getMainTab, subscribeMainTab, replaceMainTab } from "@/lib/main-tab";
+
+const HOME_SUBTAB_CHANGE_EVENT = "loco-home-subtab-change";
+type HomeSubTab = "allClasses" | "mySubscriptions" | "friendClasses";
+
 const NAV_ITEMS: {
   tabId: MainTabId;
   label: string;
@@ -75,12 +79,25 @@ export default function BottomNav() {
   const pathname = usePathname();
   const [hydrated, setHydrated] = useState(false);
   const [hasUnreadNotifications, setHasUnreadNotifications] = useState(false);
+  const [homeSubTab, setHomeSubTab] = useState<HomeSubTab>("allClasses");
   const activeTab = useSyncExternalStore(subscribeMainTab, getMainTab, () => "home" as const);
-  const shouldAutoHide = pathname === "/" && activeTab === "home";
+  const shouldAutoHide = pathname === "/" && activeTab === "home" && homeSubTab === "allClasses";
   const isChromeVisible = useScrollChromeVisibility(shouldAutoHide);
 
   useEffect(() => {
     queueMicrotask(() => setHydrated(true));
+  }, []);
+
+  useEffect(() => {
+    function handleHomeSubTabChange(event: Event) {
+      const nextTab = (event as CustomEvent<HomeSubTab>).detail;
+      if (nextTab === "allClasses" || nextTab === "mySubscriptions" || nextTab === "friendClasses") {
+        setHomeSubTab(nextTab);
+      }
+    }
+
+    window.addEventListener(HOME_SUBTAB_CHANGE_EVENT, handleHomeSubTabChange);
+    return () => window.removeEventListener(HOME_SUBTAB_CHANGE_EVENT, handleHomeSubTabChange);
   }, []);
 
   useEffect(() => {

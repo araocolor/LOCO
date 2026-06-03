@@ -14,7 +14,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     .select("nickname")
     .eq("id", id)
     .single();
-  return { title: data?.nickname ? `${data.nickname} 프로필` : "회원 프로필" };
+  return { title: data?.nickname ? `${data.nickname} 회원프로필` : "회원프로필" };
 }
 
 export default async function UserViewPage({
@@ -41,7 +41,7 @@ export default async function UserViewPage({
           <UserViewBackButton userId={id} />
         </div>
         <div className="absolute left-1/2 -translate-x-1/2 font-bold text-[17px] text-[#333333] leading-none">
-          프로필
+          회원프로필
         </div>
         <div className="ml-auto">
           <UserViewHeaderMenu

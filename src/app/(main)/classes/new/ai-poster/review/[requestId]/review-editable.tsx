@@ -1,61 +1,47 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
-import type { AiPosterExtractedFields } from "@/types/ai-poster";
+import { Copy } from "lucide-react";
 import TypingLoader from "../../typing-loader";
 import ImageFullscreen from "../../image-fullscreen";
 
 interface Props {
   requestId: string;
-  initialTitle: string;
-  initialExtractedFields: AiPosterExtractedFields;
   initialPromptText: string;
-}
-
-function EditableField({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: string | null;
-  onChange: (v: string) => void;
-}) {
-  if (value === null) return null;
-
-  return (
-    <div className="rounded-xl bg-[#f8f8f8] px-4 py-3">
-      <p className="text-xs font-bold text-[#7a7a7a]">{label}</p>
-      <input
-        type="text"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="mt-1 w-full border-none bg-transparent text-sm font-semibold leading-6 text-[#111111] outline-none placeholder:text-[#bbb]"
-      />
-    </div>
-  );
+  isGenerationBlocked: boolean;
 }
 
 export default function AiPosterReviewEditable({
   requestId,
-  initialTitle,
-  initialExtractedFields,
   initialPromptText,
+  isGenerationBlocked,
 }: Props) {
-  const [title, setTitle] = useState(initialTitle);
-  const [fields, setFields] = useState(initialExtractedFields);
   const [promptText, setPromptText] = useState(initialPromptText);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState("");
   const [generatedImageUrl, setGeneratedImageUrl] = useState<string | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
+  const [copyToast, setCopyToast] = useState(false);
+  const promptTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const copyTimerRef = useRef<number | null>(null);
 
-  function updateField(key: keyof AiPosterExtractedFields, value: string) {
-    setFields((prev) => ({ ...prev, [key]: value }));
-  }
+  useEffect(() => {
+    return () => {
+      if (copyTimerRef.current) window.clearTimeout(copyTimerRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    const textarea = promptTextareaRef.current;
+    if (!textarea) return;
+
+    textarea.style.height = "0px";
+    textarea.style.height = `${textarea.scrollHeight}px`;
+  }, [promptText]);
 
   async function handleGenerate() {
+    if (isGenerationBlocked) return;
     setGenerating(true);
     setError("");
 
@@ -63,12 +49,7 @@ export default function AiPosterReviewEditable({
       const res = await fetch("/api/ai-poster/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          requestId,
-          promptText,
-          title,
-          extractedFields: fields,
-        }),
+        body: JSON.stringify({ requestId, promptText }),
       });
 
       const data = await res.json();
@@ -80,6 +61,27 @@ export default function AiPosterReviewEditable({
       setError(err instanceof Error ? err.message : "이미지 생성에 실패했습니다.");
       setGenerating(false);
     }
+  }
+
+  async function handleCopyPrompt() {
+    try {
+      await navigator.clipboard.writeText(promptText);
+    } catch {
+      const textarea = document.createElement("textarea");
+      textarea.value = promptText;
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textarea);
+    }
+
+    setCopyToast(true);
+    if (copyTimerRef.current) window.clearTimeout(copyTimerRef.current);
+    copyTimerRef.current = window.setTimeout(() => {
+      setCopyToast(false);
+    }, 1000);
   }
 
   function handleConfirm() {
@@ -126,8 +128,8 @@ export default function AiPosterReviewEditable({
           </div>
         </section>
 
-        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-[#e5e7eb] bg-white px-4 py-3">
-          <div className="mx-auto flex w-full max-w-[520px] gap-3">
+        <section className="rounded-2xl bg-white p-4 shadow-sm">
+          <div className="flex gap-3">
             <button type="button" onClick={handleDownload} className="btn-outline flex-1 text-center">
               다운로드
             </button>
@@ -135,7 +137,7 @@ export default function AiPosterReviewEditable({
               확인
             </button>
           </div>
-        </div>
+        </section>
 
         {fullscreen && (
           <ImageFullscreen src={generatedImageUrl} onClose={() => setFullscreen(false)} />
@@ -149,40 +151,53 @@ export default function AiPosterReviewEditable({
       <TypingLoader active={generating} />
 
       <section className="rounded-2xl bg-white p-4 shadow-sm">
-        <h2 className="text-base font-bold text-[#111111]">정리된 정보</h2>
-        <div className="mt-4 space-y-3">
-          <EditableField label="제목" value={title} onChange={setTitle} />
-          <EditableField label="수업 소개" value={fields.summary} onChange={(v) => updateField("summary", v)} />
-          <EditableField label="모집기간" value={fields.recruitDeadline} onChange={(v) => updateField("recruitDeadline", v)} />
-          <EditableField label="장소" value={fields.location} onChange={(v) => updateField("location", v)} />
-          <EditableField label="회비" value={fields.fee} onChange={(v) => updateField("fee", v)} />
-          <EditableField label="연락처" value={fields.contact} onChange={(v) => updateField("contact", v)} />
+        <div className="relative flex items-center justify-between gap-3">
+          <h2 className="text-base font-bold text-[#111111]">최종 프롬프트</h2>
+          <button
+            type="button"
+            onClick={handleCopyPrompt}
+            className="flex h-9 items-center gap-1.5 rounded-full border border-[#e5e7eb] px-3 text-sm font-bold text-[#444444] transition active:scale-[0.98]"
+            aria-label="프롬프트 복사"
+          >
+            <Copy size={16} strokeWidth={2.4} />
+            <span>복사</span>
+          </button>
+          {copyToast && (
+            <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-black/85 px-5 py-2 text-sm font-bold text-white shadow-lg">
+              복사완료
+            </div>
+          )}
         </div>
-      </section>
-
-      <section className="rounded-2xl bg-white p-4 shadow-sm">
-        <h2 className="text-base font-bold text-[#111111]">AI에 전달될 최종 프롬프트</h2>
         <textarea
+          ref={promptTextareaRef}
           value={promptText}
           onChange={(e) => setPromptText(e.target.value)}
-          rows={12}
-          className="mt-4 w-full whitespace-pre-wrap rounded-2xl bg-[#111111] px-4 py-4 text-sm leading-6 text-white outline-none resize-none"
+          className="mt-4 w-full resize-none overflow-hidden whitespace-pre-wrap rounded-2xl bg-[#111111] px-4 py-4 text-sm leading-6 text-white outline-none"
         />
       </section>
 
-      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-[#e5e7eb] bg-white px-4 py-3">
-        <div className="mx-auto flex w-full max-w-[520px] flex-col gap-2">
+      <section className="rounded-2xl bg-white p-4 shadow-sm">
+        <div className="space-y-2">
+          {isGenerationBlocked && (
+            <div
+              className="rounded-2xl px-4 py-3 text-center leading-6"
+              style={{ color: "rgba(0, 0, 0, 0.8)", fontSize: "16px" }}
+            >
+              <p className="font-bold">포스터 만들기 기능은 현재 월1회만 가능</p>
+            </div>
+          )}
           {error && <p className="text-center text-sm text-red-500">{error}</p>}
           <button
             type="button"
             onClick={handleGenerate}
-            disabled={generating}
+            disabled={generating || isGenerationBlocked}
             className="btn-primary w-full text-center disabled:opacity-60"
           >
             {generating ? "생성 중..." : "이미지 생성하기"}
           </button>
         </div>
-      </div>
+      </section>
+
     </>
   );
 }

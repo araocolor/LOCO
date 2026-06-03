@@ -83,7 +83,6 @@ export function buildAiPosterPromptPayload(input: AiPosterPromptInput): AiPoster
     `스타일은 ${input.options.style}, 인물 강조는 ${input.options.personFocus}, 전체 톤은 ${input.options.tone}, 비율은 ${input.options.ratio}로 맞춰줘.`,
     "포스터 안에는 아래 정보를 읽기 쉽게 정리해서 넣어줘.",
     ...requiredInfo,
-    rawContent ? `참고 원문:\n${rawContent}` : null,
   ]
     .filter(Boolean)
     .join("\n");

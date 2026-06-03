@@ -1075,34 +1075,41 @@ export default function ClassCard({ classData, priorityImage = false, onClassSel
             </button>
           )}
           <div
-            className="relative w-full max-w-[900px] max-h-[88vh] overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
+            className="relative flex w-full max-w-[900px] flex-col items-center overflow-visible"
+            onClick={() => setLightboxOpen(false)}
             onTouchStart={handleLightboxTouchStart}
             onTouchEnd={handleLightboxTouchEnd}
           >
-            <div
-              className="flex"
-              style={{
-                transform: `translateX(-${lightboxIndex * 100}%)`,
-                transition: "transform 320ms cubic-bezier(0.22, 1, 0.36, 1)",
-                willChange: "transform",
-              }}
-            >
-              {imageList.map((img, index) => (
-                <div
-                  key={`${img.full_url ?? img.card_url}-${index}`}
-                  className="min-w-full flex items-center justify-center"
-                >
-                  <Image
-                    src={img.full_url ?? img.card_url}
-                    alt={title}
-                    width={1200}
-                    height={1600}
-                    className="w-full h-auto max-h-[88vh] object-contain select-none"
-                    draggable={false}
-                  />
-                </div>
-              ))}
+            {totalImages > 1 && (
+              <div className="mb-3 text-sm text-white/85">
+                {lightboxIndex + 1} / {totalImages}
+              </div>
+            )}
+            <div className="max-h-[88vh] w-full overflow-hidden">
+              <div
+                className="flex"
+                style={{
+                  transform: `translateX(-${lightboxIndex * 100}%)`,
+                  transition: "transform 320ms cubic-bezier(0.22, 1, 0.36, 1)",
+                  willChange: "transform",
+                }}
+              >
+                {imageList.map((img, index) => (
+                  <div
+                    key={`${img.full_url ?? img.card_url}-${index}`}
+                    className="min-w-full flex items-center justify-center"
+                  >
+                    <Image
+                      src={img.full_url ?? img.card_url}
+                      alt={title}
+                      width={1200}
+                      height={1600}
+                      className="w-full h-auto max-h-[88vh] object-contain select-none"
+                      draggable={false}
+                    />
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
           {totalImages > 1 && lightboxIndex < totalImages - 1 && (
@@ -1129,11 +1136,6 @@ export default function ClassCard({ classData, priorityImage = false, onClassSel
                 <polyline points="9 18 15 12 9 6" />
               </svg>
             </button>
-          )}
-          {totalImages > 1 && (
-            <div className="absolute bottom-6 z-20 text-white/85 text-sm">
-              {lightboxIndex + 1} / {totalImages}
-            </div>
           )}
         </div>
       )}

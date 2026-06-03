@@ -1,12 +1,9 @@
 "use client";
 
-import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { Star, UserCircle } from "lucide-react";
 import { ClassImage } from "@/types/class";
-
-type TabType = "all" | "my" | "bookmark";
 
 interface GridClass {
   id: string;
@@ -38,7 +35,9 @@ interface Props {
 
 export default function UserViewClient({ profile, myClasses, bookmarkClasses, followerCount }: Props) {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<TabType>("all");
+  const mergedClasses = [...myClasses, ...bookmarkClasses].sort(
+    (a, b) => new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime()
+  );
 
   return (
     <div className="flex flex-col h-full">
@@ -97,29 +96,8 @@ export default function UserViewClient({ profile, myClasses, bookmarkClasses, fo
       </div>
 
       <div className="flex-1 bg-white">
-        <div className="flex gap-2 px-4 py-3">
-          {([["all", "전체목록"], ["my", "내클래스"], ["bookmark", "북마크"]] as const).map(([tab, label]) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`px-4 py-1.5 rounded-full text-[13px] font-medium transition-colors ${
-                activeTab === tab ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-500"
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-
         <div className="grid grid-cols-3 gap-[1px] bg-gray-200">
-          {(activeTab === "all"
-            ? [...myClasses, ...bookmarkClasses].sort(
-                (a, b) => new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime()
-              )
-            : activeTab === "my"
-            ? myClasses
-            : bookmarkClasses
-          ).map((item) => (
+          {mergedClasses.map((item) => (
             <button
               key={item.id + (item.isBookmark ? "-bm" : "")}
               type="button"

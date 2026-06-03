@@ -232,29 +232,26 @@ function CurrentMemberSection({ users }: { users: CandidateUser[] }) {
       {users.length === 0 ? (
         <p className="px-4 py-3 text-sm text-gray-400">멤버 정보를 불러올 수 없습니다</p>
       ) : (
-        users.map((user) => (
-          <div key={user.id} className="flex w-full items-center gap-3 px-4 py-2">
-            {user.profile_image_url ? (
-              <Image
-                src={user.profile_image_url}
-                alt={user.nickname}
-                width={34}
-                height={34}
-                className="h-[34px] w-[34px] rounded-full object-cover"
-              />
-            ) : (
-              <div className="flex h-[34px] w-[34px] items-center justify-center rounded-full bg-gray-200 text-xs font-bold text-gray-500">
-                {user.nickname[0] ?? "?"}
-              </div>
-            )}
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-[14px] font-semibold text-gray-900">{user.nickname}</p>
+        <div className="grid grid-cols-5 gap-x-2 gap-y-4 px-4 py-2">
+          {users.map((user) => (
+            <div key={user.id} className="flex min-w-0 flex-col items-center text-center">
+              {user.profile_image_url ? (
+                <Image
+                  src={user.profile_image_url}
+                  alt={user.nickname}
+                  width={50}
+                  height={50}
+                  className="h-[50px] w-[50px] rounded-full object-cover"
+                />
+              ) : (
+                <div className="flex h-[50px] w-[50px] items-center justify-center rounded-full bg-gray-200 text-xs font-bold text-gray-500">
+                  {user.nickname[0] ?? "?"}
+                </div>
+              )}
+              <p className="mt-2 w-full truncate text-[12px] font-semibold text-gray-900">{user.nickname}</p>
             </div>
-            <span className="text-[11px] font-semibold text-gray-500">
-              {user.member_role === "owner" ? "방장" : user.member_role === "admin" ? "관리자" : "멤버"}
-            </span>
-          </div>
-        ))
+          ))}
+        </div>
       )}
     </section>
   );

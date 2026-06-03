@@ -26,6 +26,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  let requestId: string | null = null;
+
   try {
     const body = (await request.json()) as {
       requestId: string;
@@ -33,7 +35,7 @@ export async function POST(request: NextRequest) {
       title?: string;
       extractedFields?: Record<string, string | null>;
     };
-    const { requestId } = body;
+    requestId = body.requestId;
 
     if (!requestId) {
       return NextResponse.json({ error: "requestId가 필요합니다." }, { status: 400 });
@@ -51,9 +53,25 @@ export async function POST(request: NextRequest) {
     }
 
     if (record.status === "generated") {
-      return NextResponse.json({
-        imageUrl: record.generated_image_url,
-      });
+      return NextResponse.json({ imageUrl: record.generated_image_url });
+    }
+
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const { data: recentGeneratedRequest } = await supabase
+      .from("ai_poster_requests")
+      .select("id, generated_at")
+      .eq("user_id", user.id)
+      .eq("status", "generated")
+      .gte("generated_at", sevenDaysAgo)
+      .order("generated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (recentGeneratedRequest) {
+      return NextResponse.json(
+        { error: "최근 7일 내 이미지를 생성해서 다시 만들 수 없어요." },
+        { status: 429 }
+      );
     }
 
     const finalPrompt = body.promptText ?? record.prompt_text;
@@ -142,11 +160,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ imageUrl: publicUrl });
   } catch (error) {
-    const requestId = await request
-      .json()
-      .then((b) => b.requestId)
-      .catch(() => null);
-
     if (requestId) {
       await supabase
         .from("ai_poster_requests")
