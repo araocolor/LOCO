@@ -9,7 +9,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { member_ids } = await request.json();
+    const body = await request.json();
+    const member_ids = body?.member_ids;
+    const title = typeof body?.title === "string" ? body.title.trim() : "";
 
     if (!Array.isArray(member_ids) || member_ids.length === 0) {
       return NextResponse.json({ error: "member_ids가 필요합니다." }, { status: 400 });
@@ -17,6 +19,10 @@ export async function POST(request: NextRequest) {
 
     if (member_ids.length > 50) {
       return NextResponse.json({ error: "최대 50명까지 초대할 수 있습니다." }, { status: 400 });
+    }
+
+    if (title.length > 30) {
+      return NextResponse.json({ error: "제목은 30자 이하여야 합니다." }, { status: 400 });
     }
 
     const uniqueIds = Array.from(new Set(member_ids.filter((id: unknown) => typeof id === "string" && id !== user.id)));
@@ -41,7 +47,7 @@ export async function POST(request: NextRequest) {
 
     const { data: room, error: roomError } = await admin
       .from("chat_rooms")
-      .insert({ type: "group", owner_id: user.id })
+      .insert({ type: "group", owner_id: user.id, title: title || null })
       .select("id")
       .single<{ id: string }>();
 

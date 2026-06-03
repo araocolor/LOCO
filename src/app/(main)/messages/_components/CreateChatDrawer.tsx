@@ -20,10 +20,31 @@ interface UserItem {
   priority: number;
 }
 
+interface CreatedChatRoom {
+  id: string;
+  type: "direct" | "group" | "class" | "self";
+  class_id: string | null;
+  owner_id: string | null;
+  title: string | null;
+  notice: string | null;
+  updated_at: string;
+  created_at: string;
+  members: Array<{
+    user_id: string;
+    role: "owner" | "admin" | "member";
+    created_at?: string | null;
+    profile: {
+      id: string;
+      nickname: string;
+      profile_image_url: string | null;
+    } | null;
+  }>;
+}
+
 interface CreateChatDrawerProps {
   open: boolean;
   onClose: () => void;
-  onRoomCreated: (roomId: string) => void;
+  onRoomCreated: (room: CreatedChatRoom) => void;
 }
 
 const MAX_SELECT = 50;
@@ -42,6 +63,7 @@ function readCacheArray<T>(key: string, field: string): T[] {
 
 export default function CreateChatDrawer({ open, onClose, onRoomCreated }: CreateChatDrawerProps) {
   const [query, setQuery] = useState("");
+  const [roomTitle, setRoomTitle] = useState("");
   const [allUsers, setAllUsers] = useState<UserItem[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [creating, setCreating] = useState(false);
@@ -49,19 +71,14 @@ export default function CreateChatDrawer({ open, onClose, onRoomCreated }: Creat
   const [slideIn, setSlideIn] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (!open) {
-      setSlideIn(false);
-      return;
-    }
-    requestAnimationFrame(() => setSlideIn(true));
+  const resetDrawerState = useCallback(() => {
     setQuery("");
+    setRoomTitle("");
     setSelectedIds(new Set());
     setVisibleCount(PAGE_SIZE);
-    loadUsersFromCache();
-  }, [open]);
+  }, []);
 
-  function loadUsersFromCache() {
+  const loadUsersFromCache = useCallback(() => {
     const following = readCacheArray<CachedUser>(SOCIAL_CACHE_KEY, "following");
     const followers = readCacheArray<CachedUser>(SOCIAL_CACHE_KEY, "followers");
 
@@ -98,7 +115,21 @@ export default function CreateChatDrawer({ open, onClose, onRoomCreated }: Creat
     });
 
     setAllUsers(sorted);
-  }
+  }, []);
+
+  useEffect(() => {
+    if (!open) {
+      const closeFrame = requestAnimationFrame(() => setSlideIn(false));
+      return () => cancelAnimationFrame(closeFrame);
+    }
+
+    const openFrame = requestAnimationFrame(() => {
+      resetDrawerState();
+      loadUsersFromCache();
+      setSlideIn(true);
+    });
+    return () => cancelAnimationFrame(openFrame);
+  }, [loadUsersFromCache, open, resetDrawerState]);
 
   const filteredUsers = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -141,6 +172,7 @@ export default function CreateChatDrawer({ open, onClose, onRoomCreated }: Creat
 
     try {
       const ids = Array.from(selectedIds);
+      const trimmedRoomTitle = roomTitle.trim();
 
       if (ids.length === 1) {
         const res = await fetch("/api/chat/rooms/direct", {
@@ -150,18 +182,18 @@ export default function CreateChatDrawer({ open, onClose, onRoomCreated }: Creat
         });
         const json = await res.json();
         if (res.ok && json.data?.id) {
-          onRoomCreated(json.data.id);
+          onRoomCreated(json.data as CreatedChatRoom);
           return;
         }
       } else {
         const res = await fetch("/api/chat/rooms/group", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ member_ids: ids }),
+          body: JSON.stringify({ member_ids: ids, title: trimmedRoomTitle }),
         });
         const json = await res.json();
         if (res.ok && json.data?.id) {
-          onRoomCreated(json.data.id);
+          onRoomCreated(json.data as CreatedChatRoom);
           return;
         }
       }
@@ -193,7 +225,21 @@ export default function CreateChatDrawer({ open, onClose, onRoomCreated }: Creat
           <button onClick={handleClose} className="p-1 text-gray-500 hover:text-gray-900">
             <X size={22} />
           </button>
-          <h2 className="font-bold text-gray-900 text-[17px]">대화상대 선택</h2>
+          {selectedIds.size >= 2 ? (
+            <div className="mx-3 flex flex-1 justify-center">
+              <label className="flex h-9 w-[90%] min-w-0 items-center border-b border-gray-300 px-1">
+                <input
+                  value={roomTitle}
+                  onChange={(e) => setRoomTitle(e.target.value)}
+                  placeholder="방제목을 입력하세요"
+                  maxLength={30}
+                  className="w-full bg-transparent pb-1 text-center text-[15px] text-gray-900 outline-none placeholder:text-center placeholder:text-gray-400"
+                />
+              </label>
+            </div>
+          ) : (
+            <h2 className="font-bold text-gray-900 text-[17px]">대화상대 선택</h2>
+          )}
           <button
             onClick={handleConfirm}
             disabled={selectedIds.size === 0 || creating}

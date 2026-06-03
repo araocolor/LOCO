@@ -50,6 +50,23 @@ interface ChatRoomApiItem {
   created_at: string;
 }
 
+interface CreatedChatRoomApiItem {
+  id: string;
+  type: "direct" | "group" | "class" | "self";
+  class_id: string | null;
+  owner_id: string | null;
+  title: string | null;
+  notice: string | null;
+  updated_at: string;
+  created_at: string;
+  members: Array<{
+    user_id: string;
+    role: "owner" | "admin" | "member";
+    created_at?: string | null;
+    profile: OtherUser | null;
+  }>;
+}
+
 interface ChatMessageApiItem {
   id: string;
   room_id: string;
@@ -406,6 +423,16 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
       unread_count: item.unread_count,
       updated_at: item.updated_at,
     };
+  }
+
+  function mapCreatedChatRoom(item: CreatedChatRoomApiItem): Conversation {
+    return mapChatRoom({
+      ...item,
+      class_image_url: null,
+      member_count: item.members.length,
+      last_message: null,
+      unread_count: 0,
+    });
   }
 
   function normalizeCachedConversation(item: unknown): Conversation | null {
@@ -1270,11 +1297,19 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
       <CreateChatDrawer
         open={createChatOpen}
         onClose={() => setCreateChatOpen(false)}
-        onRoomCreated={(roomId) => {
+        onRoomCreated={(room) => {
           setCreateChatOpen(false);
+          const nextRoom = mapCreatedChatRoom(room);
+          setConversations((prev) => {
+            const next = prev.some((conv) => conv.id === nextRoom.id)
+              ? prev.map((conv) => (conv.id === nextRoom.id ? { ...conv, ...nextRoom } : conv))
+              : [nextRoom, ...prev];
+            writeAllPreviewCaches(next);
+            return next;
+          });
           void fetchConversationsByType("direct", { force: true });
           void fetchConversationsByType("group", { force: true });
-          void openChat(roomId);
+          void openChat(room.id);
         }}
       />
     </div>

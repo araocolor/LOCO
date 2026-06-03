@@ -1,6 +1,9 @@
 const cache = new Map<string, HTMLAudioElement>();
 
-export function playSound(name: "message-send" | "talk-send" | "notification-show") {
+export function playSound(
+  name: "message-send" | "talk-send" | "notification-show",
+  options?: { volume?: number }
+) {
   try {
     let audio = cache.get(name);
     if (!audio) {
@@ -8,7 +11,7 @@ export function playSound(name: "message-send" | "talk-send" | "notification-sho
       cache.set(name, audio);
     }
     audio.currentTime = 0;
-    audio.volume = 0.7;
+    audio.volume = options?.volume ?? 0.7;
     audio.play().catch(() => {});
   } catch {}
 }

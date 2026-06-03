@@ -38,7 +38,7 @@ export default function ChatComposer({
         }}
       />
       <button
-        onClick={() => { playSound("talk-send"); onSendMessage(); }}
+        onClick={() => { playSound("talk-send", { volume: 0.1 }); onSendMessage(); }}
         disabled={!newMessage.trim() || !selectedUserId}
         className="w-9 h-9 flex items-center justify-center bg-yellow-400 text-gray-900 rounded-full hover:bg-yellow-500 disabled:opacity-50 mt-1 flex-shrink-0"
       >
