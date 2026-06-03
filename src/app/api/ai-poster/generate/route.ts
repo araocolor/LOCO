@@ -56,22 +56,31 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ imageUrl: record.generated_image_url });
     }
 
-    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-    const { data: recentGeneratedRequest } = await supabase
-      .from("ai_poster_requests")
-      .select("id, generated_at")
-      .eq("user_id", user.id)
-      .eq("status", "generated")
-      .gte("generated_at", sevenDaysAgo)
-      .order("generated_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+    const role = profile?.role ?? "unknown";
 
-    if (recentGeneratedRequest) {
-      return NextResponse.json(
-        { error: "최근 7일 내 이미지를 생성해서 다시 만들 수 없어요." },
-        { status: 429 }
-      );
+    if (role !== "admin") {
+      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+      const { data: recentGeneratedRequest } = await supabase
+        .from("ai_poster_requests")
+        .select("id, generated_at")
+        .eq("user_id", user.id)
+        .eq("status", "generated")
+        .gte("generated_at", sevenDaysAgo)
+        .order("generated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (recentGeneratedRequest) {
+        return NextResponse.json(
+          { error: "최근 7일 내 이미지를 생성해서 다시 만들 수 없어요." },
+          { status: 429 }
+        );
+      }
     }
 
     const finalPrompt = body.promptText ?? record.prompt_text;
