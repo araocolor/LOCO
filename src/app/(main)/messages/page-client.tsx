@@ -1026,7 +1026,8 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
     if (hasSufficientCache) {
       setChatLoading(false);
     } else {
-      if (cachedMessages.length > 0) setChatLoading(false);
+      const hadCache = cachedMessages.length > 0;
+      if (hadCache) setChatLoading(false);
       void (async () => {
         try {
           const payload = await fetchChatRoomPayload(roomId);
@@ -1034,7 +1035,27 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
             patchConversationWithRoom(payload.room);
           }
           if (activeChatRoomRef.current === roomId) {
-            setMessages(payload.messages);
+            if (hadCache && payload.messages.length > 0) {
+              shouldStickToBottomRef.current = false;
+              setMessages((prev) => {
+                const existingIds = new Set(prev.map((m) => m.id));
+                const olderMsgs = payload.messages.filter((m) => !existingIds.has(m.id));
+                if (olderMsgs.length === 0) return prev;
+                const scrollContainer = document.querySelector(".chat-drawer-scroll");
+                const prevHeight = scrollContainer?.scrollHeight ?? 0;
+                const merged = [...olderMsgs, ...prev].sort(
+                  (a, b) => new Date(a.sent_at).getTime() - new Date(b.sent_at).getTime()
+                );
+                requestAnimationFrame(() => {
+                  if (scrollContainer) {
+                    scrollContainer.scrollTop = scrollContainer.scrollHeight - prevHeight;
+                  }
+                });
+                return merged;
+              });
+            } else {
+              setMessages(payload.messages);
+            }
             setNotices(payload.notices);
             setChatLoading(false);
             writeChatRoomPayloadCache(roomId, payload);
