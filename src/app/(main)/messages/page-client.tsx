@@ -1038,12 +1038,17 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
             if (hadCache && payload.messages.length > 0) {
               shouldStickToBottomRef.current = false;
               setMessages((prev) => {
-                const existingIds = new Set(prev.map((m) => m.id));
-                const olderMsgs = payload.messages.filter((m) => !existingIds.has(m.id));
+                const existingMap = new Map(prev.map((m) => [m.id, m]));
+                const olderMsgs = payload.messages.filter((m) => !existingMap.has(m.id));
                 if (olderMsgs.length === 0) return prev;
+                const preserved = prev.map((m) => {
+                  const server = payload.messages.find((s) => s.id === m.id);
+                  if (!server) return m;
+                  return { ...server, content: m.content };
+                });
                 const scrollContainer = document.querySelector(".chat-drawer-scroll");
                 const prevHeight = scrollContainer?.scrollHeight ?? 0;
-                const merged = [...olderMsgs, ...prev].sort(
+                const merged = [...olderMsgs, ...preserved].sort(
                   (a, b) => new Date(a.sent_at).getTime() - new Date(b.sent_at).getTime()
                 );
                 requestAnimationFrame(() => {
