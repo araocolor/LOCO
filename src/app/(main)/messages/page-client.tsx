@@ -46,6 +46,15 @@ interface ChatRoomApiItem {
     is_mine: boolean;
     created_at: string;
   } | null;
+  recent_messages?: Array<{
+    id: string;
+    room_id: string;
+    sender_id: string;
+    kind: "text" | "image" | "file" | "system";
+    content: string;
+    is_mine: boolean;
+    created_at: string;
+  }>;
   unread_count: number;
   updated_at: string;
   created_at: string;
@@ -100,7 +109,7 @@ const MAX_VIDEO_UPLOAD_BYTES = 50 * 1024 * 1024;
 const VIDEO_UPLOAD_TIMEOUT_MS = 180000;
 const ALLOWED_VIDEO_TYPES = new Set(["video/mp4", "video/quicktime", "video/webm"]);
 const CHAT_ROOMS_PREVIEW_CACHE_PREFIX = "loco_chat_rooms_preview_cache_v1:";
-const CHAT_ROOMS_PREVIEW_CACHE_TTL_MS = 60 * 1000;
+const CHAT_ROOMS_PREVIEW_CACHE_TTL_MS = 5 * 60 * 1000;
 const CONVERSATIONS_LIMIT = 50;
 
 type PreviewRoomType = "direct" | "group" | "class";
@@ -656,18 +665,40 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
       mergeConversationsByType(type, incomingConversations);
 
       for (const item of apiItems) {
-        if (!item.last_message) continue;
-        const msg: Message = {
-          id: item.last_message.id,
-          room_id: item.id,
-          sender_id: item.last_message.sender_id,
-          kind: item.last_message.kind,
-          content: item.last_message.content,
-          sent_at: item.last_message.created_at,
-        };
-        const cached = readMessageCache(item.id);
-        if (cached.length === 0 || cached[cached.length - 1].id !== msg.id) {
-          appendMessageCache(item.id, msg);
+        if (item.recent_messages && item.recent_messages.length > 0) {
+          const recentMsgs: Message[] = item.recent_messages.map((rm) => ({
+            id: rm.id,
+            room_id: rm.room_id,
+            sender_id: rm.sender_id,
+            kind: rm.kind,
+            content: rm.content,
+            sent_at: rm.created_at,
+          }));
+          const cached = readMessageCache(item.id);
+          if (cached.length === 0) {
+            writeMessageCache(item.id, recentMsgs);
+          } else {
+            const cachedIds = new Set(cached.map((m) => m.id));
+            const newMsgs = recentMsgs.filter((m) => !cachedIds.has(m.id));
+            if (newMsgs.length > 0) {
+              writeMessageCache(item.id, [...cached, ...newMsgs].sort(
+                (a, b) => new Date(a.sent_at).getTime() - new Date(b.sent_at).getTime()
+              ));
+            }
+          }
+        } else if (item.last_message) {
+          const msg: Message = {
+            id: item.last_message.id,
+            room_id: item.id,
+            sender_id: item.last_message.sender_id,
+            kind: item.last_message.kind,
+            content: item.last_message.content,
+            sent_at: item.last_message.created_at,
+          };
+          const cached = readMessageCache(item.id);
+          if (cached.length === 0 || cached[cached.length - 1].id !== msg.id) {
+            appendMessageCache(item.id, msg);
+          }
         }
       }
     } catch (error) {

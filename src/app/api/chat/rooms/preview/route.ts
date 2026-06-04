@@ -141,10 +141,13 @@ export async function GET(request: NextRequest) {
       .map((room) => room.last_message_id)
       .filter((id): id is string => Boolean(id));
 
+    const RECENT_MESSAGES_LIMIT = 10;
+
     const [
       profiles,
       { data: classRows, error: classRowsError },
       { data: lastMessages, error: lastMessagesError },
+      ...recentMessageResults
     ] = await Promise.all([
       getProfiles(profileIds),
       classIds.length > 0
@@ -161,10 +164,27 @@ export async function GET(request: NextRequest) {
             .in("id", lastMessageIds)
             .returns<ChatMessageRow[]>()
         : Promise.resolve({ data: [], error: null }),
+      ...activeRooms.map((room) =>
+        admin
+          .from("chat_messages")
+          .select("id, room_id, sender_id, kind, content, deleted_at, created_at")
+          .eq("room_id", room.id)
+          .is("deleted_at", null)
+          .order("created_at", { ascending: false })
+          .limit(RECENT_MESSAGES_LIMIT)
+          .returns<ChatMessageRow[]>()
+      ),
     ]);
 
     if (classRowsError) throw classRowsError;
     if (lastMessagesError) throw lastMessagesError;
+
+    const recentMessagesMap = new Map<string, ChatMessageRow[]>();
+    activeRooms.forEach((room, index) => {
+      const result = recentMessageResults[index] as { data: ChatMessageRow[] | null; error: unknown };
+      const rows = (result.data ?? []).reverse();
+      recentMessagesMap.set(room.id, rows);
+    });
 
     const profileMap = new Map(profiles.map((profile) => [profile.id, profile]));
     const classMap = new Map((classRows ?? []).map((row) => [row.id, row]));
@@ -225,6 +245,32 @@ export async function GET(request: NextRequest) {
                 created_at: lastMessage.created_at,
               }
             : null,
+          recent_messages: (recentMessagesMap.get(room.id) ?? [])
+            .filter((msg) => {
+              if (msg.kind !== "file") return true;
+              try {
+                return JSON.parse(msg.content)?.type !== "video";
+              } catch { return true; }
+            })
+            .map((msg) => {
+              let content = msg.content;
+              if (msg.kind === "image") {
+                try {
+                  const parsed = JSON.parse(content);
+                  const { full: _full, ...rest } = parsed;
+                  content = JSON.stringify(rest);
+                } catch {}
+              }
+              return {
+                id: msg.id,
+                room_id: msg.room_id,
+                sender_id: msg.sender_id,
+                kind: msg.kind,
+                content,
+                is_mine: msg.sender_id === user.id,
+                created_at: msg.created_at,
+              };
+            }),
           unread_count: unreadCountMap.get(room.id) ?? 0,
           updated_at: room.last_message_at ?? room.updated_at,
           created_at: room.created_at,
