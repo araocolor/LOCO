@@ -16,12 +16,16 @@ export interface ChatMemberProfile {
 interface MemberGridProps {
   canAddMembers: boolean;
   members: ChatMemberProfile[];
+  userId: string;
+  roomId: string;
   onOpenMemberDrawer: () => void;
 }
 
 export default function MemberGrid({
   canAddMembers,
   members,
+  userId,
+  roomId,
   onOpenMemberDrawer,
 }: MemberGridProps) {
   const [showGame, setShowGame] = useState(true);
@@ -33,7 +37,7 @@ export default function MemberGrid({
           참여 회원이 없습니다
         </div>
       ) : showGame ? (
-        <MemberBreakoutGame members={members} onExitGame={() => setShowGame(false)} />
+        <MemberBreakoutGame members={members} userId={userId} roomId={roomId} onExitGame={() => setShowGame(false)} />
       ) : (
         <div className="h-full min-h-full px-4 py-5">
           <div className="grid grid-cols-5 gap-x-4 gap-y-5">

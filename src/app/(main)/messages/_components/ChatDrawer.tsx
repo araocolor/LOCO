@@ -392,6 +392,8 @@ export default function ChatDrawer({
             <MemberGrid
               canAddMembers={canAddMembers}
               members={memberProfiles}
+              userId={userId}
+              roomId={roomId ?? ""}
               onOpenMemberDrawer={onOpenMemberDrawer}
             />
           ) : displayedActiveTab === "class" ? (

@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Power } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Crown, Power } from "lucide-react";
 import Avatar from "@/components/ui/Avatar";
+import { fetchTopRecord, saveGameRecord, type TopRecord } from "./game-record";
 
 export interface MemberGameProfile {
   userId: string;
@@ -13,6 +14,8 @@ export interface MemberGameProfile {
 
 interface MemberBreakoutGameProps {
   members: MemberGameProfile[];
+  userId: string;
+  roomId: string;
   onExitGame: () => void;
 }
 
@@ -226,14 +229,43 @@ function createInitialGame(bounds: GameBounds): GameState {
   };
 }
 
-export default function MemberBreakoutGame({ members, onExitGame }: MemberBreakoutGameProps) {
+export default function MemberBreakoutGame({ members, userId, roomId, onExitGame }: MemberBreakoutGameProps) {
+  const savedRef = useRef(false);
   const frameRef = useRef<number | null>(null);
   const boardRef = useRef<HTMLDivElement>(null);
   const [bounds, setBounds] = useState<GameBounds>({ width: 0, height: 0 });
   const [game, setGame] = useState<GameState | null>(null);
+  const [topRecord, setTopRecord] = useState<TopRecord | null>(null);
   const hasGame = Boolean(game);
   const isRunning = game?.status === "running";
   const displayReserve = game ? Math.max(0, game.remainingLives - game.balls.length) : 0;
+
+  useEffect(() => {
+    if (!roomId) return;
+    fetchTopRecord(roomId, "breakout").then(setTopRecord);
+  }, [roomId]);
+
+  const handleSaveRecord = useCallback(() => {
+    if (!game || savedRef.current) return;
+    if (game.status !== "completed" && game.status !== "gameover") return;
+    savedRef.current = true;
+    const duration = game.startedAt && game.endedAt
+      ? (game.endedAt - game.startedAt) / 1000
+      : 0;
+    saveGameRecord({
+      userId,
+      roomId,
+      gameType: "breakout",
+      score: game.finalScore ?? 0,
+      playDuration: Math.round(duration * 10) / 10,
+    }).then(() => {
+      fetchTopRecord(roomId, "breakout").then(setTopRecord);
+    });
+  }, [game, userId, roomId]);
+
+  useEffect(() => {
+    handleSaveRecord();
+  }, [handleSaveRecord]);
 
   const memberLayouts = useMemo(() => buildMemberLayouts(bounds, members), [bounds, members]);
   const confettiPieces = useMemo(
@@ -555,6 +587,7 @@ export default function MemberBreakoutGame({ members, onExitGame }: MemberBreako
 
   function restartGame() {
     if (!bounds.width || !bounds.height) return;
+    savedRef.current = false;
     setGame(createInitialGame(bounds));
   }
 
@@ -620,11 +653,22 @@ export default function MemberBreakoutGame({ members, onExitGame }: MemberBreako
       <div className="relative z-10 flex items-center justify-between px-5 pb-2 pt-5 text-white">
         <div>
           <p className="text-[11px] font-black tracking-[0.32em] text-white/70">XLATIN GAME</p>
-          <h3 className="mt-1 text-[22px] font-black tracking-[-0.03em]">채팅방회원 구출하기</h3>
+          <h3 className="mt-1 text-[22px] font-black tracking-[-0.03em]">라틴댄서 구출하기</h3>
         </div>
-        <div className="rounded-full border border-white/15 bg-white/10 px-3 py-2 text-right backdrop-blur">
-          <p className="text-[11px] font-bold text-white/60">미션완료</p>
-          <p className="text-sm font-bold text-white">{elapsedWholeSeconds}초</p>
+        <div className="flex items-center gap-2">
+          {topRecord && (
+            <div className="flex items-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 backdrop-blur">
+              <Crown size={21} className="shrink-0 text-yellow-300" fill="currentColor" />
+              <div className="text-right">
+                <p className="text-[11px] font-bold text-yellow-200/90">{topRecord.nickname}</p>
+                <p className="text-sm font-bold text-white">{topRecord.playDuration}초</p>
+              </div>
+            </div>
+          )}
+          <div className="rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-right backdrop-blur">
+            <p className="text-[11px] font-bold text-white/60">미션완료</p>
+            <p className="text-sm font-bold text-white">{elapsedWholeSeconds}초</p>
+          </div>
         </div>
       </div>
 
