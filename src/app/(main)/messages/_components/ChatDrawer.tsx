@@ -62,6 +62,7 @@ interface ChatDrawerProps {
   onMarkNoticeRead: (noticeId: string) => void;
   onMessageReaction: (messageId: string, reactionType: MessageReactionType) => void;
   onStartLongPress: (msgId: string, isMine: boolean) => void;
+  onAvatarClick: (userId: string) => void;
   onTitleChanged: (title: string) => void;
   setAttachOpen: Dispatch<SetStateAction<boolean>>;
   setNewMessage: Dispatch<SetStateAction<string>>;
@@ -120,6 +121,7 @@ export default function ChatDrawer({
   onMarkNoticeRead,
   onMessageReaction,
   onStartLongPress,
+  onAvatarClick,
   onTitleChanged,
   setAttachOpen,
   setNewMessage,
@@ -367,6 +369,7 @@ export default function ChatDrawer({
           onChatScroll={onChatScroll}
           onDeleteMessage={onDeleteMessage}
           onImageClick={(messageId: string, fullUrl: string, isMine: boolean) => setViewerData({ messageId, fullUrl, isMine })}
+          onAvatarClick={onAvatarClick}
           onMessageReaction={onMessageReaction}
           onNoticeReaction={onNoticeReaction}
           onStartLongPress={onStartLongPress}

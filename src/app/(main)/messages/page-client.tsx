@@ -9,6 +9,7 @@ import ConversationList from "./_components/ConversationList";
 import ChatDrawer from "./_components/ChatDrawer";
 import ChatMemberDrawer from "./_components/ChatMemberDrawer";
 import CreateChatDrawer from "./_components/CreateChatDrawer";
+import UserProfileModal from "@/components/user/UserProfileModal";
 import type { ChatNotice, Conversation, Message, MessageMenuTab, MessageReactionType, MyProfile, OtherUser } from "./_types";
 import { useChatNotices } from "./_hooks/useChatNotices";
 import {
@@ -177,6 +178,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
   const [attachOpen, setAttachOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [shakingMsgId, setShakingMsgId] = useState<string | null>(null);
+  const [profileModalUserId, setProfileModalUserId] = useState<string | null>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1277,6 +1279,9 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
           void handleSendMessage();
         }}
         onStartLongPress={startLongPress}
+        onAvatarClick={(targetUserId) => {
+          if (targetUserId !== userId) setProfileModalUserId(targetUserId);
+        }}
         onTitleChanged={(title) => {
           patchConversationWithRoom({ id: selectedRoomId, title });
         }}
@@ -1312,6 +1317,12 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
           void openChat(room.id);
         }}
       />
+      {profileModalUserId && (
+        <UserProfileModal
+          userId={profileModalUserId}
+          onClose={() => setProfileModalUserId(null)}
+        />
+      )}
     </div>
   );
 }

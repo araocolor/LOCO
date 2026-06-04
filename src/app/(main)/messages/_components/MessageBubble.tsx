@@ -26,6 +26,7 @@ interface MessageBubbleProps {
   onDeleteMessage: (msgId: string) => void;
   onMessageReaction: (msgId: string, reactionType: MessageReactionType) => void;
   onImageClick?: (messageId: string, fullUrl: string, isMine: boolean) => void;
+  onAvatarClick?: (userId: string) => void;
   formatTime: (dateStr: string) => string;
 }
 
@@ -51,6 +52,7 @@ export default memo(function MessageBubble({
   onDeleteMessage,
   onMessageReaction,
   onImageClick,
+  onAvatarClick,
   formatTime,
 }: MessageBubbleProps) {
   const isMine = isSelfChat ? messageIndex % 2 === 0 : msg.sender_id === userId;
@@ -84,19 +86,25 @@ export default memo(function MessageBubble({
       )}
       {showSenderName && (
         <div className="flex items-center gap-2 mb-2">
-          {sender?.profile_image_url ? (
-            <Image
-              src={sender.profile_image_url}
-              alt={sender.nickname}
-              width={40}
-              height={40}
-              className="rounded-full object-cover flex-shrink-0"
-            />
-          ) : (
-            <div className="w-[40px] h-[40px] rounded-full bg-gray-200 flex items-center justify-center text-gray-500 text-xs font-medium flex-shrink-0">
-              {sender?.nickname?.[0] ?? "?"}
-            </div>
-          )}
+          <button
+            type="button"
+            onClick={() => sender?.id && onAvatarClick?.(sender.id)}
+            className="flex-shrink-0"
+          >
+            {sender?.profile_image_url ? (
+              <Image
+                src={sender.profile_image_url}
+                alt={sender.nickname}
+                width={40}
+                height={40}
+                className="rounded-full object-cover"
+              />
+            ) : (
+              <div className="w-[40px] h-[40px] rounded-full bg-gray-200 flex items-center justify-center text-gray-500 text-xs font-medium">
+                {sender?.nickname?.[0] ?? "?"}
+              </div>
+            )}
+          </button>
           <span className="text-base text-gray-800">{sender?.nickname}</span>
         </div>
       )}
