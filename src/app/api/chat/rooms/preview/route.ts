@@ -246,12 +246,6 @@ export async function GET(request: NextRequest) {
               }
             : null,
           recent_messages: (recentMessagesMap.get(room.id) ?? [])
-            .filter((msg) => {
-              if (msg.kind !== "file") return true;
-              try {
-                return JSON.parse(msg.content)?.type !== "video";
-              } catch { return true; }
-            })
             .map((msg) => {
               let content = msg.content;
               if (msg.kind === "image") {
@@ -259,6 +253,15 @@ export async function GET(request: NextRequest) {
                   const parsed = JSON.parse(content);
                   const { full: _full, ...rest } = parsed;
                   content = JSON.stringify(rest);
+                } catch {}
+              }
+              if (msg.kind === "file") {
+                try {
+                  const parsed = JSON.parse(content);
+                  if (parsed?.type === "video") {
+                    const { url: _url, ...rest } = parsed;
+                    content = JSON.stringify(rest);
+                  }
                 } catch {}
               }
               return {
