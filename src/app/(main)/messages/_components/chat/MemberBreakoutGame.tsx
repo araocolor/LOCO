@@ -40,7 +40,7 @@ interface BallState {
 }
 
 interface GameState {
-  ball: BallState;
+  balls: BallState[];
   paddleX: number;
   bricks: Brick[];
   rescuedOrder: string[];
@@ -52,9 +52,11 @@ interface GameState {
   startedAt: number | null;
   endedAt: number | null;
   launched: boolean;
-  status: "running" | "completed";
+  status: "running" | "completed" | "gameover";
   completionReason: "rescue" | "bricks" | null;
   finalScore: number | null;
+  remainingLives: number;
+  waitingOnPaddle: number;
 }
 
 interface MemberLayout {
@@ -85,6 +87,8 @@ const RESCUE_FALL_MS = 820;
 const RELAUNCH_DELAY_MS = 720;
 const BRICK_SCORE = 100;
 const RESCUE_SCORE = 250;
+const TOTAL_LIVES = 3;
+const RESERVE_BALL_SIZE = 12;
 const BRICK_COLORS = [
   "#ff7a59",
   "#ffb347",
@@ -188,17 +192,21 @@ function getRescueSlot(bounds: GameBounds, rescuedIndex: number) {
   };
 }
 
+function createBallOnPaddle(paddleX: number, bounds: GameBounds): BallState {
+  return {
+    x: paddleX,
+    y: getPaddleY(bounds) - BALL_RADIUS - START_BUTTON_HEIGHT / 2 - 6,
+    vx: 0,
+    vy: 0,
+    radius: BALL_RADIUS,
+  };
+}
+
 function createInitialGame(bounds: GameBounds): GameState {
   const now = performance.now();
   const paddleX = bounds.width / 2;
   return {
-    ball: {
-      x: paddleX,
-      y: getPaddleY(bounds) - BALL_RADIUS - START_BUTTON_HEIGHT / 2 - 6,
-      vx: 0,
-      vy: 0,
-      radius: BALL_RADIUS,
-    },
+    balls: [createBallOnPaddle(paddleX, bounds)],
     paddleX,
     bricks: buildBricks(bounds),
     rescuedOrder: [],
@@ -213,6 +221,8 @@ function createInitialGame(bounds: GameBounds): GameState {
     status: "running",
     completionReason: null,
     finalScore: null,
+    remainingLives: TOTAL_LIVES,
+    waitingOnPaddle: 1,
   };
 }
 
@@ -223,6 +233,7 @@ export default function MemberBreakoutGame({ members, onExitGame }: MemberBreako
   const [game, setGame] = useState<GameState | null>(null);
   const hasGame = Boolean(game);
   const isRunning = game?.status === "running";
+  const displayReserve = game ? Math.max(0, game.remainingLives - game.balls.length) : 0;
 
   const memberLayouts = useMemo(() => buildMemberLayouts(bounds, members), [bounds, members]);
   const confettiPieces = useMemo(
@@ -300,7 +311,6 @@ export default function MemberBreakoutGame({ members, onExitGame }: MemberBreako
         const rescuedRatio = members.length > 0 ? current.rescuedOrder.length / members.length : 0;
         const speedTarget = BASE_SPEED + (brokenRatio * 0.82 + rescuedRatio * 0.18) * MAX_EXTRA_SPEED;
 
-        let nextBall = { ...current.ball };
         let nextBricks = current.bricks;
         let nextHitAt = current.hitAt;
         let nextPendingReleaseAt = current.pendingReleaseAt;
@@ -308,7 +318,8 @@ export default function MemberBreakoutGame({ members, onExitGame }: MemberBreako
         let nextRescuedOrder = current.rescuedOrder;
         let relaunchAt = current.relaunchAt;
         let launched = current.launched;
-        const paddleHeight = START_BUTTON_HEIGHT;
+        let remainingLives = current.remainingLives;
+        let waitingOnPaddle = current.waitingOnPaddle;
 
         const readyRescues = Object.entries(nextPendingReleaseAt).filter(([, releaseAt]) => releaseAt <= time);
         if (readyRescues.length > 0) {
@@ -327,23 +338,31 @@ export default function MemberBreakoutGame({ members, onExitGame }: MemberBreako
           });
         }
 
-        if (relaunchAt && time >= relaunchAt) {
-          const launchOffset = clamp((current.paddleX - bounds.width / 2) / (bounds.width / 2), -0.65, 0.65);
-          nextBall = {
-            ...nextBall,
-            x: current.paddleX,
-            y: paddleY - nextBall.radius - START_BUTTON_HEIGHT / 2 - 6,
-            vx: launchOffset * 52,
-            vy: -BASE_SPEED,
-          };
-          relaunchAt = null;
-          launched = true;
+        const survivingBalls: BallState[] = [];
+        const paddleHeight = START_BUTTON_HEIGHT;
+
+        const paddleBallIndices: number[] = [];
+        for (let i = 0; i < current.balls.length; i++) {
+          const b = current.balls[i];
+          if (b.vx === 0 && b.vy === 0) paddleBallIndices.push(i);
         }
 
-        if (!launched && !relaunchAt) {
-          nextBall.x = current.paddleX;
-          nextBall.y = paddleY - nextBall.radius - paddleHeight / 2 - 6;
-        } else if (!relaunchAt) {
+        for (let i = 0; i < current.balls.length; i++) {
+          const ball = current.balls[i];
+          const nextBall = { ...ball };
+          const isOnPaddle = nextBall.vx === 0 && nextBall.vy === 0 && !relaunchAt;
+
+          if (isOnPaddle) {
+            const paddleBallOrder = paddleBallIndices.indexOf(i);
+            const totalOnPaddle = paddleBallIndices.length;
+            const spacing = BALL_RADIUS * 3;
+            const offsetX = (paddleBallOrder - (totalOnPaddle - 1) / 2) * spacing;
+            nextBall.x = current.paddleX + offsetX;
+            nextBall.y = paddleY - nextBall.radius - paddleHeight / 2 - 6;
+            survivingBalls.push(nextBall);
+            continue;
+          }
+
           const magnitude = Math.hypot(nextBall.vx, nextBall.vy) || 1;
           nextBall.vx = (nextBall.vx / magnitude) * speedTarget;
           nextBall.vy = (nextBall.vy / magnitude) * speedTarget;
@@ -379,7 +398,7 @@ export default function MemberBreakoutGame({ members, onExitGame }: MemberBreako
             nextBall.vy = -Math.sqrt(Math.max(speedTarget ** 2 - nextBall.vx ** 2, speedTarget * 0.55));
           }
 
-          const hitBrickIndex = current.bricks.findIndex(
+          const hitBrickIndex = nextBricks.findIndex(
             (brick) =>
               brick.alive &&
               nextBall.x + nextBall.radius >= brick.x &&
@@ -389,10 +408,10 @@ export default function MemberBreakoutGame({ members, onExitGame }: MemberBreako
           );
 
           if (hitBrickIndex >= 0) {
-            nextBricks = current.bricks.map((brick, index) =>
+            nextBricks = nextBricks.map((brick, index) =>
               index === hitBrickIndex ? { ...brick, alive: false } : brick
             );
-            const brick = current.bricks[hitBrickIndex];
+            const brick = nextBricks[hitBrickIndex];
             const hitFromTop = prevY <= brick.y - nextBall.radius;
             const hitFromBottom = prevY >= brick.y + brick.height + nextBall.radius;
             if (hitFromTop || hitFromBottom) {
@@ -422,18 +441,55 @@ export default function MemberBreakoutGame({ members, onExitGame }: MemberBreako
           }
 
           if (nextBall.y - nextBall.radius > bounds.height) {
-            nextBall = {
-              ...nextBall,
-              x: current.paddleX,
-              y: paddleY - nextBall.radius - START_BUTTON_HEIGHT / 2 - 6,
-              vx: 0,
-              vy: 0,
-            };
-            relaunchAt = time + RELAUNCH_DELAY_MS;
+            remainingLives -= 1;
+            continue;
           }
-        } else {
-          nextBall.x = current.paddleX;
-          nextBall.y = paddleY - nextBall.radius - START_BUTTON_HEIGHT / 2 - 6;
+
+          survivingBalls.push(nextBall);
+        }
+
+        if (survivingBalls.length === 0 && remainingLives > 0) {
+          waitingOnPaddle = 1;
+          survivingBalls.push(createBallOnPaddle(current.paddleX, bounds));
+          relaunchAt = time + RELAUNCH_DELAY_MS;
+        }
+
+        if (survivingBalls.length === 0 && remainingLives <= 0) {
+          const brokenBricks = totalBreakableBricks - nextBricks.filter((b) => b.alive).length;
+          const finalScore = brokenBricks * BRICK_SCORE + nextRescuedOrder.length * RESCUE_SCORE;
+          return {
+            ...current,
+            balls: [],
+            bricks: nextBricks,
+            rescuedOrder: nextRescuedOrder,
+            hitAt: nextHitAt,
+            pendingReleaseAt: nextPendingReleaseAt,
+            releasedAt: nextReleasedAt,
+            relaunchAt: null,
+            time,
+            endedAt: time,
+            launched,
+            status: "gameover",
+            completionReason: null,
+            finalScore,
+            remainingLives: 0,
+            waitingOnPaddle: 0,
+          };
+        }
+
+        if (relaunchAt && time >= relaunchAt) {
+          const paddleBalls = survivingBalls.filter((b) => b.vx === 0 && b.vy === 0);
+          if (paddleBalls.length > 0) {
+            const launchBall = paddleBalls[0];
+            const launchOffset = clamp((current.paddleX - bounds.width / 2) / (bounds.width / 2), -0.65, 0.65);
+            launchBall.x = current.paddleX;
+            launchBall.y = paddleY - launchBall.radius - START_BUTTON_HEIGHT / 2 - 6;
+            launchBall.vx = launchOffset * 52;
+            launchBall.vy = -BASE_SPEED;
+            waitingOnPaddle = Math.max(0, waitingOnPaddle - 1);
+          }
+          relaunchAt = null;
+          launched = true;
         }
 
         const remainingBricks = nextBricks.filter((brick) => brick.alive).length;
@@ -443,11 +499,7 @@ export default function MemberBreakoutGame({ members, onExitGame }: MemberBreako
             totalBreakableBricks * BRICK_SCORE + nextRescuedOrder.length * RESCUE_SCORE;
           return {
             ...current,
-            ball: {
-              ...nextBall,
-              vx: 0,
-              vy: 0,
-            },
+            balls: survivingBalls.map((b) => ({ ...b, vx: 0, vy: 0 })),
             bricks: nextBricks,
             rescuedOrder: nextRescuedOrder,
             hitAt: nextHitAt,
@@ -460,12 +512,14 @@ export default function MemberBreakoutGame({ members, onExitGame }: MemberBreako
             status: "completed",
             completionReason: rescuedAllMembers ? "rescue" : "bricks",
             finalScore,
+            remainingLives,
+            waitingOnPaddle,
           };
         }
 
         return {
           ...current,
-          ball: nextBall,
+          balls: survivingBalls,
           bricks: nextBricks,
           rescuedOrder: nextRescuedOrder,
           hitAt: nextHitAt,
@@ -474,6 +528,8 @@ export default function MemberBreakoutGame({ members, onExitGame }: MemberBreako
           relaunchAt,
           time,
           launched,
+          remainingLives,
+          waitingOnPaddle,
         };
       });
 
@@ -506,20 +562,45 @@ export default function MemberBreakoutGame({ members, onExitGame }: MemberBreako
     if (!bounds.width || !bounds.height) return;
     const now = performance.now();
     setGame((current) => {
-      if (!current || current.launched || current.status !== "running") return current;
+      if (!current || current.status !== "running") return current;
       const paddleY = getPaddleY(bounds);
+      const paddleBalls = current.balls.filter((b) => b.vx === 0 && b.vy === 0);
+      if (paddleBalls.length === 0) return current;
+      const launchBall = paddleBalls[0];
+      const newBalls = current.balls.map((b) =>
+        b === launchBall
+          ? {
+              ...b,
+              x: current.paddleX,
+              y: paddleY - b.radius - START_BUTTON_HEIGHT / 2 - 6,
+              vx: 24,
+              vy: -BASE_SPEED,
+            }
+          : b
+      );
       return {
         ...current,
         launched: true,
-        startedAt: now,
+        startedAt: current.startedAt ?? now,
         time: now,
-        ball: {
-          ...current.ball,
-          x: current.paddleX,
-          y: paddleY - current.ball.radius - START_BUTTON_HEIGHT / 2 - 6,
-          vx: 24,
-          vy: -BASE_SPEED,
-        },
+        balls: newBalls,
+        waitingOnPaddle: Math.max(0, current.waitingOnPaddle - 1),
+      };
+    });
+  }
+
+  function addBallFromReserve() {
+    if (!bounds.width || !bounds.height) return;
+    setGame((current) => {
+      if (!current || current.status !== "running") return current;
+      const usedBalls = current.balls.length + (TOTAL_LIVES - current.remainingLives);
+      if (usedBalls >= TOTAL_LIVES) return current;
+      if (current.waitingOnPaddle >= 2) return current;
+      const newBall = createBallOnPaddle(current.paddleX, bounds);
+      return {
+        ...current,
+        balls: [...current.balls, newBall],
+        waitingOnPaddle: current.waitingOnPaddle + 1,
       };
     });
   }
@@ -625,23 +706,27 @@ export default function MemberBreakoutGame({ members, onExitGame }: MemberBreako
           );
         })}
 
-        {game && (
+        {game?.balls.map((ball, index) => (
           <div
+            key={index}
             className="pointer-events-none absolute z-30 rounded-full bg-[#fff4a8] shadow-[0_0_18px_rgba(255,244,168,0.8)]"
             style={{
-              left: game.ball.x - game.ball.radius,
-              top: game.ball.y - game.ball.radius,
-              width: game.ball.radius * 2,
-              height: game.ball.radius * 2,
+              left: ball.x - ball.radius,
+              top: ball.y - ball.radius,
+              width: ball.radius * 2,
+              height: ball.radius * 2,
             }}
           />
-        )}
+        ))}
 
         {game && (
           <button
             type="button"
-            onClick={game.launched ? undefined : launchGame}
-            className={`absolute z-20 -translate-x-1/2 border border-yellow-100 bg-yellow-300 px-5 shadow-[0_12px_24px_rgba(250,204,21,0.35)] will-change-transform ${
+            onClick={() => {
+              const hasPaddleBall = game.balls.some((b) => b.vx === 0 && b.vy === 0);
+              if (hasPaddleBall) launchGame();
+            }}
+            className={`absolute z-20 -translate-x-1/2 select-none border border-yellow-100 bg-yellow-300 px-5 shadow-[0_12px_24px_rgba(250,204,21,0.35)] will-change-transform ${
               game.launched
                 ? "rounded-full"
                 : "flex items-center justify-center rounded-full"
@@ -654,19 +739,67 @@ export default function MemberBreakoutGame({ members, onExitGame }: MemberBreako
             }}
           >
             <span className="text-[13px] font-black text-gray-900">
-              {game.launched ? "게임중" : "게임시작"}
+              {!game.launched
+                ? "게임시작"
+                : game.balls.some((b) => b.vx === 0 && b.vy === 0)
+                  ? "발사"
+                  : "게임중"}
             </span>
           </button>
+        )}
+
+        {game && game.status === "running" && displayReserve > 0 && (
+          <div className="absolute bottom-5 right-5 z-20 flex items-center gap-3">
+            {Array.from({ length: displayReserve }, (_, i) => (
+              <button
+                key={i}
+                type="button"
+                onClick={addBallFromReserve}
+                className="block cursor-pointer rounded-full bg-[#fff4a8] shadow-[0_0_12px_rgba(255,244,168,0.8)] transition hover:scale-125 hover:shadow-[0_0_18px_rgba(255,244,168,1)]"
+                style={{ width: RESERVE_BALL_SIZE, height: RESERVE_BALL_SIZE }}
+              />
+            ))}
+          </div>
         )}
 
         <button
           type="button"
           onClick={onExitGame}
           aria-label="게임 종료"
-          className="absolute bottom-4 left-4 z-20 flex h-11 w-11 items-center justify-center rounded-full border border-white/18 bg-[#0f172a]/72 text-white shadow-[0_12px_24px_rgba(15,23,42,0.32)] transition hover:bg-[#162033]"
+          className="absolute bottom-2 left-4 z-20 flex h-9 w-9 items-center justify-center rounded-full border border-white/18 bg-[#0f172a]/72 text-white shadow-[0_12px_24px_rgba(15,23,42,0.32)] transition hover:bg-[#162033]"
         >
-          <Power size={18} strokeWidth={2.4} />
+          <Power size={15} strokeWidth={2.4} />
         </button>
+
+        {game?.status === "gameover" && (
+          <div className="absolute inset-0 z-40 flex items-center justify-center bg-[#0b1220]/68 backdrop-blur-[3px]">
+            <div className="mx-6 w-full max-w-[320px] rounded-[28px] border border-white/12 bg-[#0f172a]/72 px-6 py-7 text-center text-white shadow-[0_18px_60px_rgba(15,23,42,0.35)]">
+              <p className="text-[11px] font-black uppercase tracking-[0.34em] text-red-300/90">Game Over</p>
+              <h4 className="mt-3 text-[28px] font-black tracking-[-0.04em]">
+                {game.finalScore ?? 0}점
+              </h4>
+              <p className="mt-2 text-sm font-semibold text-white/78">
+                공을 모두 잃었어요
+              </p>
+              <div className="mt-6 flex items-center justify-center gap-3">
+                <button
+                  type="button"
+                  onClick={onExitGame}
+                  className="inline-flex h-11 items-center justify-center rounded-full border border-white/18 bg-white/10 px-6 text-sm font-black text-white transition hover:bg-white/16"
+                >
+                  끝내기
+                </button>
+                <button
+                  type="button"
+                  onClick={restartGame}
+                  className="inline-flex h-11 items-center justify-center rounded-full bg-yellow-300 px-6 text-sm font-black text-gray-900 shadow-[0_12px_24px_rgba(250,204,21,0.3)] transition hover:bg-yellow-200"
+                >
+                  다시하기
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {game?.status === "completed" && (
           <div className="absolute inset-0 z-40 flex items-center justify-center bg-[#0b1220]/68 backdrop-blur-[3px]">
