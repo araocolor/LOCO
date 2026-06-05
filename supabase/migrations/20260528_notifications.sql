@@ -35,7 +35,7 @@ RETURNS TRIGGER AS $$
 BEGIN
   INSERT INTO notifications (user_id, actor_id, type, ref_id, meta)
   SELECT
-    f.friend_id,
+    f.user_id,
     NEW.host_id,
     'friend_class_created',
     NEW.id,
@@ -45,9 +45,9 @@ BEGIN
       'category', COALESCE(NEW.category, '')
     )
   FROM friendships f
-  WHERE f.user_id = NEW.host_id
+  WHERE f.friend_id = NEW.host_id
     AND f.status = 'approved'
-    AND f.friend_id != NEW.host_id;
+    AND f.user_id != NEW.host_id;
 
   RETURN NEW;
 END;

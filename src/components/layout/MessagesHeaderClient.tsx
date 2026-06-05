@@ -35,7 +35,7 @@ export default function MessagesHeaderClient() {
       <div className="font-black text-[22px] text-[#4d4d4d] leading-none">
         채팅
       </div>
-      {user && (
+      {user && profileImageUrl && (
         <button
           type="button"
           className="absolute right-4"

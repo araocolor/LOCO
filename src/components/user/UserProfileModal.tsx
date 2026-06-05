@@ -53,7 +53,7 @@ function formatRecentActiveTime(lastActiveAt: string | null) {
   return "";
 }
 
-type RelationStatus = "맞팔" | "팔로잉" | "팔로워" | "구독자" | "아님";
+type RelationStatus = "맞팔" | "팔로잉" | "팔로워" | "구독자" | "연결없음";
 
 interface ProfileData {
   nickname: string;
@@ -103,10 +103,10 @@ function buildProfileData(member: CachedProfileSeed): ProfileData {
 }
 
 function getRelationStatusFromMember(member: CachedProfileSeed | null): RelationStatus {
-  if (!member?.status) return "아님";
+  if (!member?.status) return "연결없음";
   if (member.status === "friend") return "맞팔";
   if (member.status === "approved") return "팔로잉";
-  return "아님";
+  return "연결없음";
 }
 
 function readSearchSocialCacheProfile(userId: string): { profile: ProfileData; relationStatus: RelationStatus } | null {
@@ -198,7 +198,7 @@ function readUserSearchInfoCache(userId: string): ProfileData | null {
 export default function UserProfileModal({ userId, onClose, initialProfile = null }: UserProfileModalProps) {
   const router = useRouter();
   const [profileData, setProfileData] = useState<ProfileData | null>(null);
-  const [relationStatus, setRelationStatus] = useState<RelationStatus>("아님");
+  const [relationStatus, setRelationStatus] = useState<RelationStatus>("연결없음");
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuPosition, setMenuPosition] = useState<{ x: number; y: number; placement: "top" | "bottom" } | null>(null);
   const [messageTarget, setMessageTarget] = useState<{ id: string; nickname: string; profile_image_url: string | null } | null>(null);
@@ -241,7 +241,7 @@ export default function UserProfileModal({ userId, onClose, initialProfile = nul
       } else if (chatCached) {
         setRelationStatus(chatCached.relationStatus);
       } else {
-        setRelationStatus("아님");
+        setRelationStatus("연결없음");
       }
     });
 
@@ -515,7 +515,7 @@ export default function UserProfileModal({ userId, onClose, initialProfile = nul
               <span>메시지 전송</span>
               <Send size={20} className="text-gray-500" />
             </button>
-            {relationStatus === "아님" && (
+            {relationStatus === "연결없음" && (
               <>
                 <div className="border-t border-gray-100 mx-3" />
                 <button
@@ -553,7 +553,7 @@ export default function UserProfileModal({ userId, onClose, initialProfile = nul
                         body: JSON.stringify({ target_id: userId }),
                       });
                       if (res.ok) {
-                        setRelationStatus("아님");
+                        setRelationStatus("연결없음");
                         setShowFriendCancelSuccess(true);
                         setTimeout(() => setShowFriendCancelSuccess(false), 1500);
                       }
@@ -644,7 +644,7 @@ export default function UserProfileModal({ userId, onClose, initialProfile = nul
                       body: JSON.stringify({ target_id: userId }),
                     });
                     if (res.ok) {
-                      setRelationStatus("아님");
+                      setRelationStatus("연결없음");
                       setShowFriendCancelSuccess(true);
                       setTimeout(() => setShowFriendCancelSuccess(false), 1500);
                     }

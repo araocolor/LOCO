@@ -54,6 +54,7 @@ interface ChatRoomApiItem {
     content: string;
     is_mine: boolean;
     created_at: string;
+    sender?: OtherUser | null;
   }>;
   unread_count: number;
   updated_at: string;
@@ -673,6 +674,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
             kind: rm.kind,
             content: rm.content,
             sent_at: rm.created_at,
+            sender: rm.sender ?? null,
           }));
           const cached = readMessageCache(item.id);
           if (cached.length === 0) {

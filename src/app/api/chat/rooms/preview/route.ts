@@ -264,6 +264,7 @@ export async function GET(request: NextRequest) {
                   }
                 } catch {}
               }
+              const senderProfile = profileMap.get(msg.sender_id) ?? null;
               return {
                 id: msg.id,
                 room_id: msg.room_id,
@@ -272,6 +273,7 @@ export async function GET(request: NextRequest) {
                 content,
                 is_mine: msg.sender_id === user.id,
                 created_at: msg.created_at,
+                sender: senderProfile,
               };
             }),
           unread_count: unreadCountMap.get(room.id) ?? 0,

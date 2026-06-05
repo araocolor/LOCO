@@ -60,7 +60,7 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
   const [friendClasses, setFriendClasses] = useState<ClassWithHost[]>([]);
   const [friendClassesLoading, setFriendClassesLoading] = useState(false);
   const [classDetailId, setClassDetailId] = useState<string | null>(null);
-  const [allViewMode, setAllViewMode] = useState<"grid" | "card">("card");
+  const [allViewMode, setAllViewMode] = useState<"grid" | "card">("grid");
   const [filterOpts, setFilterOpts] = useState<SearchOptions>(DEFAULT_SEARCH_OPTIONS);
   const [openMenu, setOpenMenu] = useState<"region" | "period" | "genre" | "class_type" | null>(
     null
