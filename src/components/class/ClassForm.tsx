@@ -230,9 +230,17 @@ async function canvasToWebpFile(
   return new File([blob], fileName, { type: "image/webp" });
 }
 
+const AI_POSTER_FILENAME = "ai-poster.webp";
+const AI_POSTER_FULL_WIDTH = 1004;
+const AI_POSTER_QUALITY = 0.75;
+const DEFAULT_QUALITY = 0.9;
+
 async function resizeImageToWidth(file: File, width: number): Promise<File> {
   const image = await loadImage(file);
-  const targetWidth = Math.min(width, image.width);
+  const isAiPoster = file.name === AI_POSTER_FILENAME;
+  const quality = isAiPoster ? AI_POSTER_QUALITY : DEFAULT_QUALITY;
+  const maxWidth = isAiPoster && width >= 1024 ? AI_POSTER_FULL_WIDTH : width;
+  const targetWidth = Math.min(maxWidth, image.width);
   const targetHeight = Math.round((image.height * targetWidth) / image.width);
 
   const canvas = document.createElement("canvas");
@@ -244,7 +252,7 @@ async function resizeImageToWidth(file: File, width: number): Promise<File> {
 
   ctx.drawImage(image, 0, 0, targetWidth, targetHeight);
 
-  return canvasToWebpFile(canvas, `${file.name.replace(/\.[^.]+$/, "") || "image"}.webp`, 0.9);
+  return canvasToWebpFile(canvas, `${file.name.replace(/\.[^.]+$/, "") || "image"}.webp`, quality);
 }
 
 export default function ClassForm({ initialData, classId, userRole: _userRole, aiPosterData }: ClassFormProps) {
