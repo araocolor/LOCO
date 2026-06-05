@@ -64,8 +64,11 @@ function readRoomCache(roomId: string): ChatRoomCache {
   return legacy;
 }
 
+const MESSAGE_CACHE_LIMIT = 10;
+
 function writeRoomCache(roomId: string, cache: ChatRoomCache) {
-  const nextMessages = limitImageMessages(cache.messages);
+  const trimmed = cache.messages.slice(-MESSAGE_CACHE_LIMIT);
+  const nextMessages = limitImageMessages(trimmed);
   localStorage.setItem(
     getChatRoomCacheKey(roomId),
     JSON.stringify({

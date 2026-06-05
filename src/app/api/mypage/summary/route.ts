@@ -11,6 +11,7 @@ interface AppliedClassInfo {
   datetime: string;
   region: string;
   status: ClassStatus;
+  images: { card_url: string }[] | null;
 }
 
 interface AppliedClassRow {
@@ -77,7 +78,7 @@ export async function GET() {
         .single(),
       supabase
         .from("applications")
-        .select("id, status, created_at, class:classes(id, title, datetime, region, status)")
+        .select("id, status, created_at, class:classes(id, title, datetime, region, status, images)")
         .eq("applicant_id", user.id)
         .order("created_at", { ascending: false }),
       supabase
@@ -177,6 +178,7 @@ export async function GET() {
               datetime: cls.datetime,
               region: cls.region,
               status: cls.status as ClassStatus,
+              images: cls.images,
             }
           : null,
       };

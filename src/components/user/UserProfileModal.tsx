@@ -8,6 +8,7 @@ import SendMessageModal from "@/components/modal/SendMessageModal";
 
 const USER_VIEW_CACHE_PREFIX = "user_view_v2_";
 const SEARCH_SOCIAL_CACHE_KEY = "search_social_cache";
+const CHAT_FRIENDS_CACHE_KEY = "chat_friends_cache";
 const USER_SEARCH_INFO_KEY = "user_search_info";
 const STAR_GIFTED_KEY = "loco_star_gifted_ids";
 
@@ -77,6 +78,7 @@ interface CachedProfileSeed {
   region?: string | null;
   last_active_at?: string | null;
   status?: "pending" | "approved" | "friend";
+  received_star_count?: number;
 }
 
 interface UserProfileModalProps {
@@ -94,7 +96,7 @@ function buildProfileData(member: CachedProfileSeed): ProfileData {
     country: member.country ?? null,
     region: member.region ?? null,
     last_active_at: member.last_active_at ?? null,
-    received_star_count: 0,
+    received_star_count: member.received_star_count ?? 0,
     gifted_star_count_by_me: 0,
     my_star_balance: 0,
   };
@@ -128,6 +130,29 @@ function readSearchSocialCacheProfile(userId: string): { profile: ProfileData; r
         : follower
           ? "팔로워"
           : "구독자",
+    };
+  } catch {
+    return null;
+  }
+}
+
+function readChatFriendsCacheProfile(userId: string): { profile: ProfileData; relationStatus: RelationStatus } | null {
+  try {
+    const raw = localStorage.getItem(CHAT_FRIENDS_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as {
+      following?: CachedProfileSeed[];
+      followers?: CachedProfileSeed[];
+    };
+    const following = parsed.following?.find((member) => member.id === userId) ?? null;
+    const follower = parsed.followers?.find((member) => member.id === userId) ?? null;
+    const member = following ?? follower;
+    if (!member) return null;
+    return {
+      profile: buildProfileData(member),
+      relationStatus: following
+        ? getRelationStatusFromMember(following)
+        : "팔로워",
     };
   } catch {
     return null;
@@ -197,10 +222,11 @@ export default function UserProfileModal({ userId, onClose, initialProfile = nul
 
   useEffect(() => {
     const socialCached = readSearchSocialCacheProfile(userId);
+    const chatCached = readChatFriendsCacheProfile(userId);
     const seedProfile = initialProfile ? buildProfileData(initialProfile) : null;
     const dancerCached = readUserSearchInfoCache(userId);
     const starCached = readUserViewSessionStarCache(userId);
-    let nextCachedProfile = seedProfile ?? socialCached?.profile ?? dancerCached;
+    let nextCachedProfile = seedProfile ?? socialCached?.profile ?? chatCached?.profile ?? dancerCached;
     if (nextCachedProfile && starCached) {
       nextCachedProfile = { ...nextCachedProfile, ...starCached };
     }
@@ -212,6 +238,8 @@ export default function UserProfileModal({ userId, onClose, initialProfile = nul
         setRelationStatus(getRelationStatusFromMember(initialProfile));
       } else if (socialCached) {
         setRelationStatus(socialCached.relationStatus);
+      } else if (chatCached) {
+        setRelationStatus(chatCached.relationStatus);
       } else {
         setRelationStatus("아님");
       }

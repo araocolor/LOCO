@@ -31,6 +31,7 @@ interface CachedAppliedClassInfo {
   datetime: string;
   region: string;
   status: ClassStatus;
+  images: ClassImage[] | null;
 }
 
 interface CachedAppliedClass {
@@ -165,6 +166,7 @@ export default function MyPageCacheLoader() {
     <MyPageClient
       profile={data.profile}
       myClasses={data.myClasses ?? []}
+      appliedClasses={data.appliedClasses ?? []}
       socialCounts={data.socialCounts}
       starGivers={data.starGivers ?? []}
     />

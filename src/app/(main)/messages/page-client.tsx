@@ -1020,59 +1020,62 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
       return next;
     });
 
-    const INITIAL_MESSAGE_COUNT = 40;
-    const hasSufficientCache = cachedMessages.length >= INITIAL_MESSAGE_COUNT;
-
-    if (hasSufficientCache) {
-      setChatLoading(false);
-    } else {
-      const hadCache = cachedMessages.length > 0;
-      if (hadCache) setChatLoading(false);
-      void (async () => {
-        try {
-          const payload = await fetchChatRoomPayload(roomId);
-          if (payload.room) {
-            patchConversationWithRoom(payload.room);
-          }
-          if (activeChatRoomRef.current === roomId) {
-            if (hadCache && payload.messages.length > 0) {
-              shouldStickToBottomRef.current = false;
-              setMessages((prev) => {
-                const existingMap = new Map(prev.map((m) => [m.id, m]));
-                const olderMsgs = payload.messages.filter((m) => !existingMap.has(m.id));
-                if (olderMsgs.length === 0) return prev;
-                const preserved = prev.map((m) => {
-                  const server = payload.messages.find((s) => s.id === m.id);
-                  if (!server) return m;
-                  return { ...server, content: m.content };
-                });
-                const scrollContainer = document.querySelector(".chat-drawer-scroll");
-                const prevHeight = scrollContainer?.scrollHeight ?? 0;
-                const merged = [...olderMsgs, ...preserved].sort(
-                  (a, b) => new Date(a.sent_at).getTime() - new Date(b.sent_at).getTime()
-                );
-                requestAnimationFrame(() => {
-                  if (scrollContainer) {
-                    scrollContainer.scrollTop = scrollContainer.scrollHeight - prevHeight;
-                  }
-                });
-                return merged;
-              });
-            } else {
-              setMessages(payload.messages);
-            }
-            setNotices(payload.notices);
-            setChatLoading(false);
-            writeChatRoomPayloadCache(roomId, payload);
-          }
-        } catch (error) {
-          console.error("Failed to load chat room:", error);
-          if (activeChatRoomRef.current === roomId) {
-            setChatLoading(false);
-          }
+    const hadCache = cachedMessages.length > 0;
+    if (hadCache) setChatLoading(false);
+    void (async () => {
+      try {
+        const payload = await fetchChatRoomPayload(roomId);
+        if (payload.room) {
+          patchConversationWithRoom(payload.room);
         }
-      })();
-    }
+        if (activeChatRoomRef.current === roomId) {
+          if (hadCache && payload.messages.length > 0) {
+            shouldStickToBottomRef.current = false;
+            const nextNoticeCount = payload.notices.length;
+            const scrollContainer = document.querySelector(".chat-drawer-scroll");
+            const anchorId = cachedMessages[0]?.id;
+            const anchorEl = anchorId ? scrollContainer?.querySelector(`[data-msg-id="${anchorId}"]`) as HTMLElement | null : null;
+            const anchorOffset = anchorEl && scrollContainer ? anchorEl.offsetTop - scrollContainer.scrollTop : null;
+            setMessages((prev) => {
+              const existingMap = new Map(prev.map((m) => [m.id, m]));
+              const olderMsgs = payload.messages.filter((m) => !existingMap.has(m.id));
+              if (olderMsgs.length === 0) {
+                previousTimelineCountRef.current = prev.length + nextNoticeCount;
+                return prev;
+              }
+              const preserved = prev.map((m) => {
+                const server = payload.messages.find((s) => s.id === m.id);
+                if (!server) return m;
+                return { ...server, content: m.content };
+              });
+              const merged = [...olderMsgs, ...preserved].sort(
+                (a, b) => new Date(a.sent_at).getTime() - new Date(b.sent_at).getTime()
+              );
+              previousTimelineCountRef.current = merged.length + nextNoticeCount;
+              requestAnimationFrame(() => {
+                if (scrollContainer && anchorId && anchorOffset !== null) {
+                  const newAnchorEl = scrollContainer.querySelector(`[data-msg-id="${anchorId}"]`) as HTMLElement | null;
+                  if (newAnchorEl) {
+                    scrollContainer.scrollTop = newAnchorEl.offsetTop - anchorOffset;
+                  }
+                }
+              });
+              return merged;
+            });
+          } else {
+            setMessages(payload.messages);
+          }
+          setNotices(payload.notices);
+          setChatLoading(false);
+          writeChatRoomPayloadCache(roomId, payload);
+        }
+      } catch (error) {
+        console.error("Failed to load chat room:", error);
+        if (activeChatRoomRef.current === roomId) {
+          setChatLoading(false);
+        }
+      }
+    })();
   }
 
   useEffect(() => {

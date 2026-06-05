@@ -66,7 +66,7 @@ export default memo(function MessageBubble({
   const hasRichContent = hasRichMessageContent(msg.content);
 
   return (
-    <div>
+    <div data-msg-id={msg.id}>
       {showMyAvatar && (
         <div className="flex justify-end mb-2">
           {myProfile?.profile_image_url ? (

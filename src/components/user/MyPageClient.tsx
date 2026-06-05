@@ -33,6 +33,20 @@ interface GridClass {
   isBookmark?: boolean;
 }
 
+interface AppliedClass {
+  id: string;
+  status: string;
+  created_at: string;
+  class: {
+    id: string;
+    title: string;
+    datetime: string;
+    region: string;
+    status: string;
+    images: ClassImage[] | null;
+  } | null;
+}
+
 interface HomeClassCache {
   id: string;
   images: ClassImage[] | null;
@@ -90,6 +104,7 @@ interface Profile {
 interface Props {
   profile: Profile;
   myClasses: GridClass[];
+  appliedClasses?: AppliedClass[];
   starGivers?: StarGiver[];
   socialCounts?: {
     following: number;
@@ -104,6 +119,7 @@ type CacheProfilePatch = Partial<Pick<Profile, "bio" | "country" | "region" | "f
 export default function MyPageClient({
   profile,
   myClasses: initialMyClasses,
+  appliedClasses: initialAppliedClasses = [],
   socialCounts,
   starGivers: initialStarGivers = [],
 }: Props) {
@@ -458,43 +474,96 @@ export default function MyPageClient({
         </div>
       </div>
 
-      {/* 하단 클래스 그리드 */}
+      {/* 하단 클래스 섹션 */}
       <div className="flex-1 bg-white">
-        {/* 3x3 그리드 */}
-        <div className="grid grid-cols-3 gap-[1px] bg-white">
-          {[...myClasses, ...bookmarkClasses].sort((a, b) =>
-            new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime()
-          ).map((item) => (
-            <button
-              key={item.id + (item.isBookmark ? "-bm" : "")}
-              type="button"
-              onClick={() => router.push(`/classes/${item.id}`)}
-              className="aspect-square bg-gray-100 relative overflow-hidden cursor-pointer"
-            >
-              {item.images?.[0]?.card_url ? (
-                <Image
-                  src={item.images[0].card_url}
-                  alt={item.title}
-                  fill
-                  className="object-cover"
-                  unoptimized
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center bg-gray-100">
-                  <span className="text-gray-300 text-xs">없음</span>
-                </div>
-              )}
-              {item.isBookmark && (
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="white" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="absolute top-1.5 right-1.5">
-                  <polygon points="19 21 12 16 5 21 5 3 19 3" />
-                </svg>
-              )}
-              {!item.isBookmark && item.status === "recruiting" && (
-                <div className="absolute top-1.5 right-1.5 w-3 h-3 rounded-full bg-green-500" />
-              )}
-            </button>
-          ))}
-        </div>
+        {myClasses.length > 0 && (
+          <>
+            <div className="px-4 pt-5 pb-2">
+              <span className="text-[15px] font-bold text-gray-800">내가 만든 클래스</span>
+            </div>
+            <div className="grid grid-cols-3 gap-[1px]">
+              {myClasses.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => router.push(`/classes/${item.id}`)}
+                  className="aspect-square bg-gray-100 relative overflow-hidden cursor-pointer"
+                >
+                  {item.images?.[0]?.card_url ? (
+                    <Image src={item.images[0].card_url} alt={item.title} fill className="object-cover" unoptimized />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-gray-100">
+                      <span className="text-gray-300 text-xs">없음</span>
+                    </div>
+                  )}
+                  {item.status === "recruiting" && (
+                    <div className="absolute top-1.5 right-1.5 w-3 h-3 rounded-full bg-green-500" />
+                  )}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+
+        {initialAppliedClasses.length > 0 && (
+          <>
+            <div className="px-4 pt-5 pb-2">
+              <span className="text-[15px] font-bold text-gray-800">참여중인 클래스</span>
+            </div>
+            <div className="grid grid-cols-3 gap-[1px]">
+              {initialAppliedClasses
+                .filter((app) => app.class)
+                .map((app) => (
+                  <button
+                    key={app.id}
+                    type="button"
+                    onClick={() => router.push(`/classes/${app.class!.id}`)}
+                    className="aspect-square bg-gray-100 relative overflow-hidden cursor-pointer"
+                  >
+                    {app.class!.images?.[0]?.card_url ? (
+                      <Image src={app.class!.images[0].card_url} alt={app.class!.title} fill className="object-cover" unoptimized />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-gray-100">
+                        <span className="text-gray-300 text-xs">없음</span>
+                      </div>
+                    )}
+                    {app.status === "pending" && (
+                      <div className="absolute top-1.5 right-1.5 rounded-full bg-yellow-400 px-1.5 py-0.5 text-[10px] font-semibold text-gray-900">대기</div>
+                    )}
+                  </button>
+                ))}
+            </div>
+          </>
+        )}
+
+        {bookmarkClasses.length > 0 && (
+          <>
+            <div className="px-4 pt-5 pb-2">
+              <span className="text-[15px] font-bold text-gray-800">북마크 클래스</span>
+            </div>
+            <div className="grid grid-cols-3 gap-[1px]">
+              {bookmarkClasses.map((item) => (
+                <button
+                  key={item.id + "-bm"}
+                  type="button"
+                  onClick={() => router.push(`/classes/${item.id}`)}
+                  className="aspect-square bg-gray-100 relative overflow-hidden cursor-pointer"
+                >
+                  {item.images?.[0]?.card_url ? (
+                    <Image src={item.images[0].card_url} alt={item.title} fill className="object-cover" unoptimized />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-gray-100">
+                      <span className="text-gray-300 text-xs">없음</span>
+                    </div>
+                  )}
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="white" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="absolute top-1.5 right-1.5">
+                    <polygon points="19 21 12 16 5 21 5 3 19 3" />
+                  </svg>
+                </button>
+              ))}
+            </div>
+          </>
+        )}
       </div>
 
       {starGiversOpen && (

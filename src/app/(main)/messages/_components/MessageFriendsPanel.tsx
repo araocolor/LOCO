@@ -7,7 +7,7 @@ import Avatar from "@/components/ui/Avatar";
 import SendMessageModal from "@/components/modal/SendMessageModal";
 import UserProfileModal from "@/components/user/UserProfileModal";
 import { useFriendActions } from "../../search/_hooks/useFriendActions";
-import { useSearchSocialData } from "../../search/_hooks/useSearchSocialData";
+import { useChatFriends } from "../_hooks/useChatFriends";
 import type { Follower, Suggestion } from "../../search/_types/search";
 import { formatLocation, formatRecentActiveTime, getAvatarFloatStyle } from "../../search/_lib/search-utils";
 
@@ -118,13 +118,13 @@ function FriendGrid({
 
 export default function MessageFriendsPanel({ onlineIds, onMessageSent }: MessageFriendsPanelProps) {
 
-  const socialData = useSearchSocialData("friends");
+  const chatFriends = useChatFriends();
   const friendActions = useFriendActions({
-    followers: socialData.followers,
-    setFollowers: socialData.setFollowers,
-    following: socialData.following,
-    setFollowing: socialData.setFollowing,
-    followingStatusById: socialData.followingStatusById,
+    followers: chatFriends.followers,
+    setFollowers: chatFriends.setFollowers,
+    following: chatFriends.following,
+    setFollowing: chatFriends.setFollowing,
+    followingStatusById: chatFriends.followingStatusById,
   });
   const [profileModalTarget, setProfileModalTarget] = useState<Follower | null>(null);
   const [messageTarget, setMessageTarget] = useState<{
@@ -136,8 +136,8 @@ export default function MessageFriendsPanel({ onlineIds, onMessageSent }: Messag
   const [friendSearch, setFriendSearch] = useState("");
 
   const connectedFriends = useMemo(
-    () => socialData.following.filter((member) => member.status === "friend" || member.status === "approved"),
-    [socialData.following]
+    () => chatFriends.following.filter((member) => member.status === "friend" || member.status === "approved"),
+    [chatFriends.following]
   );
 
   const mutualFriends = useMemo(
