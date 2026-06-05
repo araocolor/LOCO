@@ -440,7 +440,7 @@ export default function MyPageClient({
                   aria-label="별을 준 사람들 보기"
                   title="별을 준 사람들 보기"
                 >
-                  <Star size={25} className="text-gray-500" />
+                  <Star size={25} className="text-yellow-400 fill-yellow-400 drop-shadow-md" />
                   <span className="text-[18px] font-bold text-gray-900 leading-tight">{receivedStarCount}</span>
                 </button>
                 <Link
