@@ -27,13 +27,18 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "이미 신청한 클래스입니다." }, { status: 409 });
   }
 
-  const { data: classInfo } = await supabase
+  const { data: cls } = await supabase
     .from("classes")
-    .select("require_approval")
+    .select("host_id, title, require_approval")
     .eq("id", class_id)
     .single();
 
-  const initialStatus = classInfo?.require_approval === false ? "approved" : "pending";
+  if (!cls) {
+    return NextResponse.json({ error: "클래스를 찾을 수 없습니다." }, { status: 404 });
+  }
+
+  const needsApproval = cls.require_approval !== false;
+  const initialStatus = needsApproval ? "pending" : "approved";
 
   const { data, error } = await supabase
     .from("applications")
@@ -45,14 +50,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  // 개설자에게 신청 알림
-  const { data: cls } = await supabase
-    .from("classes")
-    .select("host_id, title")
-    .eq("id", class_id)
-    .single();
-
-  if (cls) {
+  if (needsApproval) {
     const { data: applicantProfile } = await supabase
       .from("profiles")
       .select("nickname")

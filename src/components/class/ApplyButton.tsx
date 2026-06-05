@@ -84,9 +84,27 @@ export default function ApplyButton({
   if (myApplication?.status === "approved") {
     return (
       <div className="flex flex-col gap-2">
-        <div className="btn-primary opacity-100 cursor-default text-center bg-green-500 border-0">
-          승인됨 ✓
-        </div>
+        <button
+          type="button"
+          onClick={async () => {
+            setLoading(true);
+            try {
+              const res = await fetch(`/api/chat/rooms/class/${classId}`, { method: "POST" });
+              if (res.ok) {
+                const { data } = await res.json();
+                router.push(`/messages?room=${data.id}`);
+              } else {
+                alert("대화방 입장에 실패했습니다.");
+              }
+            } finally {
+              setLoading(false);
+            }
+          }}
+          disabled={loading}
+          className="btn-primary bg-green-500 border-0"
+        >
+          {loading ? "입장 중..." : "대화방 입장"}
+        </button>
         {canCancelApplication && (
           <button
             type="button"
