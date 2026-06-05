@@ -125,6 +125,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     updatePayload.is_public = body.is_public;
   }
 
+  if ("require_approval" in body) {
+    if (typeof body.require_approval !== "boolean") {
+      return NextResponse.json({ error: "승인 여부 값이 올바르지 않습니다." }, { status: 400 });
+    }
+    updatePayload.require_approval = body.require_approval;
+  }
+
   if ("images" in body) {
     if (!Array.isArray(body.images)) {
       return NextResponse.json({ error: "이미지 값이 올바르지 않습니다." }, { status: 400 });

@@ -22,6 +22,7 @@ import { useAuth } from "@/lib/auth-context";
 const HOME_MY_CLASSES_CACHE_KEY = "loco_home_my_classes_v1";
 const HOME_FRIEND_CLASSES_CACHE_KEY = "loco_home_friend_classes_v1";
 const HOME_SUBTAB_CHANGE_EVENT = "loco-home-subtab-change";
+const CLASS_DETAIL_CLOSE_DELAY_MS = 320;
 
 type MainTab = "allClasses" | "mySubscriptions" | "friendClasses";
 
@@ -69,6 +70,13 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
   const isChromeVisible = useScrollChromeVisibility(activeTab === "allClasses");
   const router = useRouter();
   const periodOptions = getPeriodOptions();
+
+  const closeClassDetailAndNavigate = useCallback((href: string) => {
+    setClassDetailId(null);
+    window.setTimeout(() => {
+      router.push(href);
+    }, CLASS_DETAIL_CLOSE_DELAY_MS);
+  }, [router]);
 
   useEffect(() => {
     function readOpts(): SearchOptions {
@@ -512,6 +520,7 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
             <CachedClassDetailPage
               classIdOverride={classDetailId}
               onClose={() => setClassDetailId(null)}
+              onNavigateAfterClose={closeClassDetailAndNavigate}
             />
           )}
         </div>

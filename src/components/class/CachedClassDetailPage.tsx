@@ -177,9 +177,15 @@ interface CachedClassDetailPageProps {
   classIdOverride?: string;
   hideChat?: boolean;
   onClose?: (deletedClassId?: string) => void;
+  onNavigateAfterClose?: (href: string) => void;
 }
 
-export default function CachedClassDetailPage({ classIdOverride, hideChat, onClose }: CachedClassDetailPageProps = {}) {
+export default function CachedClassDetailPage({
+  classIdOverride,
+  hideChat,
+  onClose,
+  onNavigateAfterClose,
+}: CachedClassDetailPageProps = {}) {
   const params = useParams<{ id: string }>();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -304,11 +310,8 @@ export default function CachedClassDetailPage({ classIdOverride, hideChat, onClo
         .eq("applicant_id", user.id)
         .neq("status", "cancelled")
         .maybeSingle();
-      if (data?.status === "pending") {
-        setApplied(true);
-      } else if (data?.status === "approved") {
-        setApproved(true);
-      }
+      setApplied(data?.status === "pending");
+      setApproved(data?.status === "approved");
     };
     void checkMyApplication();
   }, [classId, user]);
@@ -415,10 +418,12 @@ export default function CachedClassDetailPage({ classIdOverride, hideChat, onClo
 
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        setApplied(true);
+        const applicationStatus = data?.status === "approved" ? "approved" : "pending";
+        setApplied(applicationStatus === "pending");
+        setApproved(applicationStatus === "approved");
         const applicantId = typeof data.applicant_id === "string" ? data.applicant_id : user?.id;
         if (applicantId && displayClass) {
-          upsertParticipatingClassCache(applicantId, displayClass, "pending");
+          upsertParticipatingClassCache(applicantId, displayClass, applicationStatus);
           void refreshHomeMyClassesCache(applicantId);
         }
         showCenterNotice("신청완료되었습니다.");
@@ -576,6 +581,8 @@ export default function CachedClassDetailPage({ classIdOverride, hideChat, onClo
   const previewCommentCount = COMMENT_PREVIEW_LIMIT - remainingPreviewCount;
   const hasMoreComments = comments.length > previewCommentCount;
   const isOwnClass = user?.id === displayClass.host_id;
+  const canEnterWithoutApproval = displayClass.require_approval === false && applied;
+  const canEnterChat = approved || canEnterWithoutApproval;
   const applyLabel =
     displayClass.status !== "recruiting" ? "신청 마감" : applied ? "승인대기중" : applying ? "신청 중..." : "신청하기";
 
@@ -736,7 +743,7 @@ export default function CachedClassDetailPage({ classIdOverride, hideChat, onClo
                 편집하기
               </Link>
             </>
-          ) : approved && !hideChat ? (
+          ) : canEnterChat && !hideChat ? (
             <button
               type="button"
               disabled={enteringChat}
@@ -747,8 +754,12 @@ export default function CachedClassDetailPage({ classIdOverride, hideChat, onClo
                   const res = await fetch(`/api/chat/rooms/class/${classId}`, { method: "POST" });
                   if (res.ok) {
                     const roomId = (await res.json()).data?.id;
-                    onClose?.();
-                    router.push(`/messages?roomId=${roomId}`);
+                    const href = `/?tab=messages&roomId=${roomId}`;
+                    if (onNavigateAfterClose) {
+                      onNavigateAfterClose(href);
+                    } else {
+                      router.push(href);
+                    }
                   } else {
                     showCenterNotice("대화방 입장에 실패했습니다.");
                   }

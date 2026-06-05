@@ -294,7 +294,7 @@ export default function ClassCard({ classData, priorityImage = false, onClassSel
         return;
       }
 
-      router.push(`/messages?roomId=${roomId}`);
+      router.push(`/?tab=messages&roomId=${roomId}`);
     } catch {
       alert("대화방에 입장하지 못했습니다.");
     } finally {

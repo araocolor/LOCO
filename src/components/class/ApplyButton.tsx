@@ -92,7 +92,7 @@ export default function ApplyButton({
               const res = await fetch(`/api/chat/rooms/class/${classId}`, { method: "POST" });
               if (res.ok) {
                 const { data } = await res.json();
-                router.push(`/messages?room=${data.id}`);
+                router.push(`/?tab=messages&roomId=${data.id}`);
               } else {
                 alert("대화방 입장에 실패했습니다.");
               }

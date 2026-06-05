@@ -80,7 +80,7 @@ export default function ClassMoreMenu({
       const json = await res.json();
       if (!res.ok) return;
       const roomId = json?.data?.id;
-      if (roomId) router.push(`/messages?roomId=${roomId}`);
+      if (roomId) router.push(`/?tab=messages&roomId=${roomId}`);
     } catch {
     } finally {
       setEnteringClassRoom(false);

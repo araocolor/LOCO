@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { ArrowLeft, Heart, Settings } from "lucide-react";
 import UserProfileModal from "@/components/user/UserProfileModal";
 import CachedClassDetailPage from "@/components/class/CachedClassDetailPage";
@@ -94,6 +95,7 @@ function formatMessage(item: NotificationItem): React.ReactNode {
 }
 
 const NOTIFICATION_TABS: NotificationTab[] = ["class", "comment", "heart"];
+const CLASS_DETAIL_CLOSE_DELAY_MS = 320;
 
 function getEmptyNotificationMap(): Record<NotificationTab, NotificationItem[]> {
   return { class: [], comment: [], heart: [] };
@@ -116,6 +118,14 @@ export default function NotificationsTab({ userId }: NotificationsTabProps) {
   const [activeTab, setActiveTab] = useState<NotificationTab>("class");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [classDetailId, setClassDetailId] = useState<string | null>(null);
+  const router = useRouter();
+
+  const closeClassDetailAndNavigate = useCallback((href: string) => {
+    setClassDetailId(null);
+    window.setTimeout(() => {
+      router.push(href);
+    }, CLASS_DETAIL_CLOSE_DELAY_MS);
+  }, [router]);
 
   const fetchNotifications = useCallback(async (tab: NotificationTab, silent = false) => {
     if (loadedTabs[tab]) return;
@@ -404,7 +414,7 @@ export default function NotificationsTab({ userId }: NotificationsTabProps) {
 
       <div
         className={`fixed inset-0 z-[160] bg-white flex flex-col transition-transform duration-300 ease-in-out ${
-          classDetailId ? "translate-x-0" : "translate-x-full invisible"
+          classDetailId ? "translate-x-0" : "translate-x-full"
         }`}
       >
         <header className="sticky top-0 z-50 bg-white h-14 px-4 relative border-b border-gray-100">
@@ -427,6 +437,7 @@ export default function NotificationsTab({ userId }: NotificationsTabProps) {
             <CachedClassDetailPage
               classIdOverride={classDetailId}
               onClose={() => setClassDetailId(null)}
+              onNavigateAfterClose={closeClassDetailAndNavigate}
             />
           )}
         </div>
