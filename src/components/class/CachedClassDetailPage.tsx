@@ -177,14 +177,12 @@ interface CachedClassDetailPageProps {
   classIdOverride?: string;
   hideChat?: boolean;
   onClose?: (deletedClassId?: string) => void;
-  onNavigateAfterClose?: (href: string) => void;
 }
 
 export default function CachedClassDetailPage({
   classIdOverride,
   hideChat,
   onClose,
-  onNavigateAfterClose,
 }: CachedClassDetailPageProps = {}) {
   const params = useParams<{ id: string }>();
   const searchParams = useSearchParams();
@@ -199,7 +197,6 @@ export default function CachedClassDetailPage({
   const [applying, setApplying] = useState(false);
   const [applied, setApplied] = useState(false);
   const [approved, setApproved] = useState(false);
-  const [enteringChat, setEnteringChat] = useState(false);
   const [commentSheetOpen, setCommentSheetOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [comments, setComments] = useState<ClassComment[]>([]);
@@ -581,8 +578,7 @@ export default function CachedClassDetailPage({
   const previewCommentCount = COMMENT_PREVIEW_LIMIT - remainingPreviewCount;
   const hasMoreComments = comments.length > previewCommentCount;
   const isOwnClass = user?.id === displayClass.host_id;
-  const canEnterWithoutApproval = displayClass.require_approval === false && applied;
-  const canEnterChat = approved || canEnterWithoutApproval;
+  const approvalComplete = approved || (displayClass.require_approval === false && applied);
   const applyLabel =
     displayClass.status !== "recruiting" ? "신청 마감" : applied ? "승인대기중" : applying ? "신청 중..." : "신청하기";
 
@@ -743,36 +739,10 @@ export default function CachedClassDetailPage({
                 편집하기
               </Link>
             </>
-          ) : canEnterChat && !hideChat ? (
-            <button
-              type="button"
-              disabled={enteringChat}
-              onClick={async () => {
-                if (!classId || enteringChat) return;
-                setEnteringChat(true);
-                try {
-                  const res = await fetch(`/api/chat/rooms/class/${classId}`, { method: "POST" });
-                  if (res.ok) {
-                    const roomId = (await res.json()).data?.id;
-                    const href = `/?tab=messages&roomId=${roomId}`;
-                    if (onNavigateAfterClose) {
-                      onNavigateAfterClose(href);
-                    } else {
-                      router.push(href);
-                    }
-                  } else {
-                    showCenterNotice("대화방 입장에 실패했습니다.");
-                  }
-                } catch {
-                  showCenterNotice("대화방 입장에 실패했습니다.");
-                } finally {
-                  setEnteringChat(false);
-                }
-              }}
-              className="inline-flex h-12 items-center justify-center rounded-full bg-[#fee500] px-7 text-[15px] font-bold text-[#191600] shadow-sm transition-colors hover:bg-[#f5dc00] disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {enteringChat ? "입장 중..." : "클래스 대화방"}
-            </button>
+          ) : approvalComplete && !hideChat ? (
+            <div className="inline-flex h-12 items-center justify-center rounded-full bg-gray-100 px-7 text-[15px] font-bold text-gray-700 shadow-sm">
+              승인완료
+            </div>
           ) : !hideChat ? (
             <button
               type="button"

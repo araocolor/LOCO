@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
 import { ArrowLeft, Heart, Settings } from "lucide-react";
 import UserProfileModal from "@/components/user/UserProfileModal";
 import CachedClassDetailPage from "@/components/class/CachedClassDetailPage";
@@ -95,7 +94,6 @@ function formatMessage(item: NotificationItem): React.ReactNode {
 }
 
 const NOTIFICATION_TABS: NotificationTab[] = ["class", "comment", "heart"];
-const CLASS_DETAIL_CLOSE_DELAY_MS = 320;
 
 function getEmptyNotificationMap(): Record<NotificationTab, NotificationItem[]> {
   return { class: [], comment: [], heart: [] };
@@ -118,14 +116,6 @@ export default function NotificationsTab({ userId }: NotificationsTabProps) {
   const [activeTab, setActiveTab] = useState<NotificationTab>("class");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [classDetailId, setClassDetailId] = useState<string | null>(null);
-  const router = useRouter();
-
-  const closeClassDetailAndNavigate = useCallback((href: string) => {
-    setClassDetailId(null);
-    window.setTimeout(() => {
-      router.push(href);
-    }, CLASS_DETAIL_CLOSE_DELAY_MS);
-  }, [router]);
 
   const fetchNotifications = useCallback(async (tab: NotificationTab, silent = false) => {
     if (loadedTabs[tab]) return;
@@ -437,7 +427,6 @@ export default function NotificationsTab({ userId }: NotificationsTabProps) {
             <CachedClassDetailPage
               classIdOverride={classDetailId}
               onClose={() => setClassDetailId(null)}
-              onNavigateAfterClose={closeClassDetailAndNavigate}
             />
           )}
         </div>
