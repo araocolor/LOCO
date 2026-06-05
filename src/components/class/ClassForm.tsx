@@ -48,6 +48,7 @@ interface FormState {
   description: string;
   region: string;
   is_public: boolean;
+  require_approval: boolean;
 }
 
 const EMPTY: FormState = {
@@ -66,6 +67,7 @@ const EMPTY: FormState = {
   description: "",
   region: "",
   is_public: true,
+  require_approval: true,
 };
 
 function toFormState(d: Partial<DanceClass>): FormState {
@@ -85,6 +87,7 @@ function toFormState(d: Partial<DanceClass>): FormState {
     description: d.description ?? "",
     region: d.region ?? "",
     is_public: (d as Record<string, unknown>).is_public !== false,
+    require_approval: (d as Record<string, unknown>).require_approval !== false,
   };
 }
 
@@ -649,6 +652,7 @@ export default function ClassForm({ initialData, classId, userRole: _userRole, a
         region: form.region,
         category: form.category || null,
         is_public: form.is_public,
+        require_approval: form.require_approval,
         images,
       };
       const url = classId ? `/api/classes/${classId}` : "/api/classes";
@@ -859,6 +863,26 @@ export default function ClassForm({ initialData, classId, userRole: _userRole, a
                     onChange={(e) => set("deadline", e.target.value)}
                   />
                 </div>
+              </div>
+
+              <div className="mx-4 mt-[18px] bg-white rounded-2xl px-4 py-5">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
+                    승인 여부
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => set("require_approval", !form.require_approval)}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${form.require_approval ? "bg-[#facc15]" : "bg-gray-300"}`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${form.require_approval ? "translate-x-6" : "translate-x-1"}`}
+                    />
+                  </button>
+                </div>
+                <p className="text-[14px] text-gray-400 mt-2">
+                  승인여부를 끄면 클래스대화방에 바로 들어올 수 있습니다.
+                </p>
               </div>
 
             </>
@@ -1190,6 +1214,25 @@ export default function ClassForm({ initialData, classId, userRole: _userRole, a
                         검색
                       </button>
                     </div>
+                  </div>
+
+                  {/* 승인 여부 */}
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <label className="field-label">승인 여부</label>
+                      <button
+                        type="button"
+                        onClick={() => set("require_approval", !form.require_approval)}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${form.require_approval ? "bg-[#facc15]" : "bg-gray-300"}`}
+                      >
+                        <span
+                          className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${form.require_approval ? "translate-x-6" : "translate-x-1"}`}
+                        />
+                      </button>
+                    </div>
+                    <p className="text-[14px] text-gray-400 mt-1">
+                      승인여부를 끄면 클래스대화방에 바로 들어올 수 있습니다.
+                    </p>
                   </div>
 
                   {/* 연락처 */}

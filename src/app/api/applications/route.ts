@@ -27,9 +27,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "이미 신청한 클래스입니다." }, { status: 409 });
   }
 
+  const { data: classInfo } = await supabase
+    .from("classes")
+    .select("require_approval")
+    .eq("id", class_id)
+    .single();
+
+  const initialStatus = classInfo?.require_approval === false ? "approved" : "pending";
+
   const { data, error } = await supabase
     .from("applications")
-    .insert({ class_id, applicant_id: user.id, status: "pending" })
+    .insert({ class_id, applicant_id: user.id, status: initialStatus })
     .select()
     .single();
 

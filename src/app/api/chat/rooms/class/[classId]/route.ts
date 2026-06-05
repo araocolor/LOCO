@@ -20,29 +20,33 @@ export async function POST(
 
     const admin = createAdminClient();
 
-    const [{ data: classRow, error: classError }, { data: approvedRow, error: approvedError }] =
-      await Promise.all([
-        admin
-          .from("classes")
-          .select("id, host_id, title")
-          .eq("id", classId)
-          .maybeSingle<{ id: string; host_id: string; title: string }>(),
-        admin
-          .from("applications")
-          .select("id")
-          .eq("class_id", classId)
-          .eq("applicant_id", user.id)
-          .eq("status", "approved")
-          .maybeSingle<{ id: string }>(),
-      ]);
+    const { data: classRow, error: classError } = await admin
+      .from("classes")
+      .select("id, host_id, title, require_approval")
+      .eq("id", classId)
+      .maybeSingle<{ id: string; host_id: string; title: string; require_approval: boolean }>();
 
     if (classError) throw classError;
-    if (approvedError) throw approvedError;
     if (!classRow) {
       return NextResponse.json({ error: "클래스를 찾을 수 없습니다." }, { status: 404 });
     }
 
-    const canEnter = classRow.host_id === user.id || Boolean(approvedRow);
+    const requireApproval = classRow.require_approval !== false;
+
+    const { data: applicationRow, error: appError } = await admin
+      .from("applications")
+      .select("id, status")
+      .eq("class_id", classId)
+      .eq("applicant_id", user.id)
+      .neq("status", "cancelled")
+      .maybeSingle<{ id: string; status: string }>();
+
+    if (appError) throw appError;
+
+    const canEnter =
+      classRow.host_id === user.id ||
+      applicationRow?.status === "approved" ||
+      (!requireApproval && Boolean(applicationRow));
     if (!canEnter) {
       return NextResponse.json({ error: "클래스 채팅방에 입장할 수 없습니다." }, { status: 403 });
     }

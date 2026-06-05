@@ -71,6 +71,7 @@ export interface DanceClass {
   like_count?: number;
   comment_count?: number;
   share_count?: number;
+  require_approval: boolean;
   created_at: string;
   updated_at: string;
 }
