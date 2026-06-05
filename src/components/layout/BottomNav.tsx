@@ -3,6 +3,8 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import { usePathname } from "next/navigation";
 import { useScrollChromeVisibility } from "@/hooks/useScrollChromeVisibility";
 import { type MainTabId, getMainTab, subscribeMainTab, replaceMainTab } from "@/lib/main-tab";
+import { useAuth } from "@/lib/auth-context";
+import { prefetchNotifications } from "@/lib/notification-cache";
 
 const HOME_SUBTAB_CHANGE_EVENT = "loco-home-subtab-change";
 type HomeSubTab = "allClasses" | "mySubscriptions" | "friendClasses";
@@ -80,6 +82,7 @@ export default function BottomNav() {
   const [hydrated, setHydrated] = useState(false);
   const [hasUnreadNotifications, setHasUnreadNotifications] = useState(false);
   const [homeSubTab, setHomeSubTab] = useState<HomeSubTab>("allClasses");
+  const { user } = useAuth();
   const activeTab = useSyncExternalStore(subscribeMainTab, getMainTab, () => "home" as const);
   const shouldAutoHide = pathname === "/" && activeTab === "home" && homeSubTab === "allClasses";
   const isChromeVisible = useScrollChromeVisibility(shouldAutoHide);
@@ -103,9 +106,15 @@ export default function BottomNav() {
   useEffect(() => {
     fetch("/api/notifications/unread-count")
       .then((res) => (res.ok ? res.json() : null))
-      .then((json) => setHasUnreadNotifications((json?.count ?? 0) > 0))
+      .then((json) => {
+        const hasUnread = (json?.count ?? 0) > 0;
+        setHasUnreadNotifications(hasUnread);
+        if (hasUnread) {
+          prefetchNotifications(user?.id);
+        }
+      })
       .catch(() => {});
-  }, []);
+  }, [user?.id]);
 
   if (pathname.startsWith("/classes/") || pathname.startsWith("/users/")) return null;
   if (!hydrated) return null;

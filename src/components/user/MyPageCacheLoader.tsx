@@ -90,7 +90,6 @@ export default function MyPageCacheLoader() {
       let hasCachedData = false;
 
       try {
-        // 하이드레이션 불일치 방지를 위해 마운트 이후에만 로컬 캐시를 읽는다.
         await Promise.resolve();
         const raw = localStorage.getItem(cacheKey);
         if (raw) {
@@ -105,6 +104,15 @@ export default function MyPageCacheLoader() {
             const hCache = JSON.parse(hRaw);
             const p = hCache?.profile;
             if (p?.nickname) {
+              const homeMyClasses = Array.isArray(hCache.myClasses)
+                ? (hCache.myClasses as CachedMyClass[]).map((c) => ({
+                    id: c.id,
+                    title: c.title,
+                    status: c.status ?? "open",
+                    created_at: c.created_at ?? "",
+                    images: c.images ?? null,
+                  }))
+                : [];
               setData({
                 profile: {
                   id: p.id ?? "",
@@ -122,9 +130,10 @@ export default function MyPageCacheLoader() {
                   star_balance: 0,
                 },
                 appliedClasses: [],
-                myClasses: [],
+                myClasses: homeMyClasses,
                 hasPendingProRequest: false,
               });
+              hasCachedData = true;
               break;
             }
           }

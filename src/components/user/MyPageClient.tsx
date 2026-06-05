@@ -213,67 +213,58 @@ export default function MyPageClient({
   }
 
   useEffect(() => {
-    async function fetchClasses() {
-      const supabase = createClient();
+    const BOOKMARK_CLASSES_CACHE_KEY = "loco_bookmark_classes_v1";
 
-      // 북마크: localStorage 캐시 우선 [{id, created_at}]
-      const rawBm = localStorage.getItem("loco_bookmark_ids_v1");
-      const bmEntries = parseBookmarkEntries(rawBm);
-
-      if (bmEntries.length > 0) {
-        const homeRaw = localStorage.getItem("loco_home_results_local_v1");
-        const homeClasses: HomeClassCache[] = homeRaw ? ((JSON.parse(homeRaw).data ?? []) as HomeClassCache[]) : [];
-        const homeMap = new Map(homeClasses.map((c) => [c.id, c]));
-
-        const found: GridClass[] = [];
-        const missing: { id: string; created_at: string }[] = [];
-        bmEntries.forEach(({ id, created_at }) => {
-          const c = homeMap.get(id);
-          if (c) found.push({ id: c.id, images: c.images, title: c.title, created_at, isBookmark: true });
-          else missing.push({ id, created_at });
-        });
-
-        if (missing.length > 0) {
-          const { data: extra } = await supabase
-            .from("classes")
-            .select("id, images, title")
-            .in("id", missing.map((m) => m.id));
-          const extraMapped = (extra ?? []).map((c) => ({
-            ...c,
-            created_at: missing.find((m) => m.id === c.id)?.created_at,
-            isBookmark: true,
-          }));
-          setBookmarkClasses([...found, ...extraMapped]);
-        } else {
-          setBookmarkClasses(found);
-        }
-      } else {
-        // 캐시 없으면 전체 DB fetch
-        const { data: bm } = await supabase
-          .from("class_bookmarks")
-          .select("class_id, created_at, classes(id, images, title)")
-          .eq("user_id", profile.id)
-          .order("created_at", { ascending: false });
-        const bmRows = (bm ?? []) as BookmarkClassRow[];
-        const bmClasses: GridClass[] = bmRows.flatMap((b) => {
-          if (!hasBookmarkClass(b)) return [];
-          const cls = getBookmarkClassInfo(b);
-          if (!cls) return [];
-          return [{
-            id: cls.id,
-            images: cls.images,
-            title: cls.title,
-            created_at: b.created_at,
-            isBookmark: true,
-          }];
-        });
-        setBookmarkClasses(bmClasses);
-        localStorage.setItem("loco_bookmark_ids_v1", JSON.stringify(
-          bmClasses.map((c) => ({ id: c.id, created_at: c.created_at }))
-        ));
+    function readBookmarkClassesCache(): GridClass[] | null {
+      try {
+        const raw = localStorage.getItem(BOOKMARK_CLASSES_CACHE_KEY);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw) as GridClass[];
+        return Array.isArray(parsed) ? parsed : null;
+      } catch {
+        return null;
       }
     }
-    fetchClasses();
+
+    function writeBookmarkClassesCache(classes: GridClass[]) {
+      try {
+        localStorage.setItem(BOOKMARK_CLASSES_CACHE_KEY, JSON.stringify(classes));
+      } catch {}
+    }
+
+    const cached = readBookmarkClassesCache();
+    if (cached) {
+      setBookmarkClasses(cached);
+    }
+
+    async function fetchAndRefresh() {
+      const supabase = createClient();
+      const { data: bm } = await supabase
+        .from("class_bookmarks")
+        .select("class_id, created_at, classes(id, images, title)")
+        .eq("user_id", profile.id)
+        .order("created_at", { ascending: false });
+      const bmRows = (bm ?? []) as BookmarkClassRow[];
+      const bmClasses: GridClass[] = bmRows.flatMap((b) => {
+        if (!hasBookmarkClass(b)) return [];
+        const cls = getBookmarkClassInfo(b);
+        if (!cls) return [];
+        return [{
+          id: cls.id,
+          images: cls.images,
+          title: cls.title,
+          created_at: b.created_at,
+          isBookmark: true,
+        }];
+      });
+      setBookmarkClasses(bmClasses);
+      writeBookmarkClassesCache(bmClasses);
+      localStorage.setItem("loco_bookmark_ids_v1", JSON.stringify(
+        bmClasses.map((c) => ({ id: c.id, created_at: c.created_at }))
+      ));
+    }
+
+    fetchAndRefresh().catch(() => {});
   }, [profile.id]);
 
   function handleAvatarClick() {

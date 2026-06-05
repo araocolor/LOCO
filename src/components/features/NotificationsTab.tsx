@@ -5,6 +5,7 @@ import Image from "next/image";
 import { ArrowLeft, Heart, Settings } from "lucide-react";
 import UserProfileModal from "@/components/user/UserProfileModal";
 import CachedClassDetailPage from "@/components/class/CachedClassDetailPage";
+import { readNotificationCache, writeNotificationCache } from "@/lib/notification-cache";
 
 interface NotificationItem {
   id: string;
@@ -20,66 +21,11 @@ interface NotificationItem {
   } | null;
 }
 
-interface NotificationCachePayload {
-  savedAt: number;
-  notifications: NotificationItem[];
-}
-
 interface NotificationsTabProps {
   userId?: string | null;
 }
 
-const NOTIFICATION_CACHE_KEY = "loco_notifications_v1";
-const NOTIFICATION_CACHE_TTL_MS = 3 * 60 * 1000;
 type NotificationTab = "class" | "comment" | "heart";
-
-function getNotificationCacheKey(userId: string | null | undefined, tab: NotificationTab) {
-  return userId ? `${NOTIFICATION_CACHE_KEY}:${userId}:${tab}` : null;
-}
-
-function readNotificationCache(userId: string | null | undefined, tab: NotificationTab) {
-  const key = getNotificationCacheKey(userId, tab);
-  if (!key) return null;
-
-  try {
-    const raw = sessionStorage.getItem(key);
-    if (!raw) return null;
-
-    const parsed = JSON.parse(raw) as Partial<NotificationCachePayload>;
-    if (
-      typeof parsed.savedAt !== "number" ||
-      !Array.isArray(parsed.notifications) ||
-      Date.now() - parsed.savedAt > NOTIFICATION_CACHE_TTL_MS
-    ) {
-      sessionStorage.removeItem(key);
-      return null;
-    }
-
-    return parsed.notifications;
-  } catch {
-    sessionStorage.removeItem(key);
-    return null;
-  }
-}
-
-function writeNotificationCache(
-  userId: string | null | undefined,
-  tab: NotificationTab,
-  notifications: NotificationItem[]
-) {
-  const key = getNotificationCacheKey(userId, tab);
-  if (!key) return;
-
-  try {
-    sessionStorage.setItem(
-      key,
-      JSON.stringify({
-        savedAt: Date.now(),
-        notifications,
-      } satisfies NotificationCachePayload)
-    );
-  } catch {}
-}
 
 function formatTime(dateStr: string) {
   const now = Date.now();
