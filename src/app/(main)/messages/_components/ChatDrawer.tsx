@@ -352,74 +352,78 @@ export default function ChatDrawer({
         </div>
       )}
 
-      {displayedActiveTab === "all" ? (
-        <ChatTimeline
-          chatLoading={chatLoading}
-          messages={messages}
-          messagesEndRef={messagesEndRef}
-          myProfile={myProfile}
-          noticeReactions={NOTICE_REACTIONS}
-          notices={notices}
-          otherUser={otherUser}
-          roomMembers={roomMembers}
-          shakingMsgId={shakingMsgId}
-          timeline={timeline}
-          userId={userId}
-          onCancelLongPress={onCancelLongPress}
-          onChatScroll={onChatScroll}
-          onDeleteMessage={onDeleteMessage}
-          onImageClick={(messageId: string, fullUrl: string, isMine: boolean) => setViewerData({ messageId, fullUrl, isMine })}
-          onAvatarClick={onAvatarClick}
-          onMessageReaction={onMessageReaction}
-          onNoticeReaction={onNoticeReaction}
-          onStartLongPress={onStartLongPress}
-          setAttachOpen={setAttachOpen}
-          setShakingMsgId={setShakingMsgId}
-          formatTime={formatTime}
-        />
-      ) : (
+      <div className="relative flex-1 min-h-0">
+        <div className={`absolute inset-0 flex flex-col ${displayedActiveTab === "all" ? "" : "invisible pointer-events-none"}`}>
+          <ChatTimeline
+            chatLoading={chatLoading}
+            messages={messages}
+            messagesEndRef={messagesEndRef}
+            myProfile={myProfile}
+            noticeReactions={NOTICE_REACTIONS}
+            notices={notices}
+            otherUser={otherUser}
+            roomMembers={roomMembers}
+            shakingMsgId={shakingMsgId}
+            timeline={timeline}
+            userId={userId}
+            onCancelLongPress={onCancelLongPress}
+            onChatScroll={onChatScroll}
+            onDeleteMessage={onDeleteMessage}
+            onImageClick={(messageId: string, fullUrl: string, isMine: boolean) => setViewerData({ messageId, fullUrl, isMine })}
+            onAvatarClick={onAvatarClick}
+            onMessageReaction={onMessageReaction}
+            onNoticeReaction={onNoticeReaction}
+            onStartLongPress={onStartLongPress}
+            setAttachOpen={setAttachOpen}
+            setShakingMsgId={setShakingMsgId}
+            formatTime={formatTime}
+          />
+        </div>
+
         <div
-          className={`chat-drawer-scroll flex-1 min-h-0 overflow-y-auto ${
-            displayedActiveTab === "members"
-              ? "px-0 py-0"
-              : displayedActiveTab === "class"
-                ? "px-4 py-5"
-                : "px-4 py-4"
-          }`}
+          className={`absolute inset-0 chat-drawer-scroll overflow-y-auto px-0 py-0 ${displayedActiveTab === "members" ? "" : "invisible pointer-events-none"}`}
           style={{ backgroundColor: "#B2C7D9" }}
         >
-          {displayedActiveTab === "members" ? (
-            <MemberGrid
-              canAddMembers={canAddMembers}
-              members={memberProfiles}
-              userId={userId}
-              roomId={roomId ?? ""}
-              onOpenMemberDrawer={onOpenMemberDrawer}
-            />
-          ) : displayedActiveTab === "class" ? (
-            <ClassNoticePanel
-              canWriteClassNotice={canWriteClassNotice}
-              isClassRoom={isClassRoom}
-              notices={notices}
-              noticeReactions={NOTICE_REACTIONS}
-              noticeVotes={NOTICE_VOTES}
-              now={now}
-              roomMembers={roomMembers}
-              userId={userId}
-              formatNoticeDate={formatNoticeDate}
-              formatRemaining={formatRemaining}
-              formatTime={formatTime}
-              onNoticeReaction={onNoticeReaction}
-              onNoticeVote={onNoticeVote}
-              openNoticeDrawer={openNoticeDrawer}
-              openEditNotice={openEditNotice}
-              setDeleteTargetId={setDeleteTargetId}
-            />
-          ) : (
-            <ArchiveGrid items={archiveItems} />
-          )}
+          <MemberGrid
+            canAddMembers={canAddMembers}
+            members={memberProfiles}
+            userId={userId}
+            roomId={roomId ?? ""}
+            onOpenMemberDrawer={onOpenMemberDrawer}
+          />
         </div>
-      )}
+
+        <div
+          className={`absolute inset-0 chat-drawer-scroll overflow-y-auto px-4 py-5 ${displayedActiveTab === "class" ? "" : "invisible pointer-events-none"}`}
+          style={{ backgroundColor: "#B2C7D9" }}
+        >
+          <ClassNoticePanel
+            canWriteClassNotice={canWriteClassNotice}
+            isClassRoom={isClassRoom}
+            notices={notices}
+            noticeReactions={NOTICE_REACTIONS}
+            noticeVotes={NOTICE_VOTES}
+            now={now}
+            roomMembers={roomMembers}
+            userId={userId}
+            formatNoticeDate={formatNoticeDate}
+            formatRemaining={formatRemaining}
+            formatTime={formatTime}
+            onNoticeReaction={onNoticeReaction}
+            onNoticeVote={onNoticeVote}
+            openNoticeDrawer={openNoticeDrawer}
+            openEditNotice={openEditNotice}
+            setDeleteTargetId={setDeleteTargetId}
+          />
+        </div>
+
+        <div
+          className={`absolute inset-0 chat-drawer-scroll overflow-y-auto px-4 py-4 ${displayedActiveTab === "archive" ? "" : "invisible pointer-events-none"}`}
+          style={{ backgroundColor: "#B2C7D9" }}
+        >
+          <ArchiveGrid items={archiveItems} />
+        </div>
+      </div>
 
       {displayedActiveTab === "all" && (
         <>
