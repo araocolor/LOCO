@@ -239,11 +239,7 @@ export default function MyPageHeader() {
   }
 
   function handleLogout() {
-    localStorage.clear();
-    sessionStorage.clear();
-    window.location.href = "/login";
-    const supabase = createClient();
-    supabase.auth.signOut();
+    window.location.href = "/logout";
   }
 
   return (

@@ -83,6 +83,25 @@ export async function DELETE(
 
     if (updateError) throw updateError;
 
+    if (isSelfLeave && targetMember.role === "owner" && room.type !== "class") {
+      const { data: nextOwner } = await admin
+        .from("chat_room_members")
+        .select("user_id")
+        .eq("room_id", roomId)
+        .eq("status", "active")
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle<{ user_id: string }>();
+
+      if (nextOwner) {
+        await admin
+          .from("chat_room_members")
+          .update({ role: "owner" })
+          .eq("room_id", roomId)
+          .eq("user_id", nextOwner.user_id);
+      }
+    }
+
     if (isSelfLeave) {
       const profiles = await getProfiles([targetUserId]);
       const nickname = profiles[0]?.nickname ?? "알 수 없음";

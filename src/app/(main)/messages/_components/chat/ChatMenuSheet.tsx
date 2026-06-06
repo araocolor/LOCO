@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Bell, BellOff, Image, Lock, UserPlus, LogOut, X } from "lucide-react";
+import { Bell, BellOff, Gamepad2, Image, Lock, UserPlus, LogOut, X } from "lucide-react";
 
 interface ChatMenuSheetProps {
   open: boolean;
@@ -10,6 +10,7 @@ interface ChatMenuSheetProps {
   onClose: () => void;
   onInvite: () => void;
   onLeave: () => void;
+  onStartGame: () => void;
 }
 
 export default function ChatMenuSheet({
@@ -19,6 +20,7 @@ export default function ChatMenuSheet({
   onClose,
   onInvite,
   onLeave,
+  onStartGame,
 }: ChatMenuSheetProps) {
   const [confirmLeave, setConfirmLeave] = useState(false);
 
@@ -65,14 +67,30 @@ export default function ChatMenuSheet({
 
         <div className="px-3 pb-2">
           <MenuItem
+            icon={<UserPlus size={20} />}
+            label="사용자초대"
+            onClick={() => {
+              handleClose();
+              onInvite();
+            }}
+          />
+          <MenuItem
+            icon={<Gamepad2 size={20} />}
+            label="회원구출하기"
+            onClick={() => {
+              handleClose();
+              onStartGame();
+            }}
+          />
+          <MenuItem
             icon={<Bell size={20} />}
-            label="알림 끄기"
+            label="알림끄기"
             onClick={() => {}}
             disabled
           />
           <MenuItem
             icon={<Image size={20} />}
-            label="배경화면"
+            label="배경화면설정"
             onClick={() => {}}
             disabled
           />
@@ -84,21 +102,12 @@ export default function ChatMenuSheet({
               disabled
             />
           )}
-          <MenuItem
-            icon={<UserPlus size={20} />}
-            label="사용자 초대"
-            onClick={() => {
-              handleClose();
-              onInvite();
-            }}
-          />
 
           <div className="my-2 border-t border-gray-100" />
 
           <MenuItem
             icon={<LogOut size={20} />}
-            label="나가기"
-            danger
+            label="대화방 퇴장"
             onClick={handleLeaveClick}
           />
         </div>
@@ -165,7 +174,7 @@ function MenuItem({
       }`}
     >
       {icon}
-      <span className="text-[15px] font-medium">{label}</span>
+      <span className="text-[16px] font-medium">{label}</span>
       {disabled && (
         <span className="ml-auto text-[11px] text-gray-300">준비중</span>
       )}

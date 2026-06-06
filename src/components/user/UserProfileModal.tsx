@@ -7,6 +7,7 @@ import Avatar from "@/components/ui/Avatar";
 import SendMessageModal from "@/components/modal/SendMessageModal";
 
 const USER_VIEW_CACHE_PREFIX = "user_view_v2_";
+const USER_VIEW_TTL_MS = 5 * 60 * 1000;
 const SEARCH_SOCIAL_CACHE_KEY = "search_social_cache";
 const CHAT_FRIENDS_CACHE_KEY = "chat_friends_cache";
 const USER_SEARCH_INFO_KEY = "user_search_info";
@@ -247,26 +248,32 @@ export default function UserProfileModal({ userId, onClose, initialProfile = nul
 
     let cancelled = false;
 
-    fetch(`/api/users/${userId}/profile`)
-      .then((res) => res.json())
-      .then((json) => {
-        if (cancelled) return;
-        sessionStorage.setItem(`${USER_VIEW_CACHE_PREFIX}${userId}`, JSON.stringify(json));
-        setProfileData((prev) => ({
-          ...prev,
-          nickname: json.profile?.nickname ?? prev?.nickname ?? "",
-          profile_image_url: json.profile?.profile_image_url ?? prev?.profile_image_url ?? null,
-          bio: json.profile?.bio ?? null,
-          member_type: json.profile?.member_type ?? [],
-          country: json.profile?.country ?? null,
-          region: json.profile?.region ?? null,
-          last_active_at: json.profile?.last_active_at ?? null,
-          received_star_count: json.profile?.received_star_count ?? 0,
-          gifted_star_count_by_me: json.starSummary?.gifted_star_count_by_me ?? 0,
-          my_star_balance: json.starSummary?.my_star_balance ?? 0,
-        }));
-      })
-      .catch(() => {});
+    const cachedRaw = sessionStorage.getItem(`${USER_VIEW_CACHE_PREFIX}${userId}`);
+    const cachedJson = cachedRaw ? JSON.parse(cachedRaw) : null;
+    const isFresh = cachedJson?._cachedAt && Date.now() - cachedJson._cachedAt < USER_VIEW_TTL_MS;
+
+    if (!isFresh) {
+      fetch(`/api/users/${userId}/profile`)
+        .then((res) => res.json())
+        .then((json) => {
+          if (cancelled) return;
+          sessionStorage.setItem(`${USER_VIEW_CACHE_PREFIX}${userId}`, JSON.stringify({ ...json, _cachedAt: Date.now() }));
+          setProfileData((prev) => ({
+            ...prev,
+            nickname: json.profile?.nickname ?? prev?.nickname ?? "",
+            profile_image_url: json.profile?.profile_image_url ?? prev?.profile_image_url ?? null,
+            bio: json.profile?.bio ?? null,
+            member_type: json.profile?.member_type ?? [],
+            country: json.profile?.country ?? null,
+            region: json.profile?.region ?? null,
+            last_active_at: json.profile?.last_active_at ?? null,
+            received_star_count: json.profile?.received_star_count ?? 0,
+            gifted_star_count_by_me: json.starSummary?.gifted_star_count_by_me ?? 0,
+            my_star_balance: json.starSummary?.my_star_balance ?? 0,
+          }));
+        })
+        .catch(() => {});
+    }
 
     return () => { cancelled = true; };
   }, [initialProfile, userId]);

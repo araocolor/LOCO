@@ -653,7 +653,7 @@ export default function MemberBreakoutGame({ members, userId, roomId, onExitGame
       <div className="relative z-10 flex items-center justify-between px-5 pb-2 pt-5 text-white">
         <div>
           <p className="text-[11px] font-black tracking-[0.32em] text-white/70">XLATIN GAME</p>
-          <h3 className="mt-1 text-[22px] font-black tracking-[-0.03em]">라틴댄서 구출하기</h3>
+          <h3 className="mt-1 text-[22px] font-black tracking-[-0.03em]">회원을 구출하자</h3>
         </div>
         <div className="flex items-center gap-2">
           {topRecord && (

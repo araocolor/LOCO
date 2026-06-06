@@ -650,7 +650,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
     });
   }
 
-  async function fetchConversationsByType(type: PreviewRoomType, options?: { force?: boolean }) {
+  async function fetchConversationsByType(type: PreviewRoomType, options?: { force?: boolean; limit?: number }) {
     const cached = readPreviewCache(type);
     if (!options?.force && cached && !cached.expired) {
       mergeConversationsByType(type, cached.data);
@@ -658,7 +658,8 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
     }
 
     try {
-      const res = await fetch(`/api/chat/rooms/preview?type=${type}`);
+      const limitParam = options?.limit ? `&limit=${options.limit}` : "";
+      const res = await fetch(`/api/chat/rooms/preview?type=${type}${limitParam}`);
       const json = await res.json();
       if (!res.ok || !json.data) return;
       const apiItems = json.data as ChatRoomApiItem[];
@@ -752,20 +753,27 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
         });
       }
       const timer = window.setTimeout(() => {
-        void fetchConversationsByType(previewType, { force: true }).finally(() => setLoading(false));
+        void fetchConversationsByType(previewType, { force: true, limit: 3 })
+          .then(() => setLoading(false))
+          .then(() => fetchConversationsByType(previewType, { force: true }));
       }, 0);
       return () => window.clearTimeout(timer);
     }
-    // 탭 전환 시점에만 실행하고 내부 함수 의존성은 고정 동작으로 유지합니다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeMenuTab]);
 
   useEffect(() => {
     if (activeMenuTab !== "friends") return;
 
-    void fetchConversationsByType("direct");
-    void fetchConversationsByType("group");
-    void fetchConversationsByType("class");
+    const types: PreviewRoomType[] = ["direct", "group", "class"];
+    types.forEach((type) => {
+      const cached = readPreviewCache(type);
+      if (cached && !cached.expired) return;
+
+      void fetchConversationsByType(type, { limit: 3 }).then(() => {
+        void fetchConversationsByType(type, { force: true });
+      });
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeMenuTab]);
 

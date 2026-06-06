@@ -76,27 +76,24 @@ export async function GET(request: NextRequest) {
       .from("chat_room_members")
       .select("room_id, user_id, role, status, last_read_at, created_at")
       .eq("user_id", user.id)
-      .in("status", ["active", "left"])
+      .eq("status", "active")
       .returns<ChatMemberRow[]>();
 
     if (membershipError) throw membershipError;
 
-    const activeMemberships = (myMemberships ?? []).filter((m) => m.status === "active");
-    const leftClassRoomIds = new Set(
-      (myMemberships ?? []).filter((m) => m.status === "left").map((m) => m.room_id)
-    );
-    const roomIds = activeMemberships.map((m) => m.room_id);
-    const allRoomIds = [...new Set([...roomIds, ...leftClassRoomIds])];
-    if (allRoomIds.length === 0) {
+    const roomIds = (myMemberships ?? []).map((m) => m.room_id);
+    if (roomIds.length === 0) {
       return NextResponse.json({ data: [] });
     }
 
     const previewType = parsePreviewRoomType(request.nextUrl.searchParams.get("type"));
+    const limitParam = request.nextUrl.searchParams.get("limit");
+    const roomLimit = limitParam ? Math.max(1, Math.min(100, parseInt(limitParam, 10) || 100)) : null;
 
     let roomsQuery = admin
       .from("chat_rooms")
       .select("id, type, status, class_id, owner_id, title, notice, direct_user_low_id, direct_user_high_id, last_message_id, last_message_at, created_at, updated_at")
-      .in("id", allRoomIds)
+      .in("id", roomIds)
       .eq("status", "active");
 
     if (previewType === "direct") {
@@ -106,25 +103,30 @@ export async function GET(request: NextRequest) {
       roomsQuery = roomsQuery.eq("type", previewType);
     }
 
-    const [{ data: rooms, error: roomsError }, { data: members, error: membersError }] =
-      await Promise.all([
-        roomsQuery.returns<ChatRoomRow[]>(),
-        admin
-          .from("chat_room_members")
-          .select("room_id, user_id, role, status, last_read_at, created_at")
-          .in("room_id", allRoomIds)
-          .eq("status", "active")
-          .order("created_at", { ascending: true })
-          .returns<ChatMemberRow[]>(),
-      ]);
+    roomsQuery = roomsQuery.order("last_message_at", { ascending: false, nullsFirst: false });
+    if (roomLimit) {
+      roomsQuery = roomsQuery.limit(roomLimit);
+    }
 
+    const { data: rooms, error: roomsError } = await roomsQuery.returns<ChatRoomRow[]>();
     if (roomsError) throw roomsError;
-    if (membersError) throw membersError;
 
-    const activeRooms = (rooms ?? []).filter((room) => {
-      if (roomIds.includes(room.id)) return true;
-      return room.type === "class" && leftClassRoomIds.has(room.id);
-    });
+    const activeRooms = rooms ?? [];
+    const activeRoomIds = activeRooms.map((room) => room.id);
+
+    if (activeRoomIds.length === 0) {
+      return NextResponse.json({ data: [] });
+    }
+
+    const { data: members, error: membersError } = await admin
+      .from("chat_room_members")
+      .select("room_id, user_id, role, status, last_read_at, created_at")
+      .in("room_id", activeRoomIds)
+      .eq("status", "active")
+      .order("created_at", { ascending: true })
+      .returns<ChatMemberRow[]>();
+
+    if (membersError) throw membersError;
     const memberMap = new Map<string, ChatMemberRow[]>();
     (members ?? []).forEach((member) => {
       memberMap.set(member.room_id, [...(memberMap.get(member.room_id) ?? []), member]);
@@ -135,13 +137,6 @@ export async function GET(request: NextRequest) {
       displayMembersByRoom.set(room.id, getDisplayMembers(room, memberMap.get(room.id) ?? [], user.id));
     });
 
-    const profileIds = Array.from(
-      new Set(
-        Array.from(displayMembersByRoom.values())
-          .flat()
-          .map((member) => member.user_id)
-      )
-    );
     const classIds = activeRooms
       .map((room) => room.class_id)
       .filter((id): id is string => Boolean(id));
@@ -152,12 +147,10 @@ export async function GET(request: NextRequest) {
     const RECENT_MESSAGES_LIMIT = 10;
 
     const [
-      profiles,
       { data: classRows, error: classRowsError },
       { data: lastMessages, error: lastMessagesError },
       ...recentMessageResults
     ] = await Promise.all([
-      getProfiles(profileIds),
       classIds.length > 0
         ? admin
             .from("classes")
@@ -194,12 +187,20 @@ export async function GET(request: NextRequest) {
       recentMessagesMap.set(room.id, rows);
     });
 
+    const recentSenderIds = new Set(
+      Array.from(recentMessagesMap.values()).flat().map((msg) => msg.sender_id)
+    );
+    const displayMemberIds = Array.from(displayMembersByRoom.values())
+      .flat()
+      .map((member) => member.user_id);
+    const profileIds = Array.from(new Set([...displayMemberIds, ...recentSenderIds]));
+
+    const profiles = await getProfiles(profileIds);
     const profileMap = new Map(profiles.map((profile) => [profile.id, profile]));
     const classMap = new Map((classRows ?? []).map((row) => [row.id, row]));
     const messageMap = new Map((lastMessages ?? []).map((message) => [message.id, message]));
 
     const membershipMap = new Map((myMemberships ?? []).map((m) => [m.room_id, m]));
-    const activeRoomIds = activeRooms.map((room) => room.id);
     const unreadCounts = await Promise.all(
       activeRoomIds.map(async (roomId) => {
         const lastReadAt = membershipMap.get(roomId)?.last_read_at;

@@ -11,6 +11,7 @@ import ChatDrawerHeader from "./chat/ChatDrawerHeader";
 import ChatDrawerTabs, { type ChatDrawerTab } from "./chat/ChatDrawerTabs";
 import ChatMenuSheet from "./chat/ChatMenuSheet";
 import ChatTimeline from "./chat/ChatTimeline";
+import MemberBreakoutGame, { type MemberGameProfile } from "./chat/MemberBreakoutGame";
 import MemberGrid, { type ChatMemberProfile } from "./chat/MemberGrid";
 import ToastOverlay from "./chat/ToastOverlay";
 import ClassNoticePanel from "./notices/ClassNoticePanel";
@@ -146,6 +147,7 @@ export default function ChatDrawer({
   const [now, setNow] = useState(() => Date.now());
   const [viewerData, setViewerData] = useState<ImageViewerData | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [showGame, setShowGame] = useState(false);
 
   const isOwner = roomMembers?.some((m) => m.user_id === userId && m.role === "owner") ?? false;
   const isDirectRoom = roomType === "direct" || roomType === "self";
@@ -395,8 +397,7 @@ export default function ChatDrawer({
           <MemberGrid
             canAddMembers={canAddMembers}
             members={memberProfiles}
-            userId={userId}
-            roomId={roomId ?? ""}
+            onAvatarClick={onAvatarClick}
             onOpenMemberDrawer={onOpenMemberDrawer}
           />
         </div>
@@ -431,9 +432,20 @@ export default function ChatDrawer({
         >
           <ArchiveGrid items={archiveItems} />
         </div>
+
+        {showGame && (
+          <div className="absolute inset-0 z-[10]">
+            <MemberBreakoutGame
+              members={memberProfiles as MemberGameProfile[]}
+              userId={userId}
+              roomId={roomId ?? ""}
+              onExitGame={() => setShowGame(false)}
+            />
+          </div>
+        )}
       </div>
 
-      {displayedActiveTab === "all" && (
+      {displayedActiveTab === "all" && !showGame && (
         <>
           <ChatComposer
             newMessage={newMessage}
@@ -490,6 +502,7 @@ export default function ChatDrawer({
         onClose={() => setMenuOpen(false)}
         onInvite={onOpenMemberDrawer}
         onLeave={onLeaveRoom}
+        onStartGame={() => setShowGame(true)}
       />
 
       <ToastOverlay message={toastMessage} />
