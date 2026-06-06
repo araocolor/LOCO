@@ -215,6 +215,12 @@ export default function CachedClassDetailPage({
   }, [classId]);
 
   useEffect(() => {
+    if (displayClass?.like_count !== undefined) {
+      setLikeCount(displayClass.like_count);
+    }
+  }, [displayClass]);
+
+  useEffect(() => {
     if (!classId) return;
     if (requestedRef.current) return;
 
@@ -258,7 +264,7 @@ export default function CachedClassDetailPage({
         : [];
       queueMicrotask(() => {
         setLiked(isLiked);
-        setLikeCount(isLiked ? 1 : 0);
+        setLikeCount(readCachedClass(classId)?.like_count ?? 0);
         setBookmarked(bookmarkIds.includes(classId));
       });
     } catch {}
@@ -376,7 +382,7 @@ export default function CachedClassDetailPage({
       const next = isLiked ? likes.filter((id) => id !== classId) : [...likes, classId];
       localStorage.setItem(LIKES_CACHE_KEY, JSON.stringify(next));
       setLiked(!isLiked);
-      setLikeCount(!isLiked ? 1 : 0);
+      setLikeCount((prev) => (!isLiked ? prev + 1 : Math.max(0, prev - 1)));
     } catch {}
   }
 
