@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, Search, X } from "lucide-react";
 import Avatar from "@/components/ui/Avatar";
 
-const SOCIAL_CACHE_KEY = "search_social_cache";
+const FRIENDS_CACHE_KEY = "chat_friends_cache";
 
 interface CachedUser {
   id: string;
@@ -79,8 +79,8 @@ export default function CreateChatDrawer({ open, onClose, onRoomCreated }: Creat
   }, []);
 
   const loadUsersFromCache = useCallback(() => {
-    const following = readCacheArray<CachedUser>(SOCIAL_CACHE_KEY, "following");
-    const followers = readCacheArray<CachedUser>(SOCIAL_CACHE_KEY, "followers");
+    const following = readCacheArray<CachedUser>(FRIENDS_CACHE_KEY, "following");
+    const followers = readCacheArray<CachedUser>(FRIENDS_CACHE_KEY, "followers");
 
     const friendIds = new Set<string>();
     following.forEach((u) => {
