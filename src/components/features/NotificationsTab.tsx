@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Image from "next/image";
-import { ArrowLeft, Heart, Settings } from "lucide-react";
+import { ArrowLeft, Heart, Settings, Trash2 } from "lucide-react";
 import UserProfileModal from "@/components/user/UserProfileModal";
 import CachedClassDetailPage from "@/components/class/CachedClassDetailPage";
 import { readNotificationCache, writeNotificationCache } from "@/lib/notification-cache";
@@ -187,6 +187,10 @@ export default function NotificationsTab({ userId }: NotificationsTabProps) {
     } catch {}
   };
 
+  const [editMode, setEditMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState(false);
+
   const [approvingId, setApprovingId] = useState<string | null>(null);
   const [approvedIds, setApprovedIds] = useState<Set<string>>(new Set());
 
@@ -224,7 +228,56 @@ export default function NotificationsTab({ userId }: NotificationsTabProps) {
     }
   };
 
+  const isPendingApplication = (item: NotificationItem) => {
+    if (item.type !== "class_application") return false;
+    const appId = typeof item.meta?.application_id === "string" ? item.meta.application_id : null;
+    if (!appId) return false;
+    return !approvedIds.has(appId) && item.meta?.application_status !== "approved";
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === deletableNotifications.length && deletableNotifications.length > 0) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(deletableNotifications.map((n) => n.id)));
+    }
+  };
+
+  const handleDelete = async () => {
+    if (selectedIds.size === 0) return;
+    setDeleting(true);
+    try {
+      const res = await fetch("/api/notifications/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: Array.from(selectedIds) }),
+      });
+      if (res.ok) {
+        setNotificationsByTab((prev) => {
+          const next = { ...prev };
+          next[activeTab] = prev[activeTab].filter((n) => !selectedIds.has(n.id));
+          writeNotificationCache(userId, activeTab, next[activeTab]);
+          return next;
+        });
+        setSelectedIds(new Set());
+        setEditMode(false);
+      }
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const filteredNotifications = notificationsByTab[activeTab];
+  const deletableNotifications = filteredNotifications.filter((n) => !isPendingApplication(n));
   const loading = loadingMap[activeTab];
 
   return (
@@ -233,18 +286,38 @@ export default function NotificationsTab({ userId }: NotificationsTabProps) {
         <header className="sticky top-0 z-50 bg-white border-b border-[#e5e7eb]">
           <div className="relative h-14 px-4 flex items-center">
             <div className="font-black text-[22px] text-[#4d4d4d] leading-none">알림</div>
-            <button
-              type="button"
-              aria-label="설정"
-              className="ml-auto h-10 -mr-1 flex items-center text-gray-700"
-              onClick={() => setSettingsOpen(true)}
-            >
-              <Settings size={22} strokeWidth={2.2} />
-            </button>
+            <div className="ml-auto flex items-center gap-1">
+              {editMode ? (
+                <button
+                  type="button"
+                  className="h-10 px-2 flex items-center text-[14px] font-semibold text-gray-600"
+                  onClick={() => { setEditMode(false); setSelectedIds(new Set()); }}
+                >
+                  취소
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  aria-label="알림 삭제"
+                  className="h-10 flex items-center text-gray-700"
+                  onClick={() => setEditMode(true)}
+                >
+                  <Trash2 size={20} strokeWidth={2.2} />
+                </button>
+              )}
+              <button
+                type="button"
+                aria-label="설정"
+                className="h-10 -mr-1 flex items-center text-gray-700"
+                onClick={() => setSettingsOpen(true)}
+              >
+                <Settings size={22} strokeWidth={2.2} />
+              </button>
+            </div>
           </div>
           <div className="flex pl-4 pr-4 gap-2 pb-2 overflow-x-auto scrollbar-hide whitespace-nowrap">
             <button
-              onClick={() => setActiveTab("class")}
+              onClick={() => { setActiveTab("class"); setEditMode(false); setSelectedIds(new Set()); }}
               className={`px-3.5 py-1.5 rounded-full text-[14px] font-semibold transition-colors ${
                 activeTab === "class" ? "bg-black text-white" : "bg-gray-100 text-gray-400"
               }`}
@@ -252,7 +325,7 @@ export default function NotificationsTab({ userId }: NotificationsTabProps) {
               클래스
             </button>
             <button
-              onClick={() => setActiveTab("comment")}
+              onClick={() => { setActiveTab("comment"); setEditMode(false); setSelectedIds(new Set()); }}
               className={`px-3.5 py-1.5 rounded-full text-[14px] font-semibold transition-colors ${
                 activeTab === "comment" ? "bg-black text-white" : "bg-gray-100 text-gray-400"
               }`}
@@ -260,7 +333,7 @@ export default function NotificationsTab({ userId }: NotificationsTabProps) {
               댓글
             </button>
             <button
-              onClick={() => setActiveTab("heart")}
+              onClick={() => { setActiveTab("heart"); setEditMode(false); setSelectedIds(new Set()); }}
               className={`px-3.5 py-1.5 rounded-full text-[14px] font-semibold transition-colors ${
                 activeTab === "heart" ? "bg-black text-white" : "bg-gray-100 text-gray-400"
               }`}
@@ -330,7 +403,7 @@ export default function NotificationsTab({ userId }: NotificationsTabProps) {
                             ? approvedIds.has(appId) || item.meta?.application_status === "approved"
                             : false;
                           return isApproved ? (
-                            <span className="ml-1 inline-block h-2 w-2 rounded-full bg-green-500 align-middle" aria-label="승인완료" />
+                            <span className="ml-1 text-[14px] text-green-600 align-middle">확인완료</span>
                           ) : null;
                         })()}
                     </p>
@@ -345,30 +418,78 @@ export default function NotificationsTab({ userId }: NotificationsTabProps) {
                       if (!appId) return null;
                       const isApproved =
                         approvedIds.has(appId) || item.meta?.application_status === "approved";
-                      return isApproved ? (
-                        <span
-                          aria-hidden="true"
-                          className="self-center h-[28px] w-[46px] flex-shrink-0"
-                        />
-                      ) : (
-                        <button
-                          type="button"
-                          className="self-center flex-shrink-0 whitespace-nowrap rounded-full bg-[#FEE500] px-3 py-1 text-[14px] font-medium text-gray-900"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            void handleApprove(appId);
-                          }}
-                        >
-                          {approvingId === appId ? "..." : "승인"}
-                        </button>
-                      );
+                      if (isApproved && !editMode) {
+                        return (
+                          <span
+                            aria-hidden="true"
+                            className="self-center h-[28px] w-[46px] flex-shrink-0"
+                          />
+                        );
+                      }
+                      if (!isApproved) {
+                        return (
+                          <button
+                            type="button"
+                            className="self-center flex-shrink-0 whitespace-nowrap rounded-full bg-[#FEE500] px-3 py-1 text-[14px] font-medium text-gray-900"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void handleApprove(appId);
+                            }}
+                          >
+                            {approvingId === appId ? "..." : "승인"}
+                          </button>
+                        );
+                      }
+                      return null;
                     })()}
+
+                  {editMode && !isPendingApplication(item) && (
+                    <button
+                      type="button"
+                      className="flex-shrink-0 self-center ml-auto"
+                      onClick={() => toggleSelect(item.id)}
+                    >
+                      <div className={`w-[22px] h-[22px] rounded-full border-2 flex items-center justify-center transition-colors ${
+                        selectedIds.has(item.id)
+                          ? "bg-black border-black"
+                          : "border-gray-300 bg-white"
+                      }`}>
+                        {selectedIds.has(item.id) && (
+                          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                            <path d="M2.5 6L5 8.5L9.5 3.5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        )}
+                      </div>
+                    </button>
+                  )}
                 </li>
               ))}
             </ul>
           )}
         </div>
       </div>
+      {editMode && (
+        <div className="sticky bottom-0 z-50 bg-white border-t border-gray-200 px-4 py-3 flex items-center gap-3">
+          <button
+            type="button"
+            className="text-[14px] font-semibold text-gray-600"
+            onClick={toggleSelectAll}
+          >
+            {selectedIds.size === deletableNotifications.length && deletableNotifications.length > 0
+              ? "전체 해제"
+              : "전체 선택"}
+          </button>
+          <button
+            type="button"
+            disabled={selectedIds.size === 0 || deleting}
+            className="ml-auto px-5 py-2 rounded-full bg-red-500 text-white text-[14px] font-semibold disabled:opacity-40"
+            onClick={handleDelete}
+          >
+            {deleting ? "삭제 중..." : `삭제 (${selectedIds.size})`}
+          </button>
+        </div>
+      )}
+
       {profileModalTarget?.id && (
         <UserProfileModal
           userId={profileModalTarget.id}

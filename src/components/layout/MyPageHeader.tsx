@@ -238,12 +238,12 @@ export default function MyPageHeader() {
     });
   }
 
-  async function handleLogout() {
+  function handleLogout() {
     localStorage.clear();
     sessionStorage.clear();
-    const supabase = createClient();
-    await supabase.auth.signOut();
     window.location.href = "/login";
+    const supabase = createClient();
+    supabase.auth.signOut();
   }
 
   return (
