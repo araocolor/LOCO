@@ -239,7 +239,7 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
           <button
             type="button"
             aria-label="클래스 만들기"
-            className="ml-auto h-11 w-11 -mr-2 flex items-center justify-center text-gray-700"
+            className="ml-auto h-12 w-12 -mr-2 flex items-center justify-center text-gray-700"
             onClick={() => router.push("/classes/new/choose")}
           >
             <Plus size={22} strokeWidth={2.2} />
@@ -284,7 +284,7 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
             <button
               type="button"
               aria-label={allViewMode === "grid" ? "카드 보기" : "격자 보기"}
-              className="ml-auto pb-2 text-gray-400"
+              className="ml-auto mr-[4px] pb-2 text-gray-400"
               onClick={() => setAllViewMode((v) => (v === "grid" ? "card" : "grid"))}
             >
               {allViewMode === "grid" ? (
