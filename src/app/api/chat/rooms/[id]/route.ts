@@ -55,6 +55,7 @@ export async function GET(
         member_count: room.members.length,
         members: room.members,
         updated_at: room.updated_at,
+        created_at: room.created_at,
       },
     });
   } catch (error) {

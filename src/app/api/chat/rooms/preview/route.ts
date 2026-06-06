@@ -76,13 +76,18 @@ export async function GET(request: NextRequest) {
       .from("chat_room_members")
       .select("room_id, user_id, role, status, last_read_at, created_at")
       .eq("user_id", user.id)
-      .eq("status", "active")
+      .in("status", ["active", "left"])
       .returns<ChatMemberRow[]>();
 
     if (membershipError) throw membershipError;
 
-    const roomIds = (myMemberships ?? []).map((membership) => membership.room_id);
-    if (roomIds.length === 0) {
+    const activeMemberships = (myMemberships ?? []).filter((m) => m.status === "active");
+    const leftClassRoomIds = new Set(
+      (myMemberships ?? []).filter((m) => m.status === "left").map((m) => m.room_id)
+    );
+    const roomIds = activeMemberships.map((m) => m.room_id);
+    const allRoomIds = [...new Set([...roomIds, ...leftClassRoomIds])];
+    if (allRoomIds.length === 0) {
       return NextResponse.json({ data: [] });
     }
 
@@ -91,7 +96,7 @@ export async function GET(request: NextRequest) {
     let roomsQuery = admin
       .from("chat_rooms")
       .select("id, type, status, class_id, owner_id, title, notice, direct_user_low_id, direct_user_high_id, last_message_id, last_message_at, created_at, updated_at")
-      .in("id", roomIds)
+      .in("id", allRoomIds)
       .eq("status", "active");
 
     if (previewType === "direct") {
@@ -107,7 +112,7 @@ export async function GET(request: NextRequest) {
         admin
           .from("chat_room_members")
           .select("room_id, user_id, role, status, last_read_at, created_at")
-          .in("room_id", roomIds)
+          .in("room_id", allRoomIds)
           .eq("status", "active")
           .order("created_at", { ascending: true })
           .returns<ChatMemberRow[]>(),
@@ -116,7 +121,10 @@ export async function GET(request: NextRequest) {
     if (roomsError) throw roomsError;
     if (membersError) throw membersError;
 
-    const activeRooms = rooms ?? [];
+    const activeRooms = (rooms ?? []).filter((room) => {
+      if (roomIds.includes(room.id)) return true;
+      return room.type === "class" && leftClassRoomIds.has(room.id);
+    });
     const memberMap = new Map<string, ChatMemberRow[]>();
     (members ?? []).forEach((member) => {
       memberMap.set(member.room_id, [...(memberMap.get(member.room_id) ?? []), member]);

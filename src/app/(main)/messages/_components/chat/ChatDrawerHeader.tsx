@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, Info } from "lucide-react";
+import { ArrowLeft, Info, Menu } from "lucide-react";
 import CachedClassDetailPage from "@/components/class/CachedClassDetailPage";
 import type { OtherUser } from "../../_types";
 
@@ -13,6 +13,7 @@ interface ChatDrawerHeaderProps {
   roomId: string | null;
   roomType: "direct" | "group" | "class" | "self" | undefined;
   onClose: () => void;
+  onMenuOpen: () => void;
   onTitleChanged: (title: string) => void;
 }
 
@@ -24,6 +25,7 @@ export default function ChatDrawerHeader({
   roomId,
   roomType,
   onClose,
+  onMenuOpen,
   onTitleChanged,
 }: ChatDrawerHeaderProps) {
   const [classDetailOpen, setClassDetailOpen] = useState(false);
@@ -113,14 +115,22 @@ export default function ChatDrawerHeader({
           </span>
         )}
       </div>
-      {roomType === "class" && classId && (
+      <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-1">
+        {roomType === "class" && classId && (
+          <button
+            onClick={() => setClassDetailOpen(true)}
+            className="w-[37px] h-[37px] flex items-center justify-center text-gray-600 hover:text-gray-900"
+          >
+            <Info size={20} />
+          </button>
+        )}
         <button
-          onClick={() => setClassDetailOpen(true)}
-          className="absolute right-4 top-1/2 -translate-y-1/2 w-[37px] h-[37px] flex items-center justify-center text-gray-600 hover:text-gray-900"
+          onClick={onMenuOpen}
+          className="w-[37px] h-[37px] flex items-center justify-center text-gray-600 hover:text-gray-900"
         >
-          <Info size={20} />
+          <Menu size={20} />
         </button>
-      )}
+      </div>
 
       {roomType === "class" && classId && (
         <div

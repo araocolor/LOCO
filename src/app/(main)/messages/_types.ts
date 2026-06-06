@@ -32,6 +32,7 @@ export interface Conversation {
   recent_messages?: Message[];
   unread_count: number;
   updated_at: string;
+  created_at?: string;
 }
 
 export type NoticeKind = "notice" | "vote";

@@ -1,6 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
-import { getAuthenticatedUser, getRoomSnapshot, requireActiveRoomMember } from "../../../../_lib";
+import { getAuthenticatedUser, getProfiles, getRoomSnapshot, requireActiveRoomMember } from "../../../../_lib";
 
 type RoomType = "direct" | "group" | "class";
 type MemberRole = "owner" | "admin" | "member";
@@ -82,6 +82,21 @@ export async function DELETE(
       .eq("status", "active");
 
     if (updateError) throw updateError;
+
+    if (isSelfLeave) {
+      const profiles = await getProfiles([targetUserId]);
+      const nickname = profiles[0]?.nickname ?? "알 수 없음";
+      await admin.from("chat_messages").insert({
+        room_id: roomId,
+        sender_id: targetUserId,
+        kind: "system",
+        content: `${nickname}님이 퇴장하였습니다.`,
+      });
+      await admin
+        .from("chat_rooms")
+        .update({ updated_at: new Date().toISOString() })
+        .eq("id", roomId);
+    }
 
     const snapshot = await getRoomSnapshot(roomId, user.id);
     return NextResponse.json({ data: snapshot, status: nextStatus });

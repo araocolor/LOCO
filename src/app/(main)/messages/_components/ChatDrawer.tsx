@@ -9,6 +9,7 @@ import ArchiveGrid from "./chat/ArchiveGrid";
 import ChatComposer from "./chat/ChatComposer";
 import ChatDrawerHeader from "./chat/ChatDrawerHeader";
 import ChatDrawerTabs, { type ChatDrawerTab } from "./chat/ChatDrawerTabs";
+import ChatMenuSheet from "./chat/ChatMenuSheet";
 import ChatTimeline from "./chat/ChatTimeline";
 import MemberGrid, { type ChatMemberProfile } from "./chat/MemberGrid";
 import ToastOverlay from "./chat/ToastOverlay";
@@ -64,6 +65,8 @@ interface ChatDrawerProps {
   onStartLongPress: (msgId: string, isMine: boolean) => void;
   onAvatarClick: (userId: string) => void;
   onTitleChanged: (title: string) => void;
+  onLeaveRoom: () => void;
+  roomCreatedAt: string | null;
   setAttachOpen: Dispatch<SetStateAction<boolean>>;
   setNewMessage: Dispatch<SetStateAction<string>>;
   setShakingMsgId: Dispatch<SetStateAction<string | null>>;
@@ -123,6 +126,8 @@ export default function ChatDrawer({
   onStartLongPress,
   onAvatarClick,
   onTitleChanged,
+  onLeaveRoom,
+  roomCreatedAt,
   setAttachOpen,
   setNewMessage,
   setShakingMsgId,
@@ -140,7 +145,9 @@ export default function ChatDrawer({
   const [toastMessage, setToastMessage] = useState("");
   const [now, setNow] = useState(() => Date.now());
   const [viewerData, setViewerData] = useState<ImageViewerData | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
 
+  const isOwner = roomMembers?.some((m) => m.user_id === userId && m.role === "owner") ?? false;
   const isDirectRoom = roomType === "direct" || roomType === "self";
   const isClassRoom = roomType === "class";
   const displayedActiveTab: ChatDrawerTab = isDirectRoom && (activeTab === "class" || activeTab === "members") ? "all" : activeTab;
@@ -304,6 +311,7 @@ export default function ChatDrawer({
         roomId={roomId}
         roomType={roomType}
         onClose={onClose}
+        onMenuOpen={() => setMenuOpen(true)}
         onTitleChanged={onTitleChanged}
       />
 
@@ -474,6 +482,15 @@ export default function ChatDrawer({
           }}
         />
       )}
+
+      <ChatMenuSheet
+        open={menuOpen}
+        isOwner={isOwner}
+        roomCreatedAt={roomCreatedAt}
+        onClose={() => setMenuOpen(false)}
+        onInvite={onOpenMemberDrawer}
+        onLeave={onLeaveRoom}
+      />
 
       <ToastOverlay message={toastMessage} />
     </div>

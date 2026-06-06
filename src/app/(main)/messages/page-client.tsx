@@ -434,6 +434,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
         : null,
       unread_count: item.unread_count,
       updated_at: item.updated_at,
+      created_at: item.created_at,
     };
   }
 
@@ -1107,6 +1108,21 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
     }, 300);
   }
 
+  function handleLeaveRoom() {
+    if (!selectedRoomId) return;
+    const roomId = selectedRoomId;
+    const isClassRoom = selectedConversation?.type === "class";
+    closeChat();
+    if (!isClassRoom) {
+      setConversations((prev) => {
+        const next = prev.filter((conv) => conv.id !== roomId);
+        writeAllPreviewCaches(next);
+        return next;
+      });
+    }
+    fetch(`/api/chat/rooms/${roomId}/members/${userId}`, { method: "DELETE" }).catch(() => {});
+  }
+
   function handleSendMessage() {
     const text = newMessage.trim();
     if (!text || !selectedRoomId) return;
@@ -1347,6 +1363,8 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
         onTitleChanged={(title) => {
           patchConversationWithRoom({ id: selectedRoomId, title });
         }}
+        onLeaveRoom={() => { void handleLeaveRoom(); }}
+        roomCreatedAt={selectedConversation?.created_at ?? null}
         setAttachOpen={setAttachOpen}
         setNewMessage={setNewMessage}
         setShakingMsgId={setShakingMsgId}
