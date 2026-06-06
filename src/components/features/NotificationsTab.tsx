@@ -286,11 +286,11 @@ export default function NotificationsTab({ userId }: NotificationsTabProps) {
         <header className="sticky top-0 z-50 bg-white border-b border-[#e5e7eb]">
           <div className="relative h-14 px-4 flex items-center">
             <div className="font-black text-[22px] text-[#4d4d4d] leading-none">알림</div>
-            <div className="ml-auto flex items-center gap-1">
+            <div className="ml-auto flex items-center gap-0">
               {editMode ? (
                 <button
                   type="button"
-                  className="h-10 px-2 flex items-center text-[14px] font-semibold text-gray-600"
+                  className="h-10 px-1 -mr-1 flex items-center justify-center text-[14px] font-semibold text-gray-600"
                   onClick={() => { setEditMode(false); setSelectedIds(new Set()); }}
                 >
                   취소
@@ -299,7 +299,7 @@ export default function NotificationsTab({ userId }: NotificationsTabProps) {
                 <button
                   type="button"
                   aria-label="알림 삭제"
-                  className="h-10 flex items-center text-gray-700"
+                  className="h-10 px-1 -mr-1 flex items-center justify-center text-gray-700"
                   onClick={() => setEditMode(true)}
                 >
                   <Trash2 size={20} strokeWidth={2.2} />
@@ -308,7 +308,7 @@ export default function NotificationsTab({ userId }: NotificationsTabProps) {
               <button
                 type="button"
                 aria-label="설정"
-                className="h-10 -mr-1 flex items-center text-gray-700"
+                className="h-12 w-12 -mr-2 flex items-center justify-center text-gray-700"
                 onClick={() => setSettingsOpen(true)}
               >
                 <Settings size={22} strokeWidth={2.2} />

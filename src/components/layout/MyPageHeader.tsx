@@ -249,7 +249,7 @@ export default function MyPageHeader() {
           <div className="font-black text-[22px] text-[#4d4d4d] leading-none">
             프로필
           </div>
-          <button type="button" onClick={() => setOpen(true)} className="ml-auto h-10 -mr-1 flex items-center text-gray-700">
+          <button type="button" onClick={() => setOpen(true)} className="ml-auto h-12 w-12 -mr-2 flex items-center justify-center text-gray-700">
             <Settings size={22} strokeWidth={2.2} />
           </button>
         </div>
