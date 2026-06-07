@@ -494,6 +494,22 @@ export default function ClassCard({ classData, priorityImage = false, onClassSel
     });
   }, [expanded]);
 
+  async function handleDownloadImage(url: string) {
+    try {
+      const res = await fetch(url);
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      const safeTitle = title.replace(/[^가-힣]/g, "").slice(0, 15) || "클래스";
+      a.download = `${safeTitle}_${String(lightboxIndex + 1).padStart(2, "0")}.jpg`;
+      a.click();
+      URL.revokeObjectURL(blobUrl);
+    } catch {
+      window.open(url, "_blank");
+    }
+  }
+
   function handleToggleExpanded() {
     setExpanded((prev) => {
       if (!prev) shouldScrollToDescription.current = true;
@@ -1004,12 +1020,11 @@ export default function ClassCard({ classData, priorityImage = false, onClassSel
           onClick={() => setLightboxOpen(false)}
         >
           {currentLightboxImageUrl && (
-            <a
-              href={currentLightboxImageUrl}
-              download
+            <button
+              type="button"
               aria-label="사진 다운로드"
               className="absolute top-4 left-4 z-20 text-white"
-              onClick={(e) => e.stopPropagation()}
+              onClick={(e) => { e.stopPropagation(); handleDownloadImage(currentLightboxImageUrl); }}
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -1026,7 +1041,7 @@ export default function ClassCard({ classData, priorityImage = false, onClassSel
                 <polyline points="7 10 12 15 17 10" />
                 <line x1="12" y1="15" x2="12" y2="3" />
               </svg>
-            </a>
+            </button>
           )}
           <button
             type="button"

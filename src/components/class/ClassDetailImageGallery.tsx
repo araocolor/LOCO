@@ -9,6 +9,7 @@ type GalleryImage = {
 
 interface ClassDetailImageGalleryProps {
   images: GalleryImage[];
+  title?: string;
 }
 
 function formatBytes(bytes: number): string {
@@ -17,7 +18,23 @@ function formatBytes(bytes: number): string {
   return `${bytes} B`;
 }
 
-export default function ClassDetailImageGallery({ images }: ClassDetailImageGalleryProps) {
+async function handleDownloadImage(url: string, title: string | undefined, index: number) {
+  try {
+    const res = await fetch(url);
+    const blob = await res.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = blobUrl;
+    const safeTitle = (title ?? "").replace(/[^가-힣]/g, "").slice(0, 15) || "클래스";
+    a.download = `${safeTitle}_${String(index + 1).padStart(2, "0")}.jpg`;
+    a.click();
+    URL.revokeObjectURL(blobUrl);
+  } catch {
+    window.open(url, "_blank");
+  }
+}
+
+export default function ClassDetailImageGallery({ images, title }: ClassDetailImageGalleryProps) {
   const [readyForFull, setReadyForFull] = useState(false);
   const [loadedFullMap, setLoadedFullMap] = useState<Record<string, boolean>>({});
   const [sizeMap, setSizeMap] = useState<Record<string, string>>({});
@@ -85,6 +102,18 @@ export default function ClassDetailImageGallery({ images }: ClassDetailImageGall
                 {sizeMap[key]}
               </span>
             )}
+            <button
+              type="button"
+              aria-label="사진 다운로드"
+              className="absolute top-2 right-2 z-10 bg-black/70 rounded-full p-1.5 text-white"
+              onClick={() => handleDownloadImage(src ?? "", title, i)}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+            </button>
             <img
               src={src}
               alt={`클래스 이미지 ${i + 1}`}

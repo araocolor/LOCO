@@ -593,7 +593,7 @@ export default function CachedClassDetailPage({
       className={`relative pb-10 ${animateFromHome ? "page-slide-in-from-left" : ""}`}
     >
       {images.length > 0 ? (
-        <ClassDetailImageGallery images={images} />
+        <ClassDetailImageGallery images={images} title={displayClass.title} />
       ) : (
         <div className="w-full h-[160px] bg-gray-100 flex items-center justify-center text-5xl opacity-30">
           🎵
