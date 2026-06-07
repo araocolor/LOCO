@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { AiPosterSourceImage } from "@/types/ai-poster";
 import AiPosterReviewEditable from "./review-editable";
 
-export const metadata: Metadata = { title: "프롬프트 확인하기" };
+export const metadata: Metadata = { title: "클래스 만들기" };
 
 function stripReferenceSection(promptText: string) {
   return promptText.split("\n참고 원문:")[0].trimEnd();
@@ -67,7 +67,7 @@ export default async function AiPosterReviewPage({
   return (
     <div data-page-shell className="min-h-dvh bg-white page-slide-in-from-top">
       <ClassHeader
-        title="프롬프트 확인하기"
+        title="클래스 만들기"
         className="h-[70px]"
         backExitAnimationClass="page-slide-out-to-top"
         backExitDelayMs={200}

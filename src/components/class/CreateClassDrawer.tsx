@@ -2,11 +2,19 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronRight, ImagePlus, Upload, X } from "lucide-react";
+import { ChevronDown, ChevronRight, ImagePlus, Upload, X } from "lucide-react";
+
+interface SourceImage {
+  url: string;
+  path: string;
+}
 
 interface DraftItem {
   id: string;
   title: string;
+  raw_content: string;
+  prompt_text: string;
+  source_images: SourceImage[];
   created_at: string;
 }
 
@@ -17,25 +25,67 @@ interface CreateClassDrawerProps {
   onClose: () => void;
 }
 
+const DRAFTS_CACHE_KEY = "loco:create-class-drafts";
+const DRAFTS_CACHE_TTL = 5 * 60 * 1000;
+
+function readDraftsCache(): DraftItem[] | null {
+  try {
+    const raw = sessionStorage.getItem(DRAFTS_CACHE_KEY);
+    if (!raw) return null;
+    const entry = JSON.parse(raw) as { data: DraftItem[]; cachedAt: number };
+    if (Date.now() - entry.cachedAt > DRAFTS_CACHE_TTL) return null;
+    return entry.data;
+  } catch {
+    return null;
+  }
+}
+
+function writeDraftsCache(data: DraftItem[]) {
+  try {
+    sessionStorage.setItem(DRAFTS_CACHE_KEY, JSON.stringify({ data, cachedAt: Date.now() }));
+  } catch {}
+}
+
+function formatDate(dateStr: string) {
+  const d = new Date(dateStr);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  const h = String(d.getHours()).padStart(2, "0");
+  const min = String(d.getMinutes()).padStart(2, "0");
+  return `${y}.${m}.${day} ${h}:${min}`;
+}
+
 export default function CreateClassDrawer({ open, onClose }: CreateClassDrawerProps) {
   const router = useRouter();
   const [slideIn, setSlideIn] = useState(false);
   const [activeTab, setActiveTab] = useState<DrawerTab>("aiPoster");
   const [drafts, setDrafts] = useState<DraftItem[]>([]);
   const [draftsLoading, setDraftsLoading] = useState(false);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   useEffect(() => {
     if (open) {
       requestAnimationFrame(() => setSlideIn(true));
-      setDraftsLoading(true);
+      const cached = readDraftsCache();
+      if (cached) {
+        setDrafts(cached);
+      } else {
+        setDraftsLoading(true);
+      }
       fetch("/api/ai-poster/requests")
         .then((res) => res.json())
-        .then((json) => setDrafts(json.drafts ?? []))
+        .then((json) => {
+          const data = json.drafts ?? [];
+          setDrafts(data);
+          writeDraftsCache(data);
+        })
         .catch(() => {})
         .finally(() => setDraftsLoading(false));
     } else {
       setSlideIn(false);
       setActiveTab("aiPoster");
+      setExpandedId(null);
     }
   }, [open]);
 
@@ -134,7 +184,7 @@ export default function CreateClassDrawer({ open, onClose }: CreateClassDrawerPr
           )}
 
           {activeTab === "drafts" && (
-            <div className="mx-auto w-full max-w-[520px] flex flex-col gap-2">
+            <div className="mx-auto w-full max-w-[520px] flex flex-col gap-3">
               {draftsLoading && (
                 <div className="py-16 text-center text-[15px] text-gray-400">불러오는 중...</div>
               )}
@@ -142,24 +192,71 @@ export default function CreateClassDrawer({ open, onClose }: CreateClassDrawerPr
                 <div className="py-16 text-center text-[15px] text-gray-400">임시저장된 항목이 없습니다</div>
               )}
               {!draftsLoading &&
-                drafts.map((draft) => (
-                  <button
-                    key={draft.id}
-                    type="button"
-                    onClick={() => handleNavigate(`/classes/new/ai-poster/review/${draft.id}`)}
-                    className="flex flex-col rounded-2xl border border-[#e5e7eb] bg-white px-5 py-4 shadow-sm transition active:scale-[0.99] text-left"
-                  >
-                    <span className="self-start inline-flex items-center px-3 py-1.5 rounded-full bg-[#111111] text-white text-[15px] font-semibold mb-2">
-                      임시저장
-                    </span>
-                    <div className="flex items-center justify-between w-full">
-                      <span className="text-[22px] font-bold text-[#111111] truncate pr-2">
-                        {draft.title || "제목 없음"}
-                      </span>
-                      <ChevronRight size={20} className="shrink-0 text-[#aaaaaa]" />
+                drafts.map((draft) => {
+                  const isOpen = expandedId === draft.id;
+                  return (
+                    <div
+                      key={draft.id}
+                      className="rounded-2xl border border-[#e5e7eb] bg-white shadow-sm overflow-hidden"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => setExpandedId(isOpen ? null : draft.id)}
+                        className="w-full flex items-center justify-between px-5 py-4 text-left"
+                      >
+                        <div className="flex flex-col">
+                          <span className="text-[16px] font-bold text-[#111111]">
+                            {draft.title || "제목 없음"}
+                          </span>
+                          <span className="mt-0.5 text-[13px] text-[#999999]">
+                            {formatDate(draft.created_at)}
+                          </span>
+                        </div>
+                        <ChevronDown
+                          size={20}
+                          className={`shrink-0 text-[#aaaaaa] transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
+                        />
+                      </button>
+                      {isOpen && (
+                        <div className="px-5 pb-4 flex flex-col gap-4">
+                          {Array.isArray(draft.source_images) && draft.source_images.length > 0 && (
+                            <div>
+                              <h3 className="text-[13px] font-semibold text-[#888888] mb-2">참조 이미지</h3>
+                              <div className="grid grid-cols-3 gap-2">
+                                {draft.source_images.map((img, i) => (
+                                  <div
+                                    key={img.path}
+                                    className="relative aspect-square overflow-hidden rounded-xl border border-[#ececec] bg-[#f6f6f6]"
+                                  >
+                                    <img
+                                      src={img.url}
+                                      alt={`참조 이미지 ${i + 1}`}
+                                      className="absolute inset-0 w-full h-full object-cover"
+                                    />
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          <div>
+                            <h3 className="text-[13px] font-semibold text-[#888888] mb-2">최종 프롬프트</h3>
+                            <p className="whitespace-pre-wrap text-[14px] leading-6 text-white bg-[#111111] rounded-xl px-4 py-3 max-h-[280px] overflow-y-auto">
+                              {draft.prompt_text || draft.raw_content || "내용 없음"}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleNavigate(`/classes/new/ai-poster/review/${draft.id}`)}
+                            className="flex w-full items-center justify-center gap-1 rounded-full bg-[#fee500] py-2.5 text-[14px] font-semibold text-[#191600] transition active:scale-[0.98]"
+                          >
+                            수정/생성하기
+                            <ChevronRight size={16} />
+                          </button>
+                        </div>
+                      )}
                     </div>
-                  </button>
-                ))}
+                  );
+                })}
             </div>
           )}
         </main>

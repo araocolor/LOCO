@@ -29,7 +29,7 @@ export async function GET() {
 
   const { data, error } = await supabase
     .from("ai_poster_requests")
-    .select("id, title, created_at")
+    .select("id, title, raw_content, prompt_text, source_images, created_at")
     .eq("user_id", user.id)
     .eq("status", "reviewed")
     .order("created_at", { ascending: false })
