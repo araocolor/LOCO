@@ -1,19 +1,23 @@
 "use client";
 
 import { useState, Suspense } from "react";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
-const DEFAULT_PW = "loco1234";
+function getSafeNextPath(next: string | null) {
+  if (!next || !next.startsWith("/") || next.startsWith("//")) return "/";
+  return next;
+}
 
 function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [kakaoLoading, setKakaoLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const nextPath = getSafeNextPath(searchParams.get("next"));
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -22,80 +26,87 @@ function LoginForm() {
     const supabase = createClient();
     const { error: authError } = await supabase.auth.signInWithPassword({
       email,
-      password: password || DEFAULT_PW,
+      password,
     });
     if (authError) {
       setError("이메일 또는 비밀번호가 올바르지 않습니다.");
     } else {
-      router.push("/");
+      router.push(nextPath);
       router.refresh();
     }
     setLoading(false);
   }
 
-  async function handleKakaoLogin() {
-    setKakaoLoading(true);
+  async function handleGoogleLogin() {
+    setGoogleLoading(true);
     setError("");
     const supabase = createClient();
     const { error: authError } = await supabase.auth.signInWithOAuth({
-      provider: "kakao",
+      provider: "google",
       options: {
-        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent("/")}`,
-        scopes: "profile_nickname profile_image",
+        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`,
+        scopes: "email profile",
+        queryParams: {
+          prompt: "select_account",
+        },
       },
     });
     if (authError) {
-      setError("카카오 로그인에 실패했습니다.");
-      setKakaoLoading(false);
+      setError("Google 로그인에 실패했습니다. 잠시 후 다시 시도해주세요.");
+      setGoogleLoading(false);
     }
   }
 
   return (
     <>
-      <form onSubmit={handleLogin} className="flex flex-col gap-4">
-        <div>
-          <label className="field-label">이메일</label>
-          <input
-            type="email"
-            className="input-field"
-            style={{ fontSize: "16px" }}
-            placeholder="email@example.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-          />
-        </div>
-        <div>
-          <label className="field-label">비밀번호</label>
-          <input
-            type="password"
-            className="input-field"
-            style={{ fontSize: "16px" }}
-            placeholder="비워두면 loco1234 자동 적용"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-        </div>
-        {error && <p className="error-text">{error}</p>}
-        <button type="submit" disabled={loading} className="btn-primary mt-2">
-          {loading ? "로그인 중..." : "로그인"}
-        </button>
-      </form>
-
-      <div className="flex items-center gap-3 my-4">
-        <hr className="flex-1 border-gray-200" />
-        <span className="text-xs text-gray-400">또는</span>
-        <hr className="flex-1 border-gray-200" />
-      </div>
-
       <button
-        onClick={handleKakaoLogin}
-        disabled={kakaoLoading}
-        className="w-full flex items-center justify-center gap-2 rounded-full py-3 font-bold text-[#111111]"
-        style={{ backgroundColor: "#FEE500" }}
+        onClick={handleGoogleLogin}
+        disabled={googleLoading}
+        className="btn-primary"
       >
-        {kakaoLoading ? "로그인 중..." : "카카오로 로그인"}
+        {googleLoading ? "Google 연결 중..." : "Google로 계속하기"}
       </button>
+
+      <p className="mt-4 text-center text-xs leading-5" style={{ color: "#999999" }}>
+        Google 계정으로 간편하게 시작하세요.
+      </p>
+
+      {error && <p className="error-text mt-4 text-center">{error}</p>}
+
+      <details className="mt-6 rounded-xl border border-gray-200 p-4">
+        <summary className="cursor-pointer text-center text-sm font-semibold text-gray-600">
+          기존 이메일 로그인
+        </summary>
+        <form onSubmit={handleLogin} className="mt-4 flex flex-col gap-4">
+          <div>
+            <label className="field-label">이메일</label>
+            <input
+              type="email"
+              className="input-field"
+              style={{ fontSize: "16px" }}
+              placeholder="email@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+          </div>
+          <div>
+            <label className="field-label">비밀번호</label>
+            <input
+              type="password"
+              className="input-field"
+              style={{ fontSize: "16px" }}
+              placeholder="기존 임시 비밀번호"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+          </div>
+          <button type="submit" disabled={loading} className="btn-outline w-full">
+            {loading ? "로그인 중..." : "이메일로 로그인"}
+          </button>
+        </form>
+      </details>
 
       <div className="mt-6 relative text-sm">
         <button
@@ -107,10 +118,7 @@ function LoginForm() {
           {"<"}
         </button>
         <p className="text-center" style={{ color: "#999999" }}>
-          계정이 없으신가요?{" "}
-          <Link href="/signup" className="font-bold underline" style={{ color: "#111111" }}>
-            회원가입
-          </Link>
+          기존 이메일 계정이 있다면 아래에서 로그인하세요.
         </p>
       </div>
     </>
@@ -121,9 +129,9 @@ export default function LoginPage() {
   return (
     <main className="flex min-h-screen items-center justify-center p-4">
       <div className="w-full max-w-sm card p-8">
-        <h1 className="text-2xl font-bold text-center mb-1">XLATIN</h1>
+        <h1 className="text-2xl font-bold text-center mb-1">LOCO</h1>
         <p className="text-sm text-center mb-8" style={{ color: "#999999" }}>
-          라틴 댄스 클래스 플랫폼
+          AI 포스터 생성 플랫폼
         </p>
         <Suspense>
           <LoginForm />

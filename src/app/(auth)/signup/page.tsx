@@ -1,150 +1,71 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 
-const DEFAULT_PW = "loco1234";
-
-export default function SignupPage() {
-  const [email, setEmail] = useState("");
-  const [nickname, setNickname] = useState("");
-  const [nicknameStatus, setNicknameStatus] = useState<
-    "idle" | "checking" | "ok" | "taken"
-  >("idle");
-  const [error, setError] = useState("");
+function SignupForm() {
   const [loading, setLoading] = useState(false);
-  const router = useRouter();
+  const [error, setError] = useState("");
 
-  async function checkNickname(nick: string) {
-    const normalizedNickname = nick.trim();
-    if (!normalizedNickname || normalizedNickname.length < 2) {
-      setNicknameStatus("idle");
-      return;
-    }
-    setNicknameStatus("checking");
-    const supabase = createClient();
-    const { data } = await supabase
-      .from("profiles")
-      .select("id")
-      .eq("nickname", normalizedNickname)
-      .maybeSingle();
-    setNicknameStatus(data ? "taken" : "ok");
-  }
-
-  async function handleSignup(e: React.FormEvent) {
-    e.preventDefault();
-    const trimmedNickname = nickname.trim();
-
-    if (nicknameStatus === "taken") {
-      setError("이미 사용 중인 닉네임입니다.");
-      return;
-    }
-    if (nicknameStatus === "checking") {
-      setError("닉네임 확인 중입니다. 잠시 후 다시 시도해주세요.");
-      return;
-    }
-    if (trimmedNickname.length < 2) {
-      setError("닉네임은 2자 이상이어야 합니다.");
-      return;
-    }
-
+  async function handleGoogleSignup() {
     setLoading(true);
     setError("");
+
     const supabase = createClient();
+    const { error: authError } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent("/")}`,
+        scopes: "email profile",
+        queryParams: {
+          prompt: "select_account",
+        },
+      },
+    });
 
-    const { data: nicknameOwner, error: nicknameCheckError } = await supabase
-      .from("profiles")
-      .select("id")
-      .eq("nickname", trimmedNickname)
-      .maybeSingle();
-
-    if (nicknameCheckError) {
-      setError("닉네임 확인 중 오류가 발생했습니다. 다시 시도해주세요.");
+    if (authError) {
+      setError("Google 가입 연결에 실패했습니다. 잠시 후 다시 시도해주세요.");
       setLoading(false);
-      return;
     }
-
-    if (nicknameOwner) {
-      setNicknameStatus("taken");
-      setError("이미 사용 중인 닉네임입니다.");
-      setLoading(false);
-      return;
-    }
-
-    sessionStorage.setItem("signup_email", email);
-    sessionStorage.setItem("signup_nickname", trimmedNickname);
-    router.push("/onboarding");
-    setLoading(false);
   }
 
   return (
+    <>
+      <button onClick={handleGoogleSignup} disabled={loading} className="btn-primary gap-3">
+        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white text-sm font-black text-[#4285f4]">
+          G
+        </span>
+        {loading ? "Google 연결 중..." : "Google로 가입하기"}
+      </button>
+
+      <p className="mt-4 text-center text-xs leading-5" style={{ color: "#999999" }}>
+        가입 후 닉네임과 활동 정보를 한 번만 입력합니다.
+      </p>
+
+      {error && <p className="error-text mt-4 text-center">{error}</p>}
+
+      <p className="text-center text-sm mt-6" style={{ color: "#999999" }}>
+        이미 계정이 있으신가요?{" "}
+        <Link href="/login" className="font-bold underline" style={{ color: "#111111" }}>
+          로그인
+        </Link>
+      </p>
+    </>
+  );
+}
+
+export default function SignupPage() {
+  return (
     <main className="flex min-h-screen items-center justify-center p-4">
       <div className="w-full max-w-sm card p-8">
-        <h1 className="text-2xl font-bold text-center mb-1">회원가입</h1>
+        <h1 className="text-2xl font-bold text-center mb-1">LOCO 시작하기</h1>
         <p className="text-sm text-center mb-8" style={{ color: "#999999" }}>
-          LOCO와 함께 댄스를 시작해요
+          Google 계정으로 안전하게 가입하세요
         </p>
-
-        <form onSubmit={handleSignup} className="flex flex-col gap-4">
-          <div>
-            <label className="field-label">이메일</label>
-            <input
-              type="email"
-              className="input-field"
-              placeholder="email@example.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-          </div>
-
-          <div>
-            <label className="field-label">닉네임</label>
-            <input
-              type="text"
-              className="input-field"
-              placeholder="2자 이상"
-              value={nickname}
-              onChange={(e) => {
-                setNickname(e.target.value);
-                checkNickname(e.target.value);
-              }}
-              required
-            />
-            {nicknameStatus === "checking" && (
-              <p className="text-xs mt-1" style={{ color: "#999999" }}>
-                확인 중...
-              </p>
-            )}
-            {nicknameStatus === "ok" && (
-              <p className="text-xs mt-1" style={{ color: "#10b981" }}>
-                사용 가능한 닉네임입니다
-              </p>
-            )}
-            {nicknameStatus === "taken" && (
-              <p className="error-text">이미 사용 중인 닉네임입니다</p>
-            )}
-          </div>
-
-          {error && <p className="error-text">{error}</p>}
-
-          <button type="submit" disabled={loading} className="btn-primary mt-2">
-            {loading ? "처리 중..." : "가입하기"}
-          </button>
-        </form>
-
-        <p className="text-center text-sm mt-6" style={{ color: "#999999" }}>
-          이미 계정이 있으신가요?{" "}
-          <Link
-            href="/login"
-            className="font-bold underline"
-            style={{ color: "#111111" }}
-          >
-            로그인
-          </Link>
-        </p>
+        <Suspense>
+          <SignupForm />
+        </Suspense>
       </div>
     </main>
   );

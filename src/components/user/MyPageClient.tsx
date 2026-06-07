@@ -116,6 +116,17 @@ interface Props {
 
 type CacheProfilePatch = Partial<Pick<Profile, "bio" | "country" | "region" | "favorite_genre" | "member_type" | "profile_image_url">>;
 
+function readMyPageCachedProfile(cacheKey: string): CacheProfilePatch | null {
+  try {
+    const raw = localStorage.getItem(cacheKey);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { profile?: CacheProfilePatch };
+    return parsed.profile ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export default function MyPageClient({
   profile,
   myClasses: initialMyClasses,
@@ -162,7 +173,6 @@ export default function MyPageClient({
 
   const [starGiversOpen, setStarGiversOpen] = useState(false);
   const [starGiverProfileId, setStarGiverProfileId] = useState<string | null>(null);
-
 
   useEffect(() => {
     try {
@@ -380,11 +390,25 @@ export default function MyPageClient({
   }
 
   function handleOpenEditModal() {
-    setBio(profileMeta.bio ?? "");
-    setCountry(profileMeta.country ?? "대한민국");
-    setRegion(profileMeta.region ?? "");
-    setFavoriteGenres(profileMeta.favorite_genre ?? []);
-    setMemberTypes(profileMeta.member_type ?? []);
+    const cachedProfile = readMyPageCachedProfile(MY_PAGE_CACHE_KEY);
+    const nextProfileMeta = {
+      bio: cachedProfile?.bio ?? profileMeta.bio ?? profile.bio,
+      country: cachedProfile?.country ?? profileMeta.country ?? profile.country,
+      region: cachedProfile?.region ?? profileMeta.region ?? profile.region,
+      favorite_genre: cachedProfile?.favorite_genre ?? profileMeta.favorite_genre ?? profile.favorite_genre ?? [],
+      member_type: cachedProfile?.member_type ?? profileMeta.member_type ?? profile.member_type ?? [],
+    };
+
+    if (cachedProfile?.profile_image_url !== undefined) {
+      setAvatarUrl(cachedProfile.profile_image_url ?? null);
+    }
+
+    setProfileMeta(nextProfileMeta);
+    setBio(nextProfileMeta.bio ?? "");
+    setCountry(nextProfileMeta.country ?? "대한민국");
+    setRegion(nextProfileMeta.region ?? "");
+    setFavoriteGenres(nextProfileMeta.favorite_genre ?? []);
+    setMemberTypes(nextProfileMeta.member_type ?? []);
     setEditOpen(true);
   }
 
