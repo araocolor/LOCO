@@ -58,32 +58,32 @@ function LoginForm() {
   }
 
   return (
-    <>
+    <div className="flex flex-col items-center">
       <button
         onClick={handleGoogleLogin}
         disabled={googleLoading}
         className="btn-primary"
+        style={{ fontSize: "16px", width: "250px" }}
       >
         {googleLoading ? "Google 연결 중..." : "Google로 계속하기"}
       </button>
 
-      <p className="mt-4 text-center text-xs leading-5" style={{ color: "#999999" }}>
+      <p className="mt-2 text-center leading-5" style={{ color: "#999999", fontSize: "13px" }}>
         Google 계정으로 간편하게 시작하세요.
       </p>
 
       {error && <p className="error-text mt-4 text-center">{error}</p>}
 
-      <details className="mt-6 rounded-xl border border-gray-200 p-4">
-        <summary className="cursor-pointer text-center text-sm font-semibold text-gray-600">
-          기존 이메일 로그인
+      <details className="mt-14 p-4" style={{ width: "280px" }}>
+        <summary className="cursor-pointer text-center font-semibold text-gray-600 rounded-full border border-gray-200 py-3 px-6" style={{ fontSize: "16px", listStyle: "none" }}>
+          이메일 로그인
         </summary>
         <form onSubmit={handleLogin} className="mt-4 flex flex-col gap-4">
           <div>
-            <label className="field-label">이메일</label>
             <input
               type="email"
               className="input-field"
-              style={{ fontSize: "16px" }}
+              style={{ fontSize: "16px", borderRadius: "9999px" }}
               placeholder="email@example.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -91,12 +91,11 @@ function LoginForm() {
             />
           </div>
           <div>
-            <label className="field-label">비밀번호</label>
             <input
               type="password"
               className="input-field"
-              style={{ fontSize: "16px" }}
-              placeholder="기존 임시 비밀번호"
+              style={{ fontSize: "16px", borderRadius: "9999px" }}
+              placeholder="비밀번호"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
@@ -108,28 +107,26 @@ function LoginForm() {
         </form>
       </details>
 
-      <div className="mt-6 relative text-sm">
-        <button
-          type="button"
-          onClick={() => router.back()}
-          className="absolute left-0 top-1/2 -translate-y-1/2"
-          style={{ color: "#999999" }}
-        >
-          {"<"}
-        </button>
-        <p className="text-center" style={{ color: "#999999" }}>
-          기존 이메일 계정이 있다면 아래에서 로그인하세요.
-        </p>
-      </div>
-    </>
+      <p className="-mt-4 text-center" style={{ color: "#999999", fontSize: "13px" }}>
+        기존 이메일 계정이 있다면 직접입력하세요
+      </p>
+    </div>
   );
 }
 
 export default function LoginPage() {
   return (
-    <main className="flex min-h-screen items-center justify-center p-4">
-      <div className="w-full max-w-sm card p-8">
-        <h1 className="text-2xl font-bold text-center mb-1">LOCO</h1>
+    <main className="relative flex min-h-screen items-center justify-center p-4">
+      <button
+        type="button"
+        onClick={() => window.history.back()}
+        className="absolute top-4 left-4 flex items-center justify-center rounded-full border border-gray-300"
+        style={{ width: "44px", height: "44px", color: "#999999", fontSize: "18px" }}
+      >
+        {"<"}
+      </button>
+      <div className="w-full max-w-sm rounded-2xl bg-white p-8">
+        <h1 className="font-bold text-center mb-1" style={{ fontSize: "30px" }}>Xlatin</h1>
         <p className="text-sm text-center mb-8" style={{ color: "#999999" }}>
           AI 포스터 생성 플랫폼
         </p>
