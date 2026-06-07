@@ -82,7 +82,7 @@ export async function GET(request: NextRequest) {
     }
 
     const { data, error, count } = await query
-      .order("created_at", { ascending: false })
+      .order("last_active_at", { ascending: false, nullsFirst: false })
       .range(offset, offset + limit - 1);
 
     if (error) throw error;
