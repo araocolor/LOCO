@@ -17,7 +17,6 @@ import MentionText from "@/components/class/MentionText";
 const LIKES_CACHE_KEY = "loco_liked_posts";
 const LIKE_PENDING_CACHE_KEY = "loco_class_like_pending_v1";
 const BOOKMARKS_CACHE_KEY = "loco_bookmark_ids_v1";
-const HOME_RESULTS_LOCAL_KEY = "loco_home_results_local_v1";
 
 interface ClassHost {
   id: string;
@@ -90,8 +89,6 @@ export default function ClassCard({ classData, priorityImage = false, onClassSel
   const [shareComplete, setShareComplete] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
-  const [lightboxClasses, setLightboxClasses] = useState<ClassWithHost[]>([]);
-  const [lightboxClassIndex, setLightboxClassIndex] = useState(0);
   const [messageModalOpen, setMessageModalOpen] = useState(false);
   const [enteringClassRoom, setEnteringClassRoom] = useState(false);
   const [applyingClass, setApplyingClass] = useState(false);
@@ -159,20 +156,6 @@ export default function ClassCard({ classData, priorityImage = false, onClassSel
   }, [id, classData.comment_count]);
 
   function handleImageClick() {
-    try {
-      const cacheKey = Object.keys(localStorage).find((k) => k.startsWith(HOME_RESULTS_LOCAL_KEY));
-      const raw = cacheKey ? localStorage.getItem(cacheKey) : null;
-      const parsed = raw ? JSON.parse(raw) : null;
-      const allClasses: ClassWithHost[] = (parsed?.data ?? []).filter(
-        (c: ClassWithHost) => c.images && c.images.length > 0
-      );
-      const classIdx = allClasses.findIndex((c) => c.id === id);
-      setLightboxClasses(allClasses.length > 0 ? allClasses : [classData]);
-      setLightboxClassIndex(classIdx >= 0 ? classIdx : 0);
-    } catch {
-      setLightboxClasses([classData]);
-      setLightboxClassIndex(0);
-    }
     setLightboxIndex(imgIndex);
     setLightboxOpen(true);
   }
@@ -450,12 +433,24 @@ export default function ClassCard({ classData, priorityImage = false, onClassSel
   const levelLabel = CLASS_LEVEL_LABELS[level] ?? level;
   const isOwnClass = currentUserId === host_id;
   const isPendingApplication = myApplicationStatus === "pending";
-  const lightboxCurrentClass = lightboxClasses[lightboxClassIndex] ?? classData;
-  const lightboxImageList = lightboxCurrentClass.images ?? [];
-  const lightboxTotalImages = lightboxImageList.length;
   const currentLightboxImageUrl =
-    lightboxImageList[lightboxIndex]?.full_url ?? lightboxImageList[lightboxIndex]?.card_url ?? null;
+    imageList[lightboxIndex]?.full_url ?? imageList[lightboxIndex]?.card_url ?? null;
 
+  function handleLightboxTouchStart(e: ReactTouchEvent<HTMLDivElement>) {
+    lightboxTouchStartX.current = e.touches[0].clientX;
+    lightboxTouchStartY.current = e.touches[0].clientY;
+  }
+
+  function handleLightboxTouchEnd(e: ReactTouchEvent<HTMLDivElement>) {
+    if (totalImages <= 1) return;
+    const endX = e.changedTouches[0].clientX;
+    const endY = e.changedTouches[0].clientY;
+    const dx = lightboxTouchStartX.current - endX;
+    const dy = lightboxTouchStartY.current - endY;
+    if (Math.abs(dx) <= Math.abs(dy) || Math.abs(dx) < 40) return;
+    if (dx > 0) setLightboxIndex((i) => Math.min(i + 1, totalImages - 1));
+    if (dx < 0) setLightboxIndex((i) => Math.max(i - 1, 0));
+  }
 
   useEffect(() => {
     if (!menuOpen || isOwnClass) return;
@@ -506,7 +501,7 @@ export default function ClassCard({ classData, priorityImage = false, onClassSel
       const blobUrl = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = blobUrl;
-      const safeTitle = (lightboxCurrentClass.title ?? title).replace(/[^가-힣]/g, "").slice(0, 15) || "클래스";
+      const safeTitle = title.replace(/[^가-힣]/g, "").slice(0, 15) || "클래스";
       a.download = `${safeTitle}_${String(lightboxIndex + 1).padStart(2, "0")}.jpg`;
       a.click();
       URL.revokeObjectURL(blobUrl);
@@ -1019,27 +1014,11 @@ export default function ClassCard({ classData, priorityImage = false, onClassSel
         ))}
         <div className="h-3" />
       </div>
-      {lightboxOpen && lightboxTotalImages > 0 && (
+      {lightboxOpen && totalImages > 0 && (
         <div
           className="fixed inset-0 z-[260] bg-black/95 flex items-center justify-center"
           onClick={() => setLightboxOpen(false)}
-          onTouchStart={(e) => {
-            lightboxTouchStartX.current = e.touches[0].clientX;
-            lightboxTouchStartY.current = e.touches[0].clientY;
-          }}
-          onTouchEnd={(e) => {
-            const dx = lightboxTouchStartX.current - e.changedTouches[0].clientX;
-            const dy = lightboxTouchStartY.current - e.changedTouches[0].clientY;
-            if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) >= 50) {
-              if (dy > 0) { setLightboxClassIndex((i) => Math.min(i + 1, lightboxClasses.length - 1)); setLightboxIndex(0); }
-              else { setLightboxClassIndex((i) => Math.max(i - 1, 0)); setLightboxIndex(0); }
-            } else if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) >= 40) {
-              if (dx > 0) setLightboxIndex((i) => Math.min(i + 1, lightboxTotalImages - 1));
-              else setLightboxIndex((i) => Math.max(i - 1, 0));
-            }
-          }}
         >
-          {/* 다운로드 */}
           {currentLightboxImageUrl && (
             <button
               type="button"
@@ -1047,48 +1026,81 @@ export default function ClassCard({ classData, priorityImage = false, onClassSel
               className="absolute top-4 left-4 z-20 text-white"
               onClick={(e) => { e.stopPropagation(); handleDownloadImage(currentLightboxImageUrl); }}
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="26"
+                height="26"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
                 <polyline points="7 10 12 15 17 10" />
                 <line x1="12" y1="15" x2="12" y2="3" />
               </svg>
             </button>
           )}
-          {/* 닫기 */}
           <button
             type="button"
             aria-label="닫기"
             className="absolute top-4 right-4 z-20 text-white"
             onClick={() => setLightboxOpen(false)}
           >
-            <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="28"
+              height="28"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
               <line x1="18" y1="6" x2="6" y2="18" />
               <line x1="6" y1="6" x2="18" y2="18" />
             </svg>
           </button>
-          {/* 이전 이미지 */}
-          {lightboxTotalImages > 1 && lightboxIndex > 0 && (
-            <button type="button" aria-label="이전 사진" className="absolute left-3 z-20 text-white/85 hover:text-white" onClick={(e) => { e.stopPropagation(); setLightboxIndex((i) => Math.max(i - 1, 0)); }}>
-              <svg xmlns="http://www.w3.org/2000/svg" width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6" /></svg>
+          {totalImages > 1 && lightboxIndex > 0 && (
+            <button
+              type="button"
+              aria-label="이전 사진"
+              className="absolute left-3 z-20 text-white/85 hover:text-white"
+              onClick={(e) => {
+                e.stopPropagation();
+                setLightboxIndex((i) => Math.max(i - 1, 0));
+              }}
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="34"
+                height="34"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <polyline points="15 18 9 12 15 6" />
+              </svg>
             </button>
           )}
-          {/* 다음 이미지 */}
-          {lightboxTotalImages > 1 && lightboxIndex < lightboxTotalImages - 1 && (
-            <button type="button" aria-label="다음 사진" className="absolute right-3 z-20 text-white/85 hover:text-white" onClick={(e) => { e.stopPropagation(); setLightboxIndex((i) => Math.min(i + 1, lightboxTotalImages - 1)); }}>
-              <svg xmlns="http://www.w3.org/2000/svg" width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
-            </button>
-          )}
-          {/* 메인 영역 */}
           <div
-            key={lightboxClassIndex}
-            className="relative flex w-full max-w-[900px] flex-col items-center overflow-hidden animate-fade-in"
+            className="relative flex w-full max-w-[900px] flex-col items-center overflow-visible"
             onClick={() => setLightboxOpen(false)}
+            onTouchStart={handleLightboxTouchStart}
+            onTouchEnd={handleLightboxTouchEnd}
           >
-            {lightboxTotalImages > 1 && (
-              <div className="mb-3 text-sm text-white/85">{lightboxIndex + 1} / {lightboxTotalImages}</div>
+            {totalImages > 1 && (
+              <div className="mb-3 text-sm text-white/85">
+                {lightboxIndex + 1} / {totalImages}
+              </div>
             )}
-            {/* 이미지 가로 슬라이드 */}
-            <div className="w-full overflow-hidden">
+            <div className="max-h-[88vh] w-full overflow-hidden">
               <div
                 className="flex"
                 style={{
@@ -1097,61 +1109,49 @@ export default function ClassCard({ classData, priorityImage = false, onClassSel
                   willChange: "transform",
                 }}
               >
-                {lightboxImageList.map((img, index) => (
-                  <div key={`${img.full_url ?? img.card_url}-${index}`} className="min-w-full flex items-center justify-center">
+                {imageList.map((img, index) => (
+                  <div
+                    key={`${img.full_url ?? img.card_url}-${index}`}
+                    className="min-w-full flex items-center justify-center"
+                  >
                     <Image
                       src={img.full_url ?? img.card_url}
-                      alt={lightboxCurrentClass.title ?? ""}
+                      alt={title}
                       width={1200}
                       height={1600}
-                      className="w-full h-auto max-h-[70vh] object-contain select-none"
+                      className="w-full h-auto max-h-[88vh] object-contain select-none"
                       draggable={false}
                     />
                   </div>
                 ))}
               </div>
             </div>
-            {/* 클래스 정보 */}
-            <div className="w-full px-4 pt-3 pb-2" onClick={(e) => e.stopPropagation()}>
-              <div className="flex items-center gap-2.5">
-                {lightboxCurrentClass.host?.profile_image_url ? (
-                  <Image
-                    src={lightboxCurrentClass.host.profile_image_url}
-                    alt={lightboxCurrentClass.host.nickname ?? ""}
-                    width={36}
-                    height={36}
-                    className="h-[36px] w-[36px] rounded-full object-cover shrink-0"
-                  />
-                ) : (
-                  <div className="flex h-[36px] w-[36px] items-center justify-center rounded-full bg-gray-600 text-xs font-medium text-white shrink-0">
-                    {lightboxCurrentClass.host?.nickname?.[0] ?? "?"}
-                  </div>
-                )}
-                <div className="flex min-w-0 flex-1 flex-col">
-                  <div className="flex items-center gap-1.5">
-                    <span className="truncate text-[15px] font-bold text-white leading-tight">{lightboxCurrentClass.title}</span>
-                    {lightboxCurrentClass.status === "recruiting" && (
-                      <span className="h-2 w-2 flex-shrink-0 rounded-full bg-green-400" aria-label="모집중" />
-                    )}
-                    {lightboxCurrentClass.status === "closed" && (
-                      <span className="flex-shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-gray-600 text-white/70">마감 종료</span>
-                    )}
-                    {lightboxCurrentClass.status === "cancelled" && (
-                      <span className="flex-shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-red-900/60 text-red-300">취소됨</span>
-                    )}
-                  </div>
-                  <span className="truncate text-[12px] text-white/60 leading-tight">
-                    {lightboxCurrentClass.host?.nickname ?? ""} | {lightboxCurrentClass.region ?? ""}
-                    {lightboxCurrentClass.genres?.length ? ` | ${lightboxCurrentClass.genres.map((g) => DANCE_GENRE_LABELS[g as keyof typeof DANCE_GENRE_LABELS] ?? g).join(" · ")}` : ""}
-                    {formatDeadlineDistance(lightboxCurrentClass.deadline) ? ` | ${formatDeadlineDistance(lightboxCurrentClass.deadline)}` : ""}
-                  </span>
-                </div>
-              </div>
-              {lightboxClasses.length > 1 && (
-                <div className="mt-2 text-center text-xs text-white/40">위아래로 밀면 다른 클래스를 볼 수 있어요</div>
-              )}
-            </div>
           </div>
+          {totalImages > 1 && lightboxIndex < totalImages - 1 && (
+            <button
+              type="button"
+              aria-label="다음 사진"
+              className="absolute right-3 z-20 text-white/85 hover:text-white"
+              onClick={(e) => {
+                e.stopPropagation();
+                setLightboxIndex((i) => Math.min(i + 1, totalImages - 1));
+              }}
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="34"
+                height="34"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <polyline points="9 18 15 12 9 6" />
+              </svg>
+            </button>
+          )}
         </div>
       )}
       <ClassCommentsPanel

@@ -538,3 +538,11 @@ body {
   animation: fade-in 0.3s ease forwards;
 }
 
+@keyframes slideFromBottom {
+  from { transform: translateY(60px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+@keyframes slideFromTop {
+  from { transform: translateY(-60px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
