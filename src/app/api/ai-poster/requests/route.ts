@@ -27,19 +27,39 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const { data: linkedClasses, error: linkedError } = await supabase
+    .from("classes")
+    .select("ai_poster_request_id")
+    .eq("host_id", user.id)
+    .not("ai_poster_request_id", "is", null);
+
+  if (linkedError) {
+    return NextResponse.json({ error: linkedError.message }, { status: 500 });
+  }
+
+  const linkedRequestIds = new Set(
+    (linkedClasses ?? [])
+      .map((item) => item.ai_poster_request_id)
+      .filter((id): id is string => typeof id === "string" && id.length > 0)
+  );
+
   const { data, error } = await supabase
     .from("ai_poster_requests")
-    .select("id, title, raw_content, prompt_text, source_images, created_at")
+    .select(
+      "id, title, raw_content, prompt_text, source_images, status, generated_image_url, error_message, created_at"
+    )
     .eq("user_id", user.id)
-    .eq("status", "reviewed")
+    .in("status", ["reviewed", "failed", "generated"])
     .order("created_at", { ascending: false })
-    .limit(10);
+    .limit(30);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ drafts: data ?? [] });
+  const drafts = (data ?? []).filter((draft) => !linkedRequestIds.has(draft.id)).slice(0, 10);
+
+  return NextResponse.json({ drafts });
 }
 
 export async function POST(request: NextRequest) {
@@ -63,13 +83,17 @@ export async function POST(request: NextRequest) {
     const personFocus = String(formData.get("personFocus") ?? "");
     const tone = String(formData.get("tone") ?? "");
     const ratio = String(formData.get("ratio") ?? "");
-    const useRecommendedGeneration = String(formData.get("useRecommendedGeneration") ?? "") === "true";
+    const useRecommendedGeneration =
+      String(formData.get("useRecommendedGeneration") ?? "") === "true";
     const imageFiles = formData
       .getAll("images")
       .filter((value): value is File => value instanceof File && value.size > 0);
 
     if (imageFiles.length > MAX_IMAGE_COUNT) {
-      return NextResponse.json({ error: "사진은 최대 5장까지 업로드할 수 있습니다." }, { status: 400 });
+      return NextResponse.json(
+        { error: "사진은 최대 5장까지 업로드할 수 있습니다." },
+        { status: 400 }
+      );
     }
 
     const promptPayload = buildAiPosterPromptPayload({
@@ -112,14 +136,12 @@ export async function POST(request: NextRequest) {
         );
       const buffer = Buffer.from(await file.arrayBuffer());
 
-      const { error: uploadError } = await admin.storage.from(POSTER_IMAGE_BUCKET).upload(
-        normalizedPath,
-        buffer,
-        {
+      const { error: uploadError } = await admin.storage
+        .from(POSTER_IMAGE_BUCKET)
+        .upload(normalizedPath, buffer, {
           contentType: file.type || "image/jpeg",
           upsert: false,
-        }
-      );
+        });
 
       if (uploadError) {
         throw new Error(uploadError.message);

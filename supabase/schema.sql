@@ -74,6 +74,7 @@ CREATE TABLE classes (
   is_modified      BOOLEAN     NOT NULL DEFAULT FALSE,
   view_count       INTEGER     NOT NULL DEFAULT 0,
   region           TEXT        NOT NULL DEFAULT '',
+  ai_poster_request_id UUID,
   created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -160,6 +161,12 @@ CREATE TABLE ai_poster_requests (
   generated_storage_bucket TEXT,
   generated_storage_path   TEXT,
   generated_at             TIMESTAMPTZ,
+  error_code               TEXT,
+  error_message            TEXT,
+  error_detail             TEXT,
+  error_request_id         TEXT,
+  error_provider           TEXT,
+  failed_at                TIMESTAMPTZ,
   created_at               TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at               TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -180,6 +187,10 @@ CREATE POLICY "ai_poster_requests: 본인만 삭제"
 
 CREATE INDEX idx_ai_poster_requests_user_created
   ON ai_poster_requests (user_id, created_at DESC);
+
+ALTER TABLE classes
+  ADD CONSTRAINT classes_ai_poster_request_id_fkey
+  FOREIGN KEY (ai_poster_request_id) REFERENCES ai_poster_requests(id) ON DELETE SET NULL;
 
 
 -- ============================================================
@@ -284,6 +295,7 @@ CREATE INDEX idx_classes_host_id   ON classes (host_id);
 CREATE INDEX idx_classes_status    ON classes (status);
 CREATE INDEX idx_classes_region    ON classes (region);
 CREATE INDEX idx_classes_datetime  ON classes (datetime);
+CREATE INDEX idx_classes_ai_poster_request_id ON classes (ai_poster_request_id);
 CREATE INDEX idx_applications_class_id     ON applications (class_id);
 CREATE INDEX idx_applications_applicant_id ON applications (applicant_id);
 CREATE INDEX idx_notifications_user_id     ON notifications (user_id);

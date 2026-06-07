@@ -19,6 +19,9 @@ const LEVEL_ALIASES: Record<string, (typeof ALLOWED_LEVELS)[number]> = {
 function normalizeLevel(value: unknown): (typeof ALLOWED_LEVELS)[number] | null {
   if (typeof value !== "string") return null;
   const normalized = value.trim().toLowerCase();
+  if (ALLOWED_LEVELS.includes(normalized as (typeof ALLOWED_LEVELS)[number])) {
+    return normalized as (typeof ALLOWED_LEVELS)[number];
+  }
   return LEVEL_ALIASES[value.trim()] ?? LEVEL_ALIASES[normalized] ?? null;
 }
 
@@ -35,6 +38,10 @@ export async function POST(request: NextRequest) {
   const body = await request.json();
   const level = normalizeLevel(body?.level);
   const status = ALLOWED_CREATE_STATUSES.includes(body?.status) ? body.status : "recruiting";
+  const aiPosterRequestId =
+    typeof body?.ai_poster_request_id === "string" && body.ai_poster_request_id.trim()
+      ? body.ai_poster_request_id.trim()
+      : null;
 
   if (!level) {
     return NextResponse.json(
@@ -43,10 +50,41 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  if ("ai_poster_request_id" in body && body.ai_poster_request_id !== null && !aiPosterRequestId) {
+    return NextResponse.json({ error: "AI 포스터 연결 값이 올바르지 않습니다." }, { status: 400 });
+  }
+
+  if (aiPosterRequestId) {
+    const { data: aiPosterRequest } = await supabase
+      .from("ai_poster_requests")
+      .select("id, status")
+      .eq("id", aiPosterRequestId)
+      .eq("user_id", user.id)
+      .single();
+
+    if (!aiPosterRequest || aiPosterRequest.status !== "generated") {
+      return NextResponse.json(
+        { error: "생성 완료된 AI 포스터만 클래스에 연결할 수 있습니다." },
+        { status: 400 }
+      );
+    }
+
+    const { data: linkedClass } = await supabase
+      .from("classes")
+      .select("id")
+      .eq("ai_poster_request_id", aiPosterRequestId)
+      .maybeSingle();
+
+    if (linkedClass) {
+      return NextResponse.json({ error: "이미 클래스에 등록된 AI 포스터입니다." }, { status: 400 });
+    }
+  }
+
   const { data, error } = await supabase
     .from("classes")
     .insert({
       ...body,
+      ai_poster_request_id: aiPosterRequestId,
       level,
       host_id: user.id,
       status,

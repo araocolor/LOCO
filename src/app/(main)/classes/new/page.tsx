@@ -11,11 +11,15 @@ interface Props {
 
 export default async function ClassNewPage({ searchParams }: Props) {
   const params = await searchParams;
-  let aiPosterData: { imageUrl: string; title: string; rawContent: string } | undefined;
+  let aiPosterData:
+    | { requestId: string; imageUrl: string; title: string; rawContent: string }
+    | undefined;
 
   if (params.ai_poster) {
     const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
     if (user) {
       const { data } = await supabase
@@ -27,6 +31,7 @@ export default async function ClassNewPage({ searchParams }: Props) {
 
       if (data?.generated_image_url) {
         aiPosterData = {
+          requestId: params.ai_poster,
           imageUrl: data.generated_image_url,
           title: data.title ?? "",
           rawContent: data.raw_content ?? "",

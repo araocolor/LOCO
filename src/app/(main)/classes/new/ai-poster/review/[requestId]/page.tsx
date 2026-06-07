@@ -14,10 +14,14 @@ function stripReferenceSection(promptText: string) {
 
 export default async function AiPosterReviewPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ requestId: string }>;
+  searchParams: Promise<{ remake?: string }>;
 }) {
   const { requestId } = await params;
+  const query = await searchParams;
+  const isRemakeRequested = query.remake === "1";
   const supabase = await createClient();
   const {
     data: { user },
@@ -41,6 +45,11 @@ export default async function AiPosterReviewPage({
   const promptText = stripReferenceSection(
     typeof record.prompt_text === "string" ? record.prompt_text : ""
   );
+  const initialErrorMessage =
+    record.status === "failed" && typeof record.error_message === "string"
+      ? record.error_message
+      : "";
+  const initialIsGenerated = record.status === "generated" || isRemakeRequested;
   const { data: profile } = await supabase
     .from("profiles")
     .select("role")
@@ -51,12 +60,15 @@ export default async function AiPosterReviewPage({
 
   let isGenerationBlocked = false;
   if (!isAdmin) {
+    // Server Component request-time quota check.
+    // eslint-disable-next-line react-hooks/purity
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
     const { data: recentGeneratedRequest } = await supabase
       .from("ai_poster_requests")
       .select("id, generated_at")
       .eq("user_id", user.id)
       .eq("status", "generated")
+      .neq("id", requestId)
       .gte("generated_at", sevenDaysAgo)
       .order("generated_at", { ascending: false })
       .limit(1)
@@ -99,6 +111,8 @@ export default async function AiPosterReviewPage({
           <AiPosterReviewEditable
             requestId={requestId}
             initialPromptText={promptText}
+            initialErrorMessage={initialErrorMessage}
+            initialIsGenerated={initialIsGenerated}
             isGenerationBlocked={isGenerationBlocked}
           />
         </div>

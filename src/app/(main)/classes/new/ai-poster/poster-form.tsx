@@ -20,6 +20,11 @@ interface SelectedImageItem {
   previewUrl: string;
 }
 
+interface AiPosterFormProps {
+  surface?: "page" | "drawer";
+  onCancel?: () => void;
+}
+
 async function loadImage(file: File): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const objectUrl = URL.createObjectURL(file);
@@ -84,8 +89,9 @@ async function resizeImageForPosterSource(file: File): Promise<File> {
   return canvasToWebpFile(canvas, file.name, POSTER_SOURCE_WEBP_QUALITY);
 }
 
-export default function AiPosterForm() {
+export default function AiPosterForm({ surface = "page", onCancel }: AiPosterFormProps) {
   const router = useRouter();
+  const isDrawerSurface = surface === "drawer";
   const inputRef = useRef<HTMLInputElement>(null);
   const previewUrlsRef = useRef<string[]>([]);
   const [selectedImages, setSelectedImages] = useState<SelectedImageItem[]>([]);
@@ -197,7 +203,10 @@ export default function AiPosterForm() {
         method: "POST",
         body: formData,
       });
-      const payload = (await response.json().catch(() => null)) as { error?: string; id?: string } | null;
+      const payload = (await response.json().catch(() => null)) as {
+        error?: string;
+        id?: string;
+      } | null;
 
       if (!response.ok || !payload?.id) {
         setSubmitError(payload?.error ?? "프롬프트를 정리하지 못했습니다.");
@@ -213,7 +222,9 @@ export default function AiPosterForm() {
   }
 
   return (
-    <main className="px-4 pt-5 pb-28">
+    <main
+      className={isDrawerSurface ? "flex-1 overflow-y-auto px-4 pt-5 pb-28" : "px-4 pt-5 pb-28"}
+    >
       <div className="mx-auto flex w-full max-w-[520px] flex-col gap-5">
         <section className="rounded-2xl bg-white p-4 shadow-sm">
           <div className="mb-3 flex items-center justify-between">
@@ -423,11 +434,17 @@ export default function AiPosterForm() {
         </div>
       ) : null}
 
-      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-[#e5e7eb] bg-white px-4 py-3">
+      <div
+        className={
+          isDrawerSurface
+            ? "fixed inset-x-0 bottom-0 z-[120] border-t border-[#e5e7eb] bg-white px-4 py-3"
+            : "fixed inset-x-0 bottom-0 z-40 border-t border-[#e5e7eb] bg-white px-4 py-3"
+        }
+      >
         <div className="mx-auto flex w-full max-w-[520px] gap-3">
           <button
             type="button"
-            onClick={() => router.back()}
+            onClick={onCancel ?? (() => router.back())}
             disabled={isSubmitting || isPreparingImages}
             className="btn-outline flex-1 disabled:cursor-not-allowed disabled:opacity-60"
           >

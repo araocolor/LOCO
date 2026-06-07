@@ -92,6 +92,7 @@ function toFormState(d: Partial<DanceClass>): FormState {
 }
 
 interface AiPosterPrefill {
+  requestId: string;
   imageUrl: string;
   title: string;
   rawContent: string;
@@ -255,7 +256,12 @@ async function resizeImageToWidth(file: File, width: number): Promise<File> {
   return canvasToWebpFile(canvas, `${file.name.replace(/\.[^.]+$/, "") || "image"}.webp`, quality);
 }
 
-export default function ClassForm({ initialData, classId, userRole: _userRole, aiPosterData }: ClassFormProps) {
+export default function ClassForm({
+  initialData,
+  classId,
+  userRole: _userRole,
+  aiPosterData,
+}: ClassFormProps) {
   const router = useRouter();
   const isCreateMode = !classId;
   const isEditMode = !!classId;
@@ -443,7 +449,6 @@ export default function ClassForm({ initialData, classId, userRole: _userRole, a
     set("description", next);
     updateMentionSearch(next, e.target.selectionStart);
   }
-
 
   function handleDescriptionCursor() {
     const textarea = descriptionRef.current;
@@ -663,6 +668,11 @@ export default function ClassForm({ initialData, classId, userRole: _userRole, a
         require_approval: form.require_approval,
         images,
       };
+
+      if (isCreateMode && aiPosterData?.requestId) {
+        payload.ai_poster_request_id = aiPosterData.requestId;
+      }
+
       const url = classId ? `/api/classes/${classId}` : "/api/classes";
       const res = await fetch(url, {
         method: classId ? "PATCH" : "POST",
@@ -703,40 +713,282 @@ export default function ClassForm({ initialData, classId, userRole: _userRole, a
 
   return (
     <>
-      <form onSubmit={handleSubmit} className="max-w-xl mx-auto bg-[#f4f4f4] min-h-screen flex flex-col">
+      <form
+        onSubmit={handleSubmit}
+        className="max-w-xl mx-auto bg-[#f4f4f4] min-h-screen flex flex-col"
+      >
         <div className="flex-1 overflow-y-auto">
-        {isCreateMode ? (
-          createStep === 1 ? (
+          {isCreateMode ? (
+            createStep === 1 ? (
+              <>
+                <div className="mx-4 mt-[18px] bg-white rounded-2xl px-4 py-5">
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
+                    이미지 <span className="text-red-500">*</span>
+                  </p>
+                  {totalImages > 0 && (
+                    <div className="flex gap-3 mb-4 flex-wrap">
+                      {previews.map((url, i) => (
+                        <div key={`n-${i}`} className="relative">
+                          <img src={url} alt="" className="h-20 w-20 rounded-[10px] object-cover" />
+                          <button
+                            type="button"
+                            onClick={() => removeNew(i)}
+                            className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-gray-700 text-white rounded-full text-xs leading-none disabled:opacity-50"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {totalImages < 5 && (
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="btn-outline text-sm py-2 px-6 w-auto"
+                    >
+                      + 이미지 추가&nbsp;&nbsp;{totalImages}/5
+                    </button>
+                  )}
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={handleFileChange}
+                    className="hidden"
+                  />
+                </div>
+
+                <div className="mx-4 mt-[18px] bg-white rounded-2xl px-4 py-5 space-y-4">
+                  <div>
+                    <label className="field-label">
+                      제목 <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      className="input-field"
+                      placeholder="클래스 제목을 입력하세요"
+                      value={form.title}
+                      onChange={(e) => set("title", e.target.value)}
+                      maxLength={100}
+                    />
+                  </div>
+                  <div>
+                    <label className="field-label">
+                      본문 <span className="text-red-500">*</span>
+                    </label>
+                    <textarea
+                      className="input-field resize-none"
+                      placeholder="클래스 상세 내용을 입력하세요"
+                      value={form.description}
+                      onChange={handleDescriptionChange}
+                      rows={15}
+                    />
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="mx-4 mt-[18px] bg-white rounded-2xl px-4 py-5">
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
+                    장르 (최대 2개) <span className="text-red-500">*</span>
+                  </p>
+                  <div className="flex gap-2 flex-wrap">
+                    {GENRES.map((g) => (
+                      <button
+                        key={g.value}
+                        type="button"
+                        className={`chip ${form.genres.includes(g.value) ? "active" : ""}`}
+                        onClick={() => {
+                          const exists = form.genres.includes(g.value);
+                          const next = exists
+                            ? form.genres.filter((v) => v !== g.value)
+                            : form.genres.length >= 2
+                              ? [...form.genres.slice(1), g.value]
+                              : [...form.genres, g.value];
+                          set("genres", next);
+                        }}
+                      >
+                        {g.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="mx-4 mt-[18px] bg-white rounded-2xl px-4 py-5">
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
+                    카테고리 <span className="text-red-500">*</span>
+                  </p>
+                  <div className="flex gap-2 flex-wrap">
+                    {CATEGORIES.map((c) => (
+                      <button
+                        key={c.value}
+                        type="button"
+                        className={`chip ${form.category === c.value ? "active" : ""}`}
+                        onClick={() => set("category", c.value)}
+                      >
+                        {c.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="mx-4 mt-[18px] bg-white rounded-2xl px-4 py-5 space-y-4">
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
+                    일정
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="field-label">
+                        레벨 <span className="text-red-500">*</span>
+                      </label>
+                      <select
+                        className="input-field"
+                        value={form.level}
+                        onChange={(e) => set("level", e.target.value)}
+                      >
+                        <option value="">선택</option>
+                        {LEVELS.map((l) => (
+                          <option key={l.value} value={l.value}>
+                            {l.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="field-label">
+                        지역 <span className="text-red-500">*</span>
+                      </label>
+                      <select
+                        className="input-field"
+                        value={form.region}
+                        onChange={(e) => set("region", e.target.value)}
+                      >
+                        <option value="">선택</option>
+                        {REGIONS_WITH_ALL.map((r) => (
+                          <option key={r} value={r}>
+                            {r}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="field-label">
+                      신청 마감일 <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="date"
+                      className="input-field"
+                      value={form.deadline}
+                      onChange={(e) => set("deadline", e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="mx-4 mt-[18px] bg-white rounded-2xl px-4 py-5">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
+                      승인 여부
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => set("require_approval", !form.require_approval)}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${form.require_approval ? "bg-[#facc15]" : "bg-gray-300"}`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${form.require_approval ? "translate-x-6" : "translate-x-1"}`}
+                      />
+                    </button>
+                  </div>
+                  <p className="text-[14px] text-gray-400 mt-2">
+                    승인여부를 끄면 클래스대화방에 바로 들어올 수 있습니다.
+                  </p>
+                </div>
+              </>
+            )
+          ) : (
             <>
+              {/* 섹션 1 — 이미지 */}
               <div className="mx-4 mt-[18px] bg-white rounded-2xl px-4 py-5">
                 <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
-                  이미지 <span className="text-red-500">*</span>
+                  이미지
                 </p>
                 {totalImages > 0 && (
-                  <div className="flex gap-3 mb-4 flex-wrap">
+                  <div className="flex gap-3 mb-3 flex-wrap justify-center">
+                    {existingImages.map((img, i) => (
+                      <div key={`e-${i}`} className="relative">
+                        <Image
+                          src={img.card_url}
+                          alt=""
+                          width={100}
+                          height={0}
+                          style={{ width: 100, height: "auto" }}
+                          className="rounded-[10px]"
+                        />
+                        {isEditMode && (
+                          <button
+                            type="button"
+                            onClick={() => selectRepresentativeImage(i)}
+                            className={`absolute left-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full border text-xs font-bold shadow-sm ${
+                              i === 0
+                                ? "border-[#facc15] bg-[#facc15] text-black"
+                                : "border-[#facc15] bg-white text-[#ca8a04]"
+                            }`}
+                            aria-label={i === 0 ? "대표 이미지" : "대표 이미지로 선택"}
+                          >
+                            ✓
+                          </button>
+                        )}
+                        {isEditMode && i === 0 && (
+                          <span className="absolute bottom-1.5 left-1.5 rounded-full bg-black/70 px-2 py-0.5 text-[10px] font-semibold text-white">
+                            대표
+                          </span>
+                        )}
+                        {(isCreateMode || isEditMode) && (
+                          <button
+                            type="button"
+                            onClick={() => removeExisting(i)}
+                            className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-gray-700 text-white rounded-full text-xs leading-none"
+                          >
+                            ×
+                          </button>
+                        )}
+                      </div>
+                    ))}
                     {previews.map((url, i) => (
                       <div key={`n-${i}`} className="relative">
-                        <img src={url} alt="" className="h-20 w-20 rounded-[10px] object-cover" />
-                        <button
-                          type="button"
-                          onClick={() => removeNew(i)}
-                          className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-gray-700 text-white rounded-full text-xs leading-none disabled:opacity-50"
-                        >
-                          ×
-                        </button>
+                        <img
+                          src={url}
+                          alt=""
+                          style={{ width: 100, height: "auto" }}
+                          className="rounded-[10px]"
+                        />
+                        {(isCreateMode || isEditMode) && (
+                          <button
+                            type="button"
+                            onClick={() => removeNew(i)}
+                            className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-gray-700 text-white rounded-full text-xs leading-none"
+                          >
+                            ×
+                          </button>
+                        )}
                       </div>
                     ))}
                   </div>
                 )}
-                {totalImages < 5 && (
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="btn-outline text-sm py-2 px-6 w-auto"
-                  >
-                    + 이미지 추가&nbsp;&nbsp;{totalImages}/5
-                  </button>
-                )}
+                <div className="flex justify-center">
+                  {totalImages < 5 && (
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="btn-outline text-sm py-2 px-6 w-auto"
+                    >
+                      + 이미지 추가&nbsp;&nbsp;{totalImages}/5
+                    </button>
+                  )}
+                </div>
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -747,40 +999,10 @@ export default function ClassForm({ initialData, classId, userRole: _userRole, a
                 />
               </div>
 
-              <div className="mx-4 mt-[18px] bg-white rounded-2xl px-4 py-5 space-y-4">
-                <div>
-                  <label className="field-label">
-                    제목 <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    className="input-field"
-                    placeholder="클래스 제목을 입력하세요"
-                    value={form.title}
-                    onChange={(e) => set("title", e.target.value)}
-                    maxLength={100}
-                  />
-                </div>
-                <div>
-                  <label className="field-label">
-                    본문 <span className="text-red-500">*</span>
-                  </label>
-                  <textarea
-                    className="input-field resize-none"
-                    placeholder="클래스 상세 내용을 입력하세요"
-                    value={form.description}
-                    onChange={handleDescriptionChange}
-                    rows={15}
-                  />
-                </div>
-              </div>
-
-            </>
-          ) : (
-            <>
+              {/* 섹션 2 — 장르 */}
               <div className="mx-4 mt-[18px] bg-white rounded-2xl px-4 py-5">
                 <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
-                  장르 (최대 2개) <span className="text-red-500">*</span>
+                  장르 (최대 2개)
                 </p>
                 <div className="flex gap-2 flex-wrap">
                   {GENRES.map((g) => (
@@ -804,9 +1026,10 @@ export default function ClassForm({ initialData, classId, userRole: _userRole, a
                 </div>
               </div>
 
+              {/* 섹션 2-2 — 분류 */}
               <div className="mx-4 mt-[18px] bg-white rounded-2xl px-4 py-5">
                 <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
-                  카테고리 <span className="text-red-500">*</span>
+                  분류 (1개 선택)
                 </p>
                 <div className="flex gap-2 flex-wrap">
                   {CATEGORIES.map((c) => (
@@ -814,7 +1037,7 @@ export default function ClassForm({ initialData, classId, userRole: _userRole, a
                       key={c.value}
                       type="button"
                       className={`chip ${form.category === c.value ? "active" : ""}`}
-                      onClick={() => set("category", c.value)}
+                      onClick={() => set("category", form.category === c.value ? "" : c.value)}
                     >
                       {c.label}
                     </button>
@@ -822,15 +1045,118 @@ export default function ClassForm({ initialData, classId, userRole: _userRole, a
                 </div>
               </div>
 
+              {/* 섹션 3 — 제목 + 본문 */}
               <div className="mx-4 mt-[18px] bg-white rounded-2xl px-4 py-5 space-y-4">
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">일정</p>
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
+                    제목 / 본문
+                  </p>
+                  <div className="flex gap-1">
+                    {(["오픈", "비공개"] as const).map((v) => {
+                      const active = v === "오픈" ? form.is_public : !form.is_public;
+                      return (
+                        <button
+                          key={v}
+                          type="button"
+                          onClick={() => set("is_public", v === "오픈")}
+                          className={`px-2.5 py-0.5 rounded-full text-xs font-semibold transition-colors ${active ? "bg-black text-white" : "text-gray-400"}`}
+                        >
+                          {v}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                <input
+                  type="text"
+                  className="input-field disabled:bg-gray-100 disabled:text-gray-500"
+                  placeholder="클래스 제목을 입력하세요"
+                  value={form.title}
+                  onChange={(e) => set("title", e.target.value)}
+                  maxLength={100}
+                />
+                <div className="relative">
+                  <textarea
+                    ref={descriptionRef}
+                    className="input-field resize-none"
+                    placeholder="클래스 상세 내용을 입력하세요"
+                    value={form.description}
+                    onChange={handleDescriptionChange}
+                    onClick={handleDescriptionCursor}
+                    onKeyUp={handleDescriptionCursor}
+                    rows={15}
+                  />
+                  {isEditMode && mentionCandidates.length > 0 && (
+                    <div
+                      className="absolute z-40 mt-1 w-[220px] overflow-hidden rounded-xl bg-white shadow-lg"
+                      style={{
+                        left: mentionMenuPosition?.left ?? 0,
+                        top: mentionMenuPosition?.top ?? 0,
+                      }}
+                    >
+                      {mentionCandidates.map((candidate) => (
+                        <button
+                          key={candidate.id}
+                          type="button"
+                          className="flex w-full items-center gap-3 px-3 py-2.5 text-left hover:bg-gray-50"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => selectMention(candidate)}
+                        >
+                          {candidate.profile_image_url ? (
+                            <Image
+                              src={candidate.profile_image_url}
+                              alt={candidate.nickname}
+                              width={32}
+                              height={32}
+                              className="h-8 w-8 rounded-full object-cover"
+                            />
+                          ) : (
+                            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 text-xs font-semibold text-gray-500">
+                              {candidate.nickname[0]}
+                            </span>
+                          )}
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-sm font-semibold text-gray-900">
+                              @{candidate.nickname}
+                            </span>
+                            {candidate.region && (
+                              <span className="block truncate text-xs text-gray-400">
+                                {candidate.region}
+                              </span>
+                            )}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* 섹션 4 — 지역 / 레벨 */}
+              <div className="mx-4 mt-[18px] bg-white rounded-2xl px-4 py-5">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
+                  지역 / 레벨
+                </p>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="field-label">
-                      레벨 <span className="text-red-500">*</span>
-                    </label>
+                    <label className="field-label">지역 *</label>
                     <select
-                      className="input-field"
+                      className="input-field disabled:bg-gray-100 disabled:text-gray-500"
+                      value={form.region}
+                      onChange={(e) => set("region", e.target.value)}
+                    >
+                      <option value="">선택</option>
+                      {REGIONS.map((r) => (
+                        <option key={r} value={r}>
+                          {r}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="field-label">레벨 *</label>
+                    <select
+                      className="input-field disabled:bg-gray-100 disabled:text-gray-500"
                       value={form.level}
                       onChange={(e) => set("level", e.target.value)}
                     >
@@ -842,424 +1168,110 @@ export default function ClassForm({ initialData, classId, userRole: _userRole, a
                       ))}
                     </select>
                   </div>
-                  <div>
-                    <label className="field-label">
-                      지역 <span className="text-red-500">*</span>
-                    </label>
-                    <select
-                      className="input-field"
-                      value={form.region}
-                      onChange={(e) => set("region", e.target.value)}
-                    >
-                      <option value="">선택</option>
-                      {REGIONS_WITH_ALL.map((r) => (
-                        <option key={r} value={r}>
-                          {r}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-                <div>
-                  <label className="field-label">
-                    신청 마감일 <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="date"
-                    className="input-field"
-                    value={form.deadline}
-                    onChange={(e) => set("deadline", e.target.value)}
-                  />
                 </div>
               </div>
 
-              <div className="mx-4 mt-[18px] bg-white rounded-2xl px-4 py-5">
+              {/* 섹션 5+6 — 장소 상세 */}
+              <div className="mx-4 mt-[18px] bg-white rounded-2xl px-4 py-5 space-y-4">
                 <div className="flex items-center justify-between">
                   <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
-                    승인 여부
+                    상세 정보
                   </p>
                   <button
                     type="button"
-                    onClick={() => set("require_approval", !form.require_approval)}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${form.require_approval ? "bg-[#facc15]" : "bg-gray-300"}`}
+                    onClick={() => setShowDetail((v) => !v)}
+                    className={`text-xs text-gray-400 underline ${isEditMode ? "hidden" : ""}`}
                   >
-                    <span
-                      className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${form.require_approval ? "translate-x-6" : "translate-x-1"}`}
-                    />
+                    {showDetail ? "상세접기" : "상세 정보 입력"}
                   </button>
                 </div>
-                <p className="text-[14px] text-gray-400 mt-2">
-                  승인여부를 끄면 클래스대화방에 바로 들어올 수 있습니다.
-                </p>
-              </div>
-
-            </>
-          )
-        ) : (
-          <>
-            {/* 섹션 1 — 이미지 */}
-            <div className="mx-4 mt-[18px] bg-white rounded-2xl px-4 py-5">
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
-                이미지
-              </p>
-              {totalImages > 0 && (
-                <div className="flex gap-3 mb-3 flex-wrap justify-center">
-                  {existingImages.map((img, i) => (
-                    <div key={`e-${i}`} className="relative">
-                      <Image
-                        src={img.card_url}
-                        alt=""
-                        width={100}
-                        height={0}
-                        style={{ width: 100, height: "auto" }}
-                        className="rounded-[10px]"
-                      />
-                      {isEditMode && (
-                        <button
-                          type="button"
-                          onClick={() => selectRepresentativeImage(i)}
-                          className={`absolute left-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full border text-xs font-bold shadow-sm ${
-                            i === 0
-                              ? "border-[#facc15] bg-[#facc15] text-black"
-                              : "border-[#facc15] bg-white text-[#ca8a04]"
-                          }`}
-                          aria-label={i === 0 ? "대표 이미지" : "대표 이미지로 선택"}
-                        >
-                          ✓
-                        </button>
-                      )}
-                      {isEditMode && i === 0 && (
-                        <span className="absolute bottom-1.5 left-1.5 rounded-full bg-black/70 px-2 py-0.5 text-[10px] font-semibold text-white">
-                          대표
-                        </span>
-                      )}
-                      {(isCreateMode || isEditMode) && (
-                        <button
-                          type="button"
-                          onClick={() => removeExisting(i)}
-                          className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-gray-700 text-white rounded-full text-xs leading-none"
-                        >
-                          ×
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                  {previews.map((url, i) => (
-                    <div key={`n-${i}`} className="relative">
-                      <img
-                        src={url}
-                        alt=""
-                        style={{ width: 100, height: "auto" }}
-                        className="rounded-[10px]"
-                      />
-                      {(isCreateMode || isEditMode) && (
-                        <button
-                          type="button"
-                          onClick={() => removeNew(i)}
-                          className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-gray-700 text-white rounded-full text-xs leading-none"
-                        >
-                          ×
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-              <div className="flex justify-center">
-                {totalImages < 5 && (
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="btn-outline text-sm py-2 px-6 w-auto"
-                  >
-                    + 이미지 추가&nbsp;&nbsp;{totalImages}/5
-                  </button>
-                )}
-              </div>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                multiple
-                onChange={handleFileChange}
-                className="hidden"
-              />
-            </div>
-
-            {/* 섹션 2 — 장르 */}
-            <div className="mx-4 mt-[18px] bg-white rounded-2xl px-4 py-5">
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
-                장르 (최대 2개)
-              </p>
-              <div className="flex gap-2 flex-wrap">
-                {GENRES.map((g) => (
-                  <button
-                    key={g.value}
-                    type="button"
-                    className={`chip ${form.genres.includes(g.value) ? "active" : ""}`}
-                    onClick={() => {
-                      const exists = form.genres.includes(g.value);
-                      const next = exists
-                        ? form.genres.filter((v) => v !== g.value)
-                        : form.genres.length >= 2
-                          ? [...form.genres.slice(1), g.value]
-                          : [...form.genres, g.value];
-                      set("genres", next);
-                    }}
-                  >
-                    {g.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* 섹션 2-2 — 분류 */}
-            <div className="mx-4 mt-[18px] bg-white rounded-2xl px-4 py-5">
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
-                분류 (1개 선택)
-              </p>
-              <div className="flex gap-2 flex-wrap">
-                {CATEGORIES.map((c) => (
-                  <button
-                    key={c.value}
-                    type="button"
-                    className={`chip ${form.category === c.value ? "active" : ""}`}
-                    onClick={() => set("category", form.category === c.value ? "" : c.value)}
-                  >
-                    {c.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* 섹션 3 — 제목 + 본문 */}
-            <div className="mx-4 mt-[18px] bg-white rounded-2xl px-4 py-5 space-y-4">
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
-                  제목 / 본문
-                </p>
-                <div className="flex gap-1">
-                  {(["오픈", "비공개"] as const).map((v) => {
-                    const active = v === "오픈" ? form.is_public : !form.is_public;
-                    return (
-                      <button
-                        key={v}
-                        type="button"
-                        onClick={() => set("is_public", v === "오픈")}
-                        className={`px-2.5 py-0.5 rounded-full text-xs font-semibold transition-colors ${active ? "bg-black text-white" : "text-gray-400"}`}
-                      >
-                        {v}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-              <input
-                type="text"
-                className="input-field disabled:bg-gray-100 disabled:text-gray-500"
-                placeholder="클래스 제목을 입력하세요"
-                value={form.title}
-                onChange={(e) => set("title", e.target.value)}
-                maxLength={100}
-              />
-              <div className="relative">
-                <textarea
-                  ref={descriptionRef}
-                  className="input-field resize-none"
-                  placeholder="클래스 상세 내용을 입력하세요"
-                  value={form.description}
-                  onChange={handleDescriptionChange}
-                  onClick={handleDescriptionCursor}
-                  onKeyUp={handleDescriptionCursor}
-                  rows={15}
-                />
-                {isEditMode && mentionCandidates.length > 0 && (
-                  <div
-                    className="absolute z-40 mt-1 w-[220px] overflow-hidden rounded-xl bg-white shadow-lg"
-                    style={{
-                      left: mentionMenuPosition?.left ?? 0,
-                      top: mentionMenuPosition?.top ?? 0,
-                    }}
-                  >
-                    {mentionCandidates.map((candidate) => (
-                      <button
-                        key={candidate.id}
-                        type="button"
-                        className="flex w-full items-center gap-3 px-3 py-2.5 text-left hover:bg-gray-50"
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => selectMention(candidate)}
-                      >
-                        {candidate.profile_image_url ? (
-                          <Image
-                            src={candidate.profile_image_url}
-                            alt={candidate.nickname}
-                            width={32}
-                            height={32}
-                            className="h-8 w-8 rounded-full object-cover"
-                          />
-                        ) : (
-                          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 text-xs font-semibold text-gray-500">
-                            {candidate.nickname[0]}
-                          </span>
-                        )}
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate text-sm font-semibold text-gray-900">
-                            @{candidate.nickname}
-                          </span>
-                          {candidate.region && (
-                            <span className="block truncate text-xs text-gray-400">
-                              {candidate.region}
-                            </span>
-                          )}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* 섹션 4 — 지역 / 레벨 */}
-            <div className="mx-4 mt-[18px] bg-white rounded-2xl px-4 py-5">
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
-                지역 / 레벨
-              </p>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="field-label">지역 *</label>
-                  <select
-                    className="input-field disabled:bg-gray-100 disabled:text-gray-500"
-                    value={form.region}
-                    onChange={(e) => set("region", e.target.value)}
-                  >
-                    <option value="">선택</option>
-                    {REGIONS.map((r) => (
-                      <option key={r} value={r}>
-                        {r}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="field-label">레벨 *</label>
-                  <select
-                    className="input-field disabled:bg-gray-100 disabled:text-gray-500"
-                    value={form.level}
-                    onChange={(e) => set("level", e.target.value)}
-                  >
-                    <option value="">선택</option>
-                    {LEVELS.map((l) => (
-                      <option key={l.value} value={l.value}>
-                        {l.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            </div>
-
-            {/* 섹션 5+6 — 장소 상세 */}
-            <div className="mx-4 mt-[18px] bg-white rounded-2xl px-4 py-5 space-y-4">
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
-                  상세 정보
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setShowDetail((v) => !v)}
-                  className={`text-xs text-gray-400 underline ${isEditMode ? "hidden" : ""}`}
-                >
-                  {showDetail ? "상세접기" : "상세 정보 입력"}
-                </button>
-              </div>
-              {(showDetail || isEditMode) && (
-                <>
-                  {/* 신청 마감일 */}
-                  <div>
-                    <label className="field-label">신청 마감일 *</label>
-                    <input
-                      type="date"
-                      className="input-field disabled:bg-gray-100 disabled:text-gray-500"
-                      value={form.deadline}
-                      onChange={(e) => set("deadline", e.target.value)}
-                    />
-                  </div>
-
-                  {/* 모집 상태 */}
-                  <div>
-                    <label className="field-label">모집 상태</label>
-                    <div className="flex gap-2 flex-wrap">
-                      {STATUS_OPTIONS.map((option) => (
-                        <button
-                          key={option.value}
-                          type="button"
-                          className={`chip ${form.status === option.value ? "active" : ""}`}
-                          onClick={() => set("status", option.value)}
-                        >
-                          {option.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* 장소 */}
-                  <div>
-                    <label className="field-label">장소</label>
-                    <div className="flex gap-2">
+                {(showDetail || isEditMode) && (
+                  <>
+                    {/* 신청 마감일 */}
+                    <div>
+                      <label className="field-label">신청 마감일 *</label>
                       <input
-                        type="text"
-                        className="input-field cursor-pointer disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500"
-                        placeholder="주소 검색"
-                        value={form.location_address}
-                        readOnly
-                        onClick={openAddressSearch}
+                        type="date"
+                        className="input-field disabled:bg-gray-100 disabled:text-gray-500"
+                        value={form.deadline}
+                        onChange={(e) => set("deadline", e.target.value)}
                       />
-                      <button
-                        type="button"
-                        onClick={openAddressSearch}
-                        className="flex-shrink-0 px-4 py-3 bg-gray-100 text-gray-700 text-sm font-medium rounded-[12px] whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        검색
-                      </button>
                     </div>
-                  </div>
 
-                  {/* 승인 여부 */}
-                  <div>
-                    <div className="flex items-center justify-between">
-                      <label className="field-label">승인 여부</label>
-                      <button
-                        type="button"
-                        onClick={() => set("require_approval", !form.require_approval)}
-                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${form.require_approval ? "bg-[#facc15]" : "bg-gray-300"}`}
-                      >
-                        <span
-                          className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${form.require_approval ? "translate-x-6" : "translate-x-1"}`}
+                    {/* 모집 상태 */}
+                    <div>
+                      <label className="field-label">모집 상태</label>
+                      <div className="flex gap-2 flex-wrap">
+                        {STATUS_OPTIONS.map((option) => (
+                          <button
+                            key={option.value}
+                            type="button"
+                            className={`chip ${form.status === option.value ? "active" : ""}`}
+                            onClick={() => set("status", option.value)}
+                          >
+                            {option.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* 장소 */}
+                    <div>
+                      <label className="field-label">장소</label>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          className="input-field cursor-pointer disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500"
+                          placeholder="주소 검색"
+                          value={form.location_address}
+                          readOnly
+                          onClick={openAddressSearch}
                         />
-                      </button>
+                        <button
+                          type="button"
+                          onClick={openAddressSearch}
+                          className="flex-shrink-0 px-4 py-3 bg-gray-100 text-gray-700 text-sm font-medium rounded-[12px] whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          검색
+                        </button>
+                      </div>
                     </div>
-                    <p className="text-[14px] text-gray-400 mt-1">
-                      승인여부를 끄면 클래스대화방에 바로 들어올 수 있습니다.
-                    </p>
-                  </div>
 
-                  {/* 연락처 */}
-                  <div>
-                    <label className="field-label">연락처 *</label>
-                    <input
-                      type="tel"
-                      className="input-field disabled:bg-gray-100 disabled:text-gray-500"
-                      placeholder="카카오톡 ID 또는 전화번호"
-                      value={form.contact}
-                      onChange={(e) => set("contact", e.target.value)}
-                    />
-                  </div>
-                </>
-              )}
-            </div>
+                    {/* 승인 여부 */}
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <label className="field-label">승인 여부</label>
+                        <button
+                          type="button"
+                          onClick={() => set("require_approval", !form.require_approval)}
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${form.require_approval ? "bg-[#facc15]" : "bg-gray-300"}`}
+                        >
+                          <span
+                            className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${form.require_approval ? "translate-x-6" : "translate-x-1"}`}
+                          />
+                        </button>
+                      </div>
+                      <p className="text-[14px] text-gray-400 mt-1">
+                        승인여부를 끄면 클래스대화방에 바로 들어올 수 있습니다.
+                      </p>
+                    </div>
 
-          </>
-        )}
+                    {/* 연락처 */}
+                    <div>
+                      <label className="field-label">연락처 *</label>
+                      <input
+                        type="tel"
+                        className="input-field disabled:bg-gray-100 disabled:text-gray-500"
+                        placeholder="카카오톡 ID 또는 전화번호"
+                        value={form.contact}
+                        onChange={(e) => set("contact", e.target.value)}
+                      />
+                    </div>
+                  </>
+                )}
+              </div>
+            </>
+          )}
         </div>
 
         {/* 고정 푸터 */}
@@ -1296,7 +1308,14 @@ export default function ClassForm({ initialData, classId, userRole: _userRole, a
                 <button
                   type="submit"
                   className={CREATE_PRIMARY_BUTTON_CLASS}
-                  disabled={submitting || form.genres.length === 0 || !form.category || !form.level || !form.region || !form.deadline}
+                  disabled={
+                    submitting ||
+                    form.genres.length === 0 ||
+                    !form.category ||
+                    !form.level ||
+                    !form.region ||
+                    !form.deadline
+                  }
                 >
                   {submitting ? "저장 중..." : "클래스개설"}
                 </button>
@@ -1390,7 +1409,6 @@ export default function ClassForm({ initialData, classId, userRole: _userRole, a
           </div>
         </div>
       )}
-
     </>
   );
 }

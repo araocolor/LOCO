@@ -72,6 +72,7 @@ export interface DanceClass {
   comment_count?: number;
   share_count?: number;
   require_approval: boolean;
+  ai_poster_request_id?: string | null;
   created_at: string;
   updated_at: string;
 }

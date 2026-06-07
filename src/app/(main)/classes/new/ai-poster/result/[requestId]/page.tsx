@@ -48,12 +48,17 @@ export default async function AiPosterResultPage({
         <div className="mx-auto flex w-full max-w-[520px] flex-col items-center gap-5">
           <section className="w-full rounded-2xl bg-white p-4 shadow-sm">
             <h2 className="text-base font-bold text-[#111111]">생성된 포스터</h2>
-            <ResultImage imageUrl={imageUrl} />
+            <ResultImage imageUrl={imageUrl} requestId={requestId} />
           </section>
         </div>
       </main>
 
-      <AiPosterResultActions imageUrl={imageUrl} requestId={requestId} title={title} rawContent={rawContent} />
+      <AiPosterResultActions
+        imageUrl={imageUrl}
+        requestId={requestId}
+        title={title}
+        rawContent={rawContent}
+      />
     </div>
   );
 }

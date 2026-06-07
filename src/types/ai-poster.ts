@@ -46,6 +46,12 @@ export interface AiPosterRequestRecord extends AiPosterPromptPayload {
   generated_storage_bucket: string | null;
   generated_storage_path: string | null;
   generated_at: string | null;
+  error_code: string | null;
+  error_message: string | null;
+  error_detail: string | null;
+  error_request_id: string | null;
+  error_provider: string | null;
+  failed_at: string | null;
   created_at: string;
   updated_at: string;
 }
