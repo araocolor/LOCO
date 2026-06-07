@@ -42,13 +42,13 @@ export async function GET(request: Request) {
       if (user) {
         const { data: profile } = await supabase
           .from("profiles")
-          .select("nickname, region, preferred_genres, gender")
+          .select("nickname, region, favorite_genre, gender")
           .eq("id", user.id)
           .maybeSingle();
 
         const hasGenres =
-          Array.isArray(profile?.preferred_genres) &&
-          profile.preferred_genres.length > 0;
+          Array.isArray(profile?.favorite_genre) &&
+          profile.favorite_genre.length > 0;
 
         if (!profile?.nickname || !profile?.region || !profile?.gender || !hasGenres) {
           return NextResponse.redirect(`${origin}/onboarding`);

@@ -1,14 +1,21 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { REGIONS, GENRES } from "@/lib/constants";
+import { REGIONS } from "@/lib/constants";
 
 const MAX_GENRES = 2;
 const MAX_NICKNAME_LENGTH = 10;
+const FAVORITE_GENRE_OPTIONS = [
+  { value: "salsa", label: "살사" },
+  { value: "bachata", label: "바차타" },
+  { value: "kizomba", label: "키좀바" },
+  { value: "bachata_zouk", label: "바차타쥬크" },
+] as const;
 const HANGUL_JAMO_REGEX = /[\u1100-\u11FF\u3130-\u318F\uA960-\uA97F\uD7B0-\uD7FF\uFFA0-\uFFDC]/;
 const ALLOWED_NICKNAME_REGEX = /^[A-Za-z0-9\uAC00-\uD7A3]+$/;
+type NicknameStatus = "idle" | "checking" | "ok" | "taken" | "invalid" | "tooLong";
 
 function hasStandaloneHangulJamo(value: string) {
   return HANGUL_JAMO_REGEX.test(value);
@@ -18,15 +25,20 @@ function hasInvalidNicknameChars(value: string) {
   return !ALLOWED_NICKNAME_REGEX.test(value);
 }
 
+function getNicknameInputStatus(value: string): NicknameStatus {
+  if (!value || value.length < 2) return "idle";
+  if (value.length > MAX_NICKNAME_LENGTH) return "tooLong";
+  if (hasStandaloneHangulJamo(value) || hasInvalidNicknameChars(value)) return "invalid";
+  return "checking";
+}
+
 export default function OnboardingPage() {
   const [nickname, setNickname] = useState("");
   const [nicknameEdited, setNicknameEdited] = useState(false);
-  const [nicknameStatus, setNicknameStatus] = useState<
-    "idle" | "checking" | "ok" | "taken" | "invalid" | "tooLong"
-  >("idle");
+  const [nicknameStatus, setNicknameStatus] = useState<NicknameStatus>("idle");
   const [region, setRegion] = useState("");
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
-  const [gender, setGender] = useState<"ro" | "la" | "all" | "">("");
+  const [gender, setGender] = useState<"로" | "라" | "">("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const router = useRouter();
@@ -52,7 +64,7 @@ export default function OnboardingPage() {
 
       const { data: profile } = await supabase
         .from("profiles")
-        .select("nickname, region, preferred_genres, gender")
+        .select("nickname, region, favorite_genre, gender")
         .eq("id", user.id)
         .maybeSingle();
 
@@ -64,10 +76,10 @@ export default function OnboardingPage() {
         setNicknameStatus("idle");
       }
       if (profile?.region) setRegion(profile.region);
-      if (Array.isArray(profile?.preferred_genres)) {
-        setSelectedGenres(profile.preferred_genres);
+      if (Array.isArray(profile?.favorite_genre)) {
+        setSelectedGenres(profile.favorite_genre);
       }
-      if (profile?.gender === "ro" || profile?.gender === "la" || profile?.gender === "all") {
+      if (profile?.gender === "로" || profile?.gender === "라") {
         setGender(profile.gender);
       }
     }
@@ -75,36 +87,7 @@ export default function OnboardingPage() {
     loadProfile();
   }, [router]);
 
-  useEffect(() => {
-    if (!nicknameEdited) return;
-
-    const normalizedNickname = nickname.trim();
-    if (!normalizedNickname || normalizedNickname.length < 2) {
-      setNicknameStatus("idle");
-      return;
-    }
-    if (normalizedNickname.length > MAX_NICKNAME_LENGTH) {
-      setNicknameStatus("tooLong");
-      return;
-    }
-    if (hasStandaloneHangulJamo(normalizedNickname)) {
-      setNicknameStatus("invalid");
-      return;
-    }
-    if (hasInvalidNicknameChars(normalizedNickname)) {
-      setNicknameStatus("invalid");
-      return;
-    }
-
-    setNicknameStatus("checking");
-    const timer = window.setTimeout(() => {
-      void checkNickname(normalizedNickname);
-    }, 300);
-
-    return () => window.clearTimeout(timer);
-  }, [nickname, nicknameEdited]);
-
-  async function checkNickname(nick: string) {
+  const checkNickname = useCallback(async (nick: string) => {
     const normalizedNickname = nick.trim();
     if (!normalizedNickname || normalizedNickname.length < 2) {
       setNicknameStatus("idle");
@@ -143,12 +126,24 @@ export default function OnboardingPage() {
       .maybeSingle();
 
     setNicknameStatus(data ? "taken" : "ok");
-  }
+  }, [router]);
+
+  useEffect(() => {
+    if (!nicknameEdited || nicknameStatus !== "checking") return;
+
+    const normalizedNickname = nickname.trim();
+    const timer = window.setTimeout(() => {
+      void checkNickname(normalizedNickname);
+    }, 300);
+
+    return () => window.clearTimeout(timer);
+  }, [checkNickname, nickname, nicknameEdited, nicknameStatus]);
 
   function handleNicknameChange(value: string) {
+    const normalizedNickname = value.trim();
     setNicknameEdited(true);
     setNickname(value);
-    setNicknameStatus("idle");
+    setNicknameStatus(getNicknameInputStatus(normalizedNickname));
   }
 
   function toggleGenre(value: string) {
@@ -234,8 +229,9 @@ export default function OnboardingPage() {
       .from("profiles")
       .update({
         nickname: trimmedNickname,
+        country: "대한민국",
         region,
-        preferred_genres: selectedGenres,
+        favorite_genre: selectedGenres,
         gender,
       })
       .eq("id", user.id);
@@ -336,16 +332,21 @@ export default function OnboardingPage() {
             <label className="field-label">역할</label>
             <div className="flex gap-3 mt-2">
               {([
-                { value: "ro", label: "로" },
-                { value: "la", label: "라" },
-                { value: "all", label: "모두" },
-              ] as const).map((item) => (
+                { value: "로", label: "로", disabled: false },
+                { value: "라", label: "라", disabled: false },
+                { value: "", label: "모두", disabled: true },
+              ] as const).map((item, index) => (
                 <button
-                  key={item.value}
+                  key={`${item.label}-${index}`}
                   type="button"
-                  onClick={() => setGender(item.value)}
+                  onClick={() => {
+                    if (!item.disabled) setGender(item.value);
+                  }}
+                  disabled={item.disabled}
                   className={`w-[88px] rounded-full border px-4 py-2 text-[13px] transition ${
-                    gender === item.value
+                    item.disabled
+                      ? "cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400"
+                      : gender === item.value
                       ? "border-[#fee500] bg-[#fee500] text-[#191600] font-bold"
                       : "border-gray-200 bg-white text-gray-600"
                   }`}
@@ -354,9 +355,12 @@ export default function OnboardingPage() {
                     type="radio"
                     name="gender"
                     value={item.value}
-                    checked={gender === item.value}
-                    onChange={() => setGender(item.value)}
+                    checked={!item.disabled && gender === item.value}
+                    onChange={() => {
+                      if (!item.disabled) setGender(item.value);
+                    }}
                     className="sr-only"
+                    disabled={item.disabled}
                   />
                   {item.label}
                 </button>
@@ -374,7 +378,7 @@ export default function OnboardingPage() {
               </span>
             </div>
             <div className="flex flex-wrap gap-2 mt-2">
-              {GENRES.map((g) => (
+              {FAVORITE_GENRE_OPTIONS.map((g) => (
                 <button
                   key={g.value}
                   type="button"
