@@ -13,6 +13,7 @@ import {
 import { GENRES, REGIONS_WITH_ALL } from "@/lib/constants";
 import { ClassWithHost } from "@/components/class/ClassCard";
 import CachedClassDetailPage from "@/components/class/CachedClassDetailPage";
+import CreateClassDrawer from "@/components/class/CreateClassDrawer";
 import HotClassesTab from "@/components/features/HotClassesTab";
 import HomeSearchResultsPage from "@/components/features/HomeSearchResultsPage";
 import MyClassesTab from "@/components/features/MyClassesTab";
@@ -60,6 +61,7 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
   const [friendClasses, setFriendClasses] = useState<ClassWithHost[]>([]);
   const [friendClassesLoading, setFriendClassesLoading] = useState(false);
   const [classDetailId, setClassDetailId] = useState<string | null>(null);
+  const [createDrawerOpen, setCreateDrawerOpen] = useState(false);
   const [allViewMode, setAllViewMode] = useState<"grid" | "card">("grid");
   const [filterOpts, setFilterOpts] = useState<SearchOptions>(DEFAULT_SEARCH_OPTIONS);
   const [openMenu, setOpenMenu] = useState<"region" | "period" | "genre" | "class_type" | null>(
@@ -240,7 +242,7 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
             type="button"
             aria-label="클래스 만들기"
             className="ml-auto h-12 w-12 -mr-2 flex items-center justify-center text-gray-700"
-            onClick={() => router.push("/classes/new/choose")}
+            onClick={() => setCreateDrawerOpen(true)}
           >
             <Plus size={22} strokeWidth={2.2} />
           </button>
@@ -488,6 +490,22 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
           viewMode="grid"
         />
       )}
+
+      {!classDetailId && (
+        <button
+          type="button"
+          aria-label="클래스 만들기"
+          className="fixed bottom-24 right-5 z-[60] flex h-14 w-14 items-center justify-center rounded-full bg-[#fee500] text-[#191600] shadow-lg active:scale-95 transition-transform"
+          onClick={() => setCreateDrawerOpen(true)}
+        >
+          <Plus size={26} strokeWidth={2.4} />
+        </button>
+      )}
+
+      <CreateClassDrawer
+        open={createDrawerOpen}
+        onClose={() => setCreateDrawerOpen(false)}
+      />
 
       <div
         className={`fixed inset-0 z-[70] bg-white flex flex-col transition-transform duration-300 ease-in-out ${
