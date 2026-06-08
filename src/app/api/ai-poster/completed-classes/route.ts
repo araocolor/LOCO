@@ -13,8 +13,11 @@ export async function GET() {
 
   const { data: classes, error: classesError } = await supabase
     .from("classes")
-    .select("id, title, status, deadline, created_at, images, ai_poster_prompt")
+    .select(
+      "id, title, created_at, images, ai_poster_requests!classes_ai_poster_request_id_fkey(prompt_text)"
+    )
     .eq("host_id", user.id)
+    .not("ai_poster_request_id", "is", null)
     .order("created_at", { ascending: false })
     .limit(10);
 
@@ -22,18 +25,25 @@ export async function GET() {
     return NextResponse.json({ error: classesError.message }, { status: 500 });
   }
 
-  const completedClasses = (classes ?? []).map((item) => ({
-    class_id: item.id,
-    class_title: item.title,
-    class_status: item.status,
-    deadline: item.deadline,
-    created_at: item.created_at,
-    ai_poster_request_id: null,
-    ai_poster_title: null,
-    generated_image_url: null,
-    ai_poster_prompt: item.ai_poster_prompt ?? null,
-    images: item.images,
-  }));
+  const completedClasses = (classes ?? []).map((item) => {
+    const promptSource = Array.isArray(item.ai_poster_requests)
+      ? item.ai_poster_requests[0]
+      : item.ai_poster_requests;
+
+    return {
+      class_id: item.id,
+      class_title: item.title,
+      created_at: item.created_at,
+      images: item.images,
+      ai_poster_prompt:
+        promptSource &&
+        typeof promptSource === "object" &&
+        "prompt_text" in promptSource &&
+        typeof promptSource.prompt_text === "string"
+          ? promptSource.prompt_text
+          : null,
+    };
+  });
 
   return NextResponse.json({ classes: completedClasses });
 }

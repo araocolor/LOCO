@@ -495,7 +495,7 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
         <button
           type="button"
           aria-label="클래스 만들기"
-          className="fixed bottom-24 left-1/2 ml-[170px] z-[60] flex h-14 w-14 items-center justify-center rounded-full bg-[#fee500] text-[#191600] shadow-lg active:scale-95 transition-transform"
+          className="fixed bottom-24 right-5 z-[60] flex h-14 w-14 items-center justify-center rounded-full bg-[#fee500] text-[#191600] shadow-lg active:scale-95 transition-transform"
           onClick={() => setCreateDrawerOpen(true)}
         >
           <Plus size={26} strokeWidth={2.4} />

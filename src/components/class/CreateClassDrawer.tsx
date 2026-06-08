@@ -31,15 +31,10 @@ interface ClassImage {
 
 interface CompletedClassItem {
   class_id: string;
-  class_title: string;
-  class_status: string;
-  deadline: string | null;
+  class_title: string | null;
   created_at: string;
-  ai_poster_request_id: string;
-  ai_poster_title: string | null;
-  generated_image_url: string | null;
-  ai_poster_prompt: string | null;
   images: ClassImage[] | null;
+  ai_poster_prompt: string | null;
 }
 
 type DrawerTab = "aiPoster" | "drafts" | "completed";
@@ -73,7 +68,6 @@ function getDraftStatusLabel(draft: DraftItem) {
 }
 
 function getCompletedClassImageUrl(item: CompletedClassItem) {
-  if (item.generated_image_url) return item.generated_image_url;
   return (
     item.images?.[0]?.card_url ?? item.images?.[0]?.full_url ?? item.images?.[0]?.icon_url ?? null
   );
@@ -401,7 +395,7 @@ export default function CreateClassDrawer({ open, onClose }: CreateClassDrawerPr
                         >
                           <div className="flex flex-col">
                             <span className="flex items-center gap-2 text-[16px] font-bold text-[#111111]">
-                              {item.class_title || item.ai_poster_title || "제목 없음"}
+                              {item.class_title || "제목 없음"}
                               <span className="rounded-full bg-[#e8f7ee] px-2 py-0.5 text-[11px] font-bold text-[#1f8a4c]">
                                 등록완료
                               </span>
@@ -434,6 +428,14 @@ export default function CreateClassDrawer({ open, onClose }: CreateClassDrawerPr
                                 </div>
                               </div>
                             )}
+                            <div>
+                              <h3 className="text-[13px] font-semibold text-[#888888] mb-2">
+                                최종 프롬프트
+                              </h3>
+                              <p className="h-[250px] overflow-y-auto whitespace-pre-wrap rounded-xl bg-[#111111] px-4 py-3 text-[14px] leading-6 text-white">
+                                {item.ai_poster_prompt || "내용 없음"}
+                              </p>
+                            </div>
                             <button
                               type="button"
                               onClick={() => handleNavigate(`/classes/${item.class_id}`)}
