@@ -25,7 +25,7 @@ interface NotificationsTabProps {
   userId?: string | null;
 }
 
-type NotificationTab = "class" | "comment" | "heart";
+type NotificationTab = "class" | "comment" | "heart" | "other";
 
 function formatTime(dateStr: string) {
   const now = Date.now();
@@ -52,6 +52,7 @@ function formatMessage(item: NotificationItem): React.ReactNode {
   const category = typeof meta.category === "string" ? meta.category : "";
   const starCount = typeof meta.count === "number" ? meta.count : 0;
   const commentContent = typeof meta.comment_content === "string" ? meta.comment_content : "";
+  const creditAmount = typeof meta.credit_amount === "number" ? meta.credit_amount : 10;
 
   switch (item.type) {
     case "friend_class_created": {
@@ -88,23 +89,25 @@ function formatMessage(item: NotificationItem): React.ReactNode {
           <b className="text-[16px]">{truncate(commentContent, 30)}</b>에 댓글남김
         </>
       );
+    case "pre_charge_issued":
+      return `관리자님이 외상크레딧 ${creditAmount}회 충전을 발급하였습니다.`;
     default:
       return "알림";
   }
 }
 
-const NOTIFICATION_TABS: NotificationTab[] = ["class", "comment", "heart"];
+const NOTIFICATION_TABS: NotificationTab[] = ["class", "comment", "heart", "other"];
 
 function getEmptyNotificationMap(): Record<NotificationTab, NotificationItem[]> {
-  return { class: [], comment: [], heart: [] };
+  return { class: [], comment: [], heart: [], other: [] };
 }
 
 function getEmptyLoadingMap(): Record<NotificationTab, boolean> {
-  return { class: false, comment: false, heart: false };
+  return { class: false, comment: false, heart: false, other: false };
 }
 
 function getEmptyLoadedMap(): Record<NotificationTab, boolean> {
-  return { class: false, comment: false, heart: false };
+  return { class: false, comment: false, heart: false, other: false };
 }
 
 export default function NotificationsTab({ userId }: NotificationsTabProps) {
@@ -158,6 +161,7 @@ export default function NotificationsTab({ userId }: NotificationsTabProps) {
     queueMicrotask(() => {
       void fetchNotifications("comment", true);
       void fetchNotifications("heart", true);
+      void fetchNotifications("other", true);
     });
   }, [activeTab, fetchNotifications, loadedTabs.class]);
 
@@ -339,6 +343,14 @@ export default function NotificationsTab({ userId }: NotificationsTabProps) {
               }`}
             >
               <Heart size={14} fill={activeTab === "heart" ? "white" : "#9ca3af"} stroke="none" />
+            </button>
+            <button
+              onClick={() => { setActiveTab("other"); setEditMode(false); setSelectedIds(new Set()); }}
+              className={`px-3.5 py-1.5 rounded-full text-[14px] font-semibold transition-colors ${
+                activeTab === "other" ? "bg-black text-white" : "bg-gray-100 text-gray-400"
+              }`}
+            >
+              기타
             </button>
           </div>
         </header>

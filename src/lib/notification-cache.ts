@@ -1,7 +1,7 @@
 const NOTIFICATION_CACHE_KEY = "loco_notifications_v1";
 const NOTIFICATION_CACHE_TTL_MS = 3 * 60 * 1000;
 
-type NotificationTab = "class" | "comment" | "heart";
+type NotificationTab = "class" | "comment" | "heart" | "other";
 
 interface NotificationCachePayload {
   savedAt: number;

@@ -3,16 +3,17 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 const PAGE_SIZE = 30;
-type NotificationTab = "class" | "comment" | "heart";
+type NotificationTab = "class" | "comment" | "heart" | "other";
 
 const NOTIFICATION_TYPES_BY_TAB: Record<NotificationTab, string[]> = {
   class: ["friend_class_created", "star_gift_received", "class_application"],
   comment: ["class_comment", "comment_reply"],
   heart: ["class_like"],
+  other: ["pre_charge_issued"],
 };
 
 function getNotificationTab(value: string | null): NotificationTab {
-  return value === "comment" || value === "heart" ? value : "class";
+  return value === "comment" || value === "heart" || value === "other" ? value : "class";
 }
 
 interface NotificationRow {

@@ -284,6 +284,9 @@ export default function CreditChargeGame({ onSuccess, onCancel }: CreditChargeGa
       })
       .then((data) => {
         if (data.success) {
+          Object.keys(sessionStorage)
+            .filter((key) => key.startsWith("loco_notifications_v1"))
+            .forEach((key) => sessionStorage.removeItem(key));
           onSuccess();
         }
       })

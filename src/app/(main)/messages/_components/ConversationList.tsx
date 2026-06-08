@@ -74,7 +74,7 @@ export default function ConversationList({
                 activeMenuTab === "direct" ? "bg-black text-white" : "bg-gray-100 text-black/60"
               }`}
             >
-              1:1
+              1:1대화
             </button>
             <button
               onClick={() => setActiveMenuTab("groups")}

@@ -152,6 +152,7 @@ export default function ChatDrawer({
   const isOwner = roomMembers?.some((m) => m.user_id === userId && m.role === "owner") ?? false;
   const isDirectRoom = roomType === "direct" || roomType === "self";
   const isClassRoom = roomType === "class";
+  const contentBackgroundColor = "#F3F4F6";
   const displayedActiveTab: ChatDrawerTab = isDirectRoom && (activeTab === "class" || activeTab === "members") ? "all" : activeTab;
   const unreadNotice = notices.find((notice) => !notice.read_by_me) ?? null;
 
@@ -347,7 +348,7 @@ export default function ChatDrawer({
       `}</style>
 
       {displayedActiveTab === "all" && isClassRoom && unreadNotice && (
-        <div className="shrink-0 px-4 pt-3 pb-1" style={{ backgroundColor: "#B2C7D9" }}>
+        <div className="shrink-0 px-4 pt-3 pb-1" style={{ backgroundColor: contentBackgroundColor }}>
           <button
             type="button"
             onClick={openUnreadNotice}
@@ -365,6 +366,7 @@ export default function ChatDrawer({
       <div className="relative flex-1 min-h-0">
         <div className={`absolute inset-0 flex flex-col ${displayedActiveTab === "all" ? "" : "invisible pointer-events-none"}`}>
           <ChatTimeline
+            backgroundColor={contentBackgroundColor}
             chatLoading={chatLoading}
             messages={messages}
             messagesEndRef={messagesEndRef}
@@ -392,7 +394,7 @@ export default function ChatDrawer({
 
         <div
           className={`absolute inset-0 chat-drawer-scroll overflow-y-auto px-0 py-0 ${displayedActiveTab === "members" ? "" : "invisible pointer-events-none"}`}
-          style={{ backgroundColor: "#B2C7D9" }}
+          style={{ backgroundColor: contentBackgroundColor }}
         >
           <MemberGrid
             canAddMembers={canAddMembers}
@@ -404,7 +406,7 @@ export default function ChatDrawer({
 
         <div
           className={`absolute inset-0 chat-drawer-scroll overflow-y-auto px-4 py-5 ${displayedActiveTab === "class" ? "" : "invisible pointer-events-none"}`}
-          style={{ backgroundColor: "#B2C7D9" }}
+          style={{ backgroundColor: contentBackgroundColor }}
         >
           <ClassNoticePanel
             canWriteClassNotice={canWriteClassNotice}
@@ -428,7 +430,7 @@ export default function ChatDrawer({
 
         <div
           className={`absolute inset-0 chat-drawer-scroll overflow-y-auto px-4 py-4 ${displayedActiveTab === "archive" ? "" : "invisible pointer-events-none"}`}
-          style={{ backgroundColor: "#B2C7D9" }}
+          style={{ backgroundColor: contentBackgroundColor }}
         >
           <ArchiveGrid items={archiveItems} />
         </div>

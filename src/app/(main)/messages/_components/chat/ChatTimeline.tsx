@@ -14,6 +14,7 @@ interface NoticeReactionOption {
 }
 
 interface ChatTimelineProps {
+  backgroundColor: string;
   chatLoading: boolean;
   messages: Message[];
   messagesEndRef: RefObject<HTMLDivElement | null>;
@@ -44,6 +45,7 @@ interface ChatTimelineProps {
 }
 
 export default function ChatTimeline({
+  backgroundColor,
   chatLoading,
   messages,
   messagesEndRef,
@@ -70,7 +72,7 @@ export default function ChatTimeline({
   return (
     <div
       className="chat-drawer-scroll flex-1 min-h-0 overflow-y-auto px-4 py-4 flex flex-col gap-3"
-      style={{ backgroundColor: "#B2C7D9" }}
+      style={{ backgroundColor }}
       onScroll={onChatScroll}
       onClick={() => {
         setAttachOpen(false);
