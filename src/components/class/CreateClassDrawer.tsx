@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { ArrowLeft, ChevronDown, ChevronRight, ImagePlus, Upload, X } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronRight, ImagePlus, Trash2, Upload, X } from "lucide-react";
 import AiPosterForm from "@/app/(main)/classes/new/ai-poster/poster-form";
 
 interface SourceImage {
@@ -74,6 +74,9 @@ export default function CreateClassDrawer({ open, onClose }: CreateClassDrawerPr
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [selectedGeneratedItem, setSelectedGeneratedItem] = useState<GeneratedItem | null>(null);
   const [gridFillSeed] = useState(() => Math.floor(Math.random() * GRID_FILL_COLORS.length));
+  const [deleteMode, setDeleteMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -94,6 +97,8 @@ export default function CreateClassDrawer({ open, onClose }: CreateClassDrawerPr
         setActiveTab("aiPoster");
         setExpandedId(null);
         setSelectedGeneratedItem(null);
+        setDeleteMode(false);
+        setSelectedIds(new Set());
       });
     }
   }, [open]);
@@ -129,6 +134,53 @@ export default function CreateClassDrawer({ open, onClose }: CreateClassDrawerPr
     }
     handleClose();
   }, [handleClose, isAiPosterFormOpen, isGeneratedDetailOpen]);
+  const showDeleteButton = !isAiPosterFormOpen && !isGeneratedDetailOpen && (activeTab === "drafts" || activeTab === "generated");
+
+  const handleEnterDeleteMode = useCallback(() => {
+    setDeleteMode(true);
+    setSelectedIds(new Set());
+    setExpandedId(null);
+  }, []);
+
+  const handleExitDeleteMode = useCallback(() => {
+    setDeleteMode(false);
+    setSelectedIds(new Set());
+  }, []);
+
+  const toggleSelectId = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const handleDeleteSelected = useCallback(async () => {
+    if (selectedIds.size === 0 || deleting) return;
+    setDeleting(true);
+    try {
+      const ids = Array.from(selectedIds);
+      const type = activeTab === "drafts" ? "draft" : "generated";
+      await fetch("/api/ai-poster/requests", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids, type }),
+      });
+      if (activeTab === "drafts") {
+        setDrafts((prev) => prev.filter((d) => !selectedIds.has(d.id)));
+      } else {
+        setGeneratedItems((prev) => prev.filter((g) => !selectedIds.has(g.id)));
+      }
+      setDeleteMode(false);
+      setSelectedIds(new Set());
+    } catch {
+      // 삭제 실패 시 무시
+    } finally {
+      setDeleting(false);
+    }
+  }, [selectedIds, deleting, activeTab]);
+
   const generatedFillerCells = useMemo(() => {
     const remain = generatedItems.length % 3;
     const count = remain === 0 ? 0 : 3 - remain;
@@ -174,12 +226,13 @@ export default function CreateClassDrawer({ open, onClose }: CreateClassDrawerPr
           </div>
 
           {!isAiPosterFormOpen && !isGeneratedDetailOpen && (
-            <div className="flex gap-2 px-4 pb-2">
+            <div className="flex items-center gap-2 px-4 pb-2">
               <button
                 type="button"
                 onClick={() => {
                   setActiveTab("aiPoster");
                   setExpandedId(null);
+                  handleExitDeleteMode();
                 }}
                 className={`rounded-full px-3.5 py-1.5 text-[14px] font-semibold transition-colors ${
                   activeTab === "aiPoster" ? "bg-black text-white" : "bg-gray-100 text-black/[0.65]"
@@ -192,6 +245,7 @@ export default function CreateClassDrawer({ open, onClose }: CreateClassDrawerPr
                 onClick={() => {
                   setActiveTab("drafts");
                   setExpandedId(null);
+                  handleExitDeleteMode();
                 }}
                 className={`rounded-full px-3.5 py-1.5 text-[14px] font-semibold transition-colors ${
                   activeTab === "drafts" ? "bg-black text-white" : "bg-gray-100 text-black/[0.65]"
@@ -204,6 +258,7 @@ export default function CreateClassDrawer({ open, onClose }: CreateClassDrawerPr
                 onClick={() => {
                   setActiveTab("generated");
                   setExpandedId(null);
+                  handleExitDeleteMode();
                 }}
                 className={`rounded-full px-3.5 py-1.5 text-[14px] font-semibold transition-colors ${
                   activeTab === "generated"
@@ -213,6 +268,15 @@ export default function CreateClassDrawer({ open, onClose }: CreateClassDrawerPr
               >
                 생성완료
               </button>
+              {showDeleteButton && (
+                <button
+                  type="button"
+                  onClick={deleteMode ? handleExitDeleteMode : handleEnterDeleteMode}
+                  className="ml-auto mr-1 font-semibold text-black transition-colors active:opacity-70"
+                >
+                  {deleteMode ? "취소" : <Trash2 size={20} strokeWidth={2.2} />}
+                </button>
+              )}
             </div>
           )}
         </header>
@@ -364,7 +428,8 @@ export default function CreateClassDrawer({ open, onClose }: CreateClassDrawerPr
                 )}
                 {!requestsLoading &&
                   drafts.map((draft) => {
-                    const isOpen = expandedId === draft.id;
+                    const isOpen = !deleteMode && expandedId === draft.id;
+                    const isSelected = selectedIds.has(draft.id);
                     return (
                       <div
                         key={draft.id}
@@ -372,7 +437,7 @@ export default function CreateClassDrawer({ open, onClose }: CreateClassDrawerPr
                       >
                         <button
                           type="button"
-                          onClick={() => setExpandedId(isOpen ? null : draft.id)}
+                          onClick={() => deleteMode ? toggleSelectId(draft.id) : setExpandedId(isOpen ? null : draft.id)}
                           className="flex w-full items-center justify-between px-5 py-4 text-left"
                         >
                           <div className="flex flex-col">
@@ -386,12 +451,28 @@ export default function CreateClassDrawer({ open, onClose }: CreateClassDrawerPr
                               {formatDate(draft.created_at)}
                             </span>
                           </div>
-                          <ChevronDown
-                            size={20}
-                            className={`shrink-0 text-[#aaaaaa] transition-transform duration-200 ${
-                              isOpen ? "rotate-180" : ""
-                            }`}
-                          />
+                          {deleteMode ? (
+                            <div
+                              className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
+                                isSelected
+                                  ? "border-[#E84040] bg-[#E84040]"
+                                  : "border-[#cccccc] bg-white"
+                              }`}
+                            >
+                              {isSelected && (
+                                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                                  <path d="M2.5 6L5 8.5L9.5 3.5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                </svg>
+                              )}
+                            </div>
+                          ) : (
+                            <ChevronDown
+                              size={20}
+                              className={`shrink-0 text-[#aaaaaa] transition-transform duration-200 ${
+                                isOpen ? "rotate-180" : ""
+                              }`}
+                            />
+                          )}
                         </button>
                         {isOpen && (
                           <div className="flex flex-col gap-4 px-5 pb-4">
@@ -447,6 +528,22 @@ export default function CreateClassDrawer({ open, onClose }: CreateClassDrawerPr
                       </div>
                     );
                   })}
+                {deleteMode && drafts.length > 0 && (
+                  <div className="flex justify-center pt-4">
+                    <button
+                      type="button"
+                      onClick={handleDeleteSelected}
+                      disabled={selectedIds.size === 0 || deleting}
+                      className={`rounded-full px-6 py-3 text-[15px] font-bold transition-colors ${
+                        selectedIds.size > 0
+                          ? "bg-[#E84040] text-white active:opacity-80"
+                          : "bg-gray-200 text-gray-400 cursor-not-allowed"
+                      }`}
+                    >
+                      {deleting ? "삭제 중..." : selectedIds.size > 0 ? `삭제(${selectedIds.size})` : "삭제"}
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 
@@ -462,29 +559,49 @@ export default function CreateClassDrawer({ open, onClose }: CreateClassDrawerPr
                 )}
                 {!requestsLoading && generatedItems.length > 0 && (
                   <div className="grid grid-cols-3 gap-[1px] bg-gray-200">
-                    {generatedItems.map((item) => (
-                      <button
-                        key={item.id}
-                        type="button"
-                        onClick={() => setSelectedGeneratedItem(item)}
-                        className="group relative aspect-[3/4] overflow-hidden bg-gray-100 text-left transition active:scale-[0.98]"
-                      >
-                        {item.generated_image_url ? (
-                          <Image
-                            src={item.generated_image_url}
-                            alt="생성된 AI 포스터"
-                            fill
-                            sizes="180px"
-                            unoptimized
-                            className="object-cover transition-transform duration-200 group-active:scale-[1.02]"
-                          />
-                        ) : (
-                          <div className="flex h-full w-full items-center justify-center text-[12px] font-semibold text-[#aaaaaa]">
-                            이미지 없음
-                          </div>
-                        )}
-                      </button>
-                    ))}
+                    {generatedItems.map((item) => {
+                      const isSelected = selectedIds.has(item.id);
+                      return (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => deleteMode ? toggleSelectId(item.id) : setSelectedGeneratedItem(item)}
+                          className="group relative aspect-[3/4] overflow-hidden bg-gray-100 text-left transition active:scale-[0.98]"
+                        >
+                          {item.generated_image_url ? (
+                            <Image
+                              src={item.generated_image_url}
+                              alt="생성된 AI 포스터"
+                              fill
+                              sizes="180px"
+                              unoptimized
+                              className="object-cover transition-transform duration-200 group-active:scale-[1.02]"
+                            />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center text-[12px] font-semibold text-[#aaaaaa]">
+                              이미지 없음
+                            </div>
+                          )}
+                          {deleteMode && (
+                            <div className="absolute top-2 right-2 z-10">
+                              <div
+                                className={`flex h-6 w-6 items-center justify-center rounded-full border-2 transition-colors ${
+                                  isSelected
+                                    ? "border-[#E84040] bg-[#E84040]"
+                                    : "border-white/80 bg-black/20"
+                                }`}
+                              >
+                                {isSelected && (
+                                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                                    <path d="M2.5 6L5 8.5L9.5 3.5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                  </svg>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </button>
+                      );
+                    })}
                     {generatedFillerCells.map((cell) => (
                       <div
                         key={cell.key}
@@ -493,6 +610,22 @@ export default function CreateClassDrawer({ open, onClose }: CreateClassDrawerPr
                         style={{ backgroundColor: cell.color }}
                       />
                     ))}
+                  </div>
+                )}
+                {deleteMode && generatedItems.length > 0 && (
+                  <div className="flex justify-center pt-4">
+                    <button
+                      type="button"
+                      onClick={handleDeleteSelected}
+                      disabled={selectedIds.size === 0 || deleting}
+                      className={`rounded-full px-6 py-3 text-[15px] font-bold transition-colors ${
+                        selectedIds.size > 0
+                          ? "bg-[#E84040] text-white active:opacity-80"
+                          : "bg-gray-200 text-gray-400 cursor-not-allowed"
+                      }`}
+                    >
+                      {deleting ? "삭제 중..." : selectedIds.size > 0 ? `삭제(${selectedIds.size})` : "삭제"}
+                    </button>
                   </div>
                 )}
               </div>
