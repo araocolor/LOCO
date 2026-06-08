@@ -5,6 +5,46 @@ import { X, Loader2 } from "lucide-react";
 import { CREDIT_PLANS } from "@/lib/poster-credits/plans";
 import CreditChargeGame from "@/components/class/CreditChargeGame";
 
+const CHAT_FRIENDS_CACHE_KEY = "chat_friends_cache";
+
+interface GameFriendCacheItem {
+  id: string;
+  nickname: string;
+  profile_image_url: string | null;
+}
+
+function ensureGameFriendCache() {
+  try {
+    const raw = localStorage.getItem(CHAT_FRIENDS_CACHE_KEY);
+    if (!raw) return false;
+    const parsed = JSON.parse(raw) as {
+      following?: GameFriendCacheItem[];
+      followers?: GameFriendCacheItem[];
+      ts?: number;
+    };
+    const following = Array.isArray(parsed.following) ? parsed.following : [];
+    if (following.length > 0) return true;
+
+    const followers = Array.isArray(parsed.followers) ? parsed.followers : [];
+    if (followers.length === 0) return false;
+
+    localStorage.setItem(
+      CHAT_FRIENDS_CACHE_KEY,
+      JSON.stringify({ ...parsed, following: followers.slice(0, 5), ts: parsed.ts ?? Date.now() })
+    );
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function writeGameFriendCache(friends: GameFriendCacheItem[]) {
+  localStorage.setItem(
+    CHAT_FRIENDS_CACHE_KEY,
+    JSON.stringify({ following: friends.slice(0, 5), followers: [], ts: Date.now() })
+  );
+}
+
 interface CreditChargeSheetProps {
   open: boolean;
   onClose: () => void;
@@ -16,13 +56,21 @@ export default function CreditChargeSheet({ open, onClose, onComplete }: CreditC
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [gameOpen, setGameOpen] = useState(false);
-  const [alreadyUsedFreeCharge, setAlreadyUsedFreeCharge] = useState(false);
+  const [alreadyUsedPreCharge, setAlreadyUsedPreCharge] = useState(false);
 
   useEffect(() => {
     if (!open) return;
-    fetch("/api/poster-credits/free-charge/check")
+    fetch("/api/poster-credits/pre-charge/check")
       .then((r) => r.json())
-      .then((d) => setAlreadyUsedFreeCharge(d.used === true))
+      .then((d) => setAlreadyUsedPreCharge(d.used === true))
+      .catch(() => {});
+    if (ensureGameFriendCache()) return;
+    fetch("/api/poster-credits/pre-charge/friends")
+      .then((r) => r.json())
+      .then((d: { friends?: GameFriendCacheItem[] }) => {
+        if (!Array.isArray(d.friends)) return;
+        writeGameFriendCache(d.friends);
+      })
       .catch(() => {});
   }, [open]);
 
@@ -132,7 +180,7 @@ export default function CreditChargeSheet({ open, onClose, onComplete }: CreditC
           )}
         </button>
 
-        {!alreadyUsedFreeCharge && (
+        {!alreadyUsedPreCharge && (
           <button
             type="button"
             onClick={() => setGameOpen(true)}
@@ -147,6 +195,7 @@ export default function CreditChargeSheet({ open, onClose, onComplete }: CreditC
         <CreditChargeGame
           onSuccess={() => {
             setGameOpen(false);
+            setAlreadyUsedPreCharge(true);
             onComplete();
           }}
           onCancel={() => setGameOpen(false)}

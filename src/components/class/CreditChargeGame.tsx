@@ -229,6 +229,7 @@ export default function CreditChargeGame({ onSuccess, onCancel }: CreditChargeGa
   const [game, setGame] = useState<GameState | null>(null);
   const [members] = useState<GameMember[]>(() => loadFriendsFromCache());
   const [attemptCount, setAttemptCount] = useState(1);
+  const [claimError, setClaimError] = useState("");
   const hasGame = Boolean(game);
   const isRunning = game?.status === "running";
   const displayReserve = game ? Math.max(0, game.remainingLives - game.balls.length) : 0;
@@ -272,14 +273,24 @@ export default function CreditChargeGame({ onSuccess, onCancel }: CreditChargeGa
   const handleSuccess = useCallback(() => {
     if (successCalledRef.current) return;
     successCalledRef.current = true;
-    fetch("/api/poster-credits/free-charge", { method: "POST" })
-      .then((res) => res.json())
+    setClaimError("");
+    fetch("/api/poster-credits/pre-charge", { method: "POST" })
+      .then(async (res) => {
+        const data = await res.json().catch(() => null);
+        if (!res.ok) {
+          throw new Error(data?.error ?? "외상충전에 실패했습니다.");
+        }
+        return data;
+      })
       .then((data) => {
         if (data.success) {
           onSuccess();
         }
       })
-      .catch(() => {});
+      .catch((error) => {
+        successCalledRef.current = false;
+        setClaimError(error instanceof Error ? error.message : "외상충전에 실패했습니다.");
+      });
   }, [onSuccess]);
 
   useEffect(() => {
@@ -857,6 +868,11 @@ export default function CreditChargeGame({ onSuccess, onCancel }: CreditChargeGa
                 <p className="mt-2 text-sm font-semibold text-white/78">
                   {elapsedSeconds.toFixed(1)}초 만에 클리어!
                 </p>
+                {claimError && (
+                  <p className="mt-3 rounded-2xl bg-red-500/20 px-4 py-2 text-xs font-bold leading-5 text-red-100">
+                    {claimError}
+                  </p>
+                )}
                 <div className="mt-6">
                   <button
                     type="button"

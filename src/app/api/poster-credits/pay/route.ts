@@ -66,6 +66,7 @@ export async function POST(req: NextRequest) {
     partner_order_id: partnerOrderId,
     amount: plan.amount,
     credit_amount: plan.credits,
+    payment_type: "kakao_pay",
     status: "ready",
   });
 
