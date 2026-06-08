@@ -29,7 +29,7 @@ export async function GET() {
 
   const { data: linkedClasses, error: linkedError } = await supabase
     .from("classes")
-    .select("ai_poster_request_id")
+    .select("id, ai_poster_request_id")
     .eq("host_id", user.id)
     .not("ai_poster_request_id", "is", null);
 
@@ -37,11 +37,18 @@ export async function GET() {
     return NextResponse.json({ error: linkedError.message }, { status: 500 });
   }
 
-  const linkedRequestIds = new Set(
-    (linkedClasses ?? [])
-      .map((item) => item.ai_poster_request_id)
-      .filter((id): id is string => typeof id === "string" && id.length > 0)
-  );
+  const linkedClassMap = new Map<string, string>();
+  for (const item of linkedClasses ?? []) {
+    if (
+      typeof item.ai_poster_request_id === "string" &&
+      item.ai_poster_request_id.length > 0 &&
+      typeof item.id === "string"
+    ) {
+      linkedClassMap.set(item.ai_poster_request_id, item.id);
+    }
+  }
+
+  const linkedRequestIds = new Set(linkedClassMap.keys());
 
   const { data, error } = await supabase
     .from("ai_poster_requests")
@@ -57,9 +64,21 @@ export async function GET() {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  const drafts = (data ?? []).filter((draft) => !linkedRequestIds.has(draft.id)).slice(0, 10);
+  const drafts = (data ?? [])
+    .filter((item) => item.status !== "generated" && !linkedRequestIds.has(item.id))
+    .slice(0, 10);
 
-  return NextResponse.json({ drafts });
+  const generated = (data ?? [])
+    .filter(
+      (item) => item.status === "generated" && typeof item.generated_image_url === "string"
+    )
+    .map((item) => ({
+      ...item,
+      linked_class_id: linkedClassMap.get(item.id) ?? null,
+    }))
+    .slice(0, 15);
+
+  return NextResponse.json({ drafts, generated });
 }
 
 export async function POST(request: NextRequest) {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { ArrowLeft, ChevronDown, ChevronRight, ImagePlus, Upload, X } from "lucide-react";
@@ -17,33 +17,31 @@ interface DraftItem {
   raw_content: string;
   prompt_text: string;
   source_images: SourceImage[];
-  status: "reviewed" | "failed" | "generated";
-  generated_image_url: string | null;
+  status: "reviewed" | "failed";
   error_message: string | null;
   created_at: string;
 }
 
-interface ClassImage {
-  icon_url: string;
-  card_url: string;
-  full_url: string;
-}
-
-interface CompletedClassItem {
-  class_id: string;
-  class_title: string | null;
+interface GeneratedItem {
+  id: string;
+  title: string;
+  raw_content: string;
+  prompt_text: string;
+  source_images: SourceImage[];
+  generated_image_url: string | null;
   created_at: string;
-  images: ClassImage[] | null;
-  ai_poster_prompt: string | null;
+  linked_class_id: string | null;
 }
 
-type DrawerTab = "aiPoster" | "drafts" | "completed";
+type DrawerTab = "aiPoster" | "drafts" | "generated";
 type DrawerView = "menu" | "aiPosterForm";
 
 interface CreateClassDrawerProps {
   open: boolean;
   onClose: () => void;
 }
+
+const GRID_FILL_COLORS = ["#E84040", "#B8D44A", "#F5A623", "#5BB8E8"] as const;
 
 function formatDate(dateStr: string) {
   const d = new Date(dateStr);
@@ -56,21 +54,13 @@ function formatDate(dateStr: string) {
 }
 
 function getDraftActionLabel(draft: DraftItem) {
-  if (draft.status === "generated") return "클래스 등록하기";
   if (draft.status === "failed") return "수정 후 다시 생성";
   return "수정/생성하기";
 }
 
 function getDraftStatusLabel(draft: DraftItem) {
-  if (draft.status === "generated") return "생성완료";
   if (draft.status === "failed") return "생성실패";
   return "임시저장";
-}
-
-function getCompletedClassImageUrl(item: CompletedClassItem) {
-  return (
-    item.images?.[0]?.card_url ?? item.images?.[0]?.full_url ?? item.images?.[0]?.icon_url ?? null
-  );
 }
 
 export default function CreateClassDrawer({ open, onClose }: CreateClassDrawerProps) {
@@ -79,36 +69,31 @@ export default function CreateClassDrawer({ open, onClose }: CreateClassDrawerPr
   const [drawerView, setDrawerView] = useState<DrawerView>("menu");
   const [activeTab, setActiveTab] = useState<DrawerTab>("aiPoster");
   const [drafts, setDrafts] = useState<DraftItem[]>([]);
-  const [completedClasses, setCompletedClasses] = useState<CompletedClassItem[]>([]);
-  const [draftsLoading, setDraftsLoading] = useState(false);
-  const [completedLoading, setCompletedLoading] = useState(false);
+  const [generatedItems, setGeneratedItems] = useState<GeneratedItem[]>([]);
+  const [requestsLoading, setRequestsLoading] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [selectedGeneratedItem, setSelectedGeneratedItem] = useState<GeneratedItem | null>(null);
+  const [gridFillSeed] = useState(() => Math.floor(Math.random() * GRID_FILL_COLORS.length));
 
   useEffect(() => {
     if (open) {
       requestAnimationFrame(() => setSlideIn(true));
-      queueMicrotask(() => setDraftsLoading(true));
-      queueMicrotask(() => setCompletedLoading(true));
+      queueMicrotask(() => setRequestsLoading(true));
       fetch("/api/ai-poster/requests")
         .then((res) => res.json())
         .then((json) => {
           setDrafts(json.drafts ?? []);
+          setGeneratedItems(json.generated ?? []);
         })
         .catch(() => {})
-        .finally(() => setDraftsLoading(false));
-      fetch("/api/ai-poster/completed-classes")
-        .then((res) => res.json())
-        .then((json) => {
-          setCompletedClasses(json.classes ?? []);
-        })
-        .catch(() => {})
-        .finally(() => setCompletedLoading(false));
+        .finally(() => setRequestsLoading(false));
     } else {
       queueMicrotask(() => {
         setSlideIn(false);
         setDrawerView("menu");
         setActiveTab("aiPoster");
         setExpandedId(null);
+        setSelectedGeneratedItem(null);
       });
     }
   }, [open]);
@@ -126,9 +111,34 @@ export default function CreateClassDrawer({ open, onClose }: CreateClassDrawerPr
     [handleClose, router]
   );
 
-  if (!open) return null;
-
   const isAiPosterFormOpen = drawerView === "aiPosterForm";
+  const isGeneratedDetailOpen = selectedGeneratedItem !== null;
+  const headerTitle = isAiPosterFormOpen
+    ? "AI 포스터 만들기"
+    : isGeneratedDetailOpen
+      ? "생성완료"
+      : "클래스 만들기";
+  const handleHeaderBack = useCallback(() => {
+    if (isAiPosterFormOpen) {
+      setDrawerView("menu");
+      return;
+    }
+    if (isGeneratedDetailOpen) {
+      setSelectedGeneratedItem(null);
+      return;
+    }
+    handleClose();
+  }, [handleClose, isAiPosterFormOpen, isGeneratedDetailOpen]);
+  const generatedFillerCells = useMemo(() => {
+    const remain = generatedItems.length % 3;
+    const count = remain === 0 ? 0 : 3 - remain;
+    return Array.from({ length: count }, (_, idx) => {
+      const color = GRID_FILL_COLORS[(gridFillSeed + generatedItems.length + idx) % GRID_FILL_COLORS.length];
+      return { key: `generated-filler-${generatedItems.length}-${idx}`, color };
+    });
+  }, [generatedItems.length, gridFillSeed]);
+
+  if (!open) return null;
 
   return (
     <div className="fixed inset-0 z-[100] flex justify-center">
@@ -140,37 +150,38 @@ export default function CreateClassDrawer({ open, onClose }: CreateClassDrawerPr
         className={`relative w-full max-w-[500px] bg-[#f4f4f4] flex flex-col transition-transform duration-300 ease-out ${slideIn ? "translate-y-0" : "translate-y-full"}`}
       >
         <header className="shrink-0 bg-white border-b border-[#e5e7eb]">
-          <div className="relative h-14 px-4 flex items-center">
-            {isAiPosterFormOpen && (
+          <div className="relative flex h-14 items-center px-4">
+            {(isAiPosterFormOpen || isGeneratedDetailOpen) && (
               <button
                 type="button"
-                onClick={() => setDrawerView("menu")}
-                className="-ml-2 mr-1 h-12 w-12 flex items-center justify-center text-gray-700"
-                aria-label="클래스 만들기로 돌아가기"
+                onClick={handleHeaderBack}
+                className="-ml-2 mr-1 flex h-12 w-12 items-center justify-center text-gray-700"
+                aria-label={
+                  isAiPosterFormOpen ? "클래스 만들기로 돌아가기" : "생성완료 목록으로 돌아가기"
+                }
               >
                 <ArrowLeft size={21} strokeWidth={2.2} />
               </button>
             )}
-            <div className="font-black text-[22px] text-[#4d4d4d] leading-none">
-              {isAiPosterFormOpen ? "AI 포스터 만들기" : "클래스 만들기"}
-            </div>
+            <div className="leading-none font-black text-[22px] text-[#4d4d4d]">{headerTitle}</div>
             <button
               type="button"
-              onClick={handleClose}
-              className="ml-auto h-12 w-12 -mr-2 flex items-center justify-center text-gray-700"
+              onClick={handleHeaderBack}
+              className="ml-auto -mr-2 flex h-12 w-12 items-center justify-center text-gray-700"
             >
               <X size={22} strokeWidth={2.2} />
             </button>
           </div>
-          {!isAiPosterFormOpen && (
-            <div className="flex pl-4 pr-4 gap-2 pb-2">
+
+          {!isAiPosterFormOpen && !isGeneratedDetailOpen && (
+            <div className="flex gap-2 px-4 pb-2">
               <button
                 type="button"
                 onClick={() => {
                   setActiveTab("aiPoster");
                   setExpandedId(null);
                 }}
-                className={`px-3.5 py-1.5 rounded-full text-[14px] font-semibold transition-colors ${
+                className={`rounded-full px-3.5 py-1.5 text-[14px] font-semibold transition-colors ${
                   activeTab === "aiPoster" ? "bg-black text-white" : "bg-gray-100 text-black/[0.65]"
                 }`}
               >
@@ -182,7 +193,7 @@ export default function CreateClassDrawer({ open, onClose }: CreateClassDrawerPr
                   setActiveTab("drafts");
                   setExpandedId(null);
                 }}
-                className={`px-3.5 py-1.5 rounded-full text-[14px] font-semibold transition-colors ${
+                className={`rounded-full px-3.5 py-1.5 text-[14px] font-semibold transition-colors ${
                   activeTab === "drafts" ? "bg-black text-white" : "bg-gray-100 text-black/[0.65]"
                 }`}
               >
@@ -191,16 +202,16 @@ export default function CreateClassDrawer({ open, onClose }: CreateClassDrawerPr
               <button
                 type="button"
                 onClick={() => {
-                  setActiveTab("completed");
+                  setActiveTab("generated");
                   setExpandedId(null);
                 }}
-                className={`px-3.5 py-1.5 rounded-full text-[14px] font-semibold transition-colors ${
-                  activeTab === "completed"
+                className={`rounded-full px-3.5 py-1.5 text-[14px] font-semibold transition-colors ${
+                  activeTab === "generated"
                     ? "bg-black text-white"
                     : "bg-gray-100 text-black/[0.65]"
                 }`}
               >
-                클래스완료
+                생성완료
               </button>
             </div>
           )}
@@ -208,6 +219,92 @@ export default function CreateClassDrawer({ open, onClose }: CreateClassDrawerPr
 
         {isAiPosterFormOpen ? (
           <AiPosterForm surface="drawer" onCancel={() => setDrawerView("menu")} />
+        ) : isGeneratedDetailOpen && selectedGeneratedItem ? (
+          <main className="flex-1 overflow-y-auto px-4 pt-5 pb-8">
+            <div className="mx-auto flex w-full max-w-[520px] flex-col gap-4">
+              <div className="rounded-2xl bg-white px-5 py-4 shadow-sm">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-[20px] font-bold text-[#111111]">
+                      {selectedGeneratedItem.title || "제목 없음"}
+                    </p>
+                    <p className="mt-1 text-[13px] text-[#999999]">
+                      {formatDate(selectedGeneratedItem.created_at)}
+                    </p>
+                  </div>
+                  <span
+                    className={`shrink-0 rounded-full px-3 py-1 text-[12px] font-bold ${
+                      selectedGeneratedItem.linked_class_id
+                        ? "bg-[#e8f7ee] text-[#1f8a4c]"
+                        : "bg-[#fff5cf] text-[#8a6800]"
+                    }`}
+                  >
+                    {selectedGeneratedItem.linked_class_id ? "클래스 등록됨" : "생성만 완료"}
+                  </span>
+                </div>
+              </div>
+
+              {selectedGeneratedItem.generated_image_url && (
+                <div className="overflow-hidden rounded-[28px] border border-[#e5e7eb] bg-white p-3 shadow-sm">
+                  <div className="relative aspect-[3/4] w-full overflow-hidden rounded-[22px] bg-[#f4f4f4]">
+                    <Image
+                      src={selectedGeneratedItem.generated_image_url}
+                      alt="생성된 AI 포스터"
+                      fill
+                      sizes="520px"
+                      unoptimized
+                      className="object-cover"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {selectedGeneratedItem.source_images.length > 0 && (
+                <section className="rounded-2xl bg-white p-4 shadow-sm">
+                  <h3 className="mb-3 text-[13px] font-semibold text-[#888888]">참조 이미지</h3>
+                  <div className="grid grid-cols-3 gap-2">
+                    {selectedGeneratedItem.source_images.map((img, index) => (
+                      <div
+                        key={img.path}
+                        className="relative aspect-square overflow-hidden rounded-xl border border-[#ececec] bg-[#f6f6f6]"
+                      >
+                        <Image
+                          src={img.url}
+                          alt={`참조 이미지 ${index + 1}`}
+                          fill
+                          sizes="160px"
+                          unoptimized
+                          className="object-cover"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              <section className="rounded-2xl bg-black/80 p-4 shadow-sm">
+                <h3 className="mb-3 text-[13px] font-semibold text-white/65">최종 프롬프트</h3>
+                <p className="whitespace-pre-wrap text-[15px] font-normal leading-7 tracking-[-0.01em] text-white">
+                  {selectedGeneratedItem.prompt_text || selectedGeneratedItem.raw_content || "내용 없음"}
+                </p>
+              </section>
+
+              <button
+                type="button"
+                onClick={() =>
+                  handleNavigate(
+                    selectedGeneratedItem.linked_class_id
+                      ? `/classes/${selectedGeneratedItem.linked_class_id}`
+                      : `/classes/new?ai_poster=${selectedGeneratedItem.id}`
+                  )
+                }
+                className="flex w-full items-center justify-center gap-1 rounded-full bg-[#fee500] py-3 text-[15px] font-semibold text-[#191600] transition active:scale-[0.98]"
+              >
+                {selectedGeneratedItem.linked_class_id ? "클래스 보기" : "클래스 등록하기"}
+                <ChevronRight size={16} />
+              </button>
+            </div>
+          </main>
         ) : (
           <main className="flex-1 overflow-y-auto px-4 pt-5 pb-8">
             {activeTab === "aiPoster" && (
@@ -215,7 +312,7 @@ export default function CreateClassDrawer({ open, onClose }: CreateClassDrawerPr
                 <button
                   type="button"
                   onClick={() => setDrawerView("aiPosterForm")}
-                  className="flex min-h-[180px] flex-col justify-between rounded-2xl border border-[#e5e7eb] bg-white p-6 shadow-sm transition active:scale-[0.99] text-left"
+                  className="flex min-h-[180px] flex-col justify-between rounded-2xl border border-[#e5e7eb] bg-white p-6 text-left shadow-sm transition active:scale-[0.99]"
                 >
                   <div className="flex items-center justify-between">
                     <span className="flex h-12 w-12 items-center justify-center rounded-full bg-[#fee500] text-[#191600]">
@@ -236,7 +333,7 @@ export default function CreateClassDrawer({ open, onClose }: CreateClassDrawerPr
                 <button
                   type="button"
                   onClick={() => handleNavigate("/classes/new")}
-                  className="flex min-h-[180px] flex-col justify-between rounded-2xl border border-[#e5e7eb] bg-white p-6 shadow-sm transition active:scale-[0.99] text-left"
+                  className="flex min-h-[180px] flex-col justify-between rounded-2xl border border-[#e5e7eb] bg-white p-6 text-left shadow-sm transition active:scale-[0.99]"
                 >
                   <span className="flex h-12 w-12 items-center justify-center rounded-full bg-[#111111] text-white">
                     <Upload size={24} strokeWidth={2.2} />
@@ -252,27 +349,27 @@ export default function CreateClassDrawer({ open, onClose }: CreateClassDrawerPr
             )}
 
             {activeTab === "drafts" && (
-              <div className="mx-auto w-full max-w-[520px] flex flex-col gap-3">
-                {draftsLoading && (
+              <div className="mx-auto flex w-full max-w-[520px] flex-col gap-3">
+                {requestsLoading && (
                   <div className="py-16 text-center text-[15px] text-gray-400">불러오는 중...</div>
                 )}
-                {!draftsLoading && drafts.length === 0 && (
+                {!requestsLoading && drafts.length === 0 && (
                   <div className="py-16 text-center text-[15px] text-gray-400">
                     임시저장된 항목이 없습니다
                   </div>
                 )}
-                {!draftsLoading &&
+                {!requestsLoading &&
                   drafts.map((draft) => {
                     const isOpen = expandedId === draft.id;
                     return (
                       <div
                         key={draft.id}
-                        className="rounded-2xl border border-[#e5e7eb] bg-white shadow-sm overflow-hidden"
+                        className="overflow-hidden rounded-2xl border border-[#e5e7eb] bg-white shadow-sm"
                       >
                         <button
                           type="button"
                           onClick={() => setExpandedId(isOpen ? null : draft.id)}
-                          className="w-full flex items-center justify-between px-5 py-4 text-left"
+                          className="flex w-full items-center justify-between px-5 py-4 text-left"
                         >
                           <div className="flex flex-col">
                             <span className="flex items-center gap-2 text-[16px] font-bold text-[#111111]">
@@ -287,74 +384,54 @@ export default function CreateClassDrawer({ open, onClose }: CreateClassDrawerPr
                           </div>
                           <ChevronDown
                             size={20}
-                            className={`shrink-0 text-[#aaaaaa] transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
+                            className={`shrink-0 text-[#aaaaaa] transition-transform duration-200 ${
+                              isOpen ? "rotate-180" : ""
+                            }`}
                           />
                         </button>
                         {isOpen && (
-                          <div className="px-5 pb-4 flex flex-col gap-4">
-                            {draft.status === "generated" && draft.generated_image_url && (
-                              <div>
-                                <h3 className="text-[13px] font-semibold text-[#888888] mb-2">
-                                  생성된 포스터
-                                </h3>
-                                <div className="relative aspect-[3/4] w-full overflow-hidden rounded-xl border border-[#ececec] bg-[#f6f6f6]">
-                                  <Image
-                                    src={draft.generated_image_url}
-                                    alt="생성된 AI 포스터"
-                                    fill
-                                    sizes="520px"
-                                    unoptimized
-                                    className="object-cover"
-                                  />
-                                </div>
-                              </div>
-                            )}
+                          <div className="flex flex-col gap-4 px-5 pb-4">
                             {draft.status === "failed" && draft.error_message && (
                               <div className="rounded-xl bg-[#fff2f2] px-4 py-3 text-[13px] font-semibold leading-5 text-red-500">
                                 {draft.error_message}
                               </div>
                             )}
-                            {Array.isArray(draft.source_images) &&
-                              draft.source_images.length > 0 && (
-                                <div>
-                                  <h3 className="text-[13px] font-semibold text-[#888888] mb-2">
-                                    참조 이미지
-                                  </h3>
-                                  <div className="grid grid-cols-3 gap-2">
-                                    {draft.source_images.map((img, i) => (
-                                      <div
-                                        key={img.path}
-                                        className="relative aspect-square overflow-hidden rounded-xl border border-[#ececec] bg-[#f6f6f6]"
-                                      >
-                                        <Image
-                                          src={img.url}
-                                          alt={`참조 이미지 ${i + 1}`}
-                                          fill
-                                          sizes="160px"
-                                          unoptimized
-                                          className="object-cover"
-                                        />
-                                      </div>
-                                    ))}
-                                  </div>
+                            {draft.source_images.length > 0 && (
+                              <div>
+                                <h3 className="mb-2 text-[13px] font-semibold text-[#888888]">
+                                  참조 이미지
+                                </h3>
+                                <div className="grid grid-cols-3 gap-2">
+                                  {draft.source_images.map((img, index) => (
+                                    <div
+                                      key={img.path}
+                                      className="relative aspect-square overflow-hidden rounded-xl border border-[#ececec] bg-[#f6f6f6]"
+                                    >
+                                      <Image
+                                        src={img.url}
+                                        alt={`참조 이미지 ${index + 1}`}
+                                        fill
+                                        sizes="160px"
+                                        unoptimized
+                                        className="object-cover"
+                                      />
+                                    </div>
+                                  ))}
                                 </div>
-                              )}
+                              </div>
+                            )}
                             <div>
-                              <h3 className="text-[13px] font-semibold text-[#888888] mb-2">
+                              <h3 className="mb-2 text-[13px] font-semibold text-[#888888]">
                                 최종 프롬프트
                               </h3>
-                              <p className="whitespace-pre-wrap text-[14px] leading-6 text-white bg-[#111111] rounded-xl px-4 py-3 max-h-[280px] overflow-y-auto">
+                              <p className="max-h-[280px] overflow-y-auto whitespace-pre-wrap rounded-xl bg-[#111111] px-4 py-3 text-[14px] leading-6 text-white">
                                 {draft.prompt_text || draft.raw_content || "내용 없음"}
                               </p>
                             </div>
                             <button
                               type="button"
                               onClick={() =>
-                                handleNavigate(
-                                  draft.status === "generated"
-                                    ? `/classes/new?ai_poster=${draft.id}`
-                                    : `/classes/new/ai-poster/review/${draft.id}`
-                                )
+                                handleNavigate(`/classes/new/ai-poster/review/${draft.id}`)
                               }
                               className="flex w-full items-center justify-center gap-1 rounded-full bg-[#fee500] py-2.5 text-[14px] font-semibold text-[#191600] transition active:scale-[0.98]"
                             >
@@ -369,86 +446,51 @@ export default function CreateClassDrawer({ open, onClose }: CreateClassDrawerPr
               </div>
             )}
 
-            {activeTab === "completed" && (
-              <div className="mx-auto w-full max-w-[520px] flex flex-col gap-3">
-                {completedLoading && (
+            {activeTab === "generated" && (
+              <div className="-mx-4 flex w-[calc(100%+2rem)] flex-col gap-3">
+                {requestsLoading && (
                   <div className="py-16 text-center text-[15px] text-gray-400">불러오는 중...</div>
                 )}
-                {!completedLoading && completedClasses.length === 0 && (
+                {!requestsLoading && generatedItems.length === 0 && (
                   <div className="py-16 text-center text-[15px] text-gray-400">
-                    클래스 등록완료 항목이 없습니다
+                    생성완료 항목이 없습니다
                   </div>
                 )}
-                {!completedLoading &&
-                  completedClasses.map((item) => {
-                    const imageUrl = getCompletedClassImageUrl(item);
-                    const isOpen = expandedId === item.class_id;
-                    return (
-                      <div
-                        key={item.class_id}
-                        className="rounded-2xl border border-[#e5e7eb] bg-white shadow-sm overflow-hidden"
+                {!requestsLoading && generatedItems.length > 0 && (
+                  <div className="grid grid-cols-3 gap-[1px] bg-gray-200">
+                    {generatedItems.map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => setSelectedGeneratedItem(item)}
+                        className="group relative aspect-[3/4] overflow-hidden bg-gray-100 text-left transition active:scale-[0.98]"
                       >
-                        <button
-                          type="button"
-                          onClick={() => setExpandedId(isOpen ? null : item.class_id)}
-                          className="w-full flex items-center justify-between px-5 py-4 text-left"
-                        >
-                          <div className="flex flex-col">
-                            <span className="flex items-center gap-2 text-[16px] font-bold text-[#111111]">
-                              {item.class_title || "제목 없음"}
-                              <span className="rounded-full bg-[#e8f7ee] px-2 py-0.5 text-[11px] font-bold text-[#1f8a4c]">
-                                등록완료
-                              </span>
-                            </span>
-                            <span className="mt-0.5 text-[13px] text-[#999999]">
-                              {formatDate(item.created_at)}
-                            </span>
-                          </div>
-                          <ChevronDown
-                            size={20}
-                            className={`shrink-0 text-[#aaaaaa] transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
+                        {item.generated_image_url ? (
+                          <Image
+                            src={item.generated_image_url}
+                            alt="생성된 AI 포스터"
+                            fill
+                            sizes="180px"
+                            unoptimized
+                            className="object-cover transition-transform duration-200 group-active:scale-[1.02]"
                           />
-                        </button>
-                        {isOpen && (
-                          <div className="px-5 pb-4 flex flex-col gap-4">
-                            {imageUrl && (
-                              <div>
-                                <h3 className="text-[13px] font-semibold text-[#888888] mb-2">
-                                  등록된 포스터
-                                </h3>
-                                <div className="relative aspect-[3/4] w-full overflow-hidden rounded-xl border border-[#ececec] bg-[#f6f6f6]">
-                                  <Image
-                                    src={imageUrl}
-                                    alt="등록된 AI 포스터"
-                                    fill
-                                    sizes="520px"
-                                    unoptimized
-                                    className="object-cover"
-                                  />
-                                </div>
-                              </div>
-                            )}
-                            <div>
-                              <h3 className="text-[13px] font-semibold text-[#888888] mb-2">
-                                최종 프롬프트
-                              </h3>
-                              <p className="h-[250px] overflow-y-auto whitespace-pre-wrap rounded-xl bg-[#111111] px-4 py-3 text-[14px] leading-6 text-white">
-                                {item.ai_poster_prompt || "내용 없음"}
-                              </p>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => handleNavigate(`/classes/${item.class_id}`)}
-                              className="flex w-full items-center justify-center gap-1 rounded-full bg-[#fee500] py-2.5 text-[14px] font-semibold text-[#191600] transition active:scale-[0.98]"
-                            >
-                              클래스 보기
-                              <ChevronRight size={16} />
-                            </button>
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center text-[12px] font-semibold text-[#aaaaaa]">
+                            이미지 없음
                           </div>
                         )}
-                      </div>
-                    );
-                  })}
+                      </button>
+                    ))}
+                    {generatedFillerCells.map((cell) => (
+                      <div
+                        key={cell.key}
+                        aria-hidden="true"
+                        className="aspect-[3/4]"
+                        style={{ backgroundColor: cell.color }}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </main>
