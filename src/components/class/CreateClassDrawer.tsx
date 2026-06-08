@@ -220,69 +220,73 @@ export default function CreateClassDrawer({ open, onClose }: CreateClassDrawerPr
         {isAiPosterFormOpen ? (
           <AiPosterForm surface="drawer" onCancel={() => setDrawerView("menu")} />
         ) : isGeneratedDetailOpen && selectedGeneratedItem ? (
-          <main className="flex-1 overflow-y-auto px-4 pt-5 pb-8">
-            <div className="mx-auto flex w-full max-w-[520px] flex-col gap-4">
-              <div className="rounded-2xl bg-white px-5 py-4 shadow-sm">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="truncate text-[20px] font-bold text-[#111111]">
-                      {selectedGeneratedItem.title || "제목 없음"}
-                    </p>
-                    <p className="mt-1 text-[13px] text-[#999999]">
-                      {formatDate(selectedGeneratedItem.created_at)}
-                    </p>
-                  </div>
-                  <span
-                    className={`shrink-0 rounded-full px-3 py-1 text-[12px] font-bold ${
-                      selectedGeneratedItem.linked_class_id
-                        ? "bg-[#e8f7ee] text-[#1f8a4c]"
-                        : "bg-[#fff5cf] text-[#8a6800]"
-                    }`}
-                  >
-                    {selectedGeneratedItem.linked_class_id ? "클래스 등록됨" : "생성만 완료"}
-                  </span>
+          <main className="flex-1 overflow-y-auto bg-white pb-8">
+            <div className="px-4 pt-5">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate text-[20px] font-bold text-[#111111]">
+                    {selectedGeneratedItem.title || "제목 없음"}
+                  </p>
+                  <p className="mt-1 text-[13px] text-[#999999]">
+                    {formatDate(selectedGeneratedItem.created_at)}
+                  </p>
+                </div>
+                <span
+                  className={`shrink-0 rounded-full px-3 py-1 text-[12px] font-bold ${
+                    selectedGeneratedItem.linked_class_id
+                      ? "bg-[#e8f7ee] text-[#1f8a4c]"
+                      : "bg-[#fff5cf] text-[#8a6800]"
+                  }`}
+                >
+                  {selectedGeneratedItem.linked_class_id ? "클래스 등록됨" : "생성만 완료"}
+                </span>
+              </div>
+            </div>
+
+            {selectedGeneratedItem.generated_image_url && (
+              <div className="mt-5">
+                <div className="relative aspect-[3/4] w-full overflow-hidden bg-[#f4f4f4]">
+                  <Image
+                    src={selectedGeneratedItem.generated_image_url}
+                    alt="생성된 AI 포스터"
+                    fill
+                    sizes="100vw"
+                    unoptimized
+                    className="object-cover"
+                  />
                 </div>
               </div>
+            )}
 
-              {selectedGeneratedItem.generated_image_url && (
-                <div className="overflow-hidden rounded-[28px] border border-[#e5e7eb] bg-white p-3 shadow-sm">
-                  <div className="relative aspect-[3/4] w-full overflow-hidden rounded-[22px] bg-[#f4f4f4]">
-                    <Image
-                      src={selectedGeneratedItem.generated_image_url}
-                      alt="생성된 AI 포스터"
-                      fill
-                      sizes="520px"
-                      unoptimized
-                      className="object-cover"
-                    />
-                  </div>
-                </div>
-              )}
-
+            <div className="pt-5">
               {selectedGeneratedItem.source_images.length > 0 && (
-                <section className="rounded-2xl bg-white p-4 shadow-sm">
-                  <h3 className="mb-3 text-[13px] font-semibold text-[#888888]">참조 이미지</h3>
-                  <div className="grid grid-cols-3 gap-2">
-                    {selectedGeneratedItem.source_images.map((img, index) => (
-                      <div
-                        key={img.path}
-                        className="relative aspect-square overflow-hidden rounded-xl border border-[#ececec] bg-[#f6f6f6]"
-                      >
-                        <Image
-                          src={img.url}
-                          alt={`참조 이미지 ${index + 1}`}
-                          fill
-                          sizes="160px"
-                          unoptimized
-                          className="object-cover"
-                        />
-                      </div>
-                    ))}
+                <section>
+                  <h3 className="mb-3 text-center text-[15px] font-bold text-black/70">참조 이미지</h3>
+                  <div className="flex justify-center">
+                    <div className="flex w-fit flex-wrap justify-center gap-2">
+                      {selectedGeneratedItem.source_images.map((img, index) => (
+                        <div
+                          key={img.path}
+                          className="relative aspect-square w-24 overflow-hidden bg-[#f6f6f6]"
+                        >
+                          <Image
+                            src={img.url}
+                            alt={`참조 이미지 ${index + 1}`}
+                            fill
+                            sizes="96px"
+                            unoptimized
+                            className="object-cover"
+                          />
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </section>
               )}
 
-              <section className="rounded-2xl bg-black/80 p-4 shadow-sm">
+              <section
+                className={`${selectedGeneratedItem.source_images.length > 0 ? "mt-6 " : ""}bg-black/80 p-4`}
+              >
                 <h3 className="mb-3 text-[13px] font-semibold text-white/65">최종 프롬프트</h3>
                 <p className="whitespace-pre-wrap text-[15px] font-normal leading-7 tracking-[-0.01em] text-white">
                   {selectedGeneratedItem.prompt_text || selectedGeneratedItem.raw_content || "내용 없음"}
@@ -298,7 +302,7 @@ export default function CreateClassDrawer({ open, onClose }: CreateClassDrawerPr
                       : `/classes/new?ai_poster=${selectedGeneratedItem.id}`
                   )
                 }
-                className="flex w-full items-center justify-center gap-1 rounded-full bg-[#fee500] py-3 text-[15px] font-semibold text-[#191600] transition active:scale-[0.98]"
+                className="mx-auto mt-8 flex w-fit items-center justify-center gap-1 rounded-full bg-[#fee500] px-5 py-3 text-[15px] font-semibold text-[#191600] transition active:scale-[0.98]"
               >
                 {selectedGeneratedItem.linked_class_id ? "클래스 보기" : "클래스 등록하기"}
                 <ChevronRight size={16} />
