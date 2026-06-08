@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { X, Loader2 } from "lucide-react";
 import { CREDIT_PLANS } from "@/lib/poster-credits/plans";
+import CreditChargeGame from "@/components/class/CreditChargeGame";
 
 interface CreditChargeSheetProps {
   open: boolean;
@@ -14,6 +15,16 @@ export default function CreditChargeSheet({ open, onClose, onComplete }: CreditC
   const [selectedPlan, setSelectedPlan] = useState<string>(CREDIT_PLANS[0].id);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [gameOpen, setGameOpen] = useState(false);
+  const [alreadyUsedFreeCharge, setAlreadyUsedFreeCharge] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    fetch("/api/poster-credits/free-charge/check")
+      .then((r) => r.json())
+      .then((d) => setAlreadyUsedFreeCharge(d.used === true))
+      .catch(() => {});
+  }, [open]);
 
   if (!open) return null;
 
@@ -120,7 +131,27 @@ export default function CreditChargeSheet({ open, onClose, onComplete }: CreditC
             "카카오페이로 결제하기"
           )}
         </button>
+
+        {!alreadyUsedFreeCharge && (
+          <button
+            type="button"
+            onClick={() => setGameOpen(true)}
+            className="mt-3 w-full text-center text-[14px] font-semibold text-[#666] underline underline-offset-2 transition active:opacity-60"
+          >
+            외상충전 →
+          </button>
+        )}
       </div>
+
+      {gameOpen && (
+        <CreditChargeGame
+          onSuccess={() => {
+            setGameOpen(false);
+            onComplete();
+          }}
+          onCancel={() => setGameOpen(false)}
+        />
+      )}
     </div>
   );
 }
