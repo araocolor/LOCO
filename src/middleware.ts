@@ -1,24 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
-const PROTECTED_PATHS = [
-  "/",
-  "/classes/new",
-  "/messages",
-  "/mypage",
-  "/notifications",
-  "/onboarding",
-];
-
 export async function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl;
-
-  const isProtected = PROTECTED_PATHS.some(
-    (path) => pathname === path || pathname.startsWith(path + "/")
-  );
-
-  if (!isProtected) return NextResponse.next();
-
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(
@@ -47,6 +30,7 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   if (!user) {
+    const { pathname } = request.nextUrl;
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("next", `${pathname}${request.nextUrl.search}`);
     return NextResponse.redirect(loginUrl);
@@ -57,6 +41,11 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/",
+    "/classes/:path*",
+    "/messages/:path*",
+    "/mypage/:path*",
+    "/notifications/:path*",
+    "/onboarding/:path*",
   ],
 };

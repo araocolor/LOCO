@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, LayoutGrid, Plus, Presentation, Search, X } from "lucide-react";
 import {
   SEARCH_DEFAULTS_STORAGE_KEY,
@@ -70,6 +70,14 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
   const [isMySetting, setIsMySetting] = useState(false);
   const isChromeVisible = useScrollChromeVisibility(activeTab === "allClasses");
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    if (searchParams.get("payment") === "success") {
+      setCreateDrawerOpen(true);
+      router.replace("/", { scroll: false });
+    }
+  }, [searchParams, router]);
   const periodOptions = getPeriodOptions();
 
   useEffect(() => {

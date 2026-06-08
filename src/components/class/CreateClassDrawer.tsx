@@ -3,8 +3,9 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { ArrowLeft, ChevronDown, ChevronRight, ImagePlus, Trash2, Upload, X } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronRight, ImagePlus, Trash2, Upload, X, Zap } from "lucide-react";
 import AiPosterForm from "@/app/(main)/classes/new/ai-poster/poster-form";
+import CreditChargeSheet from "@/components/class/CreditChargeSheet";
 
 interface SourceImage {
   url: string;
@@ -77,6 +78,8 @@ export default function CreateClassDrawer({ open, onClose }: CreateClassDrawerPr
   const [deleteMode, setDeleteMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
+  const [creditBalance, setCreditBalance] = useState<number | null>(null);
+  const [chargeSheetOpen, setChargeSheetOpen] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -90,6 +93,10 @@ export default function CreateClassDrawer({ open, onClose }: CreateClassDrawerPr
         })
         .catch(() => {})
         .finally(() => setRequestsLoading(false));
+      fetch("/api/poster-credits")
+        .then((res) => res.json())
+        .then((json) => setCreditBalance(json.balance ?? 0))
+        .catch(() => {});
     } else {
       queueMicrotask(() => {
         setSlideIn(false);
@@ -99,6 +106,7 @@ export default function CreateClassDrawer({ open, onClose }: CreateClassDrawerPr
         setSelectedGeneratedItem(null);
         setDeleteMode(false);
         setSelectedIds(new Set());
+        setChargeSheetOpen(false);
       });
     }
   }, [open]);
@@ -379,15 +387,20 @@ export default function CreateClassDrawer({ open, onClose }: CreateClassDrawerPr
               <div className="mx-auto flex w-full max-w-[520px] flex-col gap-4">
                 <button
                   type="button"
-                  onClick={() => setDrawerView("aiPosterForm")}
-                  className="flex min-h-[180px] flex-col justify-between rounded-2xl border border-[#e5e7eb] bg-white p-6 text-left shadow-sm transition active:scale-[0.99]"
+                  onClick={creditBalance === 0 ? undefined : () => setDrawerView("aiPosterForm")}
+                  className={`flex min-h-[180px] flex-col justify-between rounded-2xl border border-[#e5e7eb] bg-white p-6 text-left shadow-sm transition ${
+                    creditBalance === 0 ? "opacity-60" : "active:scale-[0.99]"
+                  }`}
                 >
                   <div className="flex items-center justify-between">
                     <span className="flex h-12 w-12 items-center justify-center rounded-full bg-[#fee500] text-[#191600]">
                       <ImagePlus size={25} strokeWidth={2.2} />
                     </span>
                     <span className="text-[14px] font-semibold text-[#666666]">
-                      무료 <span className="text-[17px] font-bold text-[#111111]">3</span>회 남음
+                      <span className="text-[17px] font-bold text-[#111111]">
+                        {creditBalance ?? "..."}
+                      </span>
+                      회 남음
                     </span>
                   </div>
                   <span className="mt-8 text-2xl font-extrabold tracking-[-0.02em] text-[#111111]">
@@ -413,6 +426,17 @@ export default function CreateClassDrawer({ open, onClose }: CreateClassDrawerPr
                     기존 클래스 만들기 화면에서 포스터와 정보를 직접 등록합니다.
                   </span>
                 </button>
+
+                <div className="flex justify-center">
+                  <button
+                    type="button"
+                    onClick={() => setChargeSheetOpen(true)}
+                    className="flex items-center gap-1.5 rounded-full bg-[#fee500] px-5 py-2.5 text-[17px] font-bold text-[#191600] transition active:scale-[0.97]"
+                  >
+                    <Zap size={20} strokeWidth={2.5} />
+                    크레딧 충전하기
+                  </button>
+                </div>
               </div>
             )}
 
@@ -633,6 +657,18 @@ export default function CreateClassDrawer({ open, onClose }: CreateClassDrawerPr
           </main>
         )}
       </div>
+
+      <CreditChargeSheet
+        open={chargeSheetOpen}
+        onClose={() => setChargeSheetOpen(false)}
+        onComplete={() => {
+          setChargeSheetOpen(false);
+          fetch("/api/poster-credits")
+            .then((res) => res.json())
+            .then((json) => setCreditBalance(json.balance ?? 0))
+            .catch(() => {});
+        }}
+      />
     </div>
   );
 }
