@@ -38,6 +38,7 @@ interface CompletedClassItem {
   ai_poster_request_id: string;
   ai_poster_title: string | null;
   generated_image_url: string | null;
+  ai_poster_prompt: string | null;
   images: ClassImage[] | null;
 }
 
@@ -136,13 +137,13 @@ export default function CreateClassDrawer({ open, onClose }: CreateClassDrawerPr
   const isAiPosterFormOpen = drawerView === "aiPosterForm";
 
   return (
-    <div className="fixed inset-0 z-[100]">
+    <div className="fixed inset-0 z-[100] flex justify-center">
       <div
         className={`absolute inset-0 bg-black/30 transition-opacity duration-300 ${slideIn ? "opacity-100" : "opacity-0"}`}
         onClick={handleClose}
       />
       <div
-        className={`absolute inset-0 bg-[#f4f4f4] flex flex-col transition-transform duration-300 ease-out ${slideIn ? "translate-y-0" : "translate-y-full"}`}
+        className={`relative w-full max-w-[500px] bg-[#f4f4f4] flex flex-col transition-transform duration-300 ease-out ${slideIn ? "translate-y-0" : "translate-y-full"}`}
       >
         <header className="shrink-0 bg-white border-b border-[#e5e7eb]">
           <div className="relative h-14 px-4 flex items-center">
@@ -402,7 +403,7 @@ export default function CreateClassDrawer({ open, onClose }: CreateClassDrawerPr
                             <span className="flex items-center gap-2 text-[16px] font-bold text-[#111111]">
                               {item.class_title || item.ai_poster_title || "제목 없음"}
                               <span className="rounded-full bg-[#e8f7ee] px-2 py-0.5 text-[11px] font-bold text-[#1f8a4c]">
-                                클래스완료
+                                등록완료
                               </span>
                             </span>
                             <span className="mt-0.5 text-[13px] text-[#999999]">

@@ -12,7 +12,7 @@ interface Props {
 export default async function ClassNewPage({ searchParams }: Props) {
   const params = await searchParams;
   let aiPosterData:
-    | { requestId: string; imageUrl: string; title: string; rawContent: string }
+    | { requestId: string; imageUrl: string; title: string; rawContent: string; promptText: string }
     | undefined;
 
   if (params.ai_poster) {
@@ -24,7 +24,7 @@ export default async function ClassNewPage({ searchParams }: Props) {
     if (user) {
       const { data } = await supabase
         .from("ai_poster_requests")
-        .select("title, raw_content, generated_image_url")
+        .select("title, raw_content, prompt_text, generated_image_url")
         .eq("id", params.ai_poster)
         .eq("user_id", user.id)
         .single();
@@ -35,6 +35,7 @@ export default async function ClassNewPage({ searchParams }: Props) {
           imageUrl: data.generated_image_url,
           title: data.title ?? "",
           rawContent: data.raw_content ?? "",
+          promptText: data.prompt_text ?? "",
         };
       }
     }

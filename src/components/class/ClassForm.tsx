@@ -96,6 +96,7 @@ interface AiPosterPrefill {
   imageUrl: string;
   title: string;
   rawContent: string;
+  promptText: string;
 }
 
 interface ClassFormProps {
@@ -671,6 +672,9 @@ export default function ClassForm({
 
       if (isCreateMode && aiPosterData?.requestId) {
         payload.ai_poster_request_id = aiPosterData.requestId;
+        if (aiPosterData.promptText) {
+          payload.ai_poster_prompt = aiPosterData.promptText;
+        }
       }
 
       const url = classId ? `/api/classes/${classId}` : "/api/classes";
