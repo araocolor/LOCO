@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
-import { UserCircle, X, Settings, HeartHandshake, Star, SmilePlus, UsersRound } from "lucide-react";
+import { UserCircle, X, Settings, HeartHandshake, Star, SmilePlus, UsersRound, CreditCard, Award, Megaphone, Headphones, FileText, ShieldCheck, ChevronRight, ReceiptText } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { fetchWithAuthRetry } from "@/lib/auth/fetch-with-auth-retry";
 import { parseBookmarkEntries } from "@/lib/bookmarks/local";
@@ -14,6 +14,10 @@ import { ClassImage } from "@/types/class";
 import Avatar from "@/components/ui/Avatar";
 import type { StarGiver } from "@/types/user";
 import UserProfileModal from "./UserProfileModal";
+import LegalDrawer from "@/components/legal/LegalDrawer";
+import PrivacyPolicyContent from "@/components/legal/PrivacyPolicyContent";
+import TermsOfServiceContent from "@/components/legal/TermsOfServiceContent";
+import RefundPolicyContent from "@/components/legal/RefundPolicyContent";
 
 
 function getMemberTypeLabel(type: string) {
@@ -172,6 +176,9 @@ export default function MyPageClient({
   }, [socialCounts?.friends, socialCounts?.following]);
 
   const [starGiversOpen, setStarGiversOpen] = useState(false);
+  const [privacyOpen, setPrivacyOpen] = useState(false);
+  const [termsOpen, setTermsOpen] = useState(false);
+  const [refundOpen, setRefundOpen] = useState(false);
   const [starGiverProfileId, setStarGiverProfileId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -590,6 +597,67 @@ export default function MyPageClient({
         )}
       </div>
 
+      {/* 구매목록 */}
+      <div className="mx-4 mt-6 rounded-xl bg-white border border-gray-100 shadow-sm overflow-hidden">
+        <div className="px-4 pt-4 pb-2">
+          <span className="text-[15px] font-bold text-gray-800">구매목록</span>
+        </div>
+        <button type="button" className="flex w-full items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors">
+          <CreditCard size={20} className="text-gray-500" />
+          <span className="flex-1 text-left text-[14px] text-gray-800">크레딧</span>
+          <ChevronRight size={18} className="text-gray-400" />
+        </button>
+        <button type="button" className="flex w-full items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors">
+          <Award size={20} className="text-gray-500" />
+          <span className="flex-1 text-left text-[14px] text-gray-800">별훈장</span>
+          <ChevronRight size={18} className="text-gray-400" />
+        </button>
+      </div>
+
+      {/* 고객지원 */}
+      <div className="mx-4 mt-4 mb-8 rounded-xl bg-white border border-gray-100 shadow-sm overflow-hidden">
+        <div className="px-4 pt-4 pb-2">
+          <span className="text-[15px] font-bold text-gray-800">고객지원</span>
+        </div>
+        <button type="button" className="flex w-full items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors">
+          <Megaphone size={20} className="text-gray-500" />
+          <span className="flex-1 text-left text-[14px] text-gray-800">공지사항</span>
+          <ChevronRight size={18} className="text-gray-400" />
+        </button>
+        <button type="button" className="flex w-full items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors">
+          <Headphones size={20} className="text-gray-500" />
+          <span className="flex-1 text-left text-[14px] text-gray-800">고객센터</span>
+          <ChevronRight size={18} className="text-gray-400" />
+        </button>
+        <button type="button" onClick={() => setTermsOpen(true)} className="flex w-full items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors">
+          <FileText size={20} className="text-gray-500" />
+          <span className="flex-1 text-left text-[14px] text-gray-800">서비스 이용약관</span>
+          <ChevronRight size={18} className="text-gray-400" />
+        </button>
+        <button type="button" onClick={() => setRefundOpen(true)} className="flex w-full items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors">
+          <ReceiptText size={20} className="text-gray-500" />
+          <span className="flex-1 text-left text-[14px] text-gray-800">환불정책</span>
+          <ChevronRight size={18} className="text-gray-400" />
+        </button>
+        <button type="button" onClick={() => setPrivacyOpen(true)} className="flex w-full items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors">
+          <ShieldCheck size={20} className="text-gray-500" />
+          <span className="flex-1 text-left text-[14px] text-gray-800">개인정보처리방침</span>
+          <ChevronRight size={18} className="text-gray-400" />
+        </button>
+      </div>
+
+      {/* 사업자 정보 */}
+      <div className="mx-4 mt-6 mb-10 text-[11px] leading-[18px] text-gray-400">
+        <p>서비스명 : Xlatin</p>
+        <p>사업자 : 아라오 (ARAO) | 대표 : 한철</p>
+        <p>사업자번호 : 334-07-03291</p>
+        <p>통신판매업 신고번호 : 2026-제주-3433</p>
+        <p>호스팅 사업자 : Vercel</p>
+        <p>주소 : 제주특별자치도 제주시 조천읍 조함해안로 6</p>
+        <p>전화번호 : 064-783-3655</p>
+        <p>고객문의 : jejusalsa@gmail.com</p>
+      </div>
+
       {starGiversOpen && (
         <>
           <div className="fixed inset-0 z-[70] bg-black/30" />
@@ -867,6 +935,18 @@ export default function MyPageClient({
           onConfirm={handleCropConfirm}
         />
       )}
+
+      <LegalDrawer open={privacyOpen} onClose={() => setPrivacyOpen(false)} title="개인정보처리방침">
+        <PrivacyPolicyContent />
+      </LegalDrawer>
+
+      <LegalDrawer open={termsOpen} onClose={() => setTermsOpen(false)} title="서비스 이용약관">
+        <TermsOfServiceContent />
+      </LegalDrawer>
+
+      <LegalDrawer open={refundOpen} onClose={() => setRefundOpen(false)} title="환불정책">
+        <RefundPolicyContent />
+      </LegalDrawer>
 
     </div>
   );

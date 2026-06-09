@@ -500,14 +500,16 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
       )}
 
       {!classDetailId && (
-        <button
-          type="button"
-          aria-label="클래스 만들기"
-          className="fixed bottom-24 right-5 z-[60] flex h-14 w-14 items-center justify-center rounded-full bg-[#fee500] text-[#191600] shadow-lg active:scale-95 transition-transform"
-          onClick={() => setCreateDrawerOpen(true)}
-        >
-          <Plus size={26} strokeWidth={2.4} />
-        </button>
+        <div className="fixed bottom-24 left-1/2 z-[60] w-full max-w-[500px] -translate-x-1/2 pointer-events-none">
+          <button
+            type="button"
+            aria-label="클래스 만들기"
+            className="absolute bottom-0 right-5 flex h-14 w-14 items-center justify-center rounded-full bg-[#fee500] text-[#191600] shadow-lg active:scale-95 transition-transform pointer-events-auto"
+            onClick={() => setCreateDrawerOpen(true)}
+          >
+            <Plus size={26} strokeWidth={2.4} />
+          </button>
+        </div>
       )}
 
       <CreateClassDrawer
