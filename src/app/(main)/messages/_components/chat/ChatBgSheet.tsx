@@ -51,7 +51,7 @@ export default function ChatBgSheet({ open, selected, onSelect, onClose }: ChatB
                   <div className="h-full w-full" style={{ backgroundColor: opt.value }} />
                 )}
               </div>
-              <span className={`text-[13px] ${selected === opt.type ? "font-bold text-blue-500" : "text-gray-500"}`}>
+              <span className={`${selected === opt.type ? "text-[14px] font-bold text-blue-500" : "text-[13px] text-gray-500"}`}>
                 {opt.label}
               </span>
             </button>

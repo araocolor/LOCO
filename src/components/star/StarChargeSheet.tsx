@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { X, Loader2, Star } from "lucide-react";
 import LegalDrawer from "@/components/legal/LegalDrawer";
 import TermsOfServiceContent from "@/components/legal/TermsOfServiceContent";
@@ -29,12 +29,69 @@ export default function StarChargeSheet({ open, onClose, onComplete }: StarCharg
   const [agreed, setAgreed] = useState(false);
   const [termsOpen, setTermsOpen] = useState(false);
   const [refundOpen, setRefundOpen] = useState(false);
+  const [slotNumber, setSlotNumber] = useState<number | null>(null);
+  const [slotDone, setSlotDone] = useState(true);
+  const [displayTotal, setDisplayTotal] = useState<number | null>(null);
+  const slotTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const totalTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const clearTimers = useCallback(() => {
+    if (slotTimer.current) { clearInterval(slotTimer.current); slotTimer.current = null; }
+    if (totalTimer.current) { clearInterval(totalTimer.current); totalTimer.current = null; }
+  }, []);
+
+  useEffect(() => () => clearTimers(), [clearTimers]);
 
   if (!open) return null;
 
   const totalStars = STAR_PLAN.baseStars * quantity;
   const bonus = BONUS_MAP[quantity] ?? 0;
   const totalPrice = STAR_PLAN.basePrice * quantity;
+
+  function handleQuantitySelect(q: number) {
+    clearTimers();
+    setQuantity(q);
+    setDisplayTotal(null);
+
+    const targetBonus = BONUS_MAP[q] ?? 0;
+    const base = STAR_PLAN.baseStars * q;
+
+    if (q === 1 || targetBonus === 0) {
+      setSlotNumber(null);
+      setSlotDone(true);
+      setDisplayTotal(base);
+      return;
+    }
+
+    setSlotDone(false);
+    setSlotNumber(Math.floor(Math.random() * 50) + 1);
+    setDisplayTotal(base);
+
+    const slotEnd = Date.now() + 1000;
+    slotTimer.current = setInterval(() => {
+      if (Date.now() >= slotEnd) {
+        if (slotTimer.current) clearInterval(slotTimer.current);
+        setSlotNumber(targetBonus);
+        setSlotDone(true);
+
+        const final = base + targetBonus;
+        window.setTimeout(() => {
+          let current = base;
+          const step = Math.max(1, Math.ceil((final - base) / 15));
+          totalTimer.current = setInterval(() => {
+            current += step;
+            if (current >= final) {
+              current = final;
+              if (totalTimer.current) clearInterval(totalTimer.current);
+            }
+            setDisplayTotal(current);
+          }, 30);
+        }, 300);
+        return;
+      }
+      setSlotNumber(Math.floor(Math.random() * 50) + 1);
+    }, 60);
+  }
 
   const handlePay = async () => {
     setLoading(true);
@@ -103,7 +160,7 @@ export default function StarChargeSheet({ open, onClose, onComplete }: StarCharg
               <button
                 key={q}
                 type="button"
-                onClick={() => setQuantity(q)}
+                onClick={() => handleQuantitySelect(q)}
                 className={`flex-1 rounded-xl border-2 py-3 text-center text-[16px] font-bold transition-colors ${
                   quantity === q
                     ? "border-[#fee500] bg-[#fffde6] text-[#111]"
@@ -121,15 +178,19 @@ export default function StarChargeSheet({ open, onClose, onComplete }: StarCharg
             <span className="text-[15px] text-[#555]">기본 별</span>
             <span className="text-[15px] font-bold text-[#111]">{totalStars}개</span>
           </div>
-          {bonus > 0 && (
+          {(bonus > 0 || slotNumber !== null) && (
             <div className="flex items-center justify-between mt-1">
               <span className="text-[15px] text-[#E84040]">보너스 별</span>
-              <span className="text-[15px] font-bold text-[#E84040]">+{bonus}개</span>
+              <span className={`text-[15px] font-bold text-[#E84040] ${!slotDone ? "animate-pulse" : ""}`}>
+                +{slotNumber !== null ? slotNumber : bonus}개
+              </span>
             </div>
           )}
           <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-200">
             <span className="text-[16px] font-bold text-[#111]">총 별</span>
-            <span className="text-[17px] font-extrabold text-[#111]">{totalStars + bonus}개</span>
+            <span className="text-[17px] font-extrabold text-[#111]">
+              {displayTotal ?? (totalStars + bonus)}개
+            </span>
           </div>
         </div>
 
