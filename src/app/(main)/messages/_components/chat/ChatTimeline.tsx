@@ -72,7 +72,12 @@ export default function ChatTimeline({
   return (
     <div
       className="chat-drawer-scroll flex-1 min-h-0 overflow-y-auto px-4 py-4 flex flex-col gap-3"
-      style={{ backgroundColor }}
+      style={{
+        backgroundImage: "url(/chat_back.webp)",
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        backgroundRepeat: "no-repeat",
+      }}
       onScroll={onChatScroll}
       onClick={() => {
         setAttachOpen(false);
