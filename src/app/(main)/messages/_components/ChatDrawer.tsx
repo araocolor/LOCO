@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import type { Dispatch, RefObject, SetStateAction, UIEvent } from "react";
 import { Megaphone } from "lucide-react";
+import { isChatMuted, setChatMuted } from "@/lib/chat-mute";
 import ChatAttachPanel from "./ChatAttachPanel";
 import ImageViewerDrawer, { type ImageViewerData } from "./ImageViewerDrawer";
 import ArchiveGrid from "./chat/ArchiveGrid";
@@ -148,6 +149,14 @@ export default function ChatDrawer({
   const [viewerData, setViewerData] = useState<ImageViewerData | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [showGame, setShowGame] = useState(false);
+  const [muted, setMuted] = useState(() => roomId ? isChatMuted(roomId) : false);
+
+  const handleToggleMute = useCallback(() => {
+    if (!roomId) return;
+    const next = !muted;
+    setMuted(next);
+    setChatMuted(roomId, next);
+  }, [roomId, muted]);
 
   const isOwner = roomMembers?.some((m) => m.user_id === userId && m.role === "owner") ?? false;
   const isDirectRoom = roomType === "direct" || roomType === "self";
@@ -450,6 +459,7 @@ export default function ChatDrawer({
       {displayedActiveTab === "all" && !showGame && (
         <>
           <ChatComposer
+            muted={muted}
             newMessage={newMessage}
             selectedUserId={selectedUserId}
             setAttachOpen={setAttachOpen}
@@ -500,11 +510,13 @@ export default function ChatDrawer({
       <ChatMenuSheet
         open={menuOpen}
         isOwner={isOwner}
+        muted={muted}
         roomCreatedAt={roomCreatedAt}
         onClose={() => setMenuOpen(false)}
         onInvite={onOpenMemberDrawer}
         onLeave={onLeaveRoom}
         onStartGame={() => setShowGame(true)}
+        onToggleMute={handleToggleMute}
       />
 
       <ToastOverlay message={toastMessage} />

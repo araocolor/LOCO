@@ -5,6 +5,7 @@ import { Paperclip, Send } from "lucide-react";
 import { playSound } from "@/lib/sound";
 
 interface ChatComposerProps {
+  muted?: boolean;
   newMessage: string;
   selectedUserId: string | null;
   setAttachOpen: Dispatch<SetStateAction<boolean>>;
@@ -13,6 +14,7 @@ interface ChatComposerProps {
 }
 
 export default function ChatComposer({
+  muted,
   newMessage,
   selectedUserId,
   setAttachOpen,
@@ -38,7 +40,7 @@ export default function ChatComposer({
         }}
       />
       <button
-        onClick={() => { playSound("talk-send", { volume: 0.1 }); onSendMessage(); }}
+        onClick={() => { if (!muted) playSound("talk-send", { volume: 0.1 }); onSendMessage(); }}
         disabled={!newMessage.trim() || !selectedUserId}
         className="w-9 h-9 flex items-center justify-center bg-yellow-400 text-gray-900 rounded-full hover:bg-yellow-500 disabled:opacity-50 mt-1 flex-shrink-0"
       >

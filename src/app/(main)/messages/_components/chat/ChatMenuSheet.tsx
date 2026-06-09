@@ -6,21 +6,25 @@ import { Bell, BellOff, Gamepad2, Image, Lock, UserPlus, LogOut, X } from "lucid
 interface ChatMenuSheetProps {
   open: boolean;
   isOwner: boolean;
+  muted: boolean;
   roomCreatedAt: string | null;
   onClose: () => void;
   onInvite: () => void;
   onLeave: () => void;
   onStartGame: () => void;
+  onToggleMute: () => void;
 }
 
 export default function ChatMenuSheet({
   open,
   isOwner,
+  muted,
   roomCreatedAt,
   onClose,
   onInvite,
   onLeave,
   onStartGame,
+  onToggleMute,
 }: ChatMenuSheetProps) {
   const [confirmLeave, setConfirmLeave] = useState(false);
 
@@ -83,10 +87,14 @@ export default function ChatMenuSheet({
             }}
           />
           <MenuItem
-            icon={<Bell size={20} />}
-            label="알림끄기"
-            onClick={() => {}}
-            disabled
+            icon={muted ? <BellOff size={20} /> : <Bell size={20} />}
+            label={muted ? "알림꺼짐" : "알림켜짐"}
+            onClick={onToggleMute}
+            trailing={
+              <div className={`w-10 h-6 rounded-full flex items-center px-0.5 transition-colors ${muted ? "bg-gray-300" : "bg-green-400"}`}>
+                <div className={`w-5 h-5 rounded-full bg-white shadow transition-transform ${muted ? "translate-x-0" : "translate-x-4"}`} />
+              </div>
+            }
           />
           <MenuItem
             icon={<Image size={20} />}
@@ -153,12 +161,14 @@ function MenuItem({
   label,
   danger,
   disabled,
+  trailing,
   onClick,
 }: {
   icon: React.ReactNode;
   label: string;
   danger?: boolean;
   disabled?: boolean;
+  trailing?: React.ReactNode;
   onClick: () => void;
 }) {
   return (
@@ -177,6 +187,9 @@ function MenuItem({
       <span className="text-[16px] font-medium">{label}</span>
       {disabled && (
         <span className="ml-auto text-[11px] text-gray-300">준비중</span>
+      )}
+      {trailing && (
+        <span className="ml-auto">{trailing}</span>
       )}
     </button>
   );

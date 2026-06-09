@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from "react";
 import type { UIEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { isChatMuted } from "@/lib/chat-mute";
 import { PRESENCE_EVENT } from "@/components/features/PresenceTracker";
 import ConversationList from "./_components/ConversationList";
 import ChatDrawer from "./_components/ChatDrawer";
@@ -851,7 +852,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
           if (!conversationsRef.current.some((conv) => conv.id === roomId)) return;
           scheduleListRefresh();
           if (activeChatRoomRef.current === roomId) return;
-          playArrivedSound();
+          if (!isChatMuted(roomId)) playArrivedSound();
           void (async () => {
             try {
               const res = await fetch(`/api/chat/rooms/${roomId}/messages?limit=1`);
