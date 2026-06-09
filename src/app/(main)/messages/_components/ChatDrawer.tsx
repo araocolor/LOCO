@@ -4,12 +4,14 @@ import { useEffect, useMemo, useState, useCallback } from "react";
 import type { Dispatch, RefObject, SetStateAction, UIEvent } from "react";
 import { Megaphone } from "lucide-react";
 import { isChatMuted, setChatMuted } from "@/lib/chat-mute";
+import { getChatBg, setChatBg, CHAT_BG_OPTIONS, type ChatBgType } from "@/lib/chat-bg";
 import ChatAttachPanel from "./ChatAttachPanel";
 import ImageViewerDrawer, { type ImageViewerData } from "./ImageViewerDrawer";
 import ArchiveGrid from "./chat/ArchiveGrid";
 import ChatComposer from "./chat/ChatComposer";
 import ChatDrawerHeader from "./chat/ChatDrawerHeader";
 import ChatDrawerTabs, { type ChatDrawerTab } from "./chat/ChatDrawerTabs";
+import ChatBgSheet from "./chat/ChatBgSheet";
 import ChatMenuSheet from "./chat/ChatMenuSheet";
 import ChatTimeline from "./chat/ChatTimeline";
 import MemberBreakoutGame, { type MemberGameProfile } from "./chat/MemberBreakoutGame";
@@ -150,6 +152,8 @@ export default function ChatDrawer({
   const [menuOpen, setMenuOpen] = useState(false);
   const [showGame, setShowGame] = useState(false);
   const [muted, setMuted] = useState(() => roomId ? isChatMuted(roomId) : false);
+  const [bgType, setBgType] = useState<ChatBgType>(() => roomId ? getChatBg(roomId) : "image");
+  const [bgSheetOpen, setBgSheetOpen] = useState(false);
 
   const handleToggleMute = useCallback(() => {
     if (!roomId) return;
@@ -157,6 +161,26 @@ export default function ChatDrawer({
     setMuted(next);
     setChatMuted(roomId, next);
   }, [roomId, muted]);
+
+  const handleSelectBg = useCallback((bg: ChatBgType) => {
+    if (!roomId) return;
+    setBgType(bg);
+    setChatBg(roomId, bg);
+    setBgSheetOpen(false);
+  }, [roomId]);
+
+  const chatBgStyle = useMemo<React.CSSProperties>(() => {
+    const opt = CHAT_BG_OPTIONS.find((o) => o.type === bgType);
+    if (!opt || opt.type === "image") {
+      return {
+        backgroundImage: "url(/chat_back.webp)",
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        backgroundRepeat: "no-repeat",
+      };
+    }
+    return { backgroundColor: opt.value };
+  }, [bgType]);
 
   const isOwner = roomMembers?.some((m) => m.user_id === userId && m.role === "owner") ?? false;
   const isDirectRoom = roomType === "direct" || roomType === "self";
@@ -376,6 +400,7 @@ export default function ChatDrawer({
         <div className={`absolute inset-0 flex flex-col ${displayedActiveTab === "all" ? "" : "invisible pointer-events-none"}`}>
           <ChatTimeline
             backgroundColor={contentBackgroundColor}
+            bgStyle={chatBgStyle}
             chatLoading={chatLoading}
             messages={messages}
             messagesEndRef={messagesEndRef}
@@ -517,6 +542,14 @@ export default function ChatDrawer({
         onLeave={onLeaveRoom}
         onStartGame={() => setShowGame(true)}
         onToggleMute={handleToggleMute}
+        onOpenBgSetting={() => setBgSheetOpen(true)}
+      />
+
+      <ChatBgSheet
+        open={bgSheetOpen}
+        selected={bgType}
+        onSelect={handleSelectBg}
+        onClose={() => setBgSheetOpen(false)}
       />
 
       <ToastOverlay message={toastMessage} />

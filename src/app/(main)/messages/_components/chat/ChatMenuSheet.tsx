@@ -13,6 +13,7 @@ interface ChatMenuSheetProps {
   onLeave: () => void;
   onStartGame: () => void;
   onToggleMute: () => void;
+  onOpenBgSetting: () => void;
 }
 
 export default function ChatMenuSheet({
@@ -25,6 +26,7 @@ export default function ChatMenuSheet({
   onLeave,
   onStartGame,
   onToggleMute,
+  onOpenBgSetting,
 }: ChatMenuSheetProps) {
   const [confirmLeave, setConfirmLeave] = useState(false);
 
@@ -99,8 +101,10 @@ export default function ChatMenuSheet({
           <MenuItem
             icon={<Image size={20} />}
             label="배경화면설정"
-            onClick={() => {}}
-            disabled
+            onClick={() => {
+              handleClose();
+              onOpenBgSetting();
+            }}
           />
           {isOwner && (
             <MenuItem
