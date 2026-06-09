@@ -19,6 +19,7 @@ import PrivacyPolicyContent from "@/components/legal/PrivacyPolicyContent";
 import TermsOfServiceContent from "@/components/legal/TermsOfServiceContent";
 import RefundPolicyContent from "@/components/legal/RefundPolicyContent";
 import StarChargeSheet from "@/components/star/StarChargeSheet";
+import StarGiftersPanel from "@/components/star/StarGiftersPanel";
 
 
 function getMemberTypeLabel(type: string) {
@@ -661,69 +662,13 @@ export default function MyPageClient({
       </div>
 
       {starGiversOpen && (
-        <>
-          <div className="fixed inset-0 z-[70] bg-black/30" />
-          <div className="fixed inset-y-0 right-0 z-[71] w-full max-w-[500px] bg-white shadow-xl flex flex-col page-slide-in-from-right">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-              <span className="text-[18px] font-bold text-gray-900">별을 준 사람들</span>
-              <button
-                type="button"
-                onClick={() => setStarGiversOpen(false)}
-                className="rounded-full p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
-                aria-label="닫기"
-              >
-                <X size={20} />
-              </button>
-            </div>
-            <div className="flex items-center px-4 py-2">
-              <div className="flex items-center gap-1 text-gray-900">
-                <UsersRound size={20} />
-                <span className="font-bold tabular-nums text-[16px]">{starGivers.length}</span>
-              </div>
-            </div>
-            <div className="flex-1 overflow-y-auto scrollbar-hide overscroll-contain px-4 pb-4">
-              {starGivers.length ? (
-                <div className="grid grid-cols-5 gap-x-3 gap-y-4">
-                  {starGivers.map((giver) => (
-                    <button
-                      key={giver.id}
-                      type="button"
-                      className="flex items-center justify-center"
-                      onClick={() => setStarGiverProfileId(giver.id)}
-                      aria-label={`${giver.nickname} 프로필`}
-                    >
-                      <Avatar src={giver.profile_image_url} nickname={giver.nickname} size={48} />
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <div className="flex h-full items-center justify-center text-sm text-gray-400">
-                  아직 별을 받은 사람이 없어요
-                </div>
-              )}
-            </div>
-            <div className="px-4 py-2 mb-8 border-t border-gray-100">
-              <div className="flex justify-center py-3">
-                <button
-                  type="button"
-                  onClick={() => setStarChargeOpen(true)}
-                  className="rounded-full bg-[#fee500] px-5 py-2.5 text-[15px] font-bold text-[#191600] transition active:scale-[0.97]"
-                >
-                  별선물 충전하기
-                </button>
-              </div>
-              <p className="text-[16px] font-bold text-gray-500 mb-2">별선물 사용방법 및 주의사항</p>
-              <ul className="text-[14px] text-gray-400 space-y-0">
-                <li>- 별은 내가 좋아하는 마음에 표시로 사용합니다.</li>
-                <li>- 별은 신규회원에게 10개 지급됩니다.</li>
-                <li>- 별은 한사람당 1개를 선물할 수 있습니다.</li>
-                <li>- 별은 홀딩을 많이 해준사람에게 줄 수 있습니다.</li>
-                <li>- 별은 쇼핑탭에서 구매할 수 있습니다.</li>
-                <li>- 별은 현금으로 교환할 수 없습니다.</li>
-              </ul>
-            </div>
-          </div>
-        </>
+        <StarGiftersPanel
+          starGivers={starGivers}
+          starBalance={profile.star_balance ?? 0}
+          onClose={() => setStarGiversOpen(false)}
+          onProfileClick={(id) => setStarGiverProfileId(id)}
+          onChargeClick={() => setStarChargeOpen(true)}
+        />
       )}
 
       {starGiverProfileId && (

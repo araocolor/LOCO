@@ -6,6 +6,7 @@ import Image from "next/image";
 import { ArrowLeft, ChevronDown, ChevronRight, ImagePlus, Trash2, Upload, X, Zap } from "lucide-react";
 import AiPosterForm from "@/app/(main)/classes/new/ai-poster/poster-form";
 import CreditChargeSheet from "@/components/class/CreditChargeSheet";
+import CountUp from "@/components/ui/CountUp";
 
 interface SourceImage {
   url: string;
@@ -78,8 +79,23 @@ export default function CreateClassDrawer({ open, onClose }: CreateClassDrawerPr
   const [deleteMode, setDeleteMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
-  const [creditBalance, setCreditBalance] = useState<number | null>(null);
+  const CREDIT_CACHE_KEY = "credit_balance_cache";
+  const [creditBalance, setCreditBalance] = useState<number | null>(() => {
+    try {
+      const cached = localStorage.getItem(CREDIT_CACHE_KEY);
+      return cached !== null ? Number(cached) : null;
+    } catch { return null; }
+  });
+  const [creditAnimated, setCreditAnimated] = useState(() => {
+    try { return localStorage.getItem(CREDIT_CACHE_KEY) !== null; } catch { return false; }
+  });
   const [chargeSheetOpen, setChargeSheetOpen] = useState(false);
+
+  const updateCreditBalance = (balance: number) => {
+    setCreditBalance(balance);
+    setCreditAnimated(true);
+    try { localStorage.setItem(CREDIT_CACHE_KEY, String(balance)); } catch {}
+  };
 
   useEffect(() => {
     if (open) {
@@ -95,7 +111,7 @@ export default function CreateClassDrawer({ open, onClose }: CreateClassDrawerPr
         .finally(() => setRequestsLoading(false));
       fetch("/api/poster-credits")
         .then((res) => res.json())
-        .then((json) => setCreditBalance(json.balance ?? 0))
+        .then((json) => updateCreditBalance(json.balance ?? 0))
         .catch(() => {});
     } else {
       queueMicrotask(() => {
@@ -397,10 +413,14 @@ export default function CreateClassDrawer({ open, onClose }: CreateClassDrawerPr
                       <ImagePlus size={25} strokeWidth={2.2} />
                     </span>
                     <span className="text-[14px] font-semibold text-[#666666]">
-                      <span className="text-[17px] font-bold text-[#111111]">
-                        {creditBalance ?? "..."}
-                      </span>
-                      회 남음
+                      {creditBalance !== null ? (
+                        <>
+                          <CountUp value={creditBalance} animate={!creditAnimated} className="text-[17px] font-bold text-[#111111]" />
+                          회 남음
+                        </>
+                      ) : (
+                        <span className="text-[13px] text-[#aaa]">불러오는 중</span>
+                      )}
                     </span>
                   </div>
                   <span className="mt-8 text-2xl font-extrabold tracking-[-0.02em] text-[#111111]">
@@ -665,7 +685,7 @@ export default function CreateClassDrawer({ open, onClose }: CreateClassDrawerPr
           setChargeSheetOpen(false);
           fetch("/api/poster-credits")
             .then((res) => res.json())
-            .then((json) => setCreditBalance(json.balance ?? 0))
+            .then((json) => updateCreditBalance(json.balance ?? 0))
             .catch(() => {});
         }}
       />

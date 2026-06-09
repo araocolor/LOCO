@@ -2,6 +2,9 @@
 
 import { useState } from "react";
 import { X, Loader2, Star } from "lucide-react";
+import LegalDrawer from "@/components/legal/LegalDrawer";
+import TermsOfServiceContent from "@/components/legal/TermsOfServiceContent";
+import RefundPolicyContent from "@/components/legal/RefundPolicyContent";
 
 const STAR_PLAN = { baseStars: 20, basePrice: 11000 };
 
@@ -23,6 +26,9 @@ export default function StarChargeSheet({ open, onClose, onComplete }: StarCharg
   const [quantity, setQuantity] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [agreed, setAgreed] = useState(false);
+  const [termsOpen, setTermsOpen] = useState(false);
+  const [refundOpen, setRefundOpen] = useState(false);
 
   if (!open) return null;
 
@@ -131,10 +137,25 @@ export default function StarChargeSheet({ open, onClose, onComplete }: StarCharg
           <p className="mb-3 text-center text-[14px] font-medium text-red-500">{error}</p>
         )}
 
+        <label className="flex items-center gap-2 mb-4 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={agreed}
+            onChange={(e) => setAgreed(e.target.checked)}
+            className="w-4 h-4 accent-[#fee500] rounded"
+          />
+          <span className="text-[13px] text-[#555]">
+            <button type="button" onClick={() => setTermsOpen(true)} className="underline text-[#333] font-semibold">이용약관</button>
+            {" 및 "}
+            <button type="button" onClick={() => setRefundOpen(true)} className="underline text-[#333] font-semibold">환불정책</button>
+            에 동의합니다
+          </span>
+        </label>
+
         <button
           type="button"
           onClick={handlePay}
-          disabled={loading}
+          disabled={loading || !agreed}
           className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#fee500] py-4 text-[16px] font-bold text-[#191600] transition active:scale-[0.98] disabled:opacity-50"
         >
           {loading ? (
@@ -147,6 +168,14 @@ export default function StarChargeSheet({ open, onClose, onComplete }: StarCharg
           )}
         </button>
       </div>
+
+      <LegalDrawer open={termsOpen} onClose={() => setTermsOpen(false)} title="서비스 이용약관">
+        <TermsOfServiceContent />
+      </LegalDrawer>
+
+      <LegalDrawer open={refundOpen} onClose={() => setRefundOpen(false)} title="환불정책">
+        <RefundPolicyContent />
+      </LegalDrawer>
     </div>
   );
 }
