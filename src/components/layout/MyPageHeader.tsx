@@ -3,18 +3,17 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
-  Ban,
   BadgeCheck,
   Bell,
   Bookmark,
   ChevronRight,
   FileText,
-  HelpCircle,
   Languages,
   LogOut,
   MapPin,
   Settings,
   MessageCircle,
+  ReceiptText,
   ShieldCheck,
   SlidersHorizontal,
   Tag,
@@ -24,6 +23,10 @@ import {
 } from "lucide-react";
 import { RiVerifiedBadgeFill } from "react-icons/ri";
 import { createClient } from "@/lib/supabase/client";
+import LegalDrawer from "@/components/legal/LegalDrawer";
+import RefundPolicyContent from "@/components/legal/RefundPolicyContent";
+import PrivacyPolicyContent from "@/components/legal/PrivacyPolicyContent";
+import TermsOfServiceContent from "@/components/legal/TermsOfServiceContent";
 import type { ReactNode } from "react";
 
 type SubItem = { label: string };
@@ -99,7 +102,7 @@ const SECTIONS: SectionDef[] = [
     ],
   },
   {
-    title: "메세지 공개범위 설정 / 블랙",
+    title: "메세지 공개범위 설정",
     items: [
       {
         id: "message-privacy",
@@ -113,36 +116,29 @@ const SECTIONS: SectionDef[] = [
         label: "친구 표시",
         subItems: [{ label: "모든사람" }, { label: "비공개" }],
       },
-      {
-        id: "blacklist",
-        icon: <Ban size={18} />,
-        label: "블랙목록",
-        subItems: [],
-        blacklistGrid: true,
-      },
     ],
   },
   {
-    title: "개인정보 및 도움말",
+    title: "개인정보 및 환불정책",
     items: [
       {
-        id: "help",
-        icon: <HelpCircle size={18} />,
-        label: "도움말",
+        id: "refund-policy",
+        icon: <ReceiptText size={18} />,
+        label: "환불정책",
         noAccordion: true,
         subItems: [],
       },
       {
-        id: "privacy-center",
+        id: "privacy-policy",
         icon: <ShieldCheck size={18} />,
-        label: "개인정보보호센터",
+        label: "개인정보처리방침",
         noAccordion: true,
         subItems: [],
       },
       {
         id: "terms",
         icon: <FileText size={18} />,
-        label: "이용 약관",
+        label: "이용약관",
         noAccordion: true,
         subItems: [],
       },
@@ -200,6 +196,9 @@ export default function MyPageHeader() {
   const currentTab = (searchParams.get("section") as MyPageTab | null) ?? "all";
   const [open, setOpen] = useState(false);
   const [openIds, setOpenIds] = useState<Set<string>>(new Set());
+  const [refundOpen, setRefundOpen] = useState(false);
+  const [privacyOpen, setPrivacyOpen] = useState(false);
+  const [termsOpen, setTermsOpen] = useState(false);
   const [toggles, setToggles] = useState<Record<string, boolean>>({
     "bookmark-0": true,
     "myclasses-0": true,
@@ -307,6 +306,12 @@ export default function MyPageHeader() {
                     onClick={() => {
                       if (item.id === "logout") {
                         handleLogout();
+                      } else if (item.id === "refund-policy") {
+                        setRefundOpen(true);
+                      } else if (item.id === "privacy-policy") {
+                        setPrivacyOpen(true);
+                      } else if (item.id === "terms") {
+                        setTermsOpen(true);
                       } else {
                         handleItemClick(item.id, item.noAccordion);
                       }
@@ -423,6 +428,18 @@ export default function MyPageHeader() {
         ))}
         </div>
       </div>
+
+      <LegalDrawer open={refundOpen} onClose={() => setRefundOpen(false)} title="환불정책">
+        <RefundPolicyContent />
+      </LegalDrawer>
+
+      <LegalDrawer open={privacyOpen} onClose={() => setPrivacyOpen(false)} title="개인정보처리방침">
+        <PrivacyPolicyContent />
+      </LegalDrawer>
+
+      <LegalDrawer open={termsOpen} onClose={() => setTermsOpen(false)} title="서비스 이용약관">
+        <TermsOfServiceContent />
+      </LegalDrawer>
     </>
   );
 }

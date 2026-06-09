@@ -18,6 +18,7 @@ import LegalDrawer from "@/components/legal/LegalDrawer";
 import PrivacyPolicyContent from "@/components/legal/PrivacyPolicyContent";
 import TermsOfServiceContent from "@/components/legal/TermsOfServiceContent";
 import RefundPolicyContent from "@/components/legal/RefundPolicyContent";
+import StarChargeSheet from "@/components/star/StarChargeSheet";
 
 
 function getMemberTypeLabel(type: string) {
@@ -179,6 +180,7 @@ export default function MyPageClient({
   const [privacyOpen, setPrivacyOpen] = useState(false);
   const [termsOpen, setTermsOpen] = useState(false);
   const [refundOpen, setRefundOpen] = useState(false);
+  const [starChargeOpen, setStarChargeOpen] = useState(false);
   const [starGiverProfileId, setStarGiverProfileId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -651,7 +653,7 @@ export default function MyPageClient({
         <p>서비스명 : Xlatin</p>
         <p>사업자 : 아라오 (ARAO) | 대표 : 한철</p>
         <p>사업자번호 : 334-07-03291</p>
-        <p>통신판매업 신고번호 : 2026-제주-3433</p>
+        <p>통신판매업 신고번호 : 2026-제주조천-0058</p>
         <p>호스팅 사업자 : Vercel</p>
         <p>주소 : 제주특별자치도 제주시 조천읍 조함해안로 6</p>
         <p>전화번호 : 064-783-3655</p>
@@ -701,6 +703,15 @@ export default function MyPageClient({
               )}
             </div>
             <div className="px-4 py-2 mb-8 border-t border-gray-100">
+              <div className="flex justify-center py-3">
+                <button
+                  type="button"
+                  onClick={() => setStarChargeOpen(true)}
+                  className="rounded-full bg-[#fee500] px-5 py-2.5 text-[15px] font-bold text-[#191600] transition active:scale-[0.97]"
+                >
+                  별선물 충전하기
+                </button>
+              </div>
               <p className="text-[16px] font-bold text-gray-500 mb-2">별선물 사용방법 및 주의사항</p>
               <ul className="text-[14px] text-gray-400 space-y-0">
                 <li>- 별은 내가 좋아하는 마음에 표시로 사용합니다.</li>
@@ -935,6 +946,12 @@ export default function MyPageClient({
           onConfirm={handleCropConfirm}
         />
       )}
+
+      <StarChargeSheet
+        open={starChargeOpen}
+        onClose={() => setStarChargeOpen(false)}
+        onComplete={() => setStarChargeOpen(false)}
+      />
 
       <LegalDrawer open={privacyOpen} onClose={() => setPrivacyOpen(false)} title="개인정보처리방침">
         <PrivacyPolicyContent />

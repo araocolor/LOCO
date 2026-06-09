@@ -57,6 +57,8 @@ export default function RefundPolicyContent() {
           <li>상호 : 아라오(ARAO)</li>
           <li>서비스명 : XLATIN</li>
           <li>이메일 : jejusalsa@gmail.com</li>
+          <li>문의 접수 : 24시간</li>
+          <li>답변 : 영업일 기준 1~3일 이내</li>
         </ul>
       </Section>
     </div>

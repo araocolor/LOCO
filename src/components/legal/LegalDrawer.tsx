@@ -14,8 +14,8 @@ export default function LegalDrawer({ open, onClose, title, children }: LegalDra
 
   return (
     <>
-      <div className="fixed inset-0 z-[70] bg-black/30" />
-      <div className="fixed inset-0 z-[71] flex justify-center">
+      <div className="fixed inset-0 z-[250] bg-black/30" />
+      <div className="fixed inset-0 z-[251] flex justify-center">
         <div className="relative w-full max-w-[500px] bg-white flex flex-col page-slide-in-from-right">
           <header className="sticky top-0 z-10 flex items-center justify-between border-b border-gray-100 bg-white px-4 py-3">
             <h1 className="text-[17px] font-bold text-gray-900">{title}</h1>

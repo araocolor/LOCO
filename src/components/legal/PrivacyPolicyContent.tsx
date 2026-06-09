@@ -129,8 +129,8 @@ export default function PrivacyPolicyContent() {
       <Section title="13. 고지의 의무">
         <p>본 개인정보처리방침의 내용 추가, 삭제 또는 수정이 있는 경우에는 시행일자 최소 7일 전부터 웹사이트 공지사항 또는 별도 안내를 통하여 고지합니다. 이용자 권리의 중대한 변경이나 중요한 정책 변경이 있는 경우에는 보다 충분한 기간을 두고 안내합니다.</p>
         <ul className="mt-2 list-disc pl-5 space-y-1">
-          <li>공고일자: 2026년 4월 13일</li>
-          <li>시행일자: 2026년 4월 13일</li>
+          <li>공고일자: 2026년 6월 6일</li>
+          <li>시행일자: 2026년 6월 6일</li>
         </ul>
       </Section>
     </div>
