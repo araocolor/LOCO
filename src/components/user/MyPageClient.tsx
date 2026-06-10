@@ -22,6 +22,8 @@ import StarChargeSheet from "@/components/star/StarChargeSheet";
 import StarGiftersPanel from "@/components/star/StarGiftersPanel";
 import PurchaseHistoryDrawer from "./PurchaseHistoryDrawer";
 import type { PurchaseItem, PurchaseTab } from "./PurchaseHistoryDrawer";
+import CustomerServiceDrawer from "./CustomerServiceDrawer";
+import type { CustomerServiceTab } from "./CustomerServiceDrawer";
 
 
 function getMemberTypeLabel(type: string) {
@@ -154,6 +156,9 @@ export default function MyPageClient({
   const [editOpen, setEditOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(profile.profile_image_url);
+  const [avatarHdUrl, setAvatarHdUrl] = useState<string | null>(
+    profile.profile_image_url ? profile.profile_image_url.replace(/\.webp$/, "_hd.webp") : null
+  );
   const [uploading, setUploading] = useState(false);
   const [profileMeta, setProfileMeta] = useState<Pick<Profile, "bio" | "country" | "region" | "favorite_genre" | "member_type">>({
     bio: profile.bio,
@@ -189,6 +194,8 @@ export default function MyPageClient({
   const [avatarZoomOpen, setAvatarZoomOpen] = useState(false);
   const [purchaseDrawerOpen, setPurchaseDrawerOpen] = useState(false);
   const [purchaseInitialTab, setPurchaseInitialTab] = useState<PurchaseTab>("credit");
+  const [csDrawerOpen, setCsDrawerOpen] = useState(false);
+  const [csInitialTab, setCsInitialTab] = useState<CustomerServiceTab>("notice");
 
   function openPurchaseDrawer(tab: PurchaseTab) {
     setPurchaseInitialTab(tab);
@@ -370,23 +377,27 @@ export default function MyPageClient({
     e.target.value = "";
   }
 
-  async function handleCropConfirm(blob: Blob) {
+  async function handleCropConfirm(blob: Blob, hdBlob: Blob) {
     setSelectedImage(null);
     setUploading(true);
     try {
       const supabase = createClient();
       const ts = Date.now();
       const path = `${profile.id}/${ts}.webp`;
+      const hdPath = `${profile.id}/${ts}_hd.webp`;
 
       const { data: list } = await supabase.storage.from("avatars").list(profile.id);
       const oldFiles = (list ?? []).map((f) => `${profile.id}/${f.name}`);
 
-      const { error: upErr } = await supabase.storage
-        .from("avatars")
-        .upload(path, blob, { contentType: "image/webp", upsert: false });
-      if (upErr) throw upErr;
+      const [upResult, hdUpResult] = await Promise.all([
+        supabase.storage.from("avatars").upload(path, blob, { contentType: "image/webp", upsert: false }),
+        supabase.storage.from("avatars").upload(hdPath, hdBlob, { contentType: "image/webp", upsert: false }),
+      ]);
+      if (upResult.error) throw upResult.error;
+      if (hdUpResult.error) throw hdUpResult.error;
 
       const { data: { publicUrl } } = supabase.storage.from("avatars").getPublicUrl(path);
+      const { data: { publicUrl: hdPublicUrl } } = supabase.storage.from("avatars").getPublicUrl(hdPath);
 
       const { error: dbErr } = await supabase
         .from("profiles")
@@ -399,6 +410,7 @@ export default function MyPageClient({
       }
 
       setAvatarUrl(publicUrl);
+      setAvatarHdUrl(hdPublicUrl);
       patchMyPageProfileCache({ profile_image_url: publicUrl });
       router.refresh();
     } catch (err) {
@@ -678,12 +690,12 @@ export default function MyPageClient({
         <div className="px-4 pt-4 pb-2">
           <span className="text-[15px] font-bold text-gray-800">고객지원</span>
         </div>
-        <button type="button" className="flex w-full items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors">
+        <button type="button" onClick={() => { setCsInitialTab("notice"); setCsDrawerOpen(true); }} className="flex w-full items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors">
           <Megaphone size={22} className="text-gray-500" />
           <span className="flex-1 text-left text-[16px] text-gray-800">공지사항</span>
           <ChevronRight size={18} className="text-gray-400" />
         </button>
-        <button type="button" className="flex w-full items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors">
+        <button type="button" onClick={() => { setCsInitialTab("support"); setCsDrawerOpen(true); }} className="flex w-full items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors">
           <Headphones size={22} className="text-gray-500" />
           <span className="flex-1 text-left text-[16px] text-gray-800">고객센터</span>
           <ChevronRight size={18} className="text-gray-400" />
@@ -991,15 +1003,17 @@ export default function MyPageClient({
           <div className="fixed inset-0 z-[250] bg-black/70" onClick={() => setAvatarZoomOpen(false)} />
           <div className="fixed inset-0 z-[251] flex items-center justify-center pointer-events-none">
             <div
-              className="relative w-[250px] h-[250px] rounded-2xl overflow-hidden pointer-events-auto shadow-xl cursor-pointer"
+              className="relative rounded-2xl overflow-hidden pointer-events-auto shadow-xl cursor-pointer"
+              style={{ width: 250, height: 312 }}
               onClick={() => setAvatarZoomOpen(false)}
             >
               <Image
-                src={avatarUrl}
-                alt="프로필 원본"
+                src={avatarHdUrl ?? avatarUrl}
+                alt="프로필 고화질"
                 fill
                 className="object-cover"
                 unoptimized
+                onError={() => setAvatarHdUrl(null)}
               />
             </div>
           </div>
@@ -1011,6 +1025,12 @@ export default function MyPageClient({
         onClose={() => setPurchaseDrawerOpen(false)}
         items={purchaseItems}
         initialTab={purchaseInitialTab}
+      />
+
+      <CustomerServiceDrawer
+        open={csDrawerOpen}
+        onClose={() => setCsDrawerOpen(false)}
+        initialTab={csInitialTab}
       />
 
     </div>
