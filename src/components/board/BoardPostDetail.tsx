@@ -176,12 +176,16 @@ export default function BoardPostDetail({ postId, onBack, onOpenComments, onEdit
   }
 
   const showInlineComments = post.category === "support" || post.category === "free";
+  const headerTitle =
+    post.category === "support" ? "고객문의" :
+    post.category === "free" ? "자유게시판" :
+    "공지사항";
 
   return (
     <div className="flex flex-col h-full">
       {/* 헤더 */}
       <div className="sticky top-0 z-10 bg-white border-b border-gray-100">
-        <div className="h-12 px-2 flex items-center justify-between">
+        <div className="grid h-12 grid-cols-[44px_1fr_44px] items-center px-2">
           <button
             type="button"
             onClick={onBack}
@@ -190,8 +194,8 @@ export default function BoardPostDetail({ postId, onBack, onOpenComments, onEdit
           >
             <ChevronLeft size={22} />
           </button>
-          <div className="text-[17px] font-semibold text-gray-900">
-            고객센터
+          <div className="min-w-0 text-center text-[17px] font-semibold text-gray-900">
+            {headerTitle}
           </div>
           {isMineOrAdmin && onEdit && post && (
             <button
@@ -202,7 +206,7 @@ export default function BoardPostDetail({ postId, onBack, onOpenComments, onEdit
             >
               <Pencil size={18} className="text-gray-500" />
             </button>
-          )}
+          ) || <div />}
         </div>
       </div>
 
