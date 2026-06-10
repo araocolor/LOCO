@@ -552,7 +552,11 @@ export default function ClassForm({
       if (!res.ok) {
         throw new Error(data.error ?? "이미지 업로드 중 오류가 발생했습니다.");
       }
-      return data.publicUrl as string;
+      const uploadedUrl = data.publicUrl ?? data.full ?? data.thumbnail;
+      if (typeof uploadedUrl !== "string" || !uploadedUrl) {
+        throw new Error("이미지 업로드 응답에 URL이 없습니다.");
+      }
+      return uploadedUrl;
     };
 
     for (const file of files) {

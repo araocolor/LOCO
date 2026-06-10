@@ -68,7 +68,12 @@ export async function POST(request: NextRequest) {
       processAndUpload(admin, buffer, `${basePath}_full`, 800, 70),
     ]);
 
-    return NextResponse.json({ thumbnail, full });
+    return NextResponse.json({
+      path: `${basePath}_full.webp`,
+      publicUrl: full,
+      thumbnail,
+      full,
+    });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "업로드 중 오류가 발생했습니다." },
