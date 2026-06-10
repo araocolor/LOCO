@@ -754,23 +754,22 @@ export default function MyPageClient({
         )}
       </div>
 
-      <div className="mx-4 mb-10 rounded-xl border border-gray-100 bg-white px-4 py-4 shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="flex h-[54px] w-[54px] shrink-0 items-center justify-center rounded-2xl bg-yellow-50">
-            <Image
-              src="/character/yelly_icon.png"
-              alt="Xlatin 캐릭터"
-              width={42}
-              height={42}
-              className="h-auto w-[42px] object-contain"
-            />
-          </div>
-          <div className="min-w-0">
-            <p className="text-[15px] font-bold text-gray-800">Xlatin 캐릭터</p>
-            <p className="mt-1 text-[13px] leading-[19px] text-gray-500">
-              앱 안내와 이벤트 소식에서 만나는 Xlatin의 작은 캐릭터입니다.
-            </p>
-          </div>
+      <div className="mx-9 mb-10 flex items-center gap-3">
+        <div className="flex h-[48px] w-[48px] shrink-0 items-center justify-center">
+          <Image
+            src="/character/yelly_icon.png"
+            alt="Loco로꼬"
+            width={40}
+            height={40}
+            className="h-auto w-[40px] object-contain"
+          />
+        </div>
+        <div className="min-w-0">
+          <p className="text-[13px] leading-[18px] text-gray-500">
+            앱 안내와 이벤트 소식에서 만나는
+            <br />
+            작고 귀여운 캐릭터입니다.
+          </p>
         </div>
       </div>
 
