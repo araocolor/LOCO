@@ -90,7 +90,7 @@ export default function ChatMenuSheet({
           />
           <MenuItem
             icon={muted ? <BellOff size={20} /> : <Bell size={20} />}
-            label={muted ? "알림꺼짐" : "알림켜짐"}
+            label={muted ? "소리꺼짐" : "소리켜짐"}
             onClick={onToggleMute}
             trailing={
               <div className={`w-10 h-6 rounded-full flex items-center px-0.5 transition-colors ${muted ? "bg-gray-300" : "bg-green-400"}`}>
