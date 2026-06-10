@@ -15,7 +15,6 @@ import type { ChatNotice, Conversation, Message, MessageMenuTab, MessageReaction
 import { useChatNotices } from "./_hooks/useChatNotices";
 import {
   appendMessageCache,
-  hasChatRoomCache,
   readMessageCache,
   writeMessageCache,
   readNoticeCache,
@@ -41,7 +40,7 @@ interface ChatRoomApiItem {
   }>;
   last_message: {
     id: string;
-    kind: "text" | "image" | "file" | "system";
+    kind: "text" | "image" | "file" | "system" | "emoji";
     content: string;
     sender_id: string;
     is_mine: boolean;
@@ -51,7 +50,7 @@ interface ChatRoomApiItem {
     id: string;
     room_id: string;
     sender_id: string;
-    kind: "text" | "image" | "file" | "system";
+    kind: "text" | "image" | "file" | "system" | "emoji";
     content: string;
     is_mine: boolean;
     created_at: string;
@@ -83,7 +82,7 @@ interface ChatMessageApiItem {
   id: string;
   room_id: string;
   sender_id: string;
-  kind: "text" | "image" | "file" | "system";
+  kind: "text" | "image" | "file" | "system" | "emoji";
   content: string;
   deleted_at: string | null;
   created_at: string;
@@ -187,6 +186,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
   const [memberDrawerOpen, setMemberDrawerOpen] = useState(false);
   const [createChatOpen, setCreateChatOpen] = useState(false);
   const [attachOpen, setAttachOpen] = useState(false);
+  const [emojiOpen, setEmojiOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [shakingMsgId, setShakingMsgId] = useState<string | null>(null);
   const [profileModalUserId, setProfileModalUserId] = useState<string | null>(null);
@@ -381,6 +381,57 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
       alert(error instanceof Error ? error.message : "영상 업로드에 실패했습니다.");
     } finally {
       setUploading(false);
+    }
+  }
+
+  async function handleSendEmoji(emojiSrc: string) {
+    if (!selectedRoomId) return;
+
+    const roomId = selectedRoomId;
+    const tempId = `local-emoji-${Date.now()}`;
+    const emojiContent = { src: emojiSrc };
+    const tempMessage: Message = {
+      id: tempId,
+      room_id: roomId,
+      sender_id: userId,
+      kind: "emoji",
+      content: JSON.stringify(emojiContent),
+      sent_at: new Date().toISOString(),
+      sender: null,
+      my_reaction: null,
+      reaction_counts: EMPTY_MESSAGE_REACTION_COUNTS,
+      send_status: "sending",
+    };
+
+    setMessages((prev) => [...prev, tempMessage]);
+    setAttachOpen(false);
+    setEmojiOpen(false);
+
+    try {
+      const res = await fetch(`/api/chat/rooms/${roomId}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          kind: "emoji",
+          content: emojiContent,
+        }),
+      });
+      const json = await res.json();
+      const message = json.data ? mapChatMessage(json.data as ChatMessageApiItem) : null;
+
+      if (res.ok && message) {
+        setMessages((prev) => prev.map((item) => (item.id === tempId ? message : item)));
+        appendMessageCache(roomId, message);
+        patchConversationWithMessage(roomId, message);
+      } else {
+        setMessages((prev) => prev.map((item) => (
+          item.id === tempId ? { ...item, send_status: "failed" as const } : item
+        )));
+      }
+    } catch {
+      setMessages((prev) => prev.map((item) => (
+        item.id === tempId ? { ...item, send_status: "failed" as const } : item
+      )));
     }
   }
 
@@ -974,7 +1025,9 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
         const cache = JSON.parse(raw);
         const p = cache?.profile;
         if (p?.nickname) {
-          setMyProfile({ nickname: p.nickname, profile_image_url: p.profile_image_url ?? null });
+          queueMicrotask(() => {
+            setMyProfile({ nickname: p.nickname, profile_image_url: p.profile_image_url ?? null });
+          });
           return;
         }
       }
@@ -1007,11 +1060,11 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
     setSelectedRoomId(roomId);
     setChatOpen(true);
     setChatLoading(true);
+    setAttachOpen(false);
+    setEmojiOpen(false);
 
     const localConversation = conversations.find((conv) => conv.id === roomId) ?? null;
     const localOtherUser = localConversation?.other_user ?? null;
-    const hasCachedRoom = hasChatRoomCache(roomId);
-
     setOtherUser(localOtherUser);
 
     const cachedNotices = readNoticeCache(roomId);
@@ -1109,6 +1162,8 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
     activeChatRoomRef.current = null;
     setChatOpen(false);
     setMemberDrawerOpen(false);
+    setAttachOpen(false);
+    setEmojiOpen(false);
     setTimeout(() => {
       setSelectedRoomId(null);
       setMessages([]);
@@ -1290,7 +1345,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
     }
   }
 
-  async function handleFriendMessageSent(_roomId: string) {
+  async function handleFriendMessageSent() {
     await fetchConversationsByType("direct", { force: true });
   }
 
@@ -1305,8 +1360,8 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
         onOpenChat={openChat}
         onOpenProfile={(profileId) => router.push(`/users/${profileId}/view`)}
         onOpenSelfChat={() => { void openSelfChat(); }}
-        onFriendMessageSent={(roomId) => {
-          void handleFriendMessageSent(roomId);
+        onFriendMessageSent={() => {
+          void handleFriendMessageSent();
         }}
         onCreateChat={() => setCreateChatOpen(true)}
         setActiveMenuTab={setActiveMenuTab}
@@ -1315,7 +1370,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
       />
 
       <ChatDrawer
-        key={selectedRoomId ?? "chat-drawer-empty"}
+        key={`${selectedRoomId ?? "chat-drawer-empty"}:${chatOpen ? "open" : "closed"}`}
         attachOpen={attachOpen}
         canAddMembers={canAddMembers}
         canEditTitle={canEditTitle}
@@ -1323,6 +1378,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
         chatOpen={chatOpen}
         chatTitle={selectedConversation?.title ?? null}
         classId={selectedConversation?.class_id ?? null}
+        emojiOpen={emojiOpen}
         messages={messages}
         messagesEndRef={messagesEndRef}
         myProfile={myProfile}
@@ -1358,6 +1414,9 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
         }}
         onOpenMemberDrawer={() => setMemberDrawerOpen(true)}
         onPhotoUpload={handlePhotoUpload}
+        onSendEmoji={(emojiSrc) => {
+          void handleSendEmoji(emojiSrc);
+        }}
         onVideoUpload={handleVideoUpload}
         onSaveNotice={saveClassNotice}
         onUpdateNotice={updateClassNotice}
@@ -1375,6 +1434,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
         onLeaveRoom={() => { void handleLeaveRoom(); }}
         roomCreatedAt={selectedConversation?.created_at ?? null}
         setAttachOpen={setAttachOpen}
+        setEmojiOpen={setEmojiOpen}
         setNewMessage={setNewMessage}
         setShakingMsgId={setShakingMsgId}
         formatTime={formatTime}

@@ -1,12 +1,13 @@
 "use client";
 
-import { memo } from "react";
+import { memo, useState, useEffect } from "react";
 import Image from "next/image";
 import { Loader2, Play, TriangleAlert } from "lucide-react";
 import type { Message, MessageReactionType, MyProfile, OtherUser } from "../_types";
 import {
   formatClassShareDate,
   getClassShareData,
+  getEmojiMessageData,
   getImageMessageData,
   getVideoMessageData,
   hasRichMessageContent,
@@ -60,10 +61,21 @@ export default memo(function MessageBubble({
   const showSenderName = !isMine && isNewGroup;
   const showMyAvatar = isMine && isNewGroup;
   const sender = msg.sender ?? otherUser;
-  const imageData = getImageMessageData(msg.content);
+  const emojiData = msg.kind === "emoji" ? getEmojiMessageData(msg.content) : null;
+  const imageData = msg.kind !== "emoji" ? getImageMessageData(msg.content) : null;
   const videoData = getVideoMessageData(msg.content);
   const classShareData = getClassShareData(msg.content);
   const hasRichContent = hasRichMessageContent(msg.content);
+
+  const EMOJI_ANIMATIONS = ["emoji-pop", "emoji-wiggle", "emoji-bounce"] as const;
+  const [emojiAnim, setEmojiAnim] = useState<string | null>(() =>
+    emojiData ? EMOJI_ANIMATIONS[Math.floor(Math.random() * EMOJI_ANIMATIONS.length)] : null
+  );
+  useEffect(() => {
+    if (!emojiAnim) return;
+    const timer = window.setTimeout(() => setEmojiAnim(null), 2000);
+    return () => window.clearTimeout(timer);
+  }, [emojiAnim]);
 
   return (
     <div data-msg-id={msg.id}>
@@ -143,7 +155,7 @@ export default memo(function MessageBubble({
               } ${isMine ? "text-gray-900" : "bg-white text-gray-900"} ${isMine && shakingMsgId === msg.id ? "msg-shake" : ""} select-none`}
               style={{
                 ...(isMine ? { maxWidth: "72vw" } : { maxWidth: "270px" }),
-                ...(isMine && !hasRichContent ? { backgroundColor: "#FEE500" } : {}),
+                ...(isMine && !hasRichContent && !emojiData ? { backgroundColor: "#FEE500" } : {}),
                 fontFamily: 'Roboto, -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif',
               }}
               onTouchStart={() => onStartLongPress(msg.id, isMine)}
@@ -182,14 +194,16 @@ export default memo(function MessageBubble({
                   ))}
                 </div>
               )}
-              {imageData ? (
+              {emojiData ? (
+                <Image src={emojiData.src} alt="이모지" width={100} height={100} className={`h-[100px] w-[100px] object-contain ${emojiAnim ?? ""}`} />
+              ) : imageData ? (
                 <div className="relative">
                   <button
                     type="button"
                     onClick={() => !msg.send_status && onImageClick?.(msg.id, imageData.full, isMine)}
                     className="block"
                   >
-                    <Image src={imageData.thumb} alt="사진" width={200} height={200} className={`rounded-lg object-cover ${msg.send_status === "sending" ? "opacity-60" : ""}`} />
+                    <Image src={imageData.thumb} alt="사진" width={100} height={100} className={`rounded-lg object-cover ${msg.send_status === "sending" ? "opacity-60" : ""}`} />
                   </button>
                   {msg.send_status === "sending" && (
                     <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-black/30">

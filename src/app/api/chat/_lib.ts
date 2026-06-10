@@ -1,7 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
-export type ChatMessageKind = "text" | "image" | "file" | "system";
+export type ChatMessageKind = "text" | "image" | "file" | "system" | "emoji";
 
 export interface ChatRoomRow {
   id: string;
@@ -148,11 +148,22 @@ export function getRoomDisplayTitle(
   return room.type === "class" ? "클래스 채팅" : "그룹 채팅";
 }
 
+const ALLOWED_EMOJI_SRCS = new Set([
+  "/character/character.png",
+  "/character/character_2.png",
+]);
+
 export function normalizeMessageContent(kind: ChatMessageKind, content: unknown) {
   if (typeof content === "string") {
     const trimmed = content.trim();
     if (!trimmed) return null;
     return kind === "text" ? trimmed : trimmed;
+  }
+
+  if (kind === "emoji" && content && typeof content === "object") {
+    const src = (content as Record<string, unknown>).src;
+    if (typeof src !== "string" || !ALLOWED_EMOJI_SRCS.has(src)) return null;
+    return JSON.stringify({ src });
   }
 
   if ((kind === "image" || kind === "file") && content && typeof content === "object") {

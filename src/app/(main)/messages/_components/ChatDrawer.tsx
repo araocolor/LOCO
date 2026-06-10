@@ -10,6 +10,7 @@ import ImageViewerDrawer, { type ImageViewerData } from "./ImageViewerDrawer";
 import ArchiveGrid from "./chat/ArchiveGrid";
 import ChatComposer from "./chat/ChatComposer";
 import ChatDrawerHeader from "./chat/ChatDrawerHeader";
+import ChatEmojiPanel from "./chat/ChatEmojiPanel";
 import ChatDrawerTabs, { type ChatDrawerTab } from "./chat/ChatDrawerTabs";
 import ChatBgSheet from "./chat/ChatBgSheet";
 import ChatMenuSheet from "./chat/ChatMenuSheet";
@@ -31,6 +32,7 @@ interface ChatDrawerProps {
   classId: string | null;
   canAddMembers: boolean;
   canEditTitle: boolean;
+  emojiOpen: boolean;
   messages: Message[];
   messagesEndRef: RefObject<HTMLDivElement | null>;
   myProfile: MyProfile | null;
@@ -59,6 +61,7 @@ interface ChatDrawerProps {
   onNoticeReaction: (noticeId: string, reactionType: NoticeReactionType) => void;
   onNoticeVote: (noticeId: string, voteType: NoticeVoteType) => void;
   onPhotoUpload: (file: File) => void;
+  onSendEmoji: (emojiSrc: string) => void;
   onVideoUpload: (file: File) => void;
   onSaveNotice: (notice: string, kind: NoticeKind, closesAt: string | null) => Promise<void>;
   onUpdateNotice: (noticeId: string, content: string, kind: NoticeKind, closesAt: string | null) => Promise<void>;
@@ -72,6 +75,7 @@ interface ChatDrawerProps {
   onLeaveRoom: () => void;
   roomCreatedAt: string | null;
   setAttachOpen: Dispatch<SetStateAction<boolean>>;
+  setEmojiOpen: Dispatch<SetStateAction<boolean>>;
   setNewMessage: Dispatch<SetStateAction<string>>;
   setShakingMsgId: Dispatch<SetStateAction<string | null>>;
   formatTime: (dateStr: string) => string;
@@ -97,6 +101,7 @@ export default function ChatDrawer({
   classId,
   canAddMembers,
   canEditTitle,
+  emojiOpen,
   messages,
   messagesEndRef,
   myProfile,
@@ -120,6 +125,7 @@ export default function ChatDrawer({
   onNoticeReaction,
   onNoticeVote,
   onPhotoUpload,
+  onSendEmoji,
   onVideoUpload,
   onSaveNotice,
   onUpdateNotice,
@@ -133,6 +139,7 @@ export default function ChatDrawer({
   onLeaveRoom,
   roomCreatedAt,
   setAttachOpen,
+  setEmojiOpen,
   setNewMessage,
   setShakingMsgId,
   formatTime,
@@ -149,6 +156,7 @@ export default function ChatDrawer({
   const [toastMessage, setToastMessage] = useState("");
   const [now, setNow] = useState(() => Date.now());
   const [viewerData, setViewerData] = useState<ImageViewerData | null>(null);
+  const [pendingEmojiSrc, setPendingEmojiSrc] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [showGame, setShowGame] = useState(false);
   const [muted, setMuted] = useState(() => roomId ? isChatMuted(roomId) : false);
@@ -331,6 +339,21 @@ export default function ChatDrawer({
     onMarkNoticeRead(unreadNotice.id);
   }
 
+  function handleEmojiSelect(emojiSrc: string) {
+    setPendingEmojiSrc(emojiSrc);
+    setAttachOpen(false);
+    setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 320);
+  }
+
+  function handleComposerSend() {
+    if (pendingEmojiSrc) {
+      onSendEmoji(pendingEmojiSrc);
+      setPendingEmojiSrc(null);
+      return;
+    }
+    onSendMessage();
+  }
+
   return (
     <>
     <ImageViewerDrawer data={viewerData} onClose={() => setViewerData(null)} onDelete={onDeleteMessage} />
@@ -373,6 +396,33 @@ export default function ChatDrawer({
           to { opacity: 1; transform: translateY(0); }
         }
         .msg-shake { animation: shake 0.3s ease-in-out infinite; }
+        @keyframes emojiPop {
+          0% { transform: translateY(40px); opacity: 0; }
+          50% { transform: translateY(-10px); opacity: 1; }
+          70% { transform: translateY(0); }
+          100% { transform: translateY(0); }
+        }
+        @keyframes emojiWiggle {
+          0%, 100% { transform: rotate(0deg); }
+          15% { transform: rotate(-12deg); }
+          30% { transform: rotate(10deg); }
+          45% { transform: rotate(-8deg); }
+          60% { transform: rotate(6deg); }
+          75% { transform: rotate(-3deg); }
+          90% { transform: rotate(1deg); }
+        }
+        @keyframes emojiBounce {
+          0%, 100% { transform: translateY(0); }
+          20% { transform: translateY(-16px); }
+          40% { transform: translateY(0); }
+          55% { transform: translateY(-10px); }
+          70% { transform: translateY(0); }
+          82% { transform: translateY(-4px); }
+          92% { transform: translateY(0); }
+        }
+        .emoji-pop { animation: emojiPop 0.6s ease-out forwards; }
+        .emoji-wiggle { animation: emojiWiggle 2s ease-in-out; }
+        .emoji-bounce { animation: emojiBounce 2s ease-in-out; }
         .chat-drawer-scroll {
           -webkit-overflow-scrolling: touch;
           overscroll-behavior: contain;
@@ -420,6 +470,8 @@ export default function ChatDrawer({
             onMessageReaction={onMessageReaction}
             onNoticeReaction={onNoticeReaction}
             onStartLongPress={onStartLongPress}
+            pendingEmojiSrc={pendingEmojiSrc}
+            onClearPendingEmoji={() => setPendingEmojiSrc(null)}
             setAttachOpen={setAttachOpen}
             setShakingMsgId={setShakingMsgId}
             formatTime={formatTime}
@@ -484,12 +536,15 @@ export default function ChatDrawer({
       {displayedActiveTab === "all" && !showGame && (
         <>
           <ChatComposer
+            emojiOpen={emojiOpen}
             muted={muted}
             newMessage={newMessage}
+            pendingEmojiSrc={pendingEmojiSrc}
             selectedUserId={selectedUserId}
             setAttachOpen={setAttachOpen}
+            setEmojiOpen={setEmojiOpen}
             setNewMessage={setNewMessage}
-            onSendMessage={onSendMessage}
+            onSendMessage={handleComposerSend}
           />
 
           <ChatAttachPanel
@@ -499,6 +554,13 @@ export default function ChatDrawer({
             uploading={uploading}
             onPhotoUpload={onPhotoUpload}
             onVideoUpload={onVideoUpload}
+          />
+
+          <ChatEmojiPanel
+            emojiOpen={emojiOpen}
+            pendingEmojiSrc={pendingEmojiSrc}
+            uploading={uploading}
+            onSelectEmoji={handleEmojiSelect}
           />
         </>
       )}

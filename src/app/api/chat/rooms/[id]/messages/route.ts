@@ -9,7 +9,7 @@ import {
   requireActiveRoomMember,
 } from "../../../_lib";
 
-const MESSAGE_KINDS = new Set<ChatMessageKind>(["text", "image", "file", "system"]);
+const MESSAGE_KINDS = new Set<ChatMessageKind>(["text", "image", "file", "system", "emoji"]);
 const MESSAGE_REACTION_TYPES = ["heart", "like", "laugh", "wow", "sad"] as const;
 type MessageReactionType = (typeof MESSAGE_REACTION_TYPES)[number];
 

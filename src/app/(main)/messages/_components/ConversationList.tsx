@@ -23,6 +23,20 @@ interface ConversationListProps {
   truncateMessage: (content: string, length?: number) => string;
 }
 
+function ChatRoomMascot() {
+  return (
+    <div className="mt-auto flex justify-center px-4 py-8">
+      <Image
+        src="/character/yelly_icon.png"
+        alt="주 캐릭터"
+        width={60}
+        height={60}
+        className="h-auto w-[60px] object-contain"
+      />
+    </div>
+  );
+}
+
 export default function ConversationList({
   activeMenuTab,
   conversations,
@@ -117,7 +131,7 @@ export default function ConversationList({
             </p>
           </div>
         ) : (
-          <>
+          <div className="flex min-h-full flex-col">
           {activeMenuTab === "direct" && (
             <div
               onClick={() => selfChat ? onOpenChat(selfChat.id) : onOpenSelfChat()}
@@ -315,7 +329,8 @@ export default function ConversationList({
               })()}
             </div>
           ))}
-          </>
+            <ChatRoomMascot />
+          </div>
         )}
       </div>
     </>

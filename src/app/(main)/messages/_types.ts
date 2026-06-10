@@ -19,7 +19,7 @@ export interface Conversation {
   } | null;
   last_message: {
     id?: string;
-    kind?: "text" | "image" | "file" | "system";
+    kind?: "text" | "image" | "file" | "system" | "emoji";
     content: string;
     sent_at: string;
     is_mine: boolean;
@@ -62,7 +62,7 @@ export interface Message {
   sender_id: string;
   receiver_id?: string;
   room_id?: string;
-  kind?: "text" | "image" | "file" | "system";
+  kind?: "text" | "image" | "file" | "system" | "emoji";
   content: string;
   sent_at: string;
   read_at?: string | null;

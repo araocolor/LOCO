@@ -2,7 +2,8 @@
 
 import type { Dispatch, RefObject, SetStateAction } from "react";
 import type { UIEvent } from "react";
-import { BarChart3, Megaphone } from "lucide-react";
+import Image from "next/image";
+import { BarChart3, Megaphone, X } from "lucide-react";
 import Avatar from "@/components/ui/Avatar";
 import MessageBubble from "../MessageBubble";
 import type { ChatNotice, Message, MessageReactionType, MyProfile, NoticeReactionType, OtherUser } from "../../_types";
@@ -41,6 +42,8 @@ interface ChatTimelineProps {
   onAvatarClick: (userId: string) => void;
   onNoticeReaction: (noticeId: string, reactionType: NoticeReactionType) => void;
   onStartLongPress: (msgId: string, isMine: boolean) => void;
+  pendingEmojiSrc: string | null;
+  onClearPendingEmoji: () => void;
   setAttachOpen: Dispatch<SetStateAction<boolean>>;
   setShakingMsgId: Dispatch<SetStateAction<string | null>>;
 }
@@ -68,6 +71,8 @@ export default function ChatTimeline({
   onMessageReaction,
   onNoticeReaction,
   onStartLongPress,
+  pendingEmojiSrc,
+  onClearPendingEmoji,
   setAttachOpen,
   setShakingMsgId,
 }: ChatTimelineProps) {
@@ -187,6 +192,27 @@ export default function ChatTimeline({
           );
         });
       })()}
+      {pendingEmojiSrc && (
+        <div className="flex justify-end">
+          <div className="relative inline-flex items-center rounded-2xl bg-white/90 p-3 shadow-sm">
+            <Image
+              src={pendingEmojiSrc}
+              alt="전송 대기중"
+              width={150}
+              height={150}
+              className="h-[150px] w-[150px] object-contain"
+            />
+            <button
+              type="button"
+              onClick={onClearPendingEmoji}
+              className="absolute -top-2 -right-2 flex h-6 w-6 items-center justify-center rounded-full bg-gray-700 text-white shadow"
+              aria-label="선택 취소"
+            >
+              <X size={12} />
+            </button>
+          </div>
+        </div>
+      )}
       <div ref={messagesEndRef} />
     </div>
   );

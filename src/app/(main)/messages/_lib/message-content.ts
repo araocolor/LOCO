@@ -30,6 +30,7 @@ export interface ParsedMessageContent {
   type?: string;
   message?: string;
   class?: ClassShareData["class"];
+  src?: string;
   thumb?: string;
   full?: string;
   status?: string;
@@ -63,6 +64,16 @@ export function getImageMessageData(content: string): ImageMessageData | null {
   return null;
 }
 
+export function getEmojiMessageData(content: string): { src: string } | null {
+  const parsed = parseMessageContent(content);
+  if (typeof parsed?.src === "string") return { src: parsed.src };
+  return null;
+}
+
+export function isCharacterEmojiImage(src: string) {
+  return src.startsWith("/character/");
+}
+
 export function getVideoMessageData(content: string): VideoMessageData | null {
   const parsed = parseMessageContent(content);
   if (parsed?.type !== "video") return null;
@@ -94,9 +105,9 @@ export function isProcessingVideoMessage(message: Message) {
 }
 
 export function isPreviewableTextMessage(
-  message: { kind?: "text" | "image" | "file" | "system"; content: string } | null
+  message: { kind?: "text" | "image" | "file" | "system" | "emoji"; content: string } | null
 ) {
-  if (!message || message.kind === "image" || message.kind === "system") return false;
+  if (!message || message.kind === "image" || message.kind === "system" || message.kind === "emoji") return false;
   const parsed = parseMessageContent(message.content);
   return parsed?.type !== "image" && parsed?.type !== "video";
 }
@@ -104,7 +115,13 @@ export function isPreviewableTextMessage(
 export function getMessagePreviewText(content: string, options?: { isMine?: boolean; truncate?: (content: string) => string }) {
   const parsed = parseMessageContent(content);
   if (parsed?.type === "class_share") return "클래스 공유";
+  if (typeof parsed?.src === "string") {
+    return options?.isMine ? "이모지를 보냈습니다" : "이모지가 도착했습니다";
+  }
   if (parsed?.type === "image") {
+    if (typeof parsed.thumb === "string" && isCharacterEmojiImage(parsed.thumb)) {
+      return options?.isMine ? "이모지를 보냈습니다" : "이모지가 도착했습니다";
+    }
     return options?.isMine ? "사진을 업로드 하였습니다" : "사진이 업로드 되었습니다";
   }
   if (parsed?.type === "video") {
@@ -118,6 +135,7 @@ export function getArchiveItems(messages: Message[]): ArchiveItem[] {
   return messages.flatMap<ArchiveItem>((message) => {
     const imageData = getImageMessageData(message.content);
     if (imageData) {
+      if (isCharacterEmojiImage(imageData.thumb)) return [];
       return [{ id: message.id, type: "image", thumb: imageData.thumb, href: imageData.full }];
     }
 
