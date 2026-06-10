@@ -7,6 +7,7 @@ import Link from "next/link";
 import { UserCircle, X, Settings, HeartHandshake, Star, SmilePlus, UsersRound, CreditCard, Award, Megaphone, Headphones, FileText, ShieldCheck, ChevronRight, ReceiptText } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { fetchWithAuthRetry } from "@/lib/auth/fetch-with-auth-retry";
+import { prefetchBoardPostsCache } from "@/lib/board-session-cache";
 import { parseBookmarkEntries } from "@/lib/bookmarks/local";
 import { REGIONS, MEMBER_TYPES, MAX_MEMBER_TYPE } from "@/lib/constants";
 import AvatarCropModal from "./AvatarCropModal";
@@ -196,6 +197,10 @@ export default function MyPageClient({
   const [purchaseInitialTab, setPurchaseInitialTab] = useState<PurchaseTab>("credit");
   const [csDrawerOpen, setCsDrawerOpen] = useState(false);
   const [csInitialTab, setCsInitialTab] = useState<CustomerServiceTab>("notice");
+
+  useEffect(() => {
+    void prefetchBoardPostsCache();
+  }, []);
 
   function openPurchaseDrawer(tab: PurchaseTab) {
     setPurchaseInitialTab(tab);
@@ -697,7 +702,7 @@ export default function MyPageClient({
         </button>
         <button type="button" onClick={() => { setCsInitialTab("support"); setCsDrawerOpen(true); }} className="flex w-full items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors">
           <Headphones size={22} className="text-gray-500" />
-          <span className="flex-1 text-left text-[16px] text-gray-800">고객센터</span>
+          <span className="flex-1 text-left text-[16px] text-gray-800">고객문의</span>
           <ChevronRight size={18} className="text-gray-400" />
         </button>
         <button type="button" onClick={() => setTermsOpen(true)} className="flex w-full items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors">

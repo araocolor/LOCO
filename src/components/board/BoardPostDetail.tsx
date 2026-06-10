@@ -1,10 +1,16 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { ChevronLeft, MessageCircle, Pencil } from "lucide-react";
-import type { BoardPost } from "@/types/board";
+import type { BoardPost, BoardComment } from "@/types/board";
 import Avatar from "@/components/ui/Avatar";
 import { createClient } from "@/lib/supabase/client";
+import {
+  readBoardCommentsCache,
+  readBoardPostCache,
+  writeBoardCommentsCache,
+  writeBoardPostCache,
+} from "@/lib/board-session-cache";
 
 interface Props {
   postId: string;
@@ -18,30 +24,51 @@ function formatDateTime(value: string) {
   return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, "0")}.${String(d.getDate()).padStart(2, "0")} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
+function formatCommentTime(value: string) {
+  const d = new Date(value);
+  return `${String(d.getMonth() + 1).padStart(2, "0")}.${String(d.getDate()).padStart(2, "0")} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
 export default function BoardPostDetail({ postId, onBack, onOpenComments, onEdit }: Props) {
-  const [post, setPost] = useState<BoardPost | null>(null);
-  const [loading, setLoading] = useState(true);
+  const initialPost = useMemo(() => readBoardPostCache(postId), [postId]);
+  const [post, setPost] = useState<BoardPost | null>(initialPost);
+  const [loading, setLoading] = useState(!initialPost);
   const [myLiked, setMyLiked] = useState(false);
-  const [likeCount, setLikeCount] = useState(0);
+  const [likeCount, setLikeCount] = useState(initialPost?.like_count ?? 0);
   const [isMineOrAdmin, setIsMineOrAdmin] = useState(false);
   const likeTimerRef = useRef<number | null>(null);
 
+  const [comments, setComments] = useState<BoardComment[]>([]);
+  const [expandedReplies, setExpandedReplies] = useState<Set<string>>(new Set());
+
+  const rootComments = useMemo(() => comments.filter((c) => !c.parent_id), [comments]);
+  const repliesByParent = useMemo(() => {
+    const map = new Map<string, BoardComment[]>();
+    comments.forEach((c) => {
+      if (!c.parent_id) return;
+      map.set(c.parent_id, [...(map.get(c.parent_id) ?? []), c]);
+    });
+    return map;
+  }, [comments]);
+
   useEffect(() => {
     let cancelled = false;
-    async function load() {
-      setLoading(true);
+    async function load(hasCachedPost: boolean) {
+      if (!hasCachedPost) setLoading(true);
       try {
         const res = await fetch(`/api/board/posts/${postId}`);
         const data = await res.json().catch(() => ({}));
         if (!cancelled && res.ok && data.post) {
-          setPost(data.post);
-          setMyLiked(data.post.my_liked ?? false);
-          setLikeCount(data.post.like_count ?? 0);
+          const nextPost = data.post as BoardPost;
+          setPost(nextPost);
+          writeBoardPostCache(nextPost);
+          setMyLiked(nextPost.my_liked ?? false);
+          setLikeCount(nextPost.like_count ?? 0);
 
           const supabase = createClient();
           const { data: { user } } = await supabase.auth.getUser();
           if (user) {
-            const isAuthor = user.id === data.post.author_id;
+            const isAuthor = user.id === nextPost.author_id;
             const { data: profile } = await supabase
               .from("profiles")
               .select("role")
@@ -54,7 +81,43 @@ export default function BoardPostDetail({ postId, onBack, onOpenComments, onEdit
         if (!cancelled) setLoading(false);
       }
     }
-    void load();
+    queueMicrotask(() => {
+      if (cancelled) return;
+      const cachedPost = readBoardPostCache(postId);
+      if (cachedPost) {
+        setPost(cachedPost);
+        setLikeCount(cachedPost.like_count ?? 0);
+        setLoading(false);
+      } else {
+        setPost(null);
+        setLikeCount(0);
+      }
+      setMyLiked(false);
+      setIsMineOrAdmin(false);
+      void load(!!cachedPost);
+    });
+    return () => { cancelled = true; };
+  }, [postId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadComments() {
+      try {
+        const res = await fetch(`/api/board/posts/${postId}/comments`);
+        const data = await res.json().catch(() => ({}));
+        if (!cancelled && res.ok) {
+          const nextComments = (data.comments ?? []) as BoardComment[];
+          setComments(nextComments);
+          writeBoardCommentsCache(postId, nextComments);
+        }
+      } catch { /* */ }
+    }
+    queueMicrotask(() => {
+      if (cancelled) return;
+      const cachedComments = readBoardCommentsCache(postId);
+      if (cachedComments.length > 0) setComments(cachedComments);
+      void loadComments();
+    });
     return () => { cancelled = true; };
   }, [postId]);
 
@@ -87,6 +150,15 @@ export default function BoardPostDetail({ postId, onBack, onOpenComments, onEdit
     }, 800);
   }
 
+  function toggleReplies(parentId: string) {
+    setExpandedReplies((prev) => {
+      const next = new Set(prev);
+      if (next.has(parentId)) next.delete(parentId);
+      else next.add(parentId);
+      return next;
+    });
+  }
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-gray-400">
@@ -103,6 +175,8 @@ export default function BoardPostDetail({ postId, onBack, onOpenComments, onEdit
     );
   }
 
+  const showInlineComments = post.category === "support" || post.category === "free";
+
   return (
     <div className="flex flex-col h-full">
       {/* 헤더 */}
@@ -116,6 +190,9 @@ export default function BoardPostDetail({ postId, onBack, onOpenComments, onEdit
           >
             <ChevronLeft size={22} />
           </button>
+          <div className="text-[17px] font-semibold text-gray-900">
+            고객센터
+          </div>
           {isMineOrAdmin && onEdit && post && (
             <button
               type="button"
@@ -225,6 +302,40 @@ export default function BoardPostDetail({ postId, onBack, onOpenComments, onEdit
             {likeCount > 0 && <span>{likeCount}</span>}
           </button>
         </div>
+
+        {/* 댓글 인라인 표시 (고객센터/자유게시판) */}
+        {showInlineComments && post.comment_enabled && rootComments.length > 0 && (
+          <>
+            <div className="border-t-[6px] border-gray-100" />
+            <div className="px-4 py-3">
+              {rootComments.map((comment) => {
+                const replies = repliesByParent.get(comment.id) ?? [];
+                const isExpanded = expandedReplies.has(comment.id);
+                return (
+                  <div key={comment.id} className="border-b border-gray-100 last:border-b-0">
+                    <InlineComment comment={comment} isAuthor={comment.profile_id === post.author_id} />
+                    {replies.length > 0 && !isExpanded && (
+                      <button
+                        type="button"
+                        onClick={() => toggleReplies(comment.id)}
+                        className="ml-12 mb-3 px-4 py-1.5 rounded-full bg-gray-100 text-[13px] font-semibold text-gray-600"
+                      >
+                        댓글 {replies.length}개 보기
+                      </button>
+                    )}
+                    {replies.length > 0 && isExpanded && (
+                      <div className="ml-12 mb-2">
+                        {replies.map((reply) => (
+                          <InlineComment key={reply.id} comment={reply} isAuthor={reply.profile_id === post.author_id} compact />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
       </div>
 
       {/* 하단 좋아요 + 댓글 버튼 */}
@@ -264,6 +375,53 @@ export default function BoardPostDetail({ postId, onBack, onOpenComments, onEdit
               <span className="text-[14px] font-semibold">{post.comment_count}</span>
             )}
           </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function InlineComment({
+  comment,
+  isAuthor,
+  compact = false,
+}: {
+  comment: BoardComment;
+  isAuthor: boolean;
+  compact?: boolean;
+}) {
+  const name = comment.profile?.nickname ?? "사용자";
+
+  return (
+    <div className={`flex gap-2.5 ${compact ? "py-2" : "py-3"}`}>
+      <Avatar
+        src={comment.profile?.profile_image_url ?? null}
+        nickname={name}
+        size={compact ? 32 : 40}
+      />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <span className="text-[14px] font-semibold text-gray-700">{name}</span>
+          {isAuthor && (
+            <span className="px-1.5 py-0.5 rounded text-[11px] font-bold bg-blue-100 text-blue-600">작성자</span>
+          )}
+          <span className="text-[12px] text-gray-400">{formatCommentTime(comment.created_at)}</span>
+        </div>
+        <p className="text-[15px] text-gray-800 whitespace-pre-wrap leading-relaxed mt-0.5">
+          {comment.is_deleted ? "삭제된 댓글입니다." : comment.content}
+        </p>
+        {!comment.is_deleted && (
+          <div className="flex items-center gap-3 mt-1 text-[13px] text-gray-400">
+            <span>댓글쓰기</span>
+            {comment.like_count > 0 && (
+              <span className="flex items-center gap-0.5">
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="#ef4444" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+                </svg>
+                {comment.like_count}
+              </span>
+            )}
+          </div>
         )}
       </div>
     </div>

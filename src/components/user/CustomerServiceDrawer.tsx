@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { X } from "lucide-react";
 import type { BoardPost, BoardCategory } from "@/types/board";
+import { ensureBoardPostsCache } from "@/lib/board-session-cache";
 import BoardPostList from "@/components/board/BoardPostList";
 import BoardPostDetail from "@/components/board/BoardPostDetail";
 import BoardCommentsPanel from "@/components/board/BoardCommentsPanel";
@@ -30,10 +31,17 @@ export default function CustomerServiceDrawer({ open, onClose, initialTab = "not
 
   useEffect(() => {
     if (open) {
-      setActiveTab(initialTab);
-      setView({ screen: "list" });
+      queueMicrotask(() => {
+        setActiveTab(initialTab);
+        setView({ screen: "list" });
+      });
     }
   }, [open, initialTab]);
+
+  useEffect(() => {
+    if (!open || view.screen !== "list" || activeTab === "free") return;
+    void ensureBoardPostsCache("free");
+  }, [activeTab, open, view.screen]);
 
   function handleSelectPost(post: BoardPost) {
     setView({ screen: "detail", postId: post.id });
@@ -112,7 +120,7 @@ export default function CustomerServiceDrawer({ open, onClose, initialTab = "not
                       activeTab === "support" ? "bg-black text-white" : "bg-gray-100 text-gray-400"
                     }`}
                   >
-                    고객센터
+                    고객문의
                   </button>
                   <button
                     type="button"

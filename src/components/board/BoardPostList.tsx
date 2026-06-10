@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import type { BoardPost, BoardCategory, BoardBlock } from "@/types/board";
-import Avatar from "@/components/ui/Avatar";
+import { readBoardPostsCache, writeBoardPostsCache } from "@/lib/board-session-cache";
 
 interface Props {
   category: BoardCategory;
@@ -40,8 +40,10 @@ export default function BoardPostList({ category, onSelectPost, onWrite }: Props
       const res = await fetch(`/api/board/posts?category=${category}&page=${p}`);
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        setPosts((prev) => (append ? [...prev, ...(data.posts ?? [])] : data.posts ?? []));
+        const nextPosts = (data.posts ?? []) as BoardPost[];
+        setPosts((prev) => (append ? [...prev, ...nextPosts] : nextPosts));
         setHasMore(data.hasMore ?? false);
+        if (p === 1 && !append) writeBoardPostsCache(category, nextPosts);
       }
     } finally {
       setLoading(false);
@@ -49,9 +51,16 @@ export default function BoardPostList({ category, onSelectPost, onWrite }: Props
   }, [category]);
 
   useEffect(() => {
-    setPage(1);
-    setPosts([]);
-    void fetchPosts(1);
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) return;
+      setPage(1);
+      const cachedPosts = readBoardPostsCache(category);
+      setPosts(cachedPosts);
+      setLoading(cachedPosts.length === 0);
+      void fetchPosts(1);
+    });
+    return () => { cancelled = true; };
   }, [category, fetchPosts]);
 
   function loadMore() {

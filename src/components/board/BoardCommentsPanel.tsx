@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { CircleChevronLeft } from "lucide-react";
 import Avatar from "@/components/ui/Avatar";
 import { createClient } from "@/lib/supabase/client";
+import { readBoardCommentsCache, writeBoardCommentsCache } from "@/lib/board-session-cache";
 import type { BoardComment } from "@/types/board";
 
 interface CurrentProfile {
@@ -176,8 +177,8 @@ export default function BoardCommentsPanel({ postId, open, onClose }: Props) {
     if (!open) return;
     let cancelled = false;
 
-    async function load() {
-      setLoading(true);
+    async function load(hasCachedComments: boolean) {
+      if (!hasCachedComments) setLoading(true);
       try {
         const res = await fetch(`/api/board/posts/${postId}/comments`);
         const data = await res.json().catch(() => ({}));
@@ -189,9 +190,19 @@ export default function BoardCommentsPanel({ postId, open, onClose }: Props) {
       }
     }
 
-    void load();
+    queueMicrotask(() => {
+      if (cancelled) return;
+      const cachedComments = readBoardCommentsCache(postId);
+      if (cachedComments.length > 0) setComments(cachedComments);
+      void load(cachedComments.length > 0);
+    });
     return () => { cancelled = true; };
   }, [postId, open]);
+
+  useEffect(() => {
+    if (!open || comments.length === 0) return;
+    writeBoardCommentsCache(postId, comments);
+  }, [comments, open, postId]);
 
   useEffect(() => {
     if (!open) return;
