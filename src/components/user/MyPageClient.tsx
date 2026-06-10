@@ -20,6 +20,8 @@ import TermsOfServiceContent from "@/components/legal/TermsOfServiceContent";
 import RefundPolicyContent from "@/components/legal/RefundPolicyContent";
 import StarChargeSheet from "@/components/star/StarChargeSheet";
 import StarGiftersPanel from "@/components/star/StarGiftersPanel";
+import PurchaseHistoryDrawer from "./PurchaseHistoryDrawer";
+import type { PurchaseItem, PurchaseTab } from "./PurchaseHistoryDrawer";
 
 
 function getMemberTypeLabel(type: string) {
@@ -184,6 +186,57 @@ export default function MyPageClient({
   const [starChargeOpen, setStarChargeOpen] = useState(false);
   const [businessInfoOpen, setBusinessInfoOpen] = useState(true);
   const [starGiverProfileId, setStarGiverProfileId] = useState<string | null>(null);
+  const [avatarZoomOpen, setAvatarZoomOpen] = useState(false);
+  const [purchaseDrawerOpen, setPurchaseDrawerOpen] = useState(false);
+  const [purchaseInitialTab, setPurchaseInitialTab] = useState<PurchaseTab>("credit");
+
+  function openPurchaseDrawer(tab: PurchaseTab) {
+    setPurchaseInitialTab(tab);
+    setPurchaseDrawerOpen(true);
+  }
+
+  const purchaseItems: PurchaseItem[] = [
+    {
+      id: "p1",
+      name: "크레딧 100개 충전",
+      imageUrl: null,
+      unitPrice: 5000,
+      quantity: 2,
+      totalPrice: 10000,
+      purchasedAt: "2026-06-08T14:30:00",
+      category: "credit",
+    },
+    {
+      id: "p2",
+      name: "크레딧 50개 충전",
+      imageUrl: null,
+      unitPrice: 3000,
+      quantity: 1,
+      totalPrice: 3000,
+      purchasedAt: "2026-06-05T10:15:00",
+      category: "credit",
+    },
+    {
+      id: "p3",
+      name: "골드 별선물",
+      imageUrl: null,
+      unitPrice: 15000,
+      quantity: 1,
+      totalPrice: 15000,
+      purchasedAt: "2026-06-03T09:00:00",
+      category: "badge",
+    },
+    {
+      id: "p4",
+      name: "실버 별선물",
+      imageUrl: null,
+      unitPrice: 8000,
+      quantity: 3,
+      totalPrice: 24000,
+      purchasedAt: "2026-05-28T16:45:00",
+      category: "badge",
+    },
+  ];
 
   useEffect(() => {
     try {
@@ -435,29 +488,31 @@ export default function MyPageClient({
           {/* 1행: 내 아바타 | 친구 아바타 */}
           <div className="flex items-center w-full">
             <div className="w-1/2 flex items-start">
-              <button
-                onClick={handleOpenEditModal}
-                className="relative flex-shrink-0 hover:opacity-80 transition-opacity cursor-pointer"
-              >
-                {avatarUrl ? (
-                  <Image
-                    src={avatarUrl}
-                    alt="프로필"
-                    width={60}
-                    height={60}
-                    className="rounded-full object-cover w-[60px] h-[60px]"
-                    unoptimized
-                  />
-                ) : (
-                  <UserCircle size={60} className="text-gray-400" />
-                )}
-                <span
-                  onClick={(e) => { e.stopPropagation(); handleOpenEditModal(); }}
-                  className="absolute bottom-0 right-0 w-5 h-5 bg-white rounded-full flex items-center justify-center shadow-sm border border-gray-200"
+              <div className="relative flex-shrink-0">
+                <button
+                  onClick={() => { if (avatarUrl) setAvatarZoomOpen(true); }}
+                  className="hover:opacity-80 transition-opacity cursor-pointer"
                 >
-                  <Settings size={12} className="text-gray-600" />
+                  {avatarUrl ? (
+                    <Image
+                      src={avatarUrl}
+                      alt="프로필"
+                      width={60}
+                      height={60}
+                      className="rounded-full object-cover w-[60px] h-[60px]"
+                      unoptimized
+                    />
+                  ) : (
+                    <UserCircle size={60} className="text-gray-400" />
+                  )}
+                </button>
+                <span
+                  onClick={handleOpenEditModal}
+                  className="absolute bottom-0 right-0 w-5 h-5 bg-white rounded-full flex items-center justify-center shadow-sm border border-gray-200 cursor-pointer"
+                >
+                  <Settings size={14} className="text-gray-600" />
                 </span>
-              </button>
+              </div>
             </div>
             <div className="w-1/2 flex justify-end">
               <div className="grid grid-cols-3 w-full max-w-[250px] text-center">
@@ -606,14 +661,14 @@ export default function MyPageClient({
         <div className="px-4 pt-4 pb-2">
           <span className="text-[15px] font-bold text-gray-800">구매목록</span>
         </div>
-        <button type="button" className="flex w-full items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors">
+        <button type="button" onClick={() => openPurchaseDrawer("credit")} className="flex w-full items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors">
           <CreditCard size={22} className="text-gray-500" />
           <span className="flex-1 text-left text-[16px] text-gray-800">크레딧</span>
           <ChevronRight size={18} className="text-gray-400" />
         </button>
-        <button type="button" className="flex w-full items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors">
+        <button type="button" onClick={() => openPurchaseDrawer("badge")} className="flex w-full items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors">
           <Award size={22} className="text-gray-500" />
-          <span className="flex-1 text-left text-[16px] text-gray-800">별훈장</span>
+          <span className="flex-1 text-left text-[16px] text-gray-800">별선물</span>
           <ChevronRight size={18} className="text-gray-400" />
         </button>
       </div>
@@ -930,6 +985,33 @@ export default function MyPageClient({
       <LegalDrawer open={refundOpen} onClose={() => setRefundOpen(false)} title="환불정책">
         <RefundPolicyContent />
       </LegalDrawer>
+
+      {avatarZoomOpen && avatarUrl && (
+        <>
+          <div className="fixed inset-0 z-[250] bg-black/70" onClick={() => setAvatarZoomOpen(false)} />
+          <div className="fixed inset-0 z-[251] flex items-center justify-center pointer-events-none">
+            <div
+              className="relative w-[250px] h-[250px] rounded-2xl overflow-hidden pointer-events-auto shadow-xl cursor-pointer"
+              onClick={() => setAvatarZoomOpen(false)}
+            >
+              <Image
+                src={avatarUrl}
+                alt="프로필 원본"
+                fill
+                className="object-cover"
+                unoptimized
+              />
+            </div>
+          </div>
+        </>
+      )}
+
+      <PurchaseHistoryDrawer
+        open={purchaseDrawerOpen}
+        onClose={() => setPurchaseDrawerOpen(false)}
+        items={purchaseItems}
+        initialTab={purchaseInitialTab}
+      />
 
     </div>
   );
