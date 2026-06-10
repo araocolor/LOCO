@@ -40,6 +40,7 @@ interface ChatTimelineProps {
   onMessageReaction: (messageId: string, reactionType: MessageReactionType) => void;
   onImageClick: (messageId: string, fullUrl: string, isMine: boolean) => void;
   onAvatarClick: (userId: string) => void;
+  onClassShareClick: (classId: string) => void;
   onNoticeReaction: (noticeId: string, reactionType: NoticeReactionType) => void;
   onStartLongPress: (msgId: string, isMine: boolean) => void;
   pendingEmojiSrc: string | null;
@@ -68,6 +69,7 @@ export default function ChatTimeline({
   onDeleteMessage,
   onImageClick,
   onAvatarClick,
+  onClassShareClick,
   onMessageReaction,
   onNoticeReaction,
   onStartLongPress,
@@ -115,6 +117,7 @@ export default function ChatTimeline({
                 onMessageReaction={onMessageReaction}
                 onImageClick={onImageClick}
                 onAvatarClick={onAvatarClick}
+                onClassShareClick={onClassShareClick}
                 formatTime={formatTime}
               />
             );

@@ -28,6 +28,7 @@ interface MessageBubbleProps {
   onMessageReaction: (msgId: string, reactionType: MessageReactionType) => void;
   onImageClick?: (messageId: string, fullUrl: string, isMine: boolean) => void;
   onAvatarClick?: (userId: string) => void;
+  onClassShareClick?: (classId: string) => void;
   formatTime: (dateStr: string) => string;
 }
 
@@ -54,6 +55,7 @@ export default memo(function MessageBubble({
   onMessageReaction,
   onImageClick,
   onAvatarClick,
+  onClassShareClick,
   formatTime,
 }: MessageBubbleProps) {
   const isMine = isSelfChat ? messageIndex % 2 === 0 : msg.sender_id === userId;
@@ -243,7 +245,11 @@ export default memo(function MessageBubble({
                   {classShareData.message && (
                     <p className="px-3 pt-3 text-sm font-medium text-gray-900">{classShareData.message}</p>
                   )}
-                  <a href={`/classes/${classShareData.class.id}`} className="block p-2">
+                  <button
+                    type="button"
+                    onClick={() => onClassShareClick?.(classShareData.class!.id!)}
+                    className="block w-full p-2 text-left"
+                  >
                     <div className="flex gap-3 rounded-md border border-gray-100 bg-gray-50 p-2">
                       {classShareData.class.image_url ? (
                         <Image
@@ -265,7 +271,7 @@ export default memo(function MessageBubble({
                         </p>
                       </div>
                     </div>
-                  </a>
+                  </button>
                 </div>
               ) : (
                 <p className="break-words">{msg.content}</p>

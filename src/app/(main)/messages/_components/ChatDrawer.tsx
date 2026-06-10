@@ -21,6 +21,7 @@ import ToastOverlay from "./chat/ToastOverlay";
 import ClassNoticePanel from "./notices/ClassNoticePanel";
 import NoticeDeleteDialog from "./notices/NoticeDeleteDialog";
 import NoticeEditorDrawer from "./notices/NoticeEditorDrawer";
+import CachedClassDetailPage from "@/components/class/CachedClassDetailPage";
 import type { ChatNotice, Message, MessageReactionType, MyProfile, NoticeKind, NoticeReactionType, NoticeVoteType, OtherUser } from "../_types";
 import { buildTimeline, getArchiveItems } from "../_lib/message-content";
 
@@ -162,6 +163,7 @@ export default function ChatDrawer({
   const [muted, setMuted] = useState(() => roomId ? isChatMuted(roomId) : false);
   const [bgType, setBgType] = useState<ChatBgType>(() => roomId ? getChatBg(roomId) : "image");
   const [bgSheetOpen, setBgSheetOpen] = useState(false);
+  const [classDetailId, setClassDetailId] = useState<string | null>(null);
 
   const handleToggleMute = useCallback(() => {
     if (!roomId) return;
@@ -450,6 +452,7 @@ export default function ChatDrawer({
             onDeleteMessage={onDeleteMessage}
             onImageClick={(messageId: string, fullUrl: string, isMine: boolean) => setViewerData({ messageId, fullUrl, isMine })}
             onAvatarClick={onAvatarClick}
+            onClassShareClick={(id: string) => setClassDetailId(id)}
             onMessageReaction={onMessageReaction}
             onNoticeReaction={onNoticeReaction}
             onStartLongPress={onStartLongPress}
@@ -598,6 +601,50 @@ export default function ChatDrawer({
       />
 
       <ToastOverlay message={toastMessage} />
+
+      <div
+        className={`fixed inset-0 z-[70] bg-white flex flex-col transition-transform duration-300 ease-in-out ${
+          classDetailId ? "translate-x-0" : "translate-x-full"
+        }`}
+      >
+        {classDetailId && (
+          <>
+            <header className="sticky top-0 z-50 bg-white px-4 h-14 flex items-center">
+              <button
+                type="button"
+                aria-label="뒤로 가기"
+                onClick={() => setClassDetailId(null)}
+                className="w-10 h-10 -ml-1 flex items-center justify-center text-gray-500"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="m15 18-6-6 6-6" />
+                </svg>
+              </button>
+              <div className="absolute left-1/2 -translate-x-1/2 font-bold text-xl text-[#4d4d4d] leading-none">
+                클래스 상세정보
+              </div>
+              <div className="ml-auto w-10" />
+            </header>
+            <div className="flex-1 overflow-y-auto">
+              <CachedClassDetailPage
+                classIdOverride={classDetailId}
+                hideChat
+                onClose={() => setClassDetailId(null)}
+              />
+            </div>
+          </>
+        )}
+      </div>
     </div>
     </>
   );
