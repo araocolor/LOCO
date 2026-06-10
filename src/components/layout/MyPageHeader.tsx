@@ -256,7 +256,7 @@ export default function MyPageHeader() {
           <button
             type="button"
             onClick={() => router.push("/?tab=mypage")}
-            className="px-3.5 py-1.5 rounded-full text-[14px] font-semibold bg-black text-white"
+            className="px-3.5 py-1.5 rounded-full text-[15px] font-semibold bg-black text-white"
           >
             프로필
           </button>

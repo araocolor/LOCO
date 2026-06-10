@@ -1,6 +1,32 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient as createServerSupabase } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import sharp from "sharp";
+
+const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"];
+
+async function processAndUpload(
+  admin: ReturnType<typeof createAdminClient>,
+  buffer: Buffer,
+  basePath: string,
+  width: number,
+  quality: number,
+) {
+  const webpBuffer = await sharp(buffer)
+    .resize({ width, withoutEnlargement: true })
+    .webp({ quality })
+    .toBuffer();
+
+  const uploadPath = `${basePath}.webp`;
+  const { error } = await admin.storage
+    .from("class-images")
+    .upload(uploadPath, webpBuffer, { contentType: "image/webp", upsert: false });
+
+  if (error) throw error;
+
+  const { data: { publicUrl } } = admin.storage.from("class-images").getPublicUrl(uploadPath);
+  return publicUrl;
+}
 
 export async function POST(request: NextRequest) {
   const supabase = await createServerSupabase();
@@ -21,35 +47,32 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "file/path가 필요합니다." }, { status: 400 });
     }
 
-    // 경로를 사용자 하위로 제한
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      return NextResponse.json(
+        { error: "jpg, png, gif, webp 형식만 업로드할 수 있습니다." },
+        { status: 400 },
+      );
+    }
+
     const normalizedPath = path.trim().replace(/^\/+/, "");
     if (!normalizedPath.startsWith(`${user.id}/`)) {
       return NextResponse.json({ error: "업로드 경로가 올바르지 않습니다." }, { status: 400 });
     }
 
+    const basePath = normalizedPath.replace(/\.[^.]+$/, "");
     const admin = createAdminClient();
     const buffer = Buffer.from(await file.arrayBuffer());
 
-    const { error } = await admin.storage
-      .from("class-images")
-      .upload(normalizedPath, buffer, {
-        contentType: file.type || "image/jpeg",
-        upsert: false,
-      });
+    const [thumbnail, full] = await Promise.all([
+      processAndUpload(admin, buffer, `${basePath}_thumb`, 250, 90),
+      processAndUpload(admin, buffer, `${basePath}_full`, 800, 70),
+    ]);
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
-    const {
-      data: { publicUrl },
-    } = admin.storage.from("class-images").getPublicUrl(normalizedPath);
-
-    return NextResponse.json({ path: normalizedPath, publicUrl });
+    return NextResponse.json({ thumbnail, full });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "업로드 중 오류가 발생했습니다." },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

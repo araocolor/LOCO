@@ -6,13 +6,15 @@ import { X } from "lucide-react";
 interface Props {
   imageSrc: string;
   onCancel: () => void;
-  onConfirm: (blob: Blob) => void;
+  onConfirm: (blob: Blob, hdBlob: Blob) => void;
 }
 
 const FRAME_W = 200;
 const FRAME_H = 230;
 const CIRCLE = 130;
 const OUTPUT = 200;
+const HD_W = 400;
+const HD_H = 500;
 const MIN_SCALE = 1;
 const MAX_SCALE = 4;
 
@@ -117,19 +119,34 @@ export default function AvatarCropModal({ imageSrc, onCancel, onConfirm }: Props
     if (!img || busy) return;
     setBusy(true);
     try {
-      const canvas = document.createElement("canvas");
-      canvas.width = OUTPUT;
-      canvas.height = OUTPUT;
-      const ctx = canvas.getContext("2d")!;
       const sw = CIRCLE / scale;
       const sh = CIRCLE / scale;
       const sx = img.width / 2 - sw / 2 - pos.x / scale;
       const sy = img.height / 2 - sh / 2 - pos.y / scale;
+
+      const canvas = document.createElement("canvas");
+      canvas.width = OUTPUT;
+      canvas.height = OUTPUT;
+      const ctx = canvas.getContext("2d")!;
       ctx.drawImage(img, sx, sy, sw, sh, 0, 0, OUTPUT, OUTPUT);
       const blob: Blob = await new Promise((resolve, reject) =>
         canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("blob fail"))), "image/webp", 0.9)
       );
-      onConfirm(blob);
+
+      const frameSw = FRAME_W / scale;
+      const frameSh = FRAME_H / scale;
+      const frameSx = img.width / 2 - frameSw / 2 - pos.x / scale;
+      const frameSy = img.height / 2 - frameSh / 2 - pos.y / scale;
+      const hdCanvas = document.createElement("canvas");
+      hdCanvas.width = HD_W;
+      hdCanvas.height = HD_H;
+      const hdCtx = hdCanvas.getContext("2d")!;
+      hdCtx.drawImage(img, frameSx, frameSy, frameSw, frameSh, 0, 0, HD_W, HD_H);
+      const hdBlob: Blob = await new Promise((resolve, reject) =>
+        hdCanvas.toBlob((b) => (b ? resolve(b) : reject(new Error("hd blob fail"))), "image/webp", 0.9)
+      );
+
+      onConfirm(blob, hdBlob);
     } finally {
       setBusy(false);
     }
