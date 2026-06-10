@@ -723,7 +723,7 @@ export default function MyPageClient({
       </div>
 
       {/* 사업자 정보 */}
-      <div className="mx-4 mt-1 mb-10">
+      <div className="mx-4 mt-1 mb-4">
         <button
           type="button"
           onClick={() => setBusinessInfoOpen((prev) => !prev)}
@@ -752,6 +752,26 @@ export default function MyPageClient({
             <p>고객문의 : jejusalsa@gmail.com</p>
           </div>
         )}
+      </div>
+
+      <div className="mx-4 mb-10 rounded-xl border border-gray-100 bg-white px-4 py-4 shadow-sm">
+        <div className="flex items-center gap-3">
+          <div className="flex h-[54px] w-[54px] shrink-0 items-center justify-center rounded-2xl bg-yellow-50">
+            <Image
+              src="/character/yelly_icon.png"
+              alt="Xlatin 캐릭터"
+              width={42}
+              height={42}
+              className="h-auto w-[42px] object-contain"
+            />
+          </div>
+          <div className="min-w-0">
+            <p className="text-[15px] font-bold text-gray-800">Xlatin 캐릭터</p>
+            <p className="mt-1 text-[13px] leading-[19px] text-gray-500">
+              앱 안내와 이벤트 소식에서 만나는 Xlatin의 작은 캐릭터입니다.
+            </p>
+          </div>
+        </div>
       </div>
 
       {starGiversOpen && (
