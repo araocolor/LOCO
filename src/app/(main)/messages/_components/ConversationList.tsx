@@ -62,7 +62,7 @@ export default function ConversationList({
           <div className="flex gap-2 overflow-x-auto scrollbar-hide whitespace-nowrap flex-1">
             <button
               onClick={() => setActiveMenuTab("friends")}
-              className={`px-3.5 py-1.5 rounded-full text-[14px] font-semibold transition-colors ${
+              className={`px-3.5 py-1.5 rounded-full text-[15px] font-semibold transition-colors ${
                 activeMenuTab === "friends" ? "bg-black text-white" : "bg-gray-100 text-black/60"
               }`}
             >
@@ -70,7 +70,7 @@ export default function ConversationList({
             </button>
             <button
               onClick={() => setActiveMenuTab("direct")}
-              className={`px-3.5 py-1.5 rounded-full text-[14px] font-semibold transition-colors ${
+              className={`px-3.5 py-1.5 rounded-full text-[15px] font-semibold transition-colors ${
                 activeMenuTab === "direct" ? "bg-black text-white" : "bg-gray-100 text-black/60"
               }`}
             >
@@ -78,7 +78,7 @@ export default function ConversationList({
             </button>
             <button
               onClick={() => setActiveMenuTab("groups")}
-              className={`px-3.5 py-1.5 rounded-full text-[14px] font-semibold transition-colors ${
+              className={`px-3.5 py-1.5 rounded-full text-[15px] font-semibold transition-colors ${
                 activeMenuTab === "groups" ? "bg-black text-white" : "bg-gray-100 text-black/60"
               }`}
             >
@@ -86,7 +86,7 @@ export default function ConversationList({
             </button>
             <button
               onClick={() => setActiveMenuTab("class")}
-              className={`px-3.5 py-1.5 rounded-full text-[14px] font-semibold transition-colors ${
+              className={`px-3.5 py-1.5 rounded-full text-[15px] font-semibold transition-colors ${
                 activeMenuTab === "class" ? "bg-black text-white" : "bg-gray-100 text-black/60"
               }`}
             >

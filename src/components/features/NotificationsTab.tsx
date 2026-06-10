@@ -322,35 +322,35 @@ export default function NotificationsTab({ userId }: NotificationsTabProps) {
           <div className="flex pl-4 pr-4 gap-2 pb-2 overflow-x-auto scrollbar-hide whitespace-nowrap">
             <button
               onClick={() => { setActiveTab("class"); setEditMode(false); setSelectedIds(new Set()); }}
-              className={`px-3.5 py-1.5 rounded-full text-[14px] font-semibold transition-colors ${
-                activeTab === "class" ? "bg-black text-white" : "bg-gray-100 text-gray-400"
+              className={`px-3.5 py-1.5 rounded-full text-[15px] font-semibold transition-colors ${
+                activeTab === "class" ? "bg-black text-white" : "bg-gray-100 text-black/60"
               }`}
             >
               클래스
             </button>
             <button
               onClick={() => { setActiveTab("comment"); setEditMode(false); setSelectedIds(new Set()); }}
-              className={`px-3.5 py-1.5 rounded-full text-[14px] font-semibold transition-colors ${
-                activeTab === "comment" ? "bg-black text-white" : "bg-gray-100 text-gray-400"
+              className={`px-3.5 py-1.5 rounded-full text-[15px] font-semibold transition-colors ${
+                activeTab === "comment" ? "bg-black text-white" : "bg-gray-100 text-black/60"
               }`}
             >
               댓글
             </button>
             <button
               onClick={() => { setActiveTab("heart"); setEditMode(false); setSelectedIds(new Set()); }}
-              className={`px-3.5 py-1.5 rounded-full text-[14px] font-semibold transition-colors ${
-                activeTab === "heart" ? "bg-black text-white" : "bg-gray-100 text-gray-400"
+              className={`px-3.5 py-1.5 rounded-full text-[15px] font-semibold transition-colors ${
+                activeTab === "heart" ? "bg-black text-white" : "bg-gray-100 text-black/60"
               }`}
             >
-              <Heart size={14} fill={activeTab === "heart" ? "white" : "#9ca3af"} stroke="none" />
+              하트
             </button>
             <button
               onClick={() => { setActiveTab("other"); setEditMode(false); setSelectedIds(new Set()); }}
-              className={`px-3.5 py-1.5 rounded-full text-[14px] font-semibold transition-colors ${
-                activeTab === "other" ? "bg-black text-white" : "bg-gray-100 text-gray-400"
+              className={`px-3.5 py-1.5 rounded-full text-[15px] font-semibold transition-colors ${
+                activeTab === "other" ? "bg-black text-white" : "bg-gray-100 text-black/60"
               }`}
             >
-              기타
+              결제
             </button>
           </div>
         </header>

@@ -258,7 +258,7 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
         <div className="flex pl-4 pr-4 gap-2 pb-2 overflow-x-auto scrollbar-hide whitespace-nowrap">
           <button
             onClick={() => setActiveTab("mySubscriptions")}
-            className={`px-3.5 py-1.5 rounded-full text-[14px] font-semibold transition-colors ${
+            className={`px-3.5 py-1.5 rounded-full text-[15px] font-semibold transition-colors ${
               activeTab === "mySubscriptions" ? "bg-black text-white" : "bg-gray-100 text-black/[0.65]"
             }`}
           >
@@ -266,7 +266,7 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
           </button>
           <button
             onClick={() => setActiveTab("friendClasses")}
-            className={`px-3.5 py-1.5 rounded-full text-[14px] font-semibold transition-colors ${
+            className={`px-3.5 py-1.5 rounded-full text-[15px] font-semibold transition-colors ${
               activeTab === "friendClasses" ? "bg-black text-white" : "bg-gray-100 text-black/[0.65]"
             }`}
           >
@@ -274,7 +274,7 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
           </button>
           <button
             onClick={() => setActiveTab("allClasses")}
-            className={`px-3.5 py-1.5 rounded-full text-[14px] font-semibold transition-colors ${
+            className={`px-3.5 py-1.5 rounded-full text-[15px] font-semibold transition-colors ${
               activeTab === "allClasses" ? "bg-black text-white" : "bg-gray-100 text-black/[0.65]"
             }`}
           >
