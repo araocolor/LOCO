@@ -641,9 +641,11 @@ export default function ClassForm({
         deletedImages.length > 0
           ? deletedImages.flatMap((img) => {
               const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-              return [img.icon_url, img.card_url, img.full_url].map((url) =>
-                url.replace(`${supabaseUrl}/storage/v1/object/public/class-images/`, "")
-              );
+              return [img.icon_url, img.card_url, img.full_url]
+                .map((url) =>
+                  url.replace(`${supabaseUrl}/storage/v1/object/public/class-images/`, "")
+                )
+                .filter((path) => !path.includes("/ai-poster-requests/"));
             })
           : [];
 

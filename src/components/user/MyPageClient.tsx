@@ -727,7 +727,7 @@ export default function MyPageClient({
         <button
           type="button"
           onClick={() => setBusinessInfoOpen((prev) => !prev)}
-          className="ml-5 flex w-[90%] items-center justify-between text-left text-[14px] text-gray-500"
+          className="ml-5 flex w-[90%] items-center justify-between text-left text-[15px] text-gray-500"
           aria-expanded={businessInfoOpen}
           aria-controls="business-info-panel"
         >
@@ -740,7 +740,7 @@ export default function MyPageClient({
         {businessInfoOpen && (
           <div
             id="business-info-panel"
-            className="ml-5 mt-3 w-[90%] space-y-1 text-[13px] leading-[20px] text-gray-400"
+            className="ml-5 mt-3 w-[90%] space-y-1 text-[14px] leading-[19px] text-gray-400"
           >
             <p>서비스명 : Xlatin</p>
             <p>사업자 : 아라오 (ARAO) | 대표 : 한철</p>
@@ -759,9 +759,9 @@ export default function MyPageClient({
           <Image
             src="/character/yelly_icon.png"
             alt="Loco로꼬"
-            width={40}
-            height={40}
-            className="h-auto w-[40px] object-contain"
+            width={50}
+            height={50}
+            className="h-auto w-[50px] object-contain"
           />
         </div>
         <div className="min-w-0">
