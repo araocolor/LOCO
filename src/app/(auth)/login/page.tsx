@@ -17,6 +17,7 @@ function LoginForm() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [showEmailForm, setShowEmailForm] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
   const nextPath = getSafeNextPath(searchParams.get("next"));
@@ -61,27 +62,40 @@ function LoginForm() {
 
   return (
     <div className="flex flex-col items-center">
-      <button
-        onClick={handleGoogleLogin}
-        disabled={googleLoading}
-        className="btn-primary"
-        style={{ fontSize: "16px", width: "250px" }}
-      >
-        {googleLoading ? "Google 연결 중..." : "Google로 계속하기"}
-      </button>
+      {!showEmailForm ? (
+        <>
+          <button
+            onClick={handleGoogleLogin}
+            disabled={googleLoading}
+            className="btn-primary"
+            style={{ fontSize: "16px", width: "250px" }}
+          >
+            {googleLoading ? "Google 연결 중..." : "Google로 계속하기"}
+          </button>
 
-      <p className="mt-2 text-center leading-5" style={{ color: "#999999", fontSize: "13px" }}>
-        Google 계정으로 간편하게 시작하세요.
-      </p>
+          <p className="mt-2 text-center leading-5" style={{ color: "#999999", fontSize: "13px" }}>
+            Google 계정으로 간편하게 시작하세요.
+          </p>
 
-      {error && <p className="error-text mt-4 text-center">{error}</p>}
+          {error && <p className="error-text mt-4 text-center">{error}</p>}
 
-      <details className="mt-14 p-4" style={{ width: "280px" }}>
-        <summary className="cursor-pointer text-center font-semibold text-gray-600 rounded-full border border-gray-200 py-3 px-6" style={{ fontSize: "16px", listStyle: "none" }}>
-          이메일 로그인
-        </summary>
-        <form onSubmit={handleLogin} className="mt-4 flex flex-col gap-4">
-          <div>
+          <button
+            onClick={() => setShowEmailForm(true)}
+            className="mt-14 cursor-pointer text-center font-semibold text-gray-600 rounded-full border border-gray-200 py-3 px-6"
+            style={{ fontSize: "16px", width: "250px" }}
+          >
+            이메일 로그인
+          </button>
+
+          <p className="mt-2 text-center" style={{ color: "#999999", fontSize: "13px" }}>
+            기존 이메일 계정이 있다면 직접입력하세요
+          </p>
+        </>
+      ) : (
+        <>
+          {error && <p className="error-text mb-4 text-center">{error}</p>}
+
+          <form onSubmit={handleLogin} className="flex flex-col gap-4" style={{ width: "280px" }}>
             <input
               type="email"
               className="input-field"
@@ -90,28 +104,39 @@ function LoginForm() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
+              autoFocus
             />
-          </div>
-          <div>
-            <input
-              type="password"
-              className="input-field"
-              style={{ fontSize: "16px", borderRadius: "9999px" }}
-              placeholder="비밀번호"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-          </div>
-          <button type="submit" disabled={loading} className="btn-outline w-full">
-            {loading ? "로그인 중..." : "이메일로 로그인"}
-          </button>
-        </form>
-      </details>
+            <div className="relative">
+              <input
+                type="password"
+                className="input-field"
+                style={{ fontSize: "16px", borderRadius: "9999px", paddingRight: "70px" }}
+                placeholder="비밀번호"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+              {password && (
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full px-3 py-1 text-sm font-semibold"
+                  style={{ backgroundColor: "#facc15", color: "#111", fontSize: "13px" }}
+                >
+                  {loading ? "..." : "확인"}
+                </button>
+              )}
+            </div>
+          </form>
 
-      <p className="-mt-4 text-center" style={{ color: "#999999", fontSize: "13px" }}>
-        기존 이메일 계정이 있다면 직접입력하세요
-      </p>
+          <button
+            onClick={() => { setShowEmailForm(false); setError(""); }}
+            className="mt-6 text-sm text-gray-400 underline"
+          >
+            다른 방법으로 로그인
+          </button>
+        </>
+      )}
     </div>
   );
 }
