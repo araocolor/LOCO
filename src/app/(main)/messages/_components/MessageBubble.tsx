@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useState, useEffect } from "react";
+import React, { memo, useState, useEffect } from "react";
 import Image from "next/image";
 import { Loader2, Play, TriangleAlert } from "lucide-react";
 import type { Message, MessageReactionType, MyProfile, OtherUser } from "../_types";
@@ -67,15 +67,17 @@ export default memo(function MessageBubble({
   const classShareData = getClassShareData(msg.content);
   const hasRichContent = hasRichMessageContent(msg.content);
 
-  const EMOJI_ANIMATIONS = ["emoji-pop", "emoji-wiggle", "emoji-bounce"] as const;
-  const [emojiAnim, setEmojiAnim] = useState<string | null>(() =>
-    emojiData ? EMOJI_ANIMATIONS[Math.floor(Math.random() * EMOJI_ANIMATIONS.length)] : null
-  );
+  const isNewEmoji = emojiData && msg.send_status === "sending";
+  const [emojiAnim, setEmojiAnim] = useState<string | null>(null);
+  const emojiAnimRef = React.useRef(false);
   useEffect(() => {
-    if (!emojiAnim) return;
-    const timer = window.setTimeout(() => setEmojiAnim(null), 2000);
-    return () => window.clearTimeout(timer);
-  }, [emojiAnim]);
+    if (isNewEmoji && !emojiAnimRef.current) {
+      emojiAnimRef.current = true;
+      setEmojiAnim("emoji-bounce");
+      const timer = window.setTimeout(() => setEmojiAnim(null), 2000);
+      return () => window.clearTimeout(timer);
+    }
+  }, [isNewEmoji]);
 
   return (
     <div data-msg-id={msg.id}>
@@ -151,8 +153,8 @@ export default memo(function MessageBubble({
             })()}
             <div
               className={`relative rounded-lg overflow-visible ${
-                hasRichContent ? "" : "px-3 py-2"
-              } ${isMine ? "text-gray-900" : "bg-white text-gray-900"} ${isMine && shakingMsgId === msg.id ? "msg-shake" : ""} select-none`}
+                hasRichContent || emojiData ? "" : "px-3 py-2"
+              } ${isMine ? "text-gray-900" : emojiData ? "text-gray-900" : "bg-white text-gray-900"} ${isMine && shakingMsgId === msg.id ? "msg-shake" : ""} select-none`}
               style={{
                 ...(isMine ? { maxWidth: "72vw" } : { maxWidth: "270px" }),
                 ...(isMine && !hasRichContent && !emojiData ? { backgroundColor: "#FEE500" } : {}),
@@ -195,7 +197,7 @@ export default memo(function MessageBubble({
                 </div>
               )}
               {emojiData ? (
-                <Image src={emojiData.src} alt="이모지" width={100} height={100} className={`h-[100px] w-[100px] object-contain ${emojiAnim ?? ""}`} />
+                <Image src={emojiData.src} alt="이모지" width={120} height={120} draggable={false} onContextMenu={(e) => e.preventDefault()} className={`h-[120px] w-[120px] select-none object-contain ${emojiAnim ?? ""}`} style={{ WebkitTouchCallout: "none" }} />
               ) : imageData ? (
                 <div className="relative">
                   <button
@@ -271,7 +273,7 @@ export default memo(function MessageBubble({
             </div>
           </div>
           {isMine && (
-            <span className="flex items-center gap-1 text-xs text-gray-700">
+            <span className={`flex items-center gap-1 text-xs text-gray-700 ${emojiData ? "justify-center w-full" : ""}`}>
               {msg.send_status === "sending" ? (
                 <span className="text-xs font-normal leading-none text-gray-400">전송중</span>
               ) : msg.send_status === "failed" ? (

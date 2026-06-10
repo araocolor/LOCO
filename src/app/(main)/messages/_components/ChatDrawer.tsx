@@ -396,33 +396,12 @@ export default function ChatDrawer({
           to { opacity: 1; transform: translateY(0); }
         }
         .msg-shake { animation: shake 0.3s ease-in-out infinite; }
-        @keyframes emojiPop {
-          0% { transform: translateY(40px); opacity: 0; }
-          50% { transform: translateY(-10px); opacity: 1; }
-          70% { transform: translateY(0); }
-          100% { transform: translateY(0); }
-        }
-        @keyframes emojiWiggle {
-          0%, 100% { transform: rotate(0deg); }
-          15% { transform: rotate(-12deg); }
-          30% { transform: rotate(10deg); }
-          45% { transform: rotate(-8deg); }
-          60% { transform: rotate(6deg); }
-          75% { transform: rotate(-3deg); }
-          90% { transform: rotate(1deg); }
-        }
         @keyframes emojiBounce {
           0%, 100% { transform: translateY(0); }
-          20% { transform: translateY(-16px); }
-          40% { transform: translateY(0); }
-          55% { transform: translateY(-10px); }
-          70% { transform: translateY(0); }
-          82% { transform: translateY(-4px); }
-          92% { transform: translateY(0); }
+          30% { transform: translateY(-16px); }
+          60% { transform: translateY(0); }
         }
-        .emoji-pop { animation: emojiPop 0.6s ease-out forwards; }
-        .emoji-wiggle { animation: emojiWiggle 2s ease-in-out; }
-        .emoji-bounce { animation: emojiBounce 2s ease-in-out; }
+        .emoji-bounce { animation: emojiBounce 0.6s ease-in-out; }
         .chat-drawer-scroll {
           -webkit-overflow-scrolling: touch;
           overscroll-behavior: contain;
@@ -447,7 +426,11 @@ export default function ChatDrawer({
       )}
 
       <div className="relative flex-1 min-h-0">
-        <div className={`absolute inset-0 flex flex-col ${displayedActiveTab === "all" ? "" : "invisible pointer-events-none"}`}>
+        <div
+          className={`absolute inset-0 flex flex-col ${displayedActiveTab === "all" ? "" : "invisible pointer-events-none"}`}
+          onTouchStart={() => { if (emojiOpen) { setEmojiOpen(false); setPendingEmojiSrc(null); } }}
+          onClick={() => { if (emojiOpen) { setEmojiOpen(false); setPendingEmojiSrc(null); } }}
+        >
           <ChatTimeline
             backgroundColor={contentBackgroundColor}
             bgStyle={chatBgStyle}
