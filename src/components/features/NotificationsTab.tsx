@@ -57,10 +57,20 @@ function formatMessage(item: NotificationItem): React.ReactNode {
   switch (item.type) {
     case "friend_class_created": {
       const parts = [region, category].filter(Boolean).join(" ");
-      return `${nickname} 님이 ${parts ? parts + " " : ""}클래스를 개설하였습니다.`;
+      return (
+        <>
+          <b className="text-[16px]">{nickname}</b> 님이{" "}
+          {parts ? <><b className="text-[16px]">{parts}</b> </> : ""}클래스를 개설하였습니다.
+        </>
+      );
     }
     case "star_gift_received":
-      return `${nickname}님이 별${starCount}개를 선물하였습니다.`;
+      return (
+        <>
+          <b className="text-[16px]">{nickname}</b>님이 별
+          <b className="text-[16px]">{starCount}</b>개를 선물하였습니다.
+        </>
+      );
     case "class_application":
       return (
         <>
@@ -90,7 +100,12 @@ function formatMessage(item: NotificationItem): React.ReactNode {
         </>
       );
     case "pre_charge_issued":
-      return `관리자님이 외상크레딧 ${creditAmount}회 충전을 발급하였습니다.`;
+      return (
+        <>
+          <b className="text-[16px]">관리자</b>님이 외상크레딧{" "}
+          <b className="text-[16px]">{creditAmount}</b>회 충전을 발급하였습니다.
+        </>
+      );
     default:
       return "알림";
   }
