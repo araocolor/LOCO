@@ -36,6 +36,7 @@ interface ChatDrawerProps {
   emojiOpen: boolean;
   messages: Message[];
   messagesEndRef: RefObject<HTMLDivElement | null>;
+  otherTyping?: boolean;
   myProfile: MyProfile | null;
   newMessage: string;
   notices: ChatNotice[];
@@ -105,6 +106,7 @@ export default function ChatDrawer({
   emojiOpen,
   messages,
   messagesEndRef,
+  otherTyping,
   myProfile,
   newMessage,
   notices,
@@ -439,6 +441,7 @@ export default function ChatDrawer({
             chatLoading={chatLoading}
             messages={messages}
             messagesEndRef={messagesEndRef}
+            otherTyping={otherTyping}
             myProfile={myProfile}
             noticeReactions={NOTICE_REACTIONS}
             notices={notices}

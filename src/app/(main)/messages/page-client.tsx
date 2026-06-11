@@ -881,6 +881,11 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
   conversationsRef.current = conversations;
   const selectedConversationTypeRef = useRef(selectedConversation?.type ?? null);
   selectedConversationTypeRef.current = selectedConversation?.type ?? null;
+  // 입력 중 표시(1:1 전용): 채널 참조, 마지막 신호 시각, 상대 입력중 상태, 자동 해제 타이머
+  const typingChannelRef = useRef<ReturnType<ReturnType<typeof createClient>["channel"]> | null>(null);
+  const lastTypingSentRef = useRef(0);
+  const typingClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [otherTyping, setOtherTyping] = useState(false);
   const arrivedAudioRef = useRef<HTMLAudioElement | null>(null);
 
   function playArrivedSound() {
@@ -1035,11 +1040,48 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
           }
         }
       )
+      .on(
+        "broadcast",
+        { event: "typing" },
+        (payload) => {
+          // 1:1 대화에서 상대가 입력 중이면 표시하고, 3초 뒤 자동으로 끕니다.
+          if (selectedConversationTypeRef.current !== "direct") return;
+          const fromId = (payload.payload as { userId?: string })?.userId;
+          if (!fromId || fromId === userId) return;
+          setOtherTyping(true);
+          if (typingClearTimerRef.current) clearTimeout(typingClearTimerRef.current);
+          typingClearTimerRef.current = setTimeout(() => setOtherTyping(false), 3000);
+        }
+      )
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
+    typingChannelRef.current = channel;
+
+    return () => {
+      supabase.removeChannel(channel);
+      typingChannelRef.current = null;
+      if (typingClearTimerRef.current) {
+        clearTimeout(typingClearTimerRef.current);
+        typingClearTimerRef.current = null;
+      }
+      setOtherTyping(false);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedRoomId, userId]);
+
+  // 입력 중 신호 전송(1:1 전용): 입력창에 글자가 있을 때, 1.5초에 1번만 보냅니다.
+  // 너무 자주 보내지 않도록 제한해 무료 실시간 한도를 보호합니다.
+  useEffect(() => {
+    if (selectedConversationTypeRef.current !== "direct") return;
+    if (!newMessage.trim()) return;
+    const channel = typingChannelRef.current;
+    if (!channel) return;
+    const now = Date.now();
+    if (now - lastTypingSentRef.current < 1500) return;
+    lastTypingSentRef.current = now;
+    channel.send({ type: "broadcast", event: "typing", payload: { userId } });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [newMessage]);
 
   useEffect(() => {
     if (!selectedRoomId) return;
@@ -1456,6 +1498,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
         emojiOpen={emojiOpen}
         messages={displayMessages}
         messagesEndRef={messagesEndRef}
+        otherTyping={otherTyping}
         myProfile={myProfile}
         newMessage={newMessage}
         notices={notices}

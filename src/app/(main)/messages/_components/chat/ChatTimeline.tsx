@@ -20,6 +20,7 @@ interface ChatTimelineProps {
   chatLoading: boolean;
   messages: Message[];
   messagesEndRef: RefObject<HTMLDivElement | null>;
+  otherTyping?: boolean;
   myProfile: MyProfile | null;
   noticeReactions: NoticeReactionOption[];
   notices: ChatNotice[];
@@ -55,6 +56,7 @@ export default function ChatTimeline({
   chatLoading,
   messages,
   messagesEndRef,
+  otherTyping,
   myProfile,
   noticeReactions,
   notices,
@@ -214,6 +216,13 @@ export default function ChatTimeline({
               <X size={12} />
             </button>
           </div>
+        </div>
+      )}
+      {otherTyping && (
+        <div className="flex items-center gap-1 px-3 py-2 w-fit rounded-2xl bg-white/90 shadow-sm">
+          <span className="h-2 w-2 rounded-full bg-gray-400 animate-bounce [animation-delay:-0.3s]" />
+          <span className="h-2 w-2 rounded-full bg-gray-400 animate-bounce [animation-delay:-0.15s]" />
+          <span className="h-2 w-2 rounded-full bg-gray-400 animate-bounce" />
         </div>
       )}
       <div ref={messagesEndRef} />
