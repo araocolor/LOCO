@@ -106,7 +106,7 @@ const EMPTY_MESSAGE_REACTION_COUNTS: Record<MessageReactionType, number> = {
   sad: 0,
 };
 
-const MAX_VIDEO_UPLOAD_BYTES = 50 * 1024 * 1024;
+const MAX_VIDEO_UPLOAD_BYTES = 300 * 1024 * 1024;
 const VIDEO_UPLOAD_TIMEOUT_MS = 180000;
 const ALLOWED_VIDEO_TYPES = new Set(["video/mp4", "video/quicktime", "video/webm"]);
 const CHAT_ROOMS_PREVIEW_CACHE_PREFIX = "loco_chat_rooms_preview_cache_v1:";
@@ -141,14 +141,10 @@ async function uploadVideoToSignedUrl(signedUrl: string, file: File) {
   const timer = window.setTimeout(() => controller.abort(), VIDEO_UPLOAD_TIMEOUT_MS);
 
   try {
-    const formData = new FormData();
-    formData.append("cacheControl", "3600");
-    formData.append("", file);
-
     const res = await fetch(signedUrl, {
       method: "PUT",
-      body: formData,
-      headers: { "x-upsert": "false" },
+      body: file,
+      headers: { "Content-Type": file.type },
       signal: controller.signal,
     });
 
@@ -324,7 +320,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
     }
 
     if (file.size > MAX_VIDEO_UPLOAD_BYTES) {
-      alert("영상은 최대 50MB까지 업로드할 수 있습니다.");
+      alert("영상은 최대 300MB까지 업로드할 수 있습니다.");
       return;
     }
 
@@ -366,7 +362,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
       const processRes = await fetch(`/api/chat/rooms/${selectedRoomId}/videos/process`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ path: uploadUrlJson.path }),
+        body: JSON.stringify({ path: uploadUrlJson.path, size: file.size }),
       });
       const processJson = await processRes.json();
       const message = processJson.data ? mapChatMessage(processJson.data as ChatMessageApiItem) : null;

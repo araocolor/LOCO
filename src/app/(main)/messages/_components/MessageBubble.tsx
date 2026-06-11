@@ -286,6 +286,13 @@ export default memo(function MessageBubble({
                 <span className="text-xs font-bold leading-none text-red-500">전송실패</span>
               ) : (
                 <>
+                  {videoData?.file_size && (
+                    <span className="text-[11px] text-gray-400">
+                      {videoData.file_size < 1024 * 1024
+                        ? `${(videoData.file_size / 1024).toFixed(0)}KB`
+                        : `${(videoData.file_size / (1024 * 1024)).toFixed(1)}MB`}
+                    </span>
+                  )}
                   {formatTime(msg.sent_at)}
                   {"read_at" in msg && (
                     msg.read_at ? (

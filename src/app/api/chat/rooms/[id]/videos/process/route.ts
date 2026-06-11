@@ -1,3 +1,5 @@
+import { DeleteObjectCommand } from "@aws-sdk/client-s3";
+import { r2Client, R2_BUCKETS } from "@/lib/r2/client";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { NextRequest, NextResponse } from "next/server";
 import {
@@ -6,7 +8,6 @@ import {
   requireActiveRoomMember,
 } from "../../../../_lib";
 
-const ORIGINAL_VIDEO_BUCKET = "message-video-originals";
 const EMPTY_MESSAGE_REACTION_COUNTS = { heart: 0, like: 0, laugh: 0, wow: 0, sad: 0 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -15,20 +16,25 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 async function markVideoFailed(messageId: string, originalPath: string, errorMessage: string) {
   const admin = createAdminClient();
-  await Promise.allSettled([
-    admin.storage.from(ORIGINAL_VIDEO_BUCKET).remove([originalPath]),
-    admin
-      .from("chat_messages")
-      .update({
-        kind: "file",
-        content: JSON.stringify({
-          type: "video",
-          status: "failed",
-          error: errorMessage,
-        }),
-      })
-      .eq("id", messageId),
-  ]);
+  try {
+    await r2Client.send(new DeleteObjectCommand({
+      Bucket: R2_BUCKETS.originals,
+      Key: originalPath,
+    }));
+  } catch {
+    console.error("[chat-video-process] failed to remove original from R2");
+  }
+  await admin
+    .from("chat_messages")
+    .update({
+      kind: "file",
+      content: JSON.stringify({
+        type: "video",
+        status: "failed",
+        error: errorMessage,
+      }),
+    })
+    .eq("id", messageId);
 }
 
 export async function POST(
@@ -59,7 +65,7 @@ export async function POST(
     const processingContent = {
       type: "video",
       status: "processing",
-      original_bucket: ORIGINAL_VIDEO_BUCKET,
+      original_bucket: R2_BUCKETS.originals,
       original_path: originalPath,
     };
 
@@ -96,7 +102,7 @@ export async function POST(
         },
         body: JSON.stringify({
           messageId: message.id,
-          originalBucket: ORIGINAL_VIDEO_BUCKET,
+          originalBucket: R2_BUCKETS.originals,
           originalPath,
         }),
         signal: AbortSignal.timeout(10000),

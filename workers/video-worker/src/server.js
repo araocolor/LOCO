@@ -1,31 +1,40 @@
-import { createClient } from "@supabase/supabase-js";
+import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import express from "express";
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { createWriteStream } from "node:fs";
+import { mkdir, readFile, rm, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { pipeline } from "node:stream/promises";
 
 const PORT = Number(process.env.PORT ?? 8080);
 const WORKER_SECRET = process.env.WORKER_SECRET;
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const DEFAULT_ORIGINAL_BUCKET = process.env.ORIGINAL_VIDEO_BUCKET ?? "message-video-originals";
-const DEFAULT_VIDEO_BUCKET = process.env.PROCESSED_VIDEO_BUCKET ?? "message-videos";
-const DEFAULT_THUMBNAIL_BUCKET = process.env.VIDEO_THUMBNAIL_BUCKET ?? "message-video-thumbnails";
+const R2_ACCOUNT_ID = process.env.R2_ACCOUNT_ID;
+const R2_ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID;
+const R2_SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY;
+const DEFAULT_ORIGINAL_BUCKET = process.env.ORIGINAL_VIDEO_BUCKET ?? "loco-video-originals";
+const DEFAULT_VIDEO_BUCKET = process.env.PROCESSED_VIDEO_BUCKET ?? "loco-videos";
+const DEFAULT_THUMBNAIL_BUCKET = process.env.VIDEO_THUMBNAIL_BUCKET ?? "loco-video-thumbnails";
 const FFMPEG_TIMEOUT_MS = Number(process.env.FFMPEG_TIMEOUT_MS ?? 120000);
-const STORAGE_DOWNLOAD_TIMEOUT_MS = Number(process.env.STORAGE_DOWNLOAD_TIMEOUT_MS ?? 60000);
+const DOWNLOAD_TIMEOUT_MS = Number(process.env.STORAGE_DOWNLOAD_TIMEOUT_MS ?? 60000);
 
-if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-  throw new Error("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required.");
+if (!R2_ACCOUNT_ID || !R2_ACCESS_KEY_ID || !R2_SECRET_ACCESS_KEY) {
+  throw new Error("R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, and R2_SECRET_ACCESS_KEY are required.");
 }
 
 if (!WORKER_SECRET) {
   throw new Error("WORKER_SECRET is required.");
 }
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
-  auth: { persistSession: false },
+const r2 = new S3Client({
+  region: "auto",
+  endpoint: `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+  credentials: {
+    accessKeyId: R2_ACCESS_KEY_ID,
+    secretAccessKey: R2_SECRET_ACCESS_KEY,
+  },
 });
 
 const app = express();
@@ -123,27 +132,22 @@ function buildOutputPath(originalPath, suffix) {
   return path.posix.join(parsed.dir, `${parsed.name}${suffix}`);
 }
 
-async function downloadStorageObject(bucket, objectPath, destination) {
+async function downloadFromR2(bucket, objectPath, destination) {
   console.log(`[video-worker] downloading ${bucket}/${objectPath}`);
-  const { data: signed, error: signedError } = await supabase.storage
-    .from(bucket)
-    .createSignedUrl(objectPath, 300);
-
-  if (signedError) throw signedError;
+  const url = await getSignedUrl(r2, new GetObjectCommand({ Bucket: bucket, Key: objectPath }), { expiresIn: 300 });
 
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), STORAGE_DOWNLOAD_TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), DOWNLOAD_TIMEOUT_MS);
 
   try {
-    const res = await fetch(signed.signedUrl, { signal: controller.signal });
+    const res = await fetch(url, { signal: controller.signal });
     if (!res.ok) throw new Error(`download failed with ${res.status}`);
 
-    const buffer = Buffer.from(await res.arrayBuffer());
-    await writeFile(destination, buffer);
-    console.log(`[video-worker] downloaded ${buffer.length} bytes`);
+    await pipeline(res.body, createWriteStream(destination));
+    console.log(`[video-worker] downloaded to ${destination}`);
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") {
-      throw new Error(`download timed out after ${Math.round(STORAGE_DOWNLOAD_TIMEOUT_MS / 1000)}s`);
+      throw new Error(`download timed out after ${Math.round(DOWNLOAD_TIMEOUT_MS / 1000)}s`);
     }
     throw error;
   } finally {
@@ -151,28 +155,32 @@ async function downloadStorageObject(bucket, objectPath, destination) {
   }
 }
 
-async function uploadStorageObject(bucket, objectPath, filePath, contentType) {
+async function uploadToR2(bucket, objectPath, filePath, contentType) {
   const buffer = await readFile(filePath);
   console.log(`[video-worker] uploading ${bucket}/${objectPath} (${buffer.length} bytes)`);
-  const { error } = await supabase.storage.from(bucket).upload(objectPath, buffer, {
-    contentType,
-    cacheControl: "31536000",
-    upsert: true,
-  });
 
-  if (error) throw error;
+  await r2.send(new PutObjectCommand({
+    Bucket: bucket,
+    Key: objectPath,
+    Body: buffer,
+    ContentType: contentType,
+    CacheControl: "public, max-age=31536000",
+  }));
 
-  const {
-    data: { publicUrl },
-  } = supabase.storage.from(bucket).getPublicUrl(objectPath);
-
-  return publicUrl;
+  const PUBLIC_URLS = {
+    "loco-videos": "https://pub-6158801308ca41479e54f41bbfe0cebe.r2.dev",
+    "loco-video-thumbnails": "https://pub-acaa222bd90b4d50988570f0818fb4a9.r2.dev",
+  };
+  const baseUrl = PUBLIC_URLS[bucket];
+  if (!baseUrl) throw new Error(`No public URL for bucket: ${bucket}`);
+  return `${baseUrl}/${objectPath}`;
 }
 
-async function removeOriginal(bucket, objectPath) {
-  const { error } = await supabase.storage.from(bucket).remove([objectPath]);
-  if (error) {
-    console.error("[video-worker] failed to remove original", error);
+async function removeFromR2(bucket, objectPath) {
+  try {
+    await r2.send(new DeleteObjectCommand({ Bucket: bucket, Key: objectPath }));
+  } catch (error) {
+    console.error("[video-worker] failed to remove from R2", error);
   }
 }
 
@@ -182,19 +190,24 @@ async function processVideoTask({
   originalPath,
   videoBucket,
   thumbnailBucket,
+  supabaseUrl,
+  supabaseKey,
 }) {
+  const { createClient } = await import("@supabase/supabase-js");
+  const supabase = createClient(supabaseUrl, supabaseKey, { auth: { persistSession: false } });
+
   const workDir = path.join(os.tmpdir(), `loco-video-${randomUUID()}`);
   const inputPath = path.join(workDir, "original");
   const outputPath = path.join(workDir, "processed.mp4");
-  const thumbnailPath = path.join(workDir, "thumbnail.webp");
-  const videoPath = buildOutputPath(originalPath, "_480p.mp4");
-  const thumbPath = buildOutputPath(originalPath, "_thumb.webp");
+  const thumbnailPath = path.join(workDir, "thumbnail.jpg");
+  const videoPath = buildOutputPath(originalPath, "_720p.mp4");
+  const thumbPath = buildOutputPath(originalPath, "_thumb.jpg");
   let originalDownloaded = false;
   const startedAt = Date.now();
 
   try {
     await mkdir(workDir, { recursive: true });
-    await downloadStorageObject(originalBucket, originalPath, inputPath);
+    await downloadFromR2(originalBucket, originalPath, inputPath);
     originalDownloaded = true;
 
     console.log(`[video-worker] ffmpeg transcode start message=${messageId}`);
@@ -207,7 +220,7 @@ async function processVideoTask({
       "-map",
       "0:a?",
       "-vf",
-      "scale=-2:480:force_original_aspect_ratio=decrease,fps=30",
+      "scale=-2:720,fps=30",
       "-c:v",
       "libx264",
       "-preset",
@@ -242,19 +255,17 @@ async function processVideoTask({
       "-frames:v",
       "1",
       "-vf",
-      "scale=480:-2",
-      "-c:v",
-      "libwebp",
-      "-quality",
-      "78",
+      "scale=720:-2",
+      "-q:v",
+      "5",
       thumbnailPath,
     ], { timeoutMs: 30000 });
     console.log(`[video-worker] thumbnail done message=${messageId}`);
 
-    const metadata = await ffprobe(outputPath);
+    const [metadata, videoStat] = await Promise.all([ffprobe(outputPath), stat(outputPath)]);
     const [videoUrl, thumbnailUrl] = await Promise.all([
-      uploadStorageObject(videoBucket, videoPath, outputPath, "video/mp4"),
-      uploadStorageObject(thumbnailBucket, thumbPath, thumbnailPath, "image/webp"),
+      uploadToR2(videoBucket, videoPath, outputPath, "video/mp4"),
+      uploadToR2(thumbnailBucket, thumbPath, thumbnailPath, "image/jpeg"),
     ]);
 
     const content = {
@@ -267,6 +278,7 @@ async function processVideoTask({
       duration: metadata.duration,
       width: metadata.width,
       height: metadata.height,
+      file_size: videoStat.size,
     };
 
     const { error: updateError } = await supabase
@@ -276,15 +288,15 @@ async function processVideoTask({
 
     if (updateError) throw updateError;
 
-    await removeOriginal(originalBucket, originalPath);
+    await removeFromR2(originalBucket, originalPath);
     originalDownloaded = false;
     console.log(`[video-worker] completed message=${messageId} in ${Math.round((Date.now() - startedAt) / 1000)}s`);
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message.slice(0, 500) : "video processing failed";
+    const errorMessage = error instanceof Error ? error.message.slice(0, 2000) : "video processing failed";
     console.error("[video-worker] process failed", error);
 
     if (originalDownloaded) {
-      await removeOriginal(originalBucket, originalPath);
+      await removeFromR2(originalBucket, originalPath);
     }
 
     await supabase
@@ -301,6 +313,13 @@ async function processVideoTask({
   } finally {
     await rm(workDir, { recursive: true, force: true });
   }
+}
+
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+  throw new Error("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required.");
 }
 
 app.get("/health", (_req, res) => {
@@ -328,6 +347,8 @@ app.post("/process-video", requireWorkerSecret, (req, res) => {
     originalPath,
     videoBucket,
     thumbnailBucket,
+    supabaseUrl: SUPABASE_URL,
+    supabaseKey: SUPABASE_SERVICE_ROLE_KEY,
   });
 });
 

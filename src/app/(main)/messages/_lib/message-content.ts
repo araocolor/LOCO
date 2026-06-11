@@ -24,6 +24,7 @@ export interface VideoMessageData {
   video_url?: string;
   thumbnail_url?: string | null;
   error?: string;
+  file_size?: number | null;
 }
 
 export interface ParsedMessageContent {
@@ -83,6 +84,7 @@ export function getVideoMessageData(content: string): VideoMessageData | null {
     video_url: typeof parsed.video_url === "string" ? parsed.video_url : undefined,
     thumbnail_url: typeof parsed.thumbnail_url === "string" ? parsed.thumbnail_url : null,
     error: typeof parsed.error === "string" ? parsed.error : undefined,
+    file_size: typeof (parsed as Record<string, unknown>).file_size === "number" ? (parsed as Record<string, unknown>).file_size as number : null,
   };
 }
 

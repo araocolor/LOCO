@@ -1,10 +1,11 @@
-import { createAdminClient } from "@/lib/supabase/admin";
+import { PutObjectCommand } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { r2Client, R2_BUCKETS } from "@/lib/r2/client";
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthenticatedUser, requireActiveRoomMember } from "../../../../_lib";
 import { randomUUID } from "node:crypto";
 
-const ORIGINAL_VIDEO_BUCKET = "message-video-originals";
-const MAX_VIDEO_BYTES = 50 * 1024 * 1024;
+const MAX_VIDEO_BYTES = 300 * 1024 * 1024;
 const ALLOWED_VIDEO_TYPES = new Set(["video/mp4", "video/quicktime", "video/webm"]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -45,25 +46,25 @@ export async function POST(
     }
 
     if (!Number.isFinite(size) || size <= 0 || size > MAX_VIDEO_BYTES) {
-      return NextResponse.json({ error: "영상은 최대 50MB까지 업로드할 수 있습니다." }, { status: 400 });
+      return NextResponse.json({ error: "영상은 최대 300MB까지 업로드할 수 있습니다." }, { status: 400 });
     }
 
     const extension = getVideoExtension(contentType, fileName);
     const objectPath = `${user.id}/${Date.now()}_${randomUUID()}.${extension}`;
-    const admin = createAdminClient();
-    const { data, error } = await admin.storage
-      .from(ORIGINAL_VIDEO_BUCKET)
-      .createSignedUploadUrl(objectPath);
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
+    const command = new PutObjectCommand({
+      Bucket: R2_BUCKETS.originals,
+      Key: objectPath,
+      ContentType: contentType,
+      ContentLength: size,
+    });
+
+    const signedUrl = await getSignedUrl(r2Client, command, { expiresIn: 600 });
 
     return NextResponse.json({
-      bucket: ORIGINAL_VIDEO_BUCKET,
+      bucket: R2_BUCKETS.originals,
       path: objectPath,
-      signedUrl: data.signedUrl,
-      token: data.token,
+      signedUrl,
     });
   } catch (error) {
     console.error("[chat-video-upload-url]", error);
