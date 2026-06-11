@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 
 function playCoinSound() {
   try {
-    const audio = new Audio("/sound/charging.mp3");
+    const audio = new Audio("/sound/loco_charging.mp3");
     audio.volume = 0.7;
     audio.play().catch(() => {});
   } catch {}
