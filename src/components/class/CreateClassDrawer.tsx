@@ -81,11 +81,11 @@ export default function CreateClassDrawer({ open, onClose }: CreateClassDrawerPr
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
   const CREDIT_CACHE_KEY = "credit_balance_cache";
-  const [creditBalance, setCreditBalance] = useState<number | null>(() => {
+  const [creditBalance, setCreditBalance] = useState<number>(() => {
     try {
       const cached = localStorage.getItem(CREDIT_CACHE_KEY);
-      return cached !== null ? Number(cached) : null;
-    } catch { return null; }
+      return cached !== null ? Number(cached) : 0;
+    } catch { return 0; }
   });
   const [creditAnimated, setCreditAnimated] = useState(() => {
     try { return localStorage.getItem(CREDIT_CACHE_KEY) !== null; } catch { return false; }
@@ -93,9 +93,9 @@ export default function CreateClassDrawer({ open, onClose }: CreateClassDrawerPr
   const [chargeSheetOpen, setChargeSheetOpen] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
 
-  const updateCreditBalance = (balance: number) => {
+  const updateCreditBalance = (balance: number, skipAnimation?: boolean) => {
     setCreditBalance(balance);
-    setCreditAnimated(true);
+    if (skipAnimation) setCreditAnimated(true);
     try { localStorage.setItem(CREDIT_CACHE_KEY, String(balance)); } catch {}
   };
 
@@ -113,7 +113,10 @@ export default function CreateClassDrawer({ open, onClose }: CreateClassDrawerPr
         .finally(() => setRequestsLoading(false));
       fetch("/api/poster-credits")
         .then((res) => res.json())
-        .then((json) => updateCreditBalance(json.balance ?? 0))
+        .then((json) => {
+          const hasCached = localStorage.getItem(CREDIT_CACHE_KEY) !== null;
+          updateCreditBalance(json.balance ?? 0, hasCached);
+        })
         .catch(() => {});
     } else {
       queueMicrotask(() => {
@@ -424,21 +427,15 @@ export default function CreateClassDrawer({ open, onClose }: CreateClassDrawerPr
                         <ellipse cx="11" cy="7.5" rx="10" ry="5" fill="#FFD600" />
                         <ellipse cx="11" cy="7.5" rx="7" ry="3.2" fill="#FFE866" opacity="0.5" />
                       </svg>
-                      {creditBalance !== null ? (
-                        <>
-                          <CountUp
-                            value={creditBalance}
-                            animate={!creditAnimated}
-                            className="text-[17px] font-bold text-[#111111]"
-                            onAnimationEnd={() => {
-                              if (!creditAnimated) setShowCelebration(true);
-                            }}
-                          />
-                          <span>회 남음</span>
-                        </>
-                      ) : (
-                        <span className="text-[13px] text-[#aaa]">불러오는 중</span>
-                      )}
+                      <CountUp
+                        value={creditBalance}
+                        animate={!creditAnimated}
+                        className="text-[17px] font-bold text-[#111111]"
+                        onAnimationEnd={() => {
+                          if (!creditAnimated) setShowCelebration(true);
+                        }}
+                      />
+                      <span>회 남음</span>
                     </span>
                   </div>
                   <span className="mt-8 text-2xl font-extrabold tracking-[-0.02em] text-[#111111]">

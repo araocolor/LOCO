@@ -5,6 +5,7 @@ import { X, Loader2, Star } from "lucide-react";
 import LegalDrawer from "@/components/legal/LegalDrawer";
 import TermsOfServiceContent from "@/components/legal/TermsOfServiceContent";
 import RefundPolicyContent from "@/components/legal/RefundPolicyContent";
+import CelebrationEffect from "@/components/ui/CelebrationEffect";
 
 const STAR_PLAN = { baseStars: 20, basePrice: 11000 };
 
@@ -15,6 +16,9 @@ const BONUS_MAP: Record<number, number> = {
   4: 20,
   5: 40,
 };
+
+const STAR_BALANCE_UPDATED_EVENT = "loco:star-balance-updated";
+const TEMP_CHARGED_STARS = 10;
 
 interface StarChargeSheetProps {
   open: boolean;
@@ -29,6 +33,8 @@ export default function StarChargeSheet({ open, onClose, onComplete }: StarCharg
   const [agreed, setAgreed] = useState(false);
   const [termsOpen, setTermsOpen] = useState(false);
   const [refundOpen, setRefundOpen] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [showCelebration, setShowCelebration] = useState(false);
   const [slotNumber, setSlotNumber] = useState<number | null>(null);
   const [slotDone, setSlotDone] = useState(true);
   const [displayTotal, setDisplayTotal] = useState<number | null>(null);
@@ -97,6 +103,15 @@ export default function StarChargeSheet({ open, onClose, onComplete }: StarCharg
     setLoading(true);
     setError("");
 
+    // [임시] 실제 카카오페이 결제 대신 1.5초 후 완료 모달 표시
+    // TODO: 결제 연동 완료 후 아래 실제 결제 코드로 복원할 것
+    await new Promise((r) => setTimeout(r, 1500));
+    setLoading(false);
+    setShowSuccessModal(true);
+    setShowCelebration(true);
+    return;
+
+    /* [실제 결제 코드 - 카카오페이 연동 완료 후 복원]
     try {
       const res = await fetch("/api/star/pay", {
         method: "POST",
@@ -124,6 +139,7 @@ export default function StarChargeSheet({ open, onClose, onComplete }: StarCharg
     } finally {
       setLoading(false);
     }
+    */
   };
 
   return (
@@ -229,6 +245,40 @@ export default function StarChargeSheet({ open, onClose, onComplete }: StarCharg
           )}
         </button>
       </div>
+
+      {/* [임시] 결제 완료 모달 */}
+      {showSuccessModal && (
+        <div className="fixed inset-0 z-[400] flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/50" />
+          <div className="relative w-[320px] rounded-2xl bg-white px-6 py-8 text-center shadow-xl animate-sheet-slide-up">
+            {showCelebration && (
+              <CelebrationEffect onDone={() => setShowCelebration(false)} />
+            )}
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#fffde6]">
+              <Star size={32} className="text-yellow-400 fill-yellow-400" />
+            </div>
+            <h3 className="text-[20px] font-extrabold text-[#111] mb-2">충전 완료!</h3>
+            <p className="text-[15px] text-[#555] mb-6">
+              별 {TEMP_CHARGED_STARS}개가 충전되었습니다
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setShowSuccessModal(false);
+                window.dispatchEvent(
+                  new CustomEvent(STAR_BALANCE_UPDATED_EVENT, {
+                    detail: { delta: TEMP_CHARGED_STARS },
+                  })
+                );
+                onComplete();
+              }}
+              className="w-full rounded-xl bg-[#fee500] py-3.5 text-[16px] font-bold text-[#191600] transition active:scale-[0.98]"
+            >
+              확인
+            </button>
+          </div>
+        </div>
+      )}
 
       <LegalDrawer open={termsOpen} onClose={() => setTermsOpen(false)} title="서비스 이용약관">
         <TermsOfServiceContent />

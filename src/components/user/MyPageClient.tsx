@@ -190,13 +190,17 @@ export default function MyPageClient({
 
   useEffect(() => {
     function handleStarBalanceUpdated(event: Event) {
-      const detail = (event as CustomEvent<{ starBalance?: number }>).detail;
-      if (typeof detail?.starBalance === "number") setStarBalanceOverride(detail.starBalance);
+      const detail = (event as CustomEvent<{ starBalance?: number; delta?: number }>).detail;
+      if (typeof detail?.delta === "number") {
+        setStarBalanceOverride((prev) => (prev ?? profile.star_balance ?? 0) + detail.delta!);
+      } else if (typeof detail?.starBalance === "number") {
+        setStarBalanceOverride(detail.starBalance);
+      }
     }
 
     window.addEventListener(STAR_BALANCE_UPDATED_EVENT, handleStarBalanceUpdated);
     return () => window.removeEventListener(STAR_BALANCE_UPDATED_EVENT, handleStarBalanceUpdated);
-  }, []);
+  }, [profile.star_balance]);
 
   const [starGiversOpen, setStarGiversOpen] = useState(false);
   const [privacyOpen, setPrivacyOpen] = useState(false);
@@ -520,7 +524,7 @@ export default function MyPageClient({
             <div className="w-1/2 flex items-start">
               <div className="relative flex-shrink-0">
                 <button
-                  onClick={() => { if (avatarUrl) setAvatarZoomOpen(true); }}
+                  onClick={handleOpenEditModal}
                   className="hover:opacity-80 transition-opacity cursor-pointer"
                 >
                   {avatarUrl ? (
