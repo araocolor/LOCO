@@ -7,9 +7,10 @@ interface CountUpProps {
   duration?: number;
   animate?: boolean;
   className?: string;
+  onAnimationEnd?: () => void;
 }
 
-export default function CountUp({ value, duration = 1500, animate = true, className }: CountUpProps) {
+export default function CountUp({ value, duration = 1500, animate = true, className, onAnimationEnd }: CountUpProps) {
   const [display, setDisplay] = useState<number | null>(animate ? null : value);
 
   useEffect(() => {
@@ -25,6 +26,7 @@ export default function CountUp({ value, duration = 1500, animate = true, classN
       if (Date.now() >= end) {
         setDisplay(value);
         clearInterval(timer);
+        onAnimationEnd?.();
         return;
       }
       setDisplay(Math.floor(Math.random() * max));

@@ -7,6 +7,7 @@ import { ArrowLeft, ChevronDown, ChevronRight, ImagePlus, Trash2, Upload, X, Zap
 import AiPosterForm from "@/app/(main)/classes/new/ai-poster/poster-form";
 import CreditChargeSheet from "@/components/class/CreditChargeSheet";
 import CountUp from "@/components/ui/CountUp";
+import CelebrationEffect from "@/components/ui/CelebrationEffect";
 
 interface SourceImage {
   url: string;
@@ -90,6 +91,7 @@ export default function CreateClassDrawer({ open, onClose }: CreateClassDrawerPr
     try { return localStorage.getItem(CREDIT_CACHE_KEY) !== null; } catch { return false; }
   });
   const [chargeSheetOpen, setChargeSheetOpen] = useState(false);
+  const [showCelebration, setShowCelebration] = useState(false);
 
   const updateCreditBalance = (balance: number) => {
     setCreditBalance(balance);
@@ -404,7 +406,7 @@ export default function CreateClassDrawer({ open, onClose }: CreateClassDrawerPr
                 <button
                   type="button"
                   onClick={creditBalance === 0 ? undefined : () => setDrawerView("aiPosterForm")}
-                  className={`flex min-h-[180px] flex-col justify-between rounded-2xl border border-[#e5e7eb] bg-white p-6 text-left shadow-sm transition ${
+                  className={`relative flex min-h-[180px] flex-col justify-between rounded-2xl border border-[#e5e7eb] bg-white p-6 text-left shadow-sm transition ${
                     creditBalance === 0 ? "opacity-60" : "active:scale-[0.99]"
                   }`}
                 >
@@ -424,7 +426,14 @@ export default function CreateClassDrawer({ open, onClose }: CreateClassDrawerPr
                       </svg>
                       {creditBalance !== null ? (
                         <>
-                          <CountUp value={creditBalance} animate={!creditAnimated} className="text-[17px] font-bold text-[#111111]" />
+                          <CountUp
+                            value={creditBalance}
+                            animate={!creditAnimated}
+                            className="text-[17px] font-bold text-[#111111]"
+                            onAnimationEnd={() => {
+                              if (!creditAnimated) setShowCelebration(true);
+                            }}
+                          />
                           <span>회 남음</span>
                         </>
                       ) : (
@@ -438,6 +447,9 @@ export default function CreateClassDrawer({ open, onClose }: CreateClassDrawerPr
                   <span className="mt-2 text-sm font-medium leading-5 text-[#666666]">
                     강사 사진과 수업 내용을 입력해서 포스터 초안을 준비합니다.
                   </span>
+                  {showCelebration && (
+                    <CelebrationEffect onDone={() => setShowCelebration(false)} />
+                  )}
                 </button>
 
                 <button
