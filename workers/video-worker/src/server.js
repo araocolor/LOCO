@@ -224,7 +224,7 @@ async function processVideoTask({
       "-c:v",
       "libx264",
       "-preset",
-      "ultrafast",
+      "medium",
       "-profile:v",
       "main",
       "-b:v",
