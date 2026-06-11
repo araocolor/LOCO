@@ -109,7 +109,7 @@ export function isPreviewableTextMessage(
 ) {
   if (!message || message.kind === "image" || message.kind === "system" || message.kind === "emoji") return false;
   const parsed = parseMessageContent(message.content);
-  return parsed?.type !== "image" && parsed?.type !== "video";
+  return parsed?.type !== "image" && parsed?.type !== "video" && parsed?.type !== "class_share";
 }
 
 export function getMessagePreviewText(content: string, options?: { isMine?: boolean; truncate?: (content: string) => string }) {

@@ -177,6 +177,24 @@ export default function ConversationList({
                 const parsed = parseMessageContent(lastContent);
                 if (parsed?.type === "image" || parsed?.type === "video") {
                   fallbackPreview = getPreviewText(lastContent, isMine);
+                } else if (conv.last_message?.kind === "emoji" || typeof parsed?.src === "string") {
+                  const senderNickname = conv.last_message?.sender_id
+                    ? conv.members?.find((m) => m.user_id === conv.last_message?.sender_id)?.profile?.nickname
+                    : undefined;
+                  fallbackPreview = senderNickname
+                    ? `${senderNickname}님이 이모지를 남겼습니다`
+                    : isMine
+                      ? "이모지를 보냈습니다"
+                      : "이모지가 도착했습니다";
+                } else if (parsed?.type === "class_share") {
+                  const senderNickname = conv.last_message?.sender_id
+                    ? conv.members?.find((m) => m.user_id === conv.last_message?.sender_id)?.profile?.nickname
+                    : undefined;
+                  fallbackPreview = senderNickname
+                    ? `${senderNickname}님이 클래스를 공유하였습니다`
+                    : isMine
+                      ? "클래스를 공유하였습니다"
+                      : "클래스가 공유되었습니다";
                 }
 
                 const showOnlineDot =

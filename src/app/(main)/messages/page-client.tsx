@@ -476,6 +476,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
             content: lastMessage.content,
             sent_at: lastMessage.created_at,
             is_mine: lastMessage.is_mine,
+            sender_id: lastMessage.sender_id,
           }
         : null,
       last_text_message: lastMessage && isPreviewableTextMessage(lastMessage)

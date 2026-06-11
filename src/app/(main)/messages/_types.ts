@@ -23,6 +23,7 @@ export interface Conversation {
     content: string;
     sent_at: string;
     is_mine: boolean;
+    sender_id?: string;
     read_at?: string | null;
   } | null;
   last_text_message: {
