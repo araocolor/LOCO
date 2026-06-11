@@ -772,16 +772,19 @@ export default function MyPageClient({
       </div>
 
       <div className="mx-9 mb-10 flex items-center gap-3">
-        <div className="flex h-[48px] w-[48px] shrink-0 items-center justify-center">
+        <div className="flex h-[55px] w-[55px] shrink-0 items-center justify-center">
           <Image
             src="/character/yelly_icon.png"
             alt="Loco로꼬"
-            width={50}
-            height={50}
-            className="h-auto w-[50px] object-contain"
+            width={55}
+            height={55}
+            className="h-auto w-[55px] object-contain"
           />
         </div>
         <div className="min-w-0">
+          <p className="text-[14px] font-bold leading-[20px] text-gray-800">
+            TINO
+          </p>
           <p className="text-[13px] leading-[18px] text-gray-500">
             앱 안내와 이벤트 소식에서 만나는
             <br />
