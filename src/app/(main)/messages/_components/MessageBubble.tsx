@@ -305,6 +305,11 @@ export default memo(function MessageBubble({
                       </span>
                     )
                   )}
+                  {"unread_count" in msg && (msg.unread_count ?? 0) > 0 && (
+                    <span className="text-xs font-bold leading-none text-yellow-500">
+                      {msg.unread_count}
+                    </span>
+                  )}
                 </>
               )}
             </span>

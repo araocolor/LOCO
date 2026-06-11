@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import type { UIEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -36,6 +36,8 @@ interface ChatRoomApiItem {
     user_id: string;
     role: "owner" | "admin" | "member";
     created_at?: string | null;
+    last_read_at?: string | null;
+    joined_at?: string | null;
     profile: OtherUser | null;
   }>;
   last_message: {
@@ -89,6 +91,7 @@ interface ChatMessageApiItem {
   sender?: OtherUser | null;
   is_mine?: boolean;
   read_at?: string | null;
+  unread_count?: number;
   my_reaction?: MessageReactionType | null;
   reaction_counts?: Record<MessageReactionType, number>;
 }
@@ -200,6 +203,22 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
   const selectedConversation = selectedRoomId
     ? conversations.find((conv) => conv.id === selectedRoomId) ?? null
     : null;
+
+  // 그룹/클래스: 멤버별 읽은 시각으로 "안 읽은 사람 수"를 화면에서 직접 계산합니다.
+  // 멤버 상태만 갱신되면 서버 재조회 없이 숫자가 자동으로 바뀝니다.
+  const displayMessages = useMemo(() => {
+    const roomType = selectedConversation?.type;
+    if (roomType !== "group" && roomType !== "class") return messages;
+    const others = (selectedConversation?.members ?? []).filter((m) => m.user_id !== userId);
+    return messages.map((m) => {
+      if (m.sender_id !== userId) return m;
+      const unread = others.filter((mem) => {
+        if (mem.joined_at && mem.joined_at > m.sent_at) return false;
+        return !mem.last_read_at || mem.last_read_at < m.sent_at;
+      }).length;
+      return m.unread_count === unread ? m : { ...m, unread_count: unread };
+    });
+  }, [messages, selectedConversation?.type, selectedConversation?.members, userId]);
   const canAddMembers = Boolean(
     !!selectedConversation &&
     (
@@ -445,6 +464,8 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
       sender: item.sender ?? null,
       // 1:1 대화에서만 read_at 키가 전달됩니다. (그룹/클래스는 키 없음)
       ...("read_at" in item ? { read_at: item.read_at ?? null } : {}),
+      // 그룹/클래스에서만 unread_count 키가 전달됩니다. (안 읽은 사람 수)
+      ...("unread_count" in item ? { unread_count: item.unread_count ?? 0 } : {}),
       my_reaction: item.my_reaction ?? null,
       reaction_counts: item.reaction_counts ?? EMPTY_MESSAGE_REACTION_COUNTS,
     };
@@ -599,7 +620,8 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
 
     const task = (async () => {
       const [messageRes, noticeRes, roomRes] = await Promise.all([
-        fetch(`/api/chat/rooms/${roomId}/messages?limit=40`),
+        // 방을 실제로 열 때만 읽음 처리합니다. (markRead=1)
+        fetch(`/api/chat/rooms/${roomId}/messages?limit=40&markRead=1`),
         fetch(`/api/chat/rooms/${roomId}/notices`),
         fetch(`/api/chat/rooms/${roomId}`),
       ]);
@@ -966,19 +988,42 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "chat_room_members", filter: `room_id=eq.${selectedRoomId}` },
         (payload) => {
-          // 1:1 대화에서 상대가 메시지를 읽으면 내 메시지의 읽음 표시를 갱신합니다.
-          if (selectedConversationTypeRef.current !== "direct") return;
           const member = payload.new as { user_id?: string; last_read_at?: string | null };
           if (!member.user_id || member.user_id === userId) return;
-          const readAt = member.last_read_at ?? null;
-          if (!readAt) return;
-          setMessages((prev) =>
-            prev.map((m) =>
-              m.sender_id === userId && !m.read_at && m.sent_at <= readAt
-                ? { ...m, read_at: readAt }
-                : m
-            )
-          );
+
+          const roomType = selectedConversationTypeRef.current;
+          // 1:1: 상대가 읽으면 내 메시지의 읽음 표시를 갱신합니다.
+          if (roomType === "direct") {
+            const readAt = member.last_read_at ?? null;
+            if (!readAt) return;
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.sender_id === userId && !m.read_at && m.sent_at <= readAt
+                  ? { ...m, read_at: readAt }
+                  : m
+              )
+            );
+            return;
+          }
+
+          // 그룹/클래스: 읽은 멤버의 시각만 갱신합니다. (서버 재조회 없음)
+          // 멤버 시각이 바뀌면 displayMessages가 자동으로 안 읽은 수를 다시 계산합니다.
+          if (roomType === "group" || roomType === "class") {
+            const readAt = member.last_read_at ?? null;
+            const memberId = member.user_id;
+            setConversations((prev) =>
+              prev.map((conv) => {
+                if (conv.id !== selectedRoomId || !conv.members) return conv;
+                let changed = false;
+                const members = conv.members.map((mem) => {
+                  if (mem.user_id !== memberId || mem.last_read_at === readAt) return mem;
+                  changed = true;
+                  return { ...mem, last_read_at: readAt };
+                });
+                return changed ? { ...conv, members } : conv;
+              })
+            );
+          }
         }
       )
       .subscribe();
@@ -1400,7 +1445,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
         chatTitle={selectedConversation?.title ?? null}
         classId={selectedConversation?.class_id ?? null}
         emojiOpen={emojiOpen}
-        messages={messages}
+        messages={displayMessages}
         messagesEndRef={messagesEndRef}
         myProfile={myProfile}
         newMessage={newMessage}

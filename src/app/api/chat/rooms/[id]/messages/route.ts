@@ -94,6 +94,20 @@ export async function GET(
       otherLastReadAt = otherMember?.last_read_at ?? null;
     }
 
+    // 그룹/클래스: 나를 제외한 활성 멤버들의 읽은 시각·입장 시각을 가져옵니다.
+    const isGroupRoom = room?.type === "group" || room?.type === "class";
+    let groupMembers: Array<{ last_read_at: string | null; joined_at: string | null }> = [];
+    if (isGroupRoom) {
+      const { data: otherMembers } = await admin
+        .from("chat_room_members")
+        .select("last_read_at, joined_at")
+        .eq("room_id", roomId)
+        .eq("status", "active")
+        .neq("user_id", user.id)
+        .returns<Array<{ last_read_at: string | null; joined_at: string | null }>>();
+      groupMembers = otherMembers ?? [];
+    }
+
     const reactionCountMap = new Map<string, Record<MessageReactionType, number>>();
     const myReactionMap = new Map<string, MessageReactionType>();
     (reactions ?? []).forEach((reaction) => {
@@ -103,26 +117,41 @@ export async function GET(
       if (reaction.user_id === user.id) myReactionMap.set(reaction.message_id, reaction.reaction_type);
     });
 
-    const readAt = new Date().toISOString();
-    await admin
-      .from("chat_room_members")
-      .update({ last_read_at: readAt })
-      .eq("room_id", roomId)
-      .eq("user_id", user.id);
+    // 방을 실제로 열 때(markRead=1)만 읽음 처리합니다.
+    // 미리보기·알림 등 백그라운드 자동 호출에서는 읽음으로 처리하지 않습니다.
+    const markRead = request.nextUrl.searchParams.get("markRead") === "1";
+    if (markRead) {
+      const readAt = new Date().toISOString();
+      await admin
+        .from("chat_room_members")
+        .update({ last_read_at: readAt })
+        .eq("room_id", roomId)
+        .eq("user_id", user.id);
+    }
 
     return NextResponse.json({
       data: messages.map((message) => {
         const isMine = message.sender_id === user.id;
-        // 내가 보낸 메시지이고, 상대가 읽은 시각이 메시지 시각 이상이면 읽음 처리합니다.
+        // 1:1: 상대가 읽은 시각이 메시지 시각 이상이면 읽음 처리합니다.
         const readAtValue = isMine && otherLastReadAt && otherLastReadAt >= message.created_at
           ? otherLastReadAt
           : null;
+        // 그룹/클래스: 내가 보낸 메시지를 아직 안 읽은 멤버 수를 계산합니다.
+        // (입장 시각 이후의 메시지만 대상, 읽은 시각이 메시지보다 이르면 안읽음)
+        const unreadCountValue = isMine
+          ? groupMembers.filter((m) => {
+              if (m.joined_at && m.joined_at > message.created_at) return false;
+              return !m.last_read_at || m.last_read_at < message.created_at;
+            }).length
+          : 0;
         return {
           ...message,
           sender: profileMap.get(message.sender_id) ?? null,
           is_mine: isMine,
           // 읽음 표시는 1:1 대화에서만 노출합니다. (그룹/클래스는 키 자체를 제외)
           ...(isDirectRoom ? { read_at: readAtValue } : {}),
+          // 그룹/클래스는 안 읽은 사람 수를 노출합니다.
+          ...(isGroupRoom ? { unread_count: unreadCountValue } : {}),
           my_reaction: myReactionMap.get(message.id) ?? null,
           reaction_counts: reactionCountMap.get(message.id) ?? emptyMessageReactionCounts(),
         };

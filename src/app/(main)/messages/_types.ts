@@ -10,6 +10,8 @@ export interface Conversation {
     user_id: string;
     role: "owner" | "admin" | "member";
     created_at?: string | null;
+    last_read_at?: string | null;
+    joined_at?: string | null;
     profile: OtherUser | null;
   }>;
   other_user: {
@@ -67,6 +69,7 @@ export interface Message {
   content: string;
   sent_at: string;
   read_at?: string | null;
+  unread_count?: number;
   sender?: OtherUser | null;
   my_reaction?: MessageReactionType | null;
   reaction_counts?: Record<MessageReactionType, number>;
