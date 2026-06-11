@@ -51,7 +51,8 @@ function writeGameFriendCache(friends: GameFriendCacheItem[]) {
 interface CreditChargeSheetProps {
   open: boolean;
   onClose: () => void;
-  onComplete: () => void;
+  // [임시] 충전 횟수를 전달하기 위해 매개변수 추가
+  onComplete: (chargedCredits?: number) => void;
 }
 
 export default function CreditChargeSheet({ open, onClose, onComplete }: CreditChargeSheetProps) {
@@ -63,6 +64,8 @@ export default function CreditChargeSheet({ open, onClose, onComplete }: CreditC
   const [agreed, setAgreed] = useState(false);
   const [termsOpen, setTermsOpen] = useState(false);
   const [refundOpen, setRefundOpen] = useState(false);
+  // [임시] 결제 완료 모달 표시용
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -86,6 +89,14 @@ export default function CreditChargeSheet({ open, onClose, onComplete }: CreditC
     setLoading(true);
     setError("");
 
+    // [임시] 실제 카카오페이 결제 대신 1.5초 후 완료 모달 표시
+    // TODO: 결제 연동 완료 후 아래 실제 결제 코드로 복원할 것
+    await new Promise((r) => setTimeout(r, 1500));
+    setLoading(false);
+    setShowSuccessModal(true);
+    return;
+
+    /* [실제 결제 코드 - 카카오페이 연동 완료 후 복원]
     try {
       const res = await fetch("/api/poster-credits/pay", {
         method: "POST",
@@ -115,6 +126,7 @@ export default function CreditChargeSheet({ open, onClose, onComplete }: CreditC
     } finally {
       setLoading(false);
     }
+    */
   };
 
   return (
@@ -221,6 +233,36 @@ export default function CreditChargeSheet({ open, onClose, onComplete }: CreditC
           }}
           onCancel={() => setGameOpen(false)}
         />
+      )}
+
+      {/* [임시] 결제 완료 모달 */}
+      {showSuccessModal && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/50" />
+          <div className="relative w-[320px] rounded-2xl bg-white px-6 py-8 text-center shadow-xl animate-sheet-slide-up">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#fee500]">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#191600" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            </div>
+            <h3 className="text-[20px] font-extrabold text-[#111] mb-2">충전 완료!</h3>
+            <p className="text-[15px] text-[#555] mb-6">
+              {CREDIT_PLANS.find((p) => p.id === selectedPlan)?.label} 충전이 완료되었습니다
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setShowSuccessModal(false);
+                // [임시] 선택한 플랜의 충전 횟수를 전달
+                const plan = CREDIT_PLANS.find((p) => p.id === selectedPlan);
+                onComplete(plan?.credits);
+              }}
+              className="w-full rounded-xl bg-[#fee500] py-3.5 text-[16px] font-bold text-[#191600] transition active:scale-[0.98]"
+            >
+              확인
+            </button>
+          </div>
+        </div>
       )}
 
       <LegalDrawer open={termsOpen} onClose={() => setTermsOpen(false)} title="서비스 이용약관">

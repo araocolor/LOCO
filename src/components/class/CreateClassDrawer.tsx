@@ -412,11 +412,20 @@ export default function CreateClassDrawer({ open, onClose }: CreateClassDrawerPr
                     <span className="flex h-12 w-12 items-center justify-center rounded-full bg-[#fee500] text-[#191600]">
                       <ImagePlus size={25} strokeWidth={2.2} />
                     </span>
-                    <span className="text-[14px] font-semibold text-[#666666]">
+                    <span className="flex items-center gap-1.5 text-[14px] font-semibold text-[#666666]">
+                      {/* 두꺼운 코인 2개 겹쳐 쌓인 아이콘 */}
+                      <svg width="22" height="24" viewBox="0 0 22 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <ellipse cx="11" cy="16" rx="10" ry="5" fill="#E5C100" />
+                        <ellipse cx="11" cy="14.5" rx="10" ry="5" fill="#FFD600" />
+                        <ellipse cx="11" cy="14.5" rx="7" ry="3.2" fill="#FFE866" opacity="0.5" />
+                        <ellipse cx="11" cy="9" rx="10" ry="5" fill="#E5C100" />
+                        <ellipse cx="11" cy="7.5" rx="10" ry="5" fill="#FFD600" />
+                        <ellipse cx="11" cy="7.5" rx="7" ry="3.2" fill="#FFE866" opacity="0.5" />
+                      </svg>
                       {creditBalance !== null ? (
                         <>
                           <CountUp value={creditBalance} animate={!creditAnimated} className="text-[17px] font-bold text-[#111111]" />
-                          회 남음
+                          <span>회 남음</span>
                         </>
                       ) : (
                         <span className="text-[13px] text-[#aaa]">불러오는 중</span>
@@ -681,12 +690,14 @@ export default function CreateClassDrawer({ open, onClose }: CreateClassDrawerPr
       <CreditChargeSheet
         open={chargeSheetOpen}
         onClose={() => setChargeSheetOpen(false)}
-        onComplete={() => {
+        onComplete={(chargedCredits) => {
           setChargeSheetOpen(false);
-          fetch("/api/poster-credits")
-            .then((res) => res.json())
-            .then((json) => updateCreditBalance(json.balance ?? 0))
-            .catch(() => {});
+          setCreditAnimated(false);
+          // [임시] 서버 결제 미연동 상태이므로 프론트에서 직접 잔액 추가
+          // TODO: 결제 연동 완료 후 서버에서 잔액을 가져오는 방식으로 복원
+          const newBalance = (creditBalance ?? 0) + (chargedCredits ?? 0);
+          setCreditBalance(newBalance);
+          try { localStorage.setItem(CREDIT_CACHE_KEY, String(newBalance)); } catch {}
         }}
       />
     </div>
