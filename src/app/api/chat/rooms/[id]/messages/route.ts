@@ -1,8 +1,10 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { NextRequest, NextResponse } from "next/server";
 import {
+  type ChatMemberRow,
   type ChatMessageKind,
   type ChatMessageRow,
+  type ChatRoomRow,
   getAuthenticatedUser,
   getProfiles,
   normalizeMessageContent,
@@ -72,6 +74,26 @@ export async function GET(
 
     if (reactionsError) throw reactionsError;
 
+    // 1:1 대화일 때만 상대방이 읽은 시각을 가져와 내 메시지의 읽음 여부를 계산합니다.
+    let otherLastReadAt: string | null = null;
+    const { data: room } = await admin
+      .from("chat_rooms")
+      .select("type")
+      .eq("id", roomId)
+      .maybeSingle<Pick<ChatRoomRow, "type">>();
+    const isDirectRoom = room?.type === "direct";
+
+    if (isDirectRoom) {
+      const { data: otherMember } = await admin
+        .from("chat_room_members")
+        .select("last_read_at")
+        .eq("room_id", roomId)
+        .eq("status", "active")
+        .neq("user_id", user.id)
+        .maybeSingle<Pick<ChatMemberRow, "last_read_at">>();
+      otherLastReadAt = otherMember?.last_read_at ?? null;
+    }
+
     const reactionCountMap = new Map<string, Record<MessageReactionType, number>>();
     const myReactionMap = new Map<string, MessageReactionType>();
     (reactions ?? []).forEach((reaction) => {
@@ -89,13 +111,22 @@ export async function GET(
       .eq("user_id", user.id);
 
     return NextResponse.json({
-      data: messages.map((message) => ({
-        ...message,
-        sender: profileMap.get(message.sender_id) ?? null,
-        is_mine: message.sender_id === user.id,
-        my_reaction: myReactionMap.get(message.id) ?? null,
-        reaction_counts: reactionCountMap.get(message.id) ?? emptyMessageReactionCounts(),
-      })),
+      data: messages.map((message) => {
+        const isMine = message.sender_id === user.id;
+        // 내가 보낸 메시지이고, 상대가 읽은 시각이 메시지 시각 이상이면 읽음 처리합니다.
+        const readAtValue = isMine && otherLastReadAt && otherLastReadAt >= message.created_at
+          ? otherLastReadAt
+          : null;
+        return {
+          ...message,
+          sender: profileMap.get(message.sender_id) ?? null,
+          is_mine: isMine,
+          // 읽음 표시는 1:1 대화에서만 노출합니다. (그룹/클래스는 키 자체를 제외)
+          ...(isDirectRoom ? { read_at: readAtValue } : {}),
+          my_reaction: myReactionMap.get(message.id) ?? null,
+          reaction_counts: reactionCountMap.get(message.id) ?? emptyMessageReactionCounts(),
+        };
+      }),
     });
   } catch (error) {
     console.error("[chat-room-messages:get]", error);
@@ -145,11 +176,9 @@ export async function POST(
 
     if (error) throw error;
 
-    await admin
-      .from("chat_room_members")
-      .update({ last_read_at: message.created_at })
-      .eq("room_id", roomId)
-      .eq("user_id", user.id);
+    // 읽음 기준: 방을 실제로 열 때(GET)만 last_read_at을 갱신합니다.
+    // 메시지를 보낼 때는 갱신하지 않아, 상대가 방을 안 보고 답장만 해도
+    // 읽음으로 잘못 표시되지 않습니다.
 
     return NextResponse.json({
       data: {

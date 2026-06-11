@@ -88,6 +88,7 @@ interface ChatMessageApiItem {
   created_at: string;
   sender?: OtherUser | null;
   is_mine?: boolean;
+  read_at?: string | null;
   my_reaction?: MessageReactionType | null;
   reaction_counts?: Record<MessageReactionType, number>;
 }
@@ -442,6 +443,8 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
       content: item.content,
       sent_at: item.created_at,
       sender: item.sender ?? null,
+      // 1:1 대화에서만 read_at 키가 전달됩니다. (그룹/클래스는 키 없음)
+      ...("read_at" in item ? { read_at: item.read_at ?? null } : {}),
       my_reaction: item.my_reaction ?? null,
       reaction_counts: item.reaction_counts ?? EMPTY_MESSAGE_REACTION_COUNTS,
     };
@@ -854,6 +857,8 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
   const refreshListRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const conversationsRef = useRef(conversations);
   conversationsRef.current = conversations;
+  const selectedConversationTypeRef = useRef(selectedConversation?.type ?? null);
+  selectedConversationTypeRef.current = selectedConversation?.type ?? null;
   const arrivedAudioRef = useRef<HTMLAudioElement | null>(null);
 
   function playArrivedSound() {
@@ -955,6 +960,25 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
         (payload) => {
           const updatedMsg = mapChatMessage(payload.new as ChatMessageApiItem);
           patchMessageInView(selectedRoomId, updatedMsg);
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "chat_room_members", filter: `room_id=eq.${selectedRoomId}` },
+        (payload) => {
+          // 1:1 대화에서 상대가 메시지를 읽으면 내 메시지의 읽음 표시를 갱신합니다.
+          if (selectedConversationTypeRef.current !== "direct") return;
+          const member = payload.new as { user_id?: string; last_read_at?: string | null };
+          if (!member.user_id || member.user_id === userId) return;
+          const readAt = member.last_read_at ?? null;
+          if (!readAt) return;
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.sender_id === userId && !m.read_at && m.sent_at <= readAt
+                ? { ...m, read_at: readAt }
+                : m
+            )
+          );
         }
       )
       .subscribe();

@@ -82,11 +82,8 @@ export async function POST(
 
     if (error) throw error;
 
-    await admin
-      .from("chat_room_members")
-      .update({ last_read_at: message.created_at })
-      .eq("room_id", roomId)
-      .eq("user_id", user.id);
+    // 읽음 기준: 방을 실제로 열 때(GET)만 last_read_at을 갱신합니다.
+    // 영상 전송 시에는 갱신하지 않습니다.
 
     const workerUrl = process.env.VIDEO_WORKER_URL;
     const workerSecret = process.env.VIDEO_WORKER_SECRET;
