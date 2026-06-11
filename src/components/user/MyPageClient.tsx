@@ -126,6 +126,7 @@ interface Props {
 }
 
 type CacheProfilePatch = Partial<Pick<Profile, "bio" | "country" | "region" | "favorite_genre" | "member_type" | "profile_image_url">>;
+const STAR_BALANCE_UPDATED_EVENT = "loco:star-balance-updated";
 
 function readMyPageCachedProfile(cacheKey: string): CacheProfilePatch | null {
   try {
@@ -179,11 +180,23 @@ export default function MyPageClient({
   const [bookmarkClasses, setBookmarkClasses] = useState<GridClass[]>([]);
   const [friendsCount, setFriendsCount] = useState<number>(socialCounts?.friends ?? 0);
   const [followingCount, setFollowingCount] = useState<number>(socialCounts?.following ?? 0);
+  const [starBalanceOverride, setStarBalanceOverride] = useState<number | null>(null);
+  const starBalance = starBalanceOverride ?? profile.star_balance ?? 0;
 
   useEffect(() => {
     if (socialCounts?.friends != null) setFriendsCount(socialCounts.friends);
     if (socialCounts?.following != null) setFollowingCount(socialCounts.following);
   }, [socialCounts?.friends, socialCounts?.following]);
+
+  useEffect(() => {
+    function handleStarBalanceUpdated(event: Event) {
+      const detail = (event as CustomEvent<{ starBalance?: number }>).detail;
+      if (typeof detail?.starBalance === "number") setStarBalanceOverride(detail.starBalance);
+    }
+
+    window.addEventListener(STAR_BALANCE_UPDATED_EVENT, handleStarBalanceUpdated);
+    return () => window.removeEventListener(STAR_BALANCE_UPDATED_EVENT, handleStarBalanceUpdated);
+  }, []);
 
   const [starGiversOpen, setStarGiversOpen] = useState(false);
   const [privacyOpen, setPrivacyOpen] = useState(false);
@@ -572,7 +585,7 @@ export default function MyPageClient({
             {" "}
             <span className="inline-flex items-center gap-1 text-[13px] text-gray-400 align-middle">
               <Star size={13} className="text-yellow-500" fill="currentColor" />
-              {profile.star_balance ?? 0}개 남음
+              {starBalance}개 남음
             </span>
           </span>
           {profile.bio && (
@@ -776,7 +789,7 @@ export default function MyPageClient({
       {starGiversOpen && (
         <StarGiftersPanel
           starGivers={starGivers}
-          starBalance={profile.star_balance ?? 0}
+          starBalance={starBalance}
           onClose={() => setStarGiversOpen(false)}
           onProfileClick={(id) => setStarGiverProfileId(id)}
           onChargeClick={() => setStarChargeOpen(true)}

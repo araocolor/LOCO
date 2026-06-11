@@ -12,6 +12,8 @@ const SEARCH_SOCIAL_CACHE_KEY = "search_social_cache";
 const CHAT_FRIENDS_CACHE_KEY = "chat_friends_cache";
 const USER_SEARCH_INFO_KEY = "user_search_info";
 const STAR_GIFTED_KEY = "loco_star_gifted_ids";
+const MY_PAGE_CACHE_KEY = "loco_mypage_cache_local_v3";
+const STAR_BALANCE_UPDATED_EVENT = "loco:star-balance-updated";
 
 function getStarGiftedIds(): Set<string> {
   try {
@@ -26,6 +28,29 @@ function addStarGiftedId(id: string) {
   const ids = getStarGiftedIds();
   ids.add(id);
   sessionStorage.setItem(STAR_GIFTED_KEY, JSON.stringify([...ids]));
+}
+
+function patchMyPageStarBalance(remainingBalance: number) {
+  try {
+    const raw = localStorage.getItem(MY_PAGE_CACHE_KEY);
+    if (!raw) return;
+    const cache = JSON.parse(raw);
+    if (!cache?.profile) return;
+    localStorage.setItem(
+      MY_PAGE_CACHE_KEY,
+      JSON.stringify({
+        ...cache,
+        profile: {
+          ...cache.profile,
+          star_balance: remainingBalance,
+        },
+      })
+    );
+  } catch {}
+}
+
+function notifyStarBalanceUpdated(remainingBalance: number) {
+  window.dispatchEvent(new CustomEvent(STAR_BALANCE_UPDATED_EVENT, { detail: { starBalance: remainingBalance } }));
 }
 
 function getMemberTypeLabel(type: string) {
@@ -324,6 +349,8 @@ export default function UserProfileModal({ userId, onClose, initialProfile = nul
         my_star_balance: remainingBalance,
         received_star_count: nextReceivedCount,
       });
+      patchMyPageStarBalance(remainingBalance);
+      notifyStarBalanceUpdated(remainingBalance);
       addStarGiftedId(userId);
 
       setShowSuccess(true);
