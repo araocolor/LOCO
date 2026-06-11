@@ -42,6 +42,18 @@ export async function GET(
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
+    // 읽음만 처리하는 가벼운 호출(readOnly=1): 메시지를 받지 않고 읽은 시각만 갱신합니다.
+    // 방을 보는 중에 새 메시지가 와도 읽음으로 표시하기 위한 용도입니다.
+    if (request.nextUrl.searchParams.get("readOnly") === "1") {
+      const admin = createAdminClient();
+      await admin
+        .from("chat_room_members")
+        .update({ last_read_at: new Date().toISOString() })
+        .eq("room_id", roomId)
+        .eq("user_id", user.id);
+      return NextResponse.json({ data: [] });
+    }
+
     const limitParam = Number(request.nextUrl.searchParams.get("limit") ?? "50");
     const limit = Number.isFinite(limitParam) ? Math.min(Math.max(limitParam, 1), 100) : 50;
     const before = request.nextUrl.searchParams.get("before");

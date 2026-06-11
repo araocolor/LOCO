@@ -974,6 +974,15 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
           });
           appendMessageCache(selectedRoomId, newMsg);
           patchConversationWithMessage(selectedRoomId, newMsg);
+
+          // 1:1 대화에서 방을 보는 중에 상대 메시지가 오면 읽음으로 처리합니다.
+          // 읽은 시각만 갱신하는 가벼운 호출이라 메시지를 다시 받지 않습니다.
+          if (
+            selectedConversationTypeRef.current === "direct" &&
+            activeChatRoomRef.current === selectedRoomId
+          ) {
+            fetch(`/api/chat/rooms/${selectedRoomId}/messages?readOnly=1`, { method: "GET" }).catch(() => {});
+          }
         }
       )
       .on(
