@@ -32,6 +32,15 @@ interface Brick {
   height: number;
   color: string;
   alive: boolean;
+  hasBall: boolean;
+}
+
+interface FallingBall {
+  id: string;
+  x: number;
+  y: number;
+  vy: number;
+  radius: number;
 }
 
 interface BallState {
@@ -44,6 +53,7 @@ interface BallState {
 
 interface GameState {
   balls: BallState[];
+  fallingBalls: FallingBall[];
   paddleX: number;
   bricks: Brick[];
   rescuedOrder: string[];
@@ -92,6 +102,12 @@ const BRICK_SCORE = 100;
 const RESCUE_SCORE = 250;
 const TOTAL_LIVES = 3;
 const RESERVE_BALL_SIZE = 12;
+const BALL_BRICK_COUNT = 2;
+const FALLING_BALL_SPEED = 160;
+const LIVES_BONUS = 30;
+const TIME_BONUS_MAX = 100;
+const TIME_BONUS_WINDOW_SEC = 120;
+
 const BRICK_COLORS = [
   "#ff7a59",
   "#ffb347",
@@ -117,6 +133,21 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
 
+function calcFinalScore(
+  brokenBricks: number,
+  rescuedCount: number,
+  remainingLives: number,
+  startedAt: number | null,
+  endedAt: number,
+) {
+  const base = brokenBricks * BRICK_SCORE + rescuedCount * RESCUE_SCORE;
+  const livesBonus = remainingLives * LIVES_BONUS;
+  const elapsed = startedAt ? (endedAt - startedAt) / 1000 : TIME_BONUS_WINDOW_SEC;
+  const timeRatio = clamp(1 - elapsed / TIME_BONUS_WINDOW_SEC, 0, 1);
+  const timeBonus = Math.round(timeRatio * TIME_BONUS_MAX);
+  return base + livesBonus + timeBonus;
+}
+
 function easeInOutCubic(t: number) {
   return t < 0.5 ? 4 * t * t * t : 1 - ((-2 * t + 2) ** 3) / 2;
 }
@@ -126,7 +157,7 @@ function buildBricks(bounds: GameBounds) {
   const brickWidth = (usableWidth - BRICK_GAP * (BRICK_COLUMNS - 1)) / BRICK_COLUMNS;
   const brickHeight = 18;
 
-  return Array.from({ length: BRICK_ROWS * BRICK_COLUMNS }, (_, index) => {
+  const allBricks: Brick[] = Array.from({ length: BRICK_ROWS * BRICK_COLUMNS }, (_, index) => {
     const row = Math.floor(index / BRICK_COLUMNS);
     const col = index % BRICK_COLUMNS;
     const id = `${row}-${col}`;
@@ -138,8 +169,19 @@ function buildBricks(bounds: GameBounds) {
       height: brickHeight,
       color: BRICK_COLORS[(row + col) % BRICK_COLORS.length],
       alive: !BRICK_GAPS.has(id),
-    } satisfies Brick;
+      hasBall: false,
+    };
   });
+
+  const aliveIndices = allBricks
+    .map((b, i) => (b.alive ? i : -1))
+    .filter((i) => i >= 0);
+  const shuffled = aliveIndices.sort(() => Math.random() - 0.5);
+  for (let i = 0; i < Math.min(BALL_BRICK_COUNT, shuffled.length); i++) {
+    allBricks[shuffled[i]] = { ...allBricks[shuffled[i]], hasBall: true };
+  }
+
+  return allBricks;
 }
 
 function getPaddleWidth(bounds: GameBounds) {
@@ -210,6 +252,7 @@ function createInitialGame(bounds: GameBounds): GameState {
   const paddleX = bounds.width / 2;
   return {
     balls: [createBallOnPaddle(paddleX, bounds)],
+    fallingBalls: [],
     paddleX,
     bricks: buildBricks(bounds),
     rescuedOrder: [],
@@ -344,6 +387,7 @@ export default function MemberBreakoutGame({ members, userId, roomId, onExitGame
         const speedTarget = BASE_SPEED + (brokenRatio * 0.82 + rescuedRatio * 0.18) * MAX_EXTRA_SPEED;
 
         let nextBricks = current.bricks;
+        let nextFallingBalls = [...current.fallingBalls];
         let nextHitAt = current.hitAt;
         let nextPendingReleaseAt = current.pendingReleaseAt;
         let nextReleasedAt = current.releasedAt;
@@ -440,9 +484,19 @@ export default function MemberBreakoutGame({ members, userId, roomId, onExitGame
           );
 
           if (hitBrickIndex >= 0) {
+            const hitBrick = nextBricks[hitBrickIndex];
             nextBricks = nextBricks.map((brick, index) =>
               index === hitBrickIndex ? { ...brick, alive: false } : brick
             );
+            if (hitBrick.hasBall) {
+              nextFallingBalls.push({
+                id: `fb-${hitBrick.id}-${time}`,
+                x: hitBrick.x + hitBrick.width / 2,
+                y: hitBrick.y + hitBrick.height,
+                vy: FALLING_BALL_SPEED,
+                radius: BALL_RADIUS,
+              });
+            }
             const brick = nextBricks[hitBrickIndex];
             const hitFromTop = prevY <= brick.y - nextBall.radius;
             const hitFromBottom = prevY >= brick.y + brick.height + nextBall.radius;
@@ -480,6 +534,22 @@ export default function MemberBreakoutGame({ members, userId, roomId, onExitGame
           survivingBalls.push(nextBall);
         }
 
+        const remainingFalling: FallingBall[] = [];
+        for (const fb of nextFallingBalls) {
+          fb.y += fb.vy * dt;
+          if (
+            fb.y + fb.radius >= paddleY &&
+            fb.x >= current.paddleX - paddleHalf - 8 &&
+            fb.x <= current.paddleX + paddleHalf + 8
+          ) {
+            remainingLives += 1;
+            continue;
+          }
+          if (fb.y - fb.radius > bounds.height) continue;
+          remainingFalling.push(fb);
+        }
+        nextFallingBalls = remainingFalling;
+
         if (survivingBalls.length === 0 && remainingLives > 0) {
           waitingOnPaddle = 1;
           survivingBalls.push(createBallOnPaddle(current.paddleX, bounds));
@@ -488,10 +558,11 @@ export default function MemberBreakoutGame({ members, userId, roomId, onExitGame
 
         if (survivingBalls.length === 0 && remainingLives <= 0) {
           const brokenBricks = totalBreakableBricks - nextBricks.filter((b) => b.alive).length;
-          const finalScore = brokenBricks * BRICK_SCORE + nextRescuedOrder.length * RESCUE_SCORE;
+          const finalScore = calcFinalScore(brokenBricks, nextRescuedOrder.length, 0, current.startedAt, time);
           return {
             ...current,
             balls: [],
+            fallingBalls: [],
             bricks: nextBricks,
             rescuedOrder: nextRescuedOrder,
             hitAt: nextHitAt,
@@ -527,11 +598,12 @@ export default function MemberBreakoutGame({ members, userId, roomId, onExitGame
         const remainingBricks = nextBricks.filter((brick) => brick.alive).length;
         const rescuedAllMembers = members.length > 0 && nextRescuedOrder.length >= members.length;
         if (remainingBricks === 0 || rescuedAllMembers) {
-          const finalScore =
-            totalBreakableBricks * BRICK_SCORE + nextRescuedOrder.length * RESCUE_SCORE;
+          const brokenForClear = totalBreakableBricks - nextBricks.filter((b) => b.alive).length;
+          const finalScore = calcFinalScore(brokenForClear, nextRescuedOrder.length, remainingLives, current.startedAt, time);
           return {
             ...current,
             balls: survivingBalls.map((b) => ({ ...b, vx: 0, vy: 0 })),
+            fallingBalls: [],
             bricks: nextBricks,
             rescuedOrder: nextRescuedOrder,
             hitAt: nextHitAt,
@@ -552,6 +624,7 @@ export default function MemberBreakoutGame({ members, userId, roomId, onExitGame
         return {
           ...current,
           balls: survivingBalls,
+          fallingBalls: nextFallingBalls,
           bricks: nextBricks,
           rescuedOrder: nextRescuedOrder,
           hitAt: nextHitAt,
@@ -692,6 +765,25 @@ export default function MemberBreakoutGame({ members, userId, roomId, onExitGame
               height: brick.height,
               backgroundColor: brick.color,
             }}
+          >
+            {brick.alive && brick.hasBall && (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="h-2.5 w-2.5 rounded-full bg-[#fff4a8] shadow-[0_0_6px_rgba(255,244,168,0.9)]" />
+              </div>
+            )}
+          </div>
+        ))}
+
+        {game?.fallingBalls.map((fb) => (
+          <div
+            key={fb.id}
+            className="pointer-events-none absolute z-30 rounded-full bg-[#fff4a8] shadow-[0_0_18px_rgba(255,244,168,0.8)] animate-pulse"
+            style={{
+              left: fb.x - fb.radius,
+              top: fb.y - fb.radius,
+              width: fb.radius * 2,
+              height: fb.radius * 2,
+            }}
           />
         ))}
 
@@ -793,7 +885,7 @@ export default function MemberBreakoutGame({ members, userId, roomId, onExitGame
         )}
 
         {game && game.status === "running" && displayReserve > 0 && (
-          <div className="absolute bottom-5 right-5 z-20 flex items-center gap-3">
+          <div className="absolute bottom-5 right-14 z-20 flex items-center gap-5">
             {Array.from({ length: displayReserve }, (_, i) => (
               <button
                 key={i}
