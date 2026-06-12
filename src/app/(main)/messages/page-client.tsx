@@ -894,7 +894,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
   function playArrivedSound() {
     try {
       if (!arrivedAudioRef.current) {
-        arrivedAudioRef.current = new Audio("/sound/arrived_message.mp3");
+        arrivedAudioRef.current = new Audio("/sound/realtime_alert_arrived_02.mp3");
         arrivedAudioRef.current.volume = 0.7;
       }
       arrivedAudioRef.current.currentTime = 0;
@@ -914,6 +914,27 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
     }, 500);
   }
 
+  function notifyLatestUnreadMessage(roomId: string, delayMs = 0) {
+    window.setTimeout(() => {
+      if (activeChatRoomRef.current === roomId) return;
+      void (async () => {
+        try {
+          const res = await fetch(`/api/chat/rooms/${roomId}/messages?limit=1`);
+          const json = await res.json();
+          if (!res.ok || !json.data) return;
+          const msgs = (json.data as ChatMessageApiItem[]).map(mapChatMessage);
+          if (msgs.length === 0) return;
+          const latest = msgs[0];
+          if (latest.sender_id === userId) return;
+          const cached = readMessageCache(roomId);
+          if (cached.some((m) => m.id === latest.id)) return;
+          if (!isChatMuted(roomId)) playArrivedSound();
+          appendMessageCache(roomId, latest);
+        } catch {}
+      })();
+    }, delayMs);
+  }
+
   useEffect(() => {
     const supabase = createClient();
     const channel = supabase
@@ -921,9 +942,10 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "chat_room_members", filter: `user_id=eq.${userId}` },
-        () => {
+        (payload) => {
+          const roomId = (payload.new as { room_id?: string }).room_id;
           scheduleListRefresh();
-          if (!activeChatRoomRef.current) playArrivedSound();
+          if (roomId) notifyLatestUnreadMessage(roomId, 700);
         }
       )
       .on(
@@ -934,21 +956,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
           if (!roomId) return;
           if (!conversationsRef.current.some((conv) => conv.id === roomId)) return;
           scheduleListRefresh();
-          if (activeChatRoomRef.current === roomId) return;
-          if (!isChatMuted(roomId)) playArrivedSound();
-          void (async () => {
-            try {
-              const res = await fetch(`/api/chat/rooms/${roomId}/messages?limit=1`);
-              const json = await res.json();
-              if (!res.ok || !json.data) return;
-              const msgs = (json.data as ChatMessageApiItem[]).map(mapChatMessage);
-              if (msgs.length === 0) return;
-              const latest = msgs[0];
-              const cached = readMessageCache(roomId);
-              if (cached.some((m) => m.id === latest.id)) return;
-              appendMessageCache(roomId, latest);
-            } catch {}
-          })();
+          notifyLatestUnreadMessage(roomId);
         }
       )
       .subscribe();

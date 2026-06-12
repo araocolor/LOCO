@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { usePathname } from "next/navigation";
 import { useScrollChromeVisibility } from "@/hooks/useScrollChromeVisibility";
 import { type MainTabId, getMainTab, subscribeMainTab, replaceMainTab } from "@/lib/main-tab";
@@ -81,7 +81,9 @@ export default function BottomNav() {
   const pathname = usePathname();
   const [hydrated, setHydrated] = useState(false);
   const [hasUnreadNotifications, setHasUnreadNotifications] = useState(false);
+  const [hasUnreadMessages, setHasUnreadMessages] = useState(false);
   const [homeSubTab, setHomeSubTab] = useState<HomeSubTab>("allClasses");
+  const loginUnreadSoundPlayedUserRef = useRef<string | null>(null);
   const { user } = useAuth();
   const activeTab = useSyncExternalStore(subscribeMainTab, getMainTab, () => "home" as const);
   const shouldAutoHide = pathname === "/" && activeTab === "home" && homeSubTab === "allClasses";
@@ -116,6 +118,30 @@ export default function BottomNav() {
       .catch(() => {});
   }, [user?.id]);
 
+  useEffect(() => {
+    if (!user?.id) {
+      queueMicrotask(() => setHasUnreadMessages(false));
+      loginUnreadSoundPlayedUserRef.current = null;
+      return;
+    }
+
+    fetch("/api/chat/unread-count?type=direct")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json) => {
+        const hasUnread = (json?.count ?? 0) > 0;
+        setHasUnreadMessages(hasUnread);
+        if (!hasUnread || loginUnreadSoundPlayedUserRef.current === user.id) return;
+
+        loginUnreadSoundPlayedUserRef.current = user.id;
+        try {
+          const audio = new Audio("/sound/login_arrived_message.mp3");
+          audio.volume = 0.7;
+          void audio.play();
+        } catch {}
+      })
+      .catch(() => {});
+  }, [user?.id]);
+
   if (pathname.startsWith("/classes/") || pathname.startsWith("/users/")) return null;
   if (!hydrated) return null;
 
@@ -141,6 +167,9 @@ export default function BottomNav() {
             <span className="relative">
               {renderIcon(isActive)}
               {tabId === "notifications" && !isActive && hasUnreadNotifications && (
+                <span className="absolute -right-0.5 -top-0.5 h-[14px] w-[14px] rounded-full bg-red-500 border-2 border-white" />
+              )}
+              {tabId === "messages" && !isActive && hasUnreadMessages && (
                 <span className="absolute -right-0.5 -top-0.5 h-[14px] w-[14px] rounded-full bg-red-500 border-2 border-white" />
               )}
             </span>
