@@ -9,7 +9,8 @@ import { createClient } from "@/lib/supabase/client";
 import { fetchWithAuthRetry } from "@/lib/auth/fetch-with-auth-retry";
 import { prefetchBoardPostsCache } from "@/lib/board-session-cache";
 import { parseBookmarkEntries } from "@/lib/bookmarks/local";
-import { REGIONS, MEMBER_TYPES, MAX_MEMBER_TYPE } from "@/lib/constants";
+import { REGIONS, MEMBER_TYPES } from "@/lib/constants";
+import { PROFILE_AVATAR_UPDATED_EVENT } from "@/lib/profile-events";
 import AvatarCropModal from "./AvatarCropModal";
 import { ClassImage } from "@/types/class";
 import Avatar from "@/components/ui/Avatar";
@@ -434,6 +435,12 @@ export default function MyPageClient({
       setAvatarUrl(publicUrl);
       setAvatarHdUrl(hdPublicUrl);
       patchMyPageProfileCache({ profile_image_url: publicUrl });
+      window.dispatchEvent(new CustomEvent(PROFILE_AVATAR_UPDATED_EVENT, {
+        detail: {
+          nickname: profile.nickname,
+          profile_image_url: publicUrl,
+        },
+      }));
       router.refresh();
     } catch (err) {
       console.error("아바타 업로드 실패:", err);
@@ -592,8 +599,8 @@ export default function MyPageClient({
               {starBalance}개 남음
             </span>
           </span>
-          {profile.bio && (
-            <span className="text-[16px] w-[80%] mt-2" style={{ color: "#000000cc" }}>{profile.bio}</span>
+          {profileMeta.bio && (
+            <span className="text-[16px] w-[80%] mt-2" style={{ color: "#000000cc" }}>{profileMeta.bio}</span>
           )}
         </div>
       </div>
@@ -955,29 +962,26 @@ export default function MyPageClient({
             <section>
               <div className="flex items-center justify-between mb-2">
                 <h3 className="text-sm font-semibold text-gray-900">회원구분</h3>
-                <span className="text-xs text-gray-500">{memberTypes.length}/{MAX_MEMBER_TYPE}</span>
+                <span className="text-xs text-gray-500">{memberTypes.length}/1</span>
               </div>
               <div className="flex flex-wrap gap-2">
                 {MEMBER_TYPES.map((type) => {
                   const active = memberTypes.includes(type);
                   const isMain = memberTypes[0] === type;
-                  const limitReached = !active && memberTypes.length >= MAX_MEMBER_TYPE;
                   return (
                     <button
                       key={type}
                       type="button"
                       onClick={() => {
-                        if (active) setMemberTypes((prev) => prev.filter((v) => v !== type));
-                        else if (!limitReached) setMemberTypes((prev) => [...prev, type]);
+                        setMemberTypes(active ? [] : [type]);
                       }}
-                      disabled={limitReached}
                       className={`px-3 py-1.5 rounded-full text-sm border transition-colors ${
                         isMain
                           ? "bg-gray-800 border-gray-800 text-white"
                           : active
                           ? "bg-yellow-400 border-yellow-500 text-gray-900"
                           : "bg-white border-gray-300 text-gray-700"
-                      } ${limitReached ? "opacity-40 cursor-not-allowed" : "hover:border-gray-400"}`}
+                      } hover:border-gray-400`}
                     >
                       {getMemberTypeLabel(type)}
                     </button>

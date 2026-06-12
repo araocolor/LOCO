@@ -5,6 +5,7 @@ import type { UIEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { isChatMuted } from "@/lib/chat-mute";
+import { PROFILE_AVATAR_UPDATED_EVENT, type ProfileAvatarUpdatedDetail } from "@/lib/profile-events";
 import { PRESENCE_EVENT } from "@/components/features/PresenceTracker";
 import ConversationList from "./_components/ConversationList";
 import ChatDrawer from "./_components/ChatDrawer";
@@ -116,6 +117,7 @@ const ALLOWED_VIDEO_TYPES = new Set(["video/mp4", "video/quicktime", "video/webm
 const CHAT_ROOMS_PREVIEW_CACHE_PREFIX = "loco_chat_rooms_preview_cache_v1:";
 const CHAT_ROOMS_PREVIEW_CACHE_TTL_MS = 5 * 60 * 1000;
 const CONVERSATIONS_LIMIT = 50;
+const MY_PAGE_CACHE_KEY = "loco_mypage_cache_local_v3";
 
 type PreviewRoomType = "direct" | "group" | "class";
 
@@ -1135,22 +1137,47 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
 
 
   useEffect(() => {
+    function setProfileFromCache(profile: { nickname?: string; profile_image_url?: string | null } | null | undefined) {
+      if (!profile?.nickname && profile?.profile_image_url === undefined) return false;
+      queueMicrotask(() => {
+        setMyProfile((prev) => ({
+          nickname: profile.nickname ?? prev?.nickname ?? "나",
+          profile_image_url: profile.profile_image_url ?? null,
+        }));
+      });
+      return true;
+    }
+
     try {
+      const myPageRaw = localStorage.getItem(MY_PAGE_CACHE_KEY);
+      if (myPageRaw) {
+        const myPageCache = JSON.parse(myPageRaw);
+        if (setProfileFromCache(myPageCache?.profile)) return;
+      }
+
       const keys = Object.keys(localStorage).filter((k) => k.startsWith("loco_home_my_classes_v1:"));
       for (const key of keys) {
         const raw = localStorage.getItem(key);
         if (!raw) continue;
         const cache = JSON.parse(raw);
         const p = cache?.profile;
-        if (p?.nickname) {
-          queueMicrotask(() => {
-            setMyProfile({ nickname: p.nickname, profile_image_url: p.profile_image_url ?? null });
-          });
-          return;
-        }
+        if (setProfileFromCache(p)) return;
       }
     } catch {}
   }, [userId]);
+
+  useEffect(() => {
+    function handleProfileAvatarUpdated(event: Event) {
+      const detail = (event as CustomEvent<ProfileAvatarUpdatedDetail>).detail;
+      setMyProfile((prev) => ({
+        nickname: detail.nickname ?? prev?.nickname ?? "나",
+        profile_image_url: detail.profile_image_url,
+      }));
+    }
+
+    window.addEventListener(PROFILE_AVATAR_UPDATED_EVENT, handleProfileAvatarUpdated);
+    return () => window.removeEventListener(PROFILE_AVATAR_UPDATED_EVENT, handleProfileAvatarUpdated);
+  }, []);
 
   async function openSelfChat() {
     try {

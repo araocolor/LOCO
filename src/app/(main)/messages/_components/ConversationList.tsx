@@ -55,6 +55,7 @@ export default function ConversationList({
         : activeMenuTab === "class"
           ? classConversations
           : [];
+  const centeredStatusClass = "flex min-h-[calc(100dvh-220px)] flex-col items-center justify-center text-gray-400";
 
   return (
     <>
@@ -100,14 +101,21 @@ export default function ConversationList({
           )}
       </div>
 
-      <div className="flex-1 overflow-y-auto">
+      <div className="min-h-0 flex-1 overflow-y-auto">
         {activeMenuTab === "friends" ? (
           <MessageFriendsPanel onlineIds={onlineIds} onMessageSent={onFriendMessageSent} />
         ) : loading ? (
-          <div className="flex items-center justify-center h-32 text-gray-400">로딩 중...</div>
+          <div className={centeredStatusClass}>로딩 중...</div>
         ) : visibleConversations.length === 0 && activeMenuTab !== "direct" ? (
-          <div className="flex flex-col items-center justify-center h-32 text-gray-400">
-            <p className="text-4xl mb-2">💬</p>
+          <div className={centeredStatusClass}>
+            <Image
+              src="/character/tino.png"
+              alt="Tino"
+              width={72}
+              height={72}
+              className="mb-2 h-[72px] w-[72px] object-contain"
+              priority={false}
+            />
             <p className="text-sm">
               {activeMenuTab === "class"
                 ? "클래스 대화방이 없습니다"

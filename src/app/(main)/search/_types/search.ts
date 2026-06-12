@@ -48,8 +48,8 @@ export interface Suggestion {
   id: string;
   nickname: string;
   profile_image_url: string | null;
-  country: string | null;
-  region: string | null;
+  country?: string | null;
+  region?: string | null;
 }
 
 export interface PendingMember {

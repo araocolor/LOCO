@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { ReactNode } from "react";
+import type { ReactNode, UIEvent } from "react";
 import { Check, LayoutGrid, LayoutList, Plus, UsersRound } from "lucide-react";
 import Avatar from "@/components/ui/Avatar";
 import SendMessageModal from "@/components/modal/SendMessageModal";
@@ -165,7 +165,13 @@ export default function MessageFriendsPanel({ onlineIds, onMessageSent }: Messag
     [mutualFriends]
   );
 
-  const suggestions = friendActions.suggestions.slice(0, 10);
+  const suggestions = friendActions.suggestions;
+
+  function handleSuggestionsScroll(event: UIEvent<HTMLDivElement>) {
+    const target = event.currentTarget;
+    const remaining = target.scrollWidth - target.scrollLeft - target.clientWidth;
+    if (remaining < 160) friendActions.loadMoreSuggestions();
+  }
 
   return (
     <div className="bg-white px-4 pb-6">
@@ -186,6 +192,7 @@ export default function MessageFriendsPanel({ onlineIds, onMessageSent }: Messag
         ) : (
           <div
             className="overflow-x-auto scrollbar-hide pt-3 pb-1"
+            onScroll={handleSuggestionsScroll}
             style={{ WebkitOverflowScrolling: "touch", touchAction: "pan-x" }}
           >
             <div className="flex gap-7 w-max">
