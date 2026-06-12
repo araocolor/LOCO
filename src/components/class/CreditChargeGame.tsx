@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Power } from "lucide-react";
 import Avatar from "@/components/ui/Avatar";
+import { playSound, primeSound } from "@/lib/sound";
 
 interface GameMember {
   userId: string;
@@ -325,6 +326,8 @@ export default function CreditChargeGame({ onSuccess, onCancel }: CreditChargeGa
     const step = (time: number) => {
       const dt = Math.min(32, time - previous) / 1000;
       previous = time;
+      let shouldPlayPaddleSound = false;
+      let shouldPlayHitSound = false;
 
       setGame((current) => {
         if (!current || current.status !== "running") return current;
@@ -425,6 +428,7 @@ export default function CreditChargeGame({ onSuccess, onCancel }: CreditChargeGa
             nextBall.x >= current.paddleX - paddleHalf - 8 &&
             nextBall.x <= current.paddleX + paddleHalf + 8
           ) {
+            shouldPlayPaddleSound = true;
             const offset = clamp((nextBall.x - current.paddleX) / paddleHalf, -1, 1);
             nextBall.x = clamp(nextBall.x, current.paddleX - paddleHalf, current.paddleX + paddleHalf);
             nextBall.y = paddleY - nextBall.radius - 1;
@@ -442,6 +446,7 @@ export default function CreditChargeGame({ onSuccess, onCancel }: CreditChargeGa
           );
 
           if (hitBrickIndex >= 0) {
+            shouldPlayHitSound = true;
             nextBricks = nextBricks.map((b, idx) =>
               idx === hitBrickIndex ? { ...b, alive: false } : b
             );
@@ -463,6 +468,7 @@ export default function CreditChargeGame({ onSuccess, onCancel }: CreditChargeGa
           });
 
           if (hitMember) {
+            shouldPlayHitSound = true;
             nextHitAt = { ...nextHitAt, [hitMember.member.userId]: time };
             nextPendingReleaseAt = {
               ...nextPendingReleaseAt,
@@ -558,6 +564,13 @@ export default function CreditChargeGame({ onSuccess, onCancel }: CreditChargeGa
         };
       });
 
+      if (shouldPlayPaddleSound) {
+        playSound("game-stik", { volume: 0.5 });
+      }
+      if (shouldPlayHitSound) {
+        playSound("game-hit", { volume: 0.35 });
+      }
+
       frameRef.current = window.requestAnimationFrame(step);
     };
 
@@ -583,6 +596,8 @@ export default function CreditChargeGame({ onSuccess, onCancel }: CreditChargeGa
 
   function launchGame() {
     if (!bounds.width || !bounds.height) return;
+    primeSound("game-stik");
+    primeSound("game-hit");
     const now = performance.now();
     setGame((current) => {
       if (!current || current.status !== "running") return current;

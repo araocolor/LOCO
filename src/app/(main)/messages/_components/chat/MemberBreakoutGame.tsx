@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Crown, Power } from "lucide-react";
 import Avatar from "@/components/ui/Avatar";
+import { playSound, primeSound } from "@/lib/sound";
 import { fetchTopRecord, saveGameRecord, type TopRecord } from "./game-record";
 
 export interface MemberGameProfile {
@@ -374,6 +375,8 @@ export default function MemberBreakoutGame({ members, userId, roomId, onExitGame
     const step = (time: number) => {
       const dt = Math.min(32, time - previous) / 1000;
       previous = time;
+      let shouldPlayPaddleSound = false;
+      let shouldPlayHitSound = false;
 
       setGame((current) => {
         if (!current) return current;
@@ -468,6 +471,7 @@ export default function MemberBreakoutGame({ members, userId, roomId, onExitGame
             nextBall.x >= current.paddleX - paddleHalf - 8 &&
             nextBall.x <= current.paddleX + paddleHalf + 8
           ) {
+            shouldPlayPaddleSound = true;
             const offset = clamp((nextBall.x - current.paddleX) / paddleHalf, -1, 1);
             nextBall.x = clamp(nextBall.x, current.paddleX - paddleHalf, current.paddleX + paddleHalf);
             nextBall.y = paddleY - nextBall.radius - 1;
@@ -485,6 +489,7 @@ export default function MemberBreakoutGame({ members, userId, roomId, onExitGame
           );
 
           if (hitBrickIndex >= 0) {
+            shouldPlayHitSound = true;
             const hitBrick = nextBricks[hitBrickIndex];
             nextBricks = nextBricks.map((brick, index) =>
               index === hitBrickIndex ? { ...brick, alive: false } : brick
@@ -519,6 +524,7 @@ export default function MemberBreakoutGame({ members, userId, roomId, onExitGame
           });
 
           if (hitMember) {
+            shouldPlayHitSound = true;
             nextHitAt = { ...nextHitAt, [hitMember.member.userId]: time };
             nextPendingReleaseAt = {
               ...nextPendingReleaseAt,
@@ -649,6 +655,13 @@ export default function MemberBreakoutGame({ members, userId, roomId, onExitGame
         };
       });
 
+      if (shouldPlayPaddleSound) {
+        playSound("game-stik", { volume: 0.5 });
+      }
+      if (shouldPlayHitSound) {
+        playSound("game-hit", { volume: 0.35 });
+      }
+
       frameRef.current = window.requestAnimationFrame(step);
     };
 
@@ -677,6 +690,8 @@ export default function MemberBreakoutGame({ members, userId, roomId, onExitGame
 
   function launchGame() {
     if (!bounds.width || !bounds.height) return;
+    primeSound("game-stik");
+    primeSound("game-hit");
     const now = performance.now();
     setGame((current) => {
       if (!current || current.status !== "running") return current;
