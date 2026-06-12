@@ -83,6 +83,7 @@ export default function BottomNav() {
   const [hasUnreadNotifications, setHasUnreadNotifications] = useState(false);
   const [hasUnreadMessages, setHasUnreadMessages] = useState(false);
   const [homeSubTab, setHomeSubTab] = useState<HomeSubTab>("allClasses");
+  const [isApp, setIsApp] = useState(false);
   const loginUnreadSoundPlayedUserRef = useRef<string | null>(null);
   const { user } = useAuth();
   const activeTab = useSyncExternalStore(subscribeMainTab, getMainTab, () => "home" as const);
@@ -90,6 +91,7 @@ export default function BottomNav() {
   const isChromeVisible = useScrollChromeVisibility(shouldAutoHide);
 
   useEffect(() => {
+    setIsApp(navigator.userAgent.includes("XlatinApp"));
     queueMicrotask(() => setHydrated(true));
   }, []);
 
@@ -147,7 +149,7 @@ export default function BottomNav() {
 
   return (
     <nav
-      style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+      style={{ paddingBottom: isApp ? 0 : 'env(safe-area-inset-bottom)' }}
       className={`fixed bottom-0 left-1/2 grid w-full max-w-[500px] z-50 grid-cols-5 bg-white shadow-[0_-8px_24px_rgba(0,0,0,0.08)] touch-manipulation overscroll-contain select-none transition-transform duration-200 ease-out motion-reduce:transition-none ${
         isChromeVisible ? "-translate-x-1/2 translate-y-0" : "-translate-x-1/2 translate-y-full"
       }`}
