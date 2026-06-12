@@ -88,6 +88,18 @@ body {
   overscroll-behavior: none;
 }
 
+.safe-area-top-bar {
+  position: sticky;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: env(safe-area-inset-top);
+  min-height: env(safe-area-inset-top);
+  background: #ffffff;
+  z-index: 9999;
+  flex-shrink: 0;
+}
+
 html::-webkit-scrollbar {
   display: none;
 }
