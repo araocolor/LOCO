@@ -18,8 +18,8 @@ export default async function MainLayout({
   }
 
   return (
-    <div className="flex justify-center min-h-screen bg-gray-100">
-      <div className="relative flex flex-col w-full max-w-[500px] min-h-screen bg-white">
+    <div className="flex justify-center h-full bg-gray-100">
+      <div className="relative flex flex-col w-full max-w-[500px] h-full bg-white overflow-hidden">
         <MainContentShell>
           <TabbedMain />
           {children}

@@ -81,11 +81,18 @@ html {
   scrollbar-width: none;
   -ms-overflow-style: none;
   overscroll-behavior: none;
+  height: 100%;
+  overflow: hidden;
 }
 
 html,
 body {
   overscroll-behavior: none;
+}
+
+body {
+  height: 100%;
+  overflow: hidden;
 }
 
 .safe-area-top-bar {
