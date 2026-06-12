@@ -3,6 +3,7 @@ import MainContentShell from "@/components/layout/MainContentShell";
 import TabbedMain from "@/components/layout/TabbedMain";
 import SearchSheet from "@/components/features/SearchSheet";
 import PresenceTracker from "@/components/features/PresenceTracker";
+import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth/get-current-user";
 
 export default async function MainLayout({
@@ -11,6 +12,10 @@ export default async function MainLayout({
   children: React.ReactNode;
 }) {
   const user = await getCurrentUser();
+
+  if (!user) {
+    redirect("/login");
+  }
 
   return (
     <div className="flex justify-center min-h-screen bg-gray-100">

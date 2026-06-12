@@ -300,8 +300,8 @@ export default memo(function MessageBubble({
                         읽음
                       </span>
                     ) : (
-                      <span className="text-xs font-normal leading-none text-red-500">
-                        안읽음
+                      <span className="text-xs font-bold leading-none text-yellow-500">
+                        1
                       </span>
                     )
                   )}
