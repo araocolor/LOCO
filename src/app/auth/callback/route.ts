@@ -11,6 +11,7 @@ export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
   const next = getSafeNextPath(searchParams.get("next"));
+  const isApp = searchParams.get("app") === "1";
 
   if (code) {
     const cookieStore = await cookies();
@@ -51,13 +52,16 @@ export async function GET(request: Request) {
           profile.favorite_genre.length > 0;
 
         if (!profile?.nickname || !profile?.region || !profile?.gender || !hasGenres) {
+          if (isApp) return NextResponse.redirect("xlatin://onboarding");
           return NextResponse.redirect(`${origin}/onboarding`);
         }
       }
 
+      if (isApp) return NextResponse.redirect(`xlatin://${next}`);
       return NextResponse.redirect(`${origin}${next}`);
     }
   }
 
+  if (isApp) return NextResponse.redirect("xlatin://login?error=auth");
   return NextResponse.redirect(`${origin}/login?error=auth`);
 }

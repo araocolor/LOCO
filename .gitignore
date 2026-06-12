@@ -46,3 +46,8 @@ next-env.d.ts
 
 # local agent worktrees
 .claude/
+
+# Capacitor
+ios/
+android/
+out/

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { AuthProvider } from "@/lib/auth-context";
+import AppDeepLinkHandler from "@/components/features/AppDeepLinkHandler";
 
 export const metadata: Metadata = {
   title: {
@@ -18,6 +19,7 @@ export default function RootLayout({
   return (
     <html lang="ko" className="h-full">
       <body className="min-h-full flex flex-col antialiased hide-scrollbar bg-gray-100">
+        <AppDeepLinkHandler />
         <AuthProvider>{children}</AuthProvider>
       </body>
     </html>

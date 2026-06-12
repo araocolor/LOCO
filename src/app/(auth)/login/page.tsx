@@ -44,10 +44,16 @@ function LoginForm() {
     setGoogleLoading(true);
     setError("");
     const supabase = createClient();
+    const isApp = new URLSearchParams(window.location.search).has("app");
+    const callbackParams = new URLSearchParams({
+      next: nextPath,
+      ...(isApp && { app: "1" }),
+    });
+
     const { error: authError } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`,
+        redirectTo: `${window.location.origin}/auth/callback?${callbackParams}`,
         scopes: "email profile",
         queryParams: {
           prompt: "select_account",
