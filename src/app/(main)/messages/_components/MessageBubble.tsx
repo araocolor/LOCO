@@ -61,7 +61,6 @@ export default memo(function MessageBubble({
   const isMine = isSelfChat ? messageIndex % 2 === 0 : msg.sender_id === userId;
   const isNewGroup = !prevMsg || prevMsg.sender_id !== msg.sender_id;
   const showSenderName = !isMine && isNewGroup;
-  const showMyAvatar = isMine && isNewGroup;
   const sender = msg.sender ?? otherUser;
   const emojiData = msg.kind === "emoji" ? getEmojiMessageData(msg.content) : null;
   const imageData = msg.kind !== "emoji" ? getImageMessageData(msg.content) : null;
@@ -83,23 +82,6 @@ export default memo(function MessageBubble({
 
   return (
     <div data-msg-id={msg.id}>
-      {showMyAvatar && (
-        <div className="flex justify-end mb-2">
-          {myProfile?.profile_image_url ? (
-            <Image
-              src={myProfile.profile_image_url}
-              alt={myProfile.nickname ?? "나"}
-              width={40}
-              height={40}
-              className="rounded-full object-cover flex-shrink-0"
-            />
-          ) : (
-            <div className="w-[40px] h-[40px] rounded-full bg-gray-200 flex items-center justify-center text-gray-500 text-xs font-medium flex-shrink-0">
-              {myProfile?.nickname?.[0] ?? "나"}
-            </div>
-          )}
-        </div>
-      )}
       {showSenderName && (
         <div className="flex items-center gap-2 mb-2">
           <button
@@ -278,8 +260,19 @@ export default memo(function MessageBubble({
               )}
             </div>
           </div>
+          {emojiData?.text && (
+            <div
+              className={`rounded-lg px-3 py-2 break-words ${isMine ? "text-gray-900" : "bg-white text-gray-900"}`}
+              style={{
+                ...(isMine ? { backgroundColor: "#FEE500", maxWidth: "72vw" } : { maxWidth: "270px" }),
+                fontFamily: 'Roboto, -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif',
+              }}
+            >
+              {emojiData.text}
+            </div>
+          )}
           {isMine && (
-            <span className={`flex items-center gap-1 text-xs text-gray-700 ${emojiData ? "justify-center w-full" : ""}`}>
+            <span className={`flex items-center gap-1 text-xs text-gray-700 ${emojiData && !emojiData.text ? "justify-center w-full" : ""}`}>
               {msg.send_status === "sending" ? (
                 <span className="text-xs font-normal leading-none text-gray-400">전송중</span>
               ) : msg.send_status === "failed" ? (

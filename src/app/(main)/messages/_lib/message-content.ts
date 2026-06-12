@@ -65,9 +65,13 @@ export function getImageMessageData(content: string): ImageMessageData | null {
   return null;
 }
 
-export function getEmojiMessageData(content: string): { src: string } | null {
+export function getEmojiMessageData(content: string): { src: string; text?: string } | null {
   const parsed = parseMessageContent(content);
-  if (typeof parsed?.src === "string") return { src: parsed.src };
+  if (typeof parsed?.src === "string") {
+    const result: { src: string; text?: string } = { src: parsed.src };
+    if (typeof parsed.text === "string" && parsed.text.trim()) result.text = parsed.text;
+    return result;
+  }
   return null;
 }
 

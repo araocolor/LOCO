@@ -63,7 +63,7 @@ interface ChatDrawerProps {
   onNoticeReaction: (noticeId: string, reactionType: NoticeReactionType) => void;
   onNoticeVote: (noticeId: string, voteType: NoticeVoteType) => void;
   onPhotoUpload: (file: File) => void;
-  onSendEmoji: (emojiSrc: string) => void;
+  onSendEmoji: (emojiSrc: string, text?: string) => void;
   onVideoUpload: (file: File) => void;
   onSaveNotice: (notice: string, kind: NoticeKind, closesAt: string | null) => Promise<void>;
   onUpdateNotice: (noticeId: string, content: string, kind: NoticeKind, closesAt: string | null) => Promise<void>;
@@ -351,8 +351,10 @@ export default function ChatDrawer({
 
   function handleComposerSend() {
     if (pendingEmojiSrc) {
-      onSendEmoji(pendingEmojiSrc);
+      const text = newMessage.trim();
+      onSendEmoji(pendingEmojiSrc, text || undefined);
       setPendingEmojiSrc(null);
+      if (text) setNewMessage("");
       return;
     }
     onSendMessage();

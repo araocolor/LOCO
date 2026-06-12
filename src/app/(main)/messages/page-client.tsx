@@ -400,12 +400,13 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
     }
   }
 
-  async function handleSendEmoji(emojiSrc: string) {
+  async function handleSendEmoji(emojiSrc: string, text?: string) {
     if (!selectedRoomId) return;
 
     const roomId = selectedRoomId;
     const tempId = `local-emoji-${Date.now()}`;
-    const emojiContent = { src: emojiSrc };
+    const emojiContent: { src: string; text?: string } = { src: emojiSrc };
+    if (text) emojiContent.text = text;
     const tempMessage: Message = {
       id: tempId,
       room_id: roomId,
@@ -1532,8 +1533,8 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
         }}
         onOpenMemberDrawer={() => setMemberDrawerOpen(true)}
         onPhotoUpload={handlePhotoUpload}
-        onSendEmoji={(emojiSrc) => {
-          void handleSendEmoji(emojiSrc);
+        onSendEmoji={(emojiSrc, text) => {
+          void handleSendEmoji(emojiSrc, text);
         }}
         onVideoUpload={handleVideoUpload}
         onSaveNotice={saveClassNotice}

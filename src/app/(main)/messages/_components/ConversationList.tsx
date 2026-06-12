@@ -178,14 +178,18 @@ export default function ConversationList({
                 if (parsed?.type === "image" || parsed?.type === "video") {
                   fallbackPreview = getPreviewText(lastContent, isMine);
                 } else if (conv.last_message?.kind === "emoji" || typeof parsed?.src === "string") {
-                  const senderNickname = conv.last_message?.sender_id
-                    ? conv.members?.find((m) => m.user_id === conv.last_message?.sender_id)?.profile?.nickname
-                    : undefined;
-                  fallbackPreview = senderNickname
-                    ? `${senderNickname}님이 이모지를 남겼습니다`
-                    : isMine
-                      ? "이모지를 보냈습니다"
-                      : "이모지가 도착했습니다";
+                  if (typeof parsed?.text === "string" && parsed.text.trim()) {
+                    fallbackPreview = parsed.text.trim();
+                  } else {
+                    const senderNickname = conv.last_message?.sender_id
+                      ? conv.members?.find((m) => m.user_id === conv.last_message?.sender_id)?.profile?.nickname
+                      : undefined;
+                    fallbackPreview = senderNickname
+                      ? `${senderNickname}님이 이모지를 남겼습니다`
+                      : isMine
+                        ? "이모지를 보냈습니다"
+                        : "이모지가 도착했습니다";
+                  }
                 } else if (parsed?.type === "class_share") {
                   const senderNickname = conv.last_message?.sender_id
                     ? conv.members?.find((m) => m.user_id === conv.last_message?.sender_id)?.profile?.nickname

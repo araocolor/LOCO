@@ -164,7 +164,10 @@ export function normalizeMessageContent(kind: ChatMessageKind, content: unknown)
   if (kind === "emoji" && content && typeof content === "object") {
     const src = (content as Record<string, unknown>).src;
     if (typeof src !== "string" || !ALLOWED_EMOJI_SRCS.has(src)) return null;
-    return JSON.stringify({ src });
+    const text = (content as Record<string, unknown>).text;
+    const emojiPayload: Record<string, string> = { src };
+    if (typeof text === "string" && text.trim()) emojiPayload.text = text.trim();
+    return JSON.stringify(emojiPayload);
   }
 
   if ((kind === "image" || kind === "file") && content && typeof content === "object") {
