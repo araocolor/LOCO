@@ -17,11 +17,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ko" className="h-full">
+    <html lang="ko" className="h-full" style={{ backgroundColor: '#ffffff' }}>
       <head>
         <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
       </head>
-      <body className="min-h-full flex flex-col antialiased hide-scrollbar bg-gray-100" style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
+      <body className="min-h-full flex flex-col antialiased hide-scrollbar bg-gray-100" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
         <AppDeepLinkHandler />
         <AuthProvider>{children}</AuthProvider>
       </body>

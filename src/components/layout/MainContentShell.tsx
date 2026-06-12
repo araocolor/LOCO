@@ -10,5 +10,5 @@ export default function MainContentShell({
   const pathname = usePathname();
   const hideBottomNav = pathname.startsWith("/classes/") || pathname.startsWith("/users/");
 
-  return <main className={`flex-1 ${hideBottomNav ? "" : "pb-[65px]"}`}>{children}</main>;
+  return <main className={`flex-1 ${hideBottomNav ? "" : "pb-[65px]"}`} style={hideBottomNav ? undefined : { paddingBottom: 'calc(65px + env(safe-area-inset-bottom))' }}>{children}</main>;
 }
