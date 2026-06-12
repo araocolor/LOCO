@@ -104,7 +104,7 @@ const TOTAL_LIVES = 3;
 const RESERVE_BALL_SIZE = 12;
 const BALL_BRICK_COUNT = 2;
 const FALLING_BALL_SPEED = 160;
-const LIVES_BONUS = 30;
+const LIVES_BONUS = 13;
 const TIME_BONUS_MAX = 100;
 const TIME_BONUS_WINDOW_SEC = 120;
 
@@ -144,7 +144,7 @@ function calcFinalScore(
   const livesBonus = remainingLives * LIVES_BONUS;
   const elapsed = startedAt ? (endedAt - startedAt) / 1000 : TIME_BONUS_WINDOW_SEC;
   const timeRatio = clamp(1 - elapsed / TIME_BONUS_WINDOW_SEC, 0, 1);
-  const timeBonus = Math.round(timeRatio * TIME_BONUS_MAX);
+  const timeBonus = clamp(Math.round(timeRatio * TIME_BONUS_MAX), 1, 99);
   return base + livesBonus + timeBonus;
 }
 
@@ -173,10 +173,11 @@ function buildBricks(bounds: GameBounds) {
     };
   });
 
-  const aliveIndices = allBricks
-    .map((b, i) => (b.alive ? i : -1))
+  const bottomTwoRowStart = (BRICK_ROWS - 2) * BRICK_COLUMNS;
+  const aliveBottomIndices = allBricks
+    .map((b, i) => (b.alive && i >= bottomTwoRowStart ? i : -1))
     .filter((i) => i >= 0);
-  const shuffled = aliveIndices.sort(() => Math.random() - 0.5);
+  const shuffled = aliveBottomIndices.sort(() => Math.random() - 0.5);
   for (let i = 0; i < Math.min(BALL_BRICK_COUNT, shuffled.length); i++) {
     allBricks[shuffled[i]] = { ...allBricks[shuffled[i]], hasBall: true };
   }
@@ -535,6 +536,7 @@ export default function MemberBreakoutGame({ members, userId, roomId, onExitGame
         }
 
         const remainingFalling: FallingBall[] = [];
+        const newBallsFromItems: BallState[] = [];
         for (const fb of nextFallingBalls) {
           fb.y += fb.vy * dt;
           if (
@@ -542,6 +544,14 @@ export default function MemberBreakoutGame({ members, userId, roomId, onExitGame
             fb.x >= current.paddleX - paddleHalf - 8 &&
             fb.x <= current.paddleX + paddleHalf + 8
           ) {
+            const offset = clamp((fb.x - current.paddleX) / paddleHalf, -1, 1);
+            newBallsFromItems.push({
+              x: fb.x,
+              y: paddleY - fb.radius - 1,
+              vx: offset * speedTarget * 0.92,
+              vy: -Math.sqrt(Math.max(speedTarget ** 2 - (offset * speedTarget * 0.92) ** 2, speedTarget * 0.55)),
+              radius: BALL_RADIUS,
+            });
             remainingLives += 1;
             continue;
           }
@@ -549,6 +559,7 @@ export default function MemberBreakoutGame({ members, userId, roomId, onExitGame
           remainingFalling.push(fb);
         }
         nextFallingBalls = remainingFalling;
+        survivingBalls.push(...newBallsFromItems);
 
         if (survivingBalls.length === 0 && remainingLives > 0) {
           waitingOnPaddle = 1;
