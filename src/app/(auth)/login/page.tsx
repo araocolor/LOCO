@@ -50,7 +50,7 @@ function LoginForm() {
       ...(isApp && { app: "1" }),
     });
 
-    const { error: authError } = await supabase.auth.signInWithOAuth({
+    const { data, error: authError } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
         redirectTo: `${window.location.origin}/auth/callback?${callbackParams}`,
@@ -58,10 +58,19 @@ function LoginForm() {
         queryParams: {
           prompt: "select_account",
         },
+        skipBrowserRedirect: isApp,
       },
     });
+
     if (authError) {
       setError("Google 로그인에 실패했습니다. 잠시 후 다시 시도해주세요.");
+      setGoogleLoading(false);
+      return;
+    }
+
+    if (isApp && data?.url) {
+      const { Browser } = await import("@capacitor/browser");
+      await Browser.open({ url: data.url, presentationStyle: "popover" });
       setGoogleLoading(false);
     }
   }

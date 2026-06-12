@@ -26,6 +26,11 @@ export async function GET(request: Request) {
   const isApp = searchParams.get("app") === "1";
 
   if (code) {
+    if (isApp) {
+      const appParams = new URLSearchParams({ code, next });
+      return appRedirect(`xlatin://auth-callback?${appParams}`, `${origin}${next}`);
+    }
+
     const cookieStore = await cookies();
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -63,12 +68,10 @@ export async function GET(request: Request) {
           profile.favorite_genre.length > 0;
 
         if (!profile?.nickname || !profile?.region || !profile?.gender || !hasGenres) {
-          if (isApp) return appRedirect("xlatin://onboarding", `${origin}/onboarding`);
           return NextResponse.redirect(`${origin}/onboarding`);
         }
       }
 
-      if (isApp) return appRedirect(`xlatin:/${next}`, `${origin}${next}`);
       return NextResponse.redirect(`${origin}${next}`);
     }
   }

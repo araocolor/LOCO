@@ -5,10 +5,10 @@ import AppDeepLinkHandler from "@/components/features/AppDeepLinkHandler";
 
 export const metadata: Metadata = {
   title: {
-    default: "LOCO — 라틴댄스 클래스",
-    template: "%s | LOCO",
-  },
-  description: "살사·바차타 댄스 클래스를 찾고 개설하는 플랫폼",
+    default: "Xlatin — 라틴댄스 클래스",
+    template: "%s | Xlatin",
+  }, 
+  description: "라틴댄스 클래스를 찾고 개설하는 플랫폼",
 };
 
 export default function RootLayout({
