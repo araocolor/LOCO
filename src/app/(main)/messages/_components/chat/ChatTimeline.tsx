@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import type { Dispatch, RefObject, SetStateAction } from "react";
 import type { UIEvent } from "react";
 import Image from "next/image";
@@ -98,30 +99,48 @@ export default function ChatTimeline({
         </div>
       ) : (() => {
         let prevMsgItem: Message | null = null;
+        let prevDateStr = "";
         return timeline.map((item) => {
+          const itemDate = new Date(item.at);
+          const dateStr = `${itemDate.getFullYear()}-${itemDate.getMonth()}-${itemDate.getDate()}`;
+          const showDateSeparator = dateStr !== prevDateStr;
+          prevDateStr = dateStr;
+
+          const dateSeparator = showDateSeparator ? (
+            <div key={`date-${item.at}`} className="flex items-center justify-center my-2">
+              <span className="px-4 py-1 rounded-full bg-black/20 text-white text-xs font-medium backdrop-blur-sm">
+                {itemDate.toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric", weekday: "long" })}
+              </span>
+            </div>
+          ) : null;
+
           if (item.kind === "msg") {
             const prev = prevMsgItem;
-            prevMsgItem = item.msg;
+            if (showDateSeparator) prevMsgItem = null;
+            else prevMsgItem = item.msg;
+            const prevForBubble = showDateSeparator ? null : prev;
             return (
-              <MessageBubble
-                key={`m-${item.msg.id}`}
-                msg={item.msg}
-                prevMsg={prev}
-                userId={userId}
-                myProfile={myProfile}
-                otherUser={otherUser}
-                shakingMsgId={shakingMsgId}
-                isSelfChat={otherUser?.id === userId}
-                messageIndex={messages.indexOf(item.msg)}
-                onStartLongPress={onStartLongPress}
-                onCancelLongPress={onCancelLongPress}
-                onDeleteMessage={onDeleteMessage}
-                onMessageReaction={onMessageReaction}
-                onImageClick={onImageClick}
-                onAvatarClick={onAvatarClick}
-                onClassShareClick={onClassShareClick}
-                formatTime={formatTime}
-              />
+              <React.Fragment key={`m-${item.msg.id}`}>
+                {dateSeparator}
+                <MessageBubble
+                  msg={item.msg}
+                  prevMsg={prevForBubble}
+                  userId={userId}
+                  myProfile={myProfile}
+                  otherUser={otherUser}
+                  shakingMsgId={shakingMsgId}
+                  isSelfChat={otherUser?.id === userId}
+                  messageIndex={messages.indexOf(item.msg)}
+                  onStartLongPress={onStartLongPress}
+                  onCancelLongPress={onCancelLongPress}
+                  onDeleteMessage={onDeleteMessage}
+                  onMessageReaction={onMessageReaction}
+                  onImageClick={onImageClick}
+                  onAvatarClick={onAvatarClick}
+                  onClassShareClick={onClassShareClick}
+                  formatTime={formatTime}
+                />
+              </React.Fragment>
             );
           }
 
@@ -129,7 +148,9 @@ export default function ChatTimeline({
           const notice = item.notice;
           const author = (roomMembers ?? []).find((m) => m.user_id === notice.author_id)?.profile ?? null;
           return (
-            <div key={`n-${notice.id}`} className="flex items-start gap-2">
+            <React.Fragment key={`n-${notice.id}`}>
+              {dateSeparator}
+            <div className="flex items-start gap-2">
               <Avatar src={author?.profile_image_url ?? null} nickname={author?.nickname ?? "?"} size={40} />
               <div className="flex flex-col gap-1 min-w-0">
                 <span className="text-base text-gray-800">{author?.nickname ?? "알 수 없음"}</span>
@@ -194,6 +215,7 @@ export default function ChatTimeline({
                 <span className="text-xs text-gray-700">{formatTime(notice.created_at)}</span>
               </div>
             </div>
+            </React.Fragment>
           );
         });
       })()}
