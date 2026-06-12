@@ -30,6 +30,7 @@ export interface VideoMessageData {
 export interface ParsedMessageContent {
   type?: string;
   message?: string;
+  text?: string;
   class?: ClassShareData["class"];
   src?: string;
   thumb?: string;

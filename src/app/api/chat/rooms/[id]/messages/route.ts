@@ -217,14 +217,39 @@ export async function POST(
 
     if (error) throw error;
 
-    // 읽음 기준: 방을 실제로 열 때(GET)만 last_read_at을 갱신합니다.
-    // 메시지를 보낼 때는 갱신하지 않아, 상대가 방을 안 보고 답장만 해도
-    // 읽음으로 잘못 표시되지 않습니다.
+    const { data: room } = await admin
+      .from("chat_rooms")
+      .select("type")
+      .eq("id", roomId)
+      .maybeSingle<Pick<ChatRoomRow, "type">>();
+
+    const roomType = room?.type;
+    let readAtField = {};
+    let unreadCountField = {};
+
+    if (roomType === "direct") {
+      readAtField = { read_at: null };
+    } else if (roomType === "group" || roomType === "class") {
+      const { data: otherMembers } = await admin
+        .from("chat_room_members")
+        .select("last_read_at, joined_at")
+        .eq("room_id", roomId)
+        .eq("status", "active")
+        .neq("user_id", user.id)
+        .returns<Array<{ last_read_at: string | null; joined_at: string | null }>>();
+      const unread = (otherMembers ?? []).filter((m) => {
+        if (m.joined_at && m.joined_at > message.created_at) return false;
+        return !m.last_read_at || m.last_read_at < message.created_at;
+      }).length;
+      unreadCountField = { unread_count: unread };
+    }
 
     return NextResponse.json({
       data: {
         ...message,
         is_mine: true,
+        ...readAtField,
+        ...unreadCountField,
         my_reaction: null,
         reaction_counts: emptyMessageReactionCounts(),
       },
