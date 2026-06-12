@@ -80,6 +80,12 @@
 html {
   scrollbar-width: none;
   -ms-overflow-style: none;
+  overscroll-behavior: none;
+}
+
+html,
+body {
+  overscroll-behavior: none;
 }
 
 html::-webkit-scrollbar {
