@@ -7,6 +7,15 @@ function getSafeNextPath(next: string | null) {
   return next;
 }
 
+function appRedirect(deepLink: string, webFallback: string) {
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body>
+<script>window.location.href="${deepLink}";setTimeout(function(){window.location.href="${webFallback}"},2000);</script>
+</body></html>`;
+  return new Response(html, {
+    headers: { "Content-Type": "text/html; charset=utf-8" },
+  });
+}
+
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
@@ -35,7 +44,6 @@ export async function GET(request: Request) {
     const { error } = await supabase.auth.exchangeCodeForSession(code);
 
     if (!error) {
-      // 서비스 프로필이 미완성인 신규 사용자는 온보딩으로 이동
       const {
         data: { user },
       } = await supabase.auth.getUser();
@@ -52,16 +60,16 @@ export async function GET(request: Request) {
           profile.favorite_genre.length > 0;
 
         if (!profile?.nickname || !profile?.region || !profile?.gender || !hasGenres) {
-          if (isApp) return NextResponse.redirect("xlatin://onboarding");
+          if (isApp) return appRedirect("xlatin://onboarding", `${origin}/onboarding`);
           return NextResponse.redirect(`${origin}/onboarding`);
         }
       }
 
-      if (isApp) return NextResponse.redirect(`xlatin://${next}`);
+      if (isApp) return appRedirect(`xlatin:/${next}`, `${origin}${next}`);
       return NextResponse.redirect(`${origin}${next}`);
     }
   }
 
-  if (isApp) return NextResponse.redirect("xlatin://login?error=auth");
+  if (isApp) return appRedirect("xlatin://login?error=auth", `${origin}/login?error=auth`);
   return NextResponse.redirect(`${origin}/login?error=auth`);
 }
