@@ -37,6 +37,22 @@ export default function AppDeepLinkHandler() {
           if (code) {
             const supabase = createClient();
             await supabase.auth.exchangeCodeForSession(code);
+
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+              const { data: profile } = await supabase
+                .from("profiles")
+                .select("nickname, region, favorite_genre, gender")
+                .eq("id", user.id)
+                .maybeSingle();
+
+              const hasGenres = Array.isArray(profile?.favorite_genre) && profile.favorite_genre.length > 0;
+              if (!profile?.nickname || !profile?.region || !profile?.gender || !hasGenres) {
+                router.push("/onboarding");
+                router.refresh();
+                return;
+              }
+            }
           }
 
           router.push(next);
