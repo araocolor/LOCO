@@ -4,12 +4,15 @@ import { cookies } from "next/headers";
 
 function getSafeNextPath(next: string | null) {
   if (!next || !next.startsWith("/") || next.startsWith("//")) return "/";
+  if (!/^\/[A-Za-z0-9/_\-?=&.%]*$/.test(next)) return "/";
   return next;
 }
 
 function appRedirect(deepLink: string, webFallback: string) {
+  const safeDeep = JSON.stringify(deepLink).replace(/</g, "\\u003c");
+  const safeWeb = JSON.stringify(webFallback).replace(/</g, "\\u003c");
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body>
-<script>window.location.href="${deepLink}";setTimeout(function(){window.location.href="${webFallback}"},2000);</script>
+<script>window.location.href=${safeDeep};setTimeout(function(){window.location.href=${safeWeb}},2000);</script>
 </body></html>`;
   return new Response(html, {
     headers: { "Content-Type": "text/html; charset=utf-8" },
