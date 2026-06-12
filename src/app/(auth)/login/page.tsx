@@ -44,7 +44,7 @@ function LoginForm() {
     setGoogleLoading(true);
     setError("");
     const supabase = createClient();
-    const isApp = new URLSearchParams(window.location.search).has("app");
+    const isApp = navigator.userAgent.includes("XlatinApp");
     const callbackParams = new URLSearchParams({
       next: nextPath,
       ...(isApp && { app: "1" }),

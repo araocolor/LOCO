@@ -7,7 +7,7 @@ export default function AppDeepLinkHandler() {
   const router = useRouter();
 
   useEffect(() => {
-    const isApp = new URLSearchParams(window.location.search).has("app");
+    const isApp = navigator.userAgent.includes("XlatinApp");
     if (!isApp) return;
 
     let cleanup: (() => void) | undefined;

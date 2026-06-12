@@ -5,9 +5,12 @@ const config: CapacitorConfig = {
   appName: 'Xlatin',
   webDir: 'out',
   server: {
-    url: 'https://xlatin.kr?app=1',
+    url: 'https://xlatin.kr',
     cleartext: false,
     allowNavigation: ['*.supabase.co'],
+  },
+  ios: {
+    appendUserAgent: 'XlatinApp',
   },
 };
 
