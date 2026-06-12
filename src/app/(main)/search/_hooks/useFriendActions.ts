@@ -155,6 +155,8 @@ export function useFriendActions({
     if (added) {
       const addedWithStatus: Follower = {
         ...added,
+        country: added.country ?? null,
+        region: added.region ?? null,
         status: "approved",
         relation_updated_at: new Date().toISOString(),
       };
