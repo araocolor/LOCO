@@ -2,18 +2,11 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthenticatedUser, type ChatMemberRow, type ChatRoomRow } from "../_lib";
 
-type UnreadType = "direct" | "all";
-
-function parseUnreadType(value: string | null): UnreadType {
-  return value === "direct" ? "direct" : "all";
-}
-
 export async function GET(request: NextRequest) {
   try {
     const user = await getAuthenticatedUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const unreadType = parseUnreadType(request.nextUrl.searchParams.get("type"));
     const admin = createAdminClient();
 
     const { data: memberships, error: membershipError } = await admin
@@ -25,38 +18,36 @@ export async function GET(request: NextRequest) {
 
     if (membershipError) throw membershipError;
 
-    const roomIds = (memberships ?? []).map((membership) => membership.room_id);
+    const roomIds = (memberships ?? []).map((m) => m.room_id);
     if (roomIds.length === 0) {
-      return NextResponse.json({ count: 0 });
+      return NextResponse.json({ count: 0, byType: { direct: 0, group: 0, class: 0 } });
     }
 
-    let roomsQuery = admin
+    const { data: rooms, error: roomsError } = await admin
       .from("chat_rooms")
       .select("id, type, status, class_id, owner_id, title, notice, direct_user_low_id, direct_user_high_id, last_message_id, last_message_at, created_at, updated_at")
       .in("id", roomIds)
-      .eq("status", "active");
+      .eq("status", "active")
+      .returns<ChatRoomRow[]>();
 
-    if (unreadType === "direct") {
-      roomsQuery = roomsQuery.in("type", ["direct", "self"]);
-    }
-
-    const { data: rooms, error: roomsError } = await roomsQuery.returns<ChatRoomRow[]>();
     if (roomsError) throw roomsError;
 
-    const activeRoomIds = (rooms ?? []).map((room) => room.id);
-    if (activeRoomIds.length === 0) {
-      return NextResponse.json({ count: 0 });
+    const activeRooms = rooms ?? [];
+    if (activeRooms.length === 0) {
+      return NextResponse.json({ count: 0, byType: { direct: 0, group: 0, class: 0 } });
     }
 
-    const membershipMap = new Map((memberships ?? []).map((membership) => [membership.room_id, membership]));
-    const unreadCounts = await Promise.all(
-      activeRoomIds.map(async (roomId) => {
-        const membership = membershipMap.get(roomId);
+    const membershipMap = new Map((memberships ?? []).map((m) => [m.room_id, m]));
+    const roomTypeMap = new Map(activeRooms.map((r) => [r.id, r.type]));
+
+    const perRoom = await Promise.all(
+      activeRooms.map(async (room) => {
+        const membership = membershipMap.get(room.id);
         const readBoundary = membership?.last_read_at ?? membership?.joined_at ?? membership?.created_at ?? null;
         let query = admin
           .from("chat_messages")
           .select("id", { count: "exact", head: true })
-          .eq("room_id", roomId)
+          .eq("room_id", room.id)
           .neq("sender_id", user.id)
           .is("deleted_at", null);
 
@@ -64,11 +55,21 @@ export async function GET(request: NextRequest) {
 
         const { count, error } = await query;
         if (error) throw error;
-        return count ?? 0;
+        return { roomId: room.id, count: count ?? 0 };
       })
     );
 
-    return NextResponse.json({ count: unreadCounts.reduce((total, count) => total + count, 0) });
+    const byType = { direct: 0, group: 0, class: 0 };
+    let total = 0;
+    for (const { roomId, count } of perRoom) {
+      total += count;
+      const type = roomTypeMap.get(roomId);
+      if (type === "direct" || type === "self") byType.direct += count;
+      else if (type === "group") byType.group += count;
+      else if (type === "class") byType.class += count;
+    }
+
+    return NextResponse.json({ count: total, byType });
   } catch (error) {
     console.error("[chat-unread-count]", error);
     return NextResponse.json({ error: "서버 오류" }, { status: 500 });

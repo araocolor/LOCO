@@ -133,11 +133,8 @@ export default function BottomNav() {
     if (!user?.id) return;
     void fetchNotificationUnread();
     void fetchChatUnread();
-
-    if (notificationUnread > 0) {
-      prefetchNotifications(user.id);
-    }
-  }, [user?.id, notificationUnread]);
+    prefetchNotifications(user.id);
+  }, [user?.id]);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -197,10 +194,10 @@ export default function BottomNav() {
           >
             <span className="relative">
               {renderIcon(isActive)}
-              {tabId === "messages" && !isActive && chatUnread > 0 && (
+              {tabId === "messages" && chatUnread > 0 && (
                 <BadgeDot count={chatUnread} color="red" />
               )}
-              {tabId === "notifications" && !isActive && notificationUnread > 0 && (
+              {tabId === "notifications" && notificationUnread > 0 && (
                 <BadgeDot count={notificationUnread} color="blue" />
               )}
             </span>

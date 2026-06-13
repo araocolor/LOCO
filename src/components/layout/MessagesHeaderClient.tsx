@@ -6,7 +6,7 @@ import Avatar from "@/components/ui/Avatar";
 import { useAuth } from "@/lib/auth-context";
 import { createClient } from "@/lib/supabase/client";
 import { replaceMainTab } from "@/lib/main-tab";
-import { getChatUnread, subscribeChatUnread } from "@/lib/unread-store";
+import { getChatUnreadByType, subscribeChatUnread } from "@/lib/unread-store";
 import type { MessageMenuTab } from "@/app/(main)/messages/_types";
 
 const MSG_TAB_EVENT = "loco-message-tab-change";
@@ -34,7 +34,7 @@ export default function MessagesHeaderClient() {
   const [nickname, setNickname] = useState("me");
   const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null);
   const activeMenuTab = useSyncExternalStore(subscribeMsgTab, getMsgTab, () => "friends" as const);
-  const chatUnread = useSyncExternalStore(subscribeChatUnread, getChatUnread, () => 0);
+  const chatUnreadByType = useSyncExternalStore(subscribeChatUnread, getChatUnreadByType, () => ({ direct: 0, group: 0, class: 0 }));
 
   useEffect(() => {
     if (!user) {
@@ -73,20 +73,26 @@ export default function MessagesHeaderClient() {
       </div>
       <div className="flex pl-4 pr-4 gap-2 pb-2 items-center">
         <div className="flex gap-2 overflow-x-auto scrollbar-hide whitespace-nowrap flex-1">
-          {(["friends", "direct", "groups", "class"] as const).map((tab) => (
-            <button
-              key={tab}
-              onClick={() => replaceMsgTab(tab)}
-              className={`relative px-3.5 py-1.5 rounded-full text-[15px] font-semibold transition-colors ${
-                activeMenuTab === tab ? "bg-black text-white" : "bg-gray-100 text-black/60"
-              }`}
-            >
-              {TAB_LABELS[tab]}
-              {tab !== "friends" && activeMenuTab !== tab && chatUnread > 0 && (
-                <span className="absolute -top-1 -right-1 h-[8px] w-[8px] rounded-full bg-red-500" />
-              )}
-            </button>
-          ))}
+          {(["friends", "direct", "groups", "class"] as const).map((tab) => {
+            const typeKey = tab === "direct" ? "direct" : tab === "groups" ? "group" : tab === "class" ? "class" : null;
+            const count = typeKey ? chatUnreadByType[typeKey] : 0;
+            return (
+              <button
+                key={tab}
+                onClick={() => replaceMsgTab(tab)}
+                className={`relative px-3.5 py-1.5 rounded-full text-[15px] font-semibold transition-colors ${
+                  activeMenuTab === tab ? "bg-black text-white" : "bg-gray-100 text-black/60"
+                }`}
+              >
+                {TAB_LABELS[tab]}
+                {count > 0 && (
+                  <span className="absolute top-0.5 -right-1 min-w-[18px] h-[18px] rounded-full bg-red-500 flex items-center justify-center border-2 border-white">
+                    <span className="text-[10px] font-bold text-white leading-none px-0.5">{count > 99 ? "99+" : count}</span>
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
         <button type="button" onClick={() => window.dispatchEvent(new CustomEvent("open-create-chat"))} className="shrink-0 ml-1">
           <MessageCirclePlus size={24} className="text-[#4d4d4d]" />

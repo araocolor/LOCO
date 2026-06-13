@@ -5,7 +5,7 @@ import type { UIEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { isChatMuted } from "@/lib/chat-mute";
-import { canPlayAlertSound, incrementChatUnread, fetchChatUnread } from "@/lib/unread-store";
+import { canPlayAlertSound, incrementChatUnread, setChatUnread, getChatUnread, getChatUnreadByType, fetchChatUnread } from "@/lib/unread-store";
 import { playSound } from "@/lib/sound";
 import { PROFILE_AVATAR_UPDATED_EVENT, type ProfileAvatarUpdatedDetail } from "@/lib/profile-events";
 import { PRESENCE_EVENT } from "@/components/features/PresenceTracker";
@@ -1241,6 +1241,9 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
     const cachedMessages = readMessageCache(roomId);
     setMessages(cachedMessages);
 
+    const enteringConv = conversations.find((c) => c.id === roomId);
+    const roomUnread = enteringConv?.unread_count ?? 0;
+
     setConversations((prev) => {
       const next = prev.map((conv) =>
         conv.id === roomId ? { ...conv, unread_count: 0 } : conv
@@ -1248,7 +1251,18 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
       writeAllPreviewCaches(next);
       return next;
     });
-    void fetchChatUnread();
+
+    if (roomUnread > 0) {
+      const currentByType = getChatUnreadByType();
+      const roomType = enteringConv?.type === "group" ? "group" : enteringConv?.type === "class" ? "class" : "direct";
+      setChatUnread(
+        Math.max(0, getChatUnread() - roomUnread),
+        {
+          ...currentByType,
+          [roomType]: Math.max(0, currentByType[roomType] - roomUnread),
+        }
+      );
+    }
 
     const hadCache = cachedMessages.length > 0;
     if (hadCache) setChatLoading(false);
@@ -1329,6 +1343,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
     setMemberDrawerOpen(false);
     setAttachOpen(false);
     setEmojiOpen(false);
+    void fetchChatUnread();
     setTimeout(() => {
       setSelectedRoomId(null);
       setMessages([]);

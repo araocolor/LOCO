@@ -1,14 +1,15 @@
-const CHAT_UNREAD_EVENT = "loco-chat-unread";
-const NOTIFICATION_UNREAD_EVENT = "loco-notification-unread";
-
 let chatUnreadCount = 0;
+let chatUnreadByType = { direct: 0, group: 0, class: 0 };
 let notificationUnreadCount = 0;
+let notificationUnreadByTab = { class: 0, comment: 0, heart: 0, other: 0 };
 
 const chatListeners = new Set<() => void>();
 const notificationListeners = new Set<() => void>();
 
 export function getChatUnread() { return chatUnreadCount; }
+export function getChatUnreadByType() { return chatUnreadByType; }
 export function getNotificationUnread() { return notificationUnreadCount; }
+export function getNotificationUnreadByTab() { return notificationUnreadByTab; }
 
 export function subscribeChatUnread(cb: () => void) {
   chatListeners.add(cb);
@@ -20,18 +21,20 @@ export function subscribeNotificationUnread(cb: () => void) {
   return () => { notificationListeners.delete(cb); };
 }
 
-export function setChatUnread(count: number) {
-  if (chatUnreadCount === count) return;
-  chatUnreadCount = count;
+function notifyChatListeners() {
   chatListeners.forEach((cb) => cb());
-  window.dispatchEvent(new CustomEvent(CHAT_UNREAD_EVENT, { detail: count }));
 }
 
-export function setNotificationUnread(count: number) {
-  if (notificationUnreadCount === count) return;
+export function setChatUnread(count: number, byType?: { direct: number; group: number; class: number }) {
+  chatUnreadCount = count;
+  if (byType) chatUnreadByType = { ...byType };
+  notifyChatListeners();
+}
+
+export function setNotificationUnread(count: number, byTab?: { class: number; comment: number; heart: number; other: number }) {
   notificationUnreadCount = count;
+  if (byTab) notificationUnreadByTab = { ...byTab };
   notificationListeners.forEach((cb) => cb());
-  window.dispatchEvent(new CustomEvent(NOTIFICATION_UNREAD_EVENT, { detail: count }));
 }
 
 export function incrementChatUnread(delta = 1) {
@@ -44,10 +47,10 @@ export function incrementNotificationUnread(delta = 1) {
 
 export async function fetchChatUnread() {
   try {
-    const res = await fetch("/api/chat/unread-count?type=direct");
+    const res = await fetch("/api/chat/unread-count");
     if (!res.ok) return;
     const json = await res.json();
-    setChatUnread(json?.count ?? 0);
+    setChatUnread(json?.count ?? 0, json?.byType ?? { direct: 0, group: 0, class: 0 });
   } catch {}
 }
 
@@ -56,7 +59,9 @@ export async function fetchNotificationUnread() {
     const res = await fetch("/api/notifications/unread-count");
     if (!res.ok) return;
     const json = await res.json();
-    setNotificationUnread(json?.count ?? 0);
+    const byTab = json?.byTab ?? { class: 0, comment: 0, heart: 0, other: 0 };
+    const total = json?.count ?? 0;
+    setNotificationUnread(total, byTab);
   } catch {}
 }
 
