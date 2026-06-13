@@ -413,7 +413,7 @@ export default function BoardCommentsPanel({ postId, open, onClose }: Props) {
         onClick={onClose}
         aria-label="댓글 닫기"
       />
-      <section className="relative flex h-[100dvh] w-full max-w-[500px] flex-col bg-white shadow-2xl animate-sheet-slide-up">
+      <section className="relative flex h-[100dvh] w-full max-w-[500px] flex-col bg-white shadow-2xl animate-sheet-slide-up" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
         {/* 헤더 */}
         <div className="flex-shrink-0 border-b border-gray-100">
           <div className="flex items-center px-4 py-3">
@@ -523,7 +523,7 @@ export default function BoardCommentsPanel({ postId, open, onClose }: Props) {
                 el.style.height = "auto";
                 el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
               }}
-              className={`min-h-[44px] min-w-0 flex-1 resize-none rounded-2xl border px-4 py-2.5 text-sm outline-none focus:border-gray-400 ${editTarget ? "border-gray-400" : "border-gray-200"}`}
+              className={`min-h-[44px] min-w-0 flex-1 resize-none rounded-2xl border px-4 py-2.5 text-[16px] outline-none focus:border-gray-400 ${editTarget ? "border-gray-400" : "border-gray-200"}`}
             />
             <button
               type="button"

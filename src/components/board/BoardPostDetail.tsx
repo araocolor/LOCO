@@ -5,6 +5,7 @@ import { ChevronLeft, MessageCircle, Pencil } from "lucide-react";
 import type { BoardPost, BoardComment } from "@/types/board";
 import Avatar from "@/components/ui/Avatar";
 import { createClient } from "@/lib/supabase/client";
+import { useAuth } from "@/lib/auth-context";
 import {
   readBoardCommentsCache,
   readBoardPostCache,
@@ -30,6 +31,7 @@ function formatCommentTime(value: string) {
 }
 
 export default function BoardPostDetail({ postId, onBack, onOpenComments, onEdit }: Props) {
+  const { user: authUser } = useAuth();
   const initialPost = useMemo(() => readBoardPostCache(postId), [postId]);
   const [post, setPost] = useState<BoardPost | null>(initialPost);
   const [loading, setLoading] = useState(!initialPost);
@@ -65,16 +67,18 @@ export default function BoardPostDetail({ postId, onBack, onOpenComments, onEdit
           setMyLiked(nextPost.my_liked ?? false);
           setLikeCount(nextPost.like_count ?? 0);
 
-          const supabase = createClient();
-          const { data: { user } } = await supabase.auth.getUser();
-          if (user) {
-            const isAuthor = user.id === nextPost.author_id;
-            const { data: profile } = await supabase
-              .from("profiles")
-              .select("role")
-              .eq("id", user.id)
-              .single<{ role: string }>();
-            if (!cancelled) setIsMineOrAdmin(isAuthor || profile?.role === "admin");
+          if (nextPost.category === "notice") {
+            const supabase = createClient();
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+              const isAuthor = user.id === nextPost.author_id;
+              const { data: profile } = await supabase
+                .from("profiles")
+                .select("role")
+                .eq("id", user.id)
+                .single<{ role: string }>();
+              if (!cancelled) setIsMineOrAdmin(isAuthor || profile?.role === "admin");
+            }
           }
         }
       } finally {
@@ -182,7 +186,7 @@ export default function BoardPostDetail({ postId, onBack, onOpenComments, onEdit
     "공지사항";
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col flex-1 min-h-0">
       {/* 헤더 */}
       <div className="sticky top-0 z-10 bg-white border-b border-gray-100">
         <div className="grid h-12 grid-cols-[44px_1fr_44px] items-center px-2">
@@ -197,15 +201,17 @@ export default function BoardPostDetail({ postId, onBack, onOpenComments, onEdit
           <div className="min-w-0 text-center text-[17px] font-semibold text-gray-900">
             {headerTitle}
           </div>
-          {isMineOrAdmin && onEdit && post && (
-            <button
-              type="button"
-              onClick={() => onEdit(post)}
-              className="flex h-9 w-9 items-center justify-center rounded-full hover:bg-gray-100"
-              aria-label="수정"
-            >
-              <Pencil size={18} className="text-gray-500" />
-            </button>
+          {onEdit && post && (
+            (post.category !== "notice" && authUser?.id === post.author_id) || (post.category === "notice" && isMineOrAdmin) ? (
+              <button
+                type="button"
+                onClick={() => onEdit(post)}
+                className="flex h-9 w-9 items-center justify-center rounded-full hover:bg-gray-100"
+                aria-label="수정"
+              >
+                <Pencil size={18} className="text-gray-500" />
+              </button>
+            ) : <div />
           ) || <div />}
         </div>
       </div>
@@ -343,7 +349,7 @@ export default function BoardPostDetail({ postId, onBack, onOpenComments, onEdit
       </div>
 
       {/* 하단 좋아요 + 댓글 버튼 */}
-      <div className="sticky bottom-0 border-t border-gray-100 bg-white px-4 py-3 flex items-center justify-between">
+      <div className="shrink-0 border-t border-gray-100 bg-white px-4 py-3 flex items-center justify-between">
         <button
           type="button"
           onClick={() => void toggleLike()}

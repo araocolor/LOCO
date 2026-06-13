@@ -158,6 +158,15 @@ export default function BoardPostList({ category, onSelectPost, onWrite }: Props
           {loading ? "불러오는 중..." : "더보기"}
         </button>
       )}
+      <div className="flex justify-center py-6">
+        <button
+          type="button"
+          onClick={onWrite}
+          className="px-5 py-2.5 rounded-full bg-gray-900 text-white text-[14px] font-semibold"
+        >
+          글쓰기
+        </button>
+      </div>
     </div>
   );
 }

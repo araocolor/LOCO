@@ -204,7 +204,7 @@ export default function BoardPostEditor({ category, editPost, onBack, onSaved }:
   let textBlockCounter = 0;
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col flex-1 min-h-0">
       <div className="sticky top-0 z-10 bg-white border-b border-gray-100">
         <div className="h-12 px-2 flex items-center justify-between">
           <button
@@ -256,7 +256,7 @@ export default function BoardPostEditor({ category, editPost, onBack, onSaved }:
                   }}
                   onFocus={(e) => autoResize(e.target)}
                   placeholder={currentIndex === 0 ? "내용을 입력하세요" : ""}
-                  className="w-full text-[15px] text-gray-800 outline-none placeholder:text-gray-300 resize-none leading-relaxed overflow-hidden"
+                  className="w-full text-[16px] text-gray-800 outline-none placeholder:text-gray-300 resize-none leading-relaxed overflow-hidden"
                   style={{ minHeight: currentIndex === 0 ? "120px" : "40px" }}
                   rows={1}
                 />
