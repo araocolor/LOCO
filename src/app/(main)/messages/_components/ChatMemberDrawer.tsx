@@ -181,7 +181,7 @@ export default function ChatMemberDrawer({
   return (
     <div className="fixed inset-0 z-[90]">
       <div className="absolute inset-0 bg-black/30" onClick={onClose} />
-      <aside className="absolute right-0 top-0 h-full w-full max-w-[360px] bg-white shadow-2xl flex flex-col">
+      <aside className="absolute right-0 top-0 h-full w-full max-w-[360px] bg-white shadow-2xl flex flex-col" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
         <header className="h-14 shrink-0 flex items-center justify-between px-4 border-b border-gray-100">
           <div className="flex items-center gap-2">
             <UserPlus size={19} className="text-gray-800" />
