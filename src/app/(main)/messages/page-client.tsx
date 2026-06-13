@@ -176,6 +176,22 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
   const [onlineIds, setOnlineIds] = useState<Set<string>>(new Set());
   const [activeMenuTab, setActiveMenuTab] = useState<MessageMenuTab>("friends");
 
+  useEffect(() => {
+    function handleTabChange(e: Event) {
+      const tab = (e as CustomEvent<MessageMenuTab>).detail;
+      setActiveMenuTab(tab);
+    }
+    function handleOpenCreateChat() {
+      setCreateChatOpen(true);
+    }
+    window.addEventListener("loco-message-tab-change", handleTabChange);
+    window.addEventListener("open-create-chat", handleOpenCreateChat);
+    return () => {
+      window.removeEventListener("loco-message-tab-change", handleTabChange);
+      window.removeEventListener("open-create-chat", handleOpenCreateChat);
+    };
+  }, []);
+
   // 대화창 상태
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
   const [chatOpen, setChatOpen] = useState(false);
