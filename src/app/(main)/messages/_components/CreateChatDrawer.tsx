@@ -219,6 +219,7 @@ export default function CreateChatDrawer({ open, onClose, onRoomCreated }: Creat
       />
       <div
         className={`absolute inset-0 bg-white flex flex-col transition-transform duration-300 ease-out ${slideIn ? "translate-y-0" : "-translate-y-full"}`}
+        style={{ paddingTop: 'env(safe-area-inset-top)' }}
       >
         {/* 헤더 */}
         <header className="h-14 shrink-0 flex items-center justify-between px-4 border-b border-gray-100">

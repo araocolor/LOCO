@@ -367,6 +367,7 @@ export default function ChatDrawer({
       className={`fixed inset-0 z-[60] bg-white flex min-h-0 flex-col transition-transform duration-300 ease-in-out ${
         chatOpen ? "translate-x-0" : "translate-x-full"
       }`}
+      style={{ paddingTop: 'env(safe-area-inset-top)' }}
     >
       <ChatDrawerHeader
         canEditTitle={canEditTitle}
@@ -611,6 +612,7 @@ export default function ChatDrawer({
         className={`fixed inset-0 z-[70] bg-white flex flex-col transition-transform duration-300 ease-in-out ${
           classDetailId ? "translate-x-0" : "translate-x-full"
         }`}
+        style={{ paddingTop: 'env(safe-area-inset-top)' }}
       >
         {classDetailId && (
           <>

@@ -137,6 +137,7 @@ export default function ChatDrawerHeader({
           className={`fixed inset-0 z-[70] bg-white flex flex-col transition-transform duration-300 ease-in-out ${
             classDetailOpen ? "translate-x-0" : "translate-x-full invisible"
           }`}
+          style={{ paddingTop: 'env(safe-area-inset-top)' }}
         >
           <header className="sticky top-0 z-50 bg-white h-14 px-4 relative">
             <button
