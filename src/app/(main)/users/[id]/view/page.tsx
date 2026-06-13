@@ -35,6 +35,7 @@ export default async function UserViewPage({
     <div
       data-page-shell
       className="fixed inset-0 z-[70] bg-white page-slide-in-from-right overflow-hidden flex flex-col"
+      style={{ paddingTop: 'env(safe-area-inset-top)' }}
     >
       <header className="shrink-0 bg-white border-b border-[#e5e7eb] h-14 px-4 relative flex items-center">
         <div className="w-10 flex items-center justify-start">

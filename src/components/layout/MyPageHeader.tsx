@@ -276,6 +276,7 @@ export default function MyPageHeader() {
         className={`fixed top-0 left-0 h-full w-full bg-white z-[200] flex flex-col transition-transform duration-300 ease-in-out ${
           open ? "translate-x-0" : "-translate-x-full"
         }`}
+        style={{ paddingTop: 'env(safe-area-inset-top)' }}
       >
         {/* 시트 헤더 - 고정 */}
         <div className="flex-shrink-0 flex items-center justify-between px-4 h-14 border-b border-gray-100">

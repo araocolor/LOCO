@@ -535,6 +535,7 @@ export default function NotificationsTab({ userId }: NotificationsTabProps) {
         className={`fixed top-0 right-0 z-[150] h-full w-full max-w-[500px] bg-white transition-transform duration-300 ease-in-out ${
           settingsOpen ? "translate-x-0" : "translate-x-full"
         }`}
+        style={{ paddingTop: 'env(safe-area-inset-top)' }}
         aria-label="알림설정"
       >
         <div className="relative flex h-14 items-center justify-center border-b border-gray-100">
@@ -554,6 +555,7 @@ export default function NotificationsTab({ userId }: NotificationsTabProps) {
         className={`fixed inset-0 z-[160] bg-white flex flex-col transition-transform duration-300 ease-in-out ${
           classDetailId ? "translate-x-0" : "translate-x-full"
         }`}
+        style={{ paddingTop: 'env(safe-area-inset-top)' }}
       >
         <header className="sticky top-0 z-50 bg-white h-14 px-4 relative border-b border-gray-100">
           <button

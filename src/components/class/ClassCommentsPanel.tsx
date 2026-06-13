@@ -720,7 +720,7 @@ export default function ClassCommentsPanel({
           onClick={onClose}
           aria-label="댓글 닫기"
         />
-        <section className="relative flex h-[100dvh] w-full max-w-xl flex-col bg-white shadow-2xl transition-all duration-300 animate-sheet-slide-up">
+        <section className="relative flex h-[100dvh] w-full max-w-xl flex-col bg-white shadow-2xl transition-all duration-300 animate-sheet-slide-up" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
           <div
             className="flex-shrink-0"
             onTouchStart={(e) => {
