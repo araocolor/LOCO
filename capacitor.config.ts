@@ -16,7 +16,6 @@ const config: CapacitorConfig = {
   },
   ios: {
     appendUserAgent: 'XlatinApp',
-    contentInset: 'always',
   },
 };
 
