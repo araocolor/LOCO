@@ -160,7 +160,8 @@ export default function BottomNav() {
       return;
     }
 
-    if (chatUnread > 0 && loginUnreadSoundPlayedUserRef.current !== user.id) {
+    const isApp = /XlatinApp/.test(navigator.userAgent);
+    if (isApp && chatUnread > 0 && loginUnreadSoundPlayedUserRef.current !== user.id) {
       loginUnreadSoundPlayedUserRef.current = user.id;
       try {
         const audio = new Audio("/sound/login_arrived_message.mp3");
