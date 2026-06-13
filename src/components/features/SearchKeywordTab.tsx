@@ -157,7 +157,7 @@ export default function SearchKeywordTab({ onClose, onSearch }: SearchKeywordTab
             onChange={(e) => setKeyword(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleSearch()}
             placeholder="클래스명 검색"
-            className="w-full h-10 pl-9 pr-3 rounded-lg bg-gray-100 text-sm outline-none focus:ring-1 focus:ring-gray-300"
+            className="w-full h-10 pl-9 pr-3 rounded-lg bg-gray-100 text-[16px] outline-none focus:ring-1 focus:ring-gray-300"
           />
         </div>
         <button

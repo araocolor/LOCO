@@ -234,7 +234,7 @@ export default function CreateChatDrawer({ open, onClose, onRoomCreated }: Creat
                   onChange={(e) => setRoomTitle(e.target.value)}
                   placeholder="방제목을 입력하세요"
                   maxLength={30}
-                  className="w-full bg-transparent pb-1 text-center text-[15px] text-gray-900 outline-none placeholder:text-center placeholder:text-gray-400"
+                  className="w-full bg-transparent pb-1 text-center text-[16px] text-gray-900 outline-none placeholder:text-center placeholder:text-gray-400"
                 />
               </label>
             </div>
@@ -262,7 +262,7 @@ export default function CreateChatDrawer({ open, onClose, onRoomCreated }: Creat
                 setVisibleCount(PAGE_SIZE);
               }}
               placeholder="아이디 검색"
-              className="min-w-0 flex-1 bg-transparent text-[15px] outline-none"
+              className="min-w-0 flex-1 bg-transparent text-[16px] outline-none"
             />
           </label>
         </div>

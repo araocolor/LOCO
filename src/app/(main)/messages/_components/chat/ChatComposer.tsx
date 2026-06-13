@@ -28,7 +28,7 @@ export default function ChatComposer({
   onSendMessage,
 }: ChatComposerProps) {
   return (
-    <div className="border-t border-gray-100 px-3 pt-3 pb-3 flex gap-2 items-center min-h-[80px]">
+    <div className="border-t border-gray-100 px-3 pt-3 pb-3 flex gap-2 items-center min-h-[80px] max-w-[90%] mx-auto">
       <button
         type="button"
         className="text-gray-500 flex-shrink-0"

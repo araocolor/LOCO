@@ -142,7 +142,7 @@ export default function FriendsSection({
                 value={friendSearch}
                 onChange={(e) => setFriendSearch(e.target.value)}
                 className="w-full h-8 pl-3 pr-8 border border-gray-200 rounded-full bg-gray-50 focus:outline-none focus:border-gray-400"
-                style={{ fontSize: 15 }}
+                style={{ fontSize: 16 }}
               />
               {friendSearch && (
                 <button

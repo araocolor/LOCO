@@ -846,7 +846,7 @@ export default function CachedClassDetailPage({
               type="text"
               value={deleteConfirmText}
               onChange={(event) => setDeleteConfirmText(event.target.value)}
-              className="mt-4 w-full rounded-xl border border-gray-200 px-3 py-3 text-sm font-semibold outline-none focus:border-red-300"
+              className="mt-4 w-full rounded-xl border border-gray-200 px-3 py-3 text-[16px] font-semibold outline-none focus:border-red-300"
               placeholder="삭제하기"
               autoFocus
             />

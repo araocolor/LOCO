@@ -81,7 +81,7 @@ export default function CommentSheet({ open, onClose, classId }: CommentSheetPro
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="댓글을 입력하세요"
-              className="flex-1 text-sm border border-gray-200 rounded-xl px-3 py-2 outline-none focus:border-gray-400"
+              className="flex-1 text-[16px] border border-gray-200 rounded-xl px-3 py-2 outline-none focus:border-gray-400"
             />
             <button
               className="text-sm font-semibold px-4 py-2 rounded-xl bg-gray-900 text-white flex-shrink-0"

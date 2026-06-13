@@ -138,7 +138,7 @@ export default function ClassShareSheet({ open, classData, onClose, onShared }: 
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="친구 검색"
-            className="h-11 w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 text-sm outline-none focus:border-gray-400"
+            className="h-11 w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 text-[16px] outline-none focus:border-gray-400"
           />
         </div>
 
@@ -190,7 +190,7 @@ export default function ClassShareSheet({ open, classData, onClose, onShared }: 
             value={message}
             onChange={(event) => setMessage(event.target.value)}
             placeholder="메시지 입력"
-            className="mb-3 h-11 w-full rounded-2xl border border-gray-200 px-4 text-sm outline-none focus:border-gray-400"
+            className="mb-3 h-11 w-full rounded-2xl border border-gray-200 px-4 text-[16px] outline-none focus:border-gray-400"
           />
           {error && <p className="mb-2 text-sm text-red-500">{error}</p>}
           <div className="flex gap-2">

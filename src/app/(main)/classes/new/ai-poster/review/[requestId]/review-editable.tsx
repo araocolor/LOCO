@@ -197,7 +197,7 @@ export default function AiPosterReviewEditable({
         <textarea
           value={promptText}
           onChange={(e) => setPromptText(e.target.value)}
-          className="mt-4 h-[350px] w-full resize-none overflow-y-auto whitespace-pre-wrap rounded-2xl bg-[#111111] px-4 py-4 text-sm leading-6 text-white outline-none"
+          className="mt-4 h-[350px] w-full resize-none overflow-y-auto whitespace-pre-wrap rounded-2xl bg-[#111111] px-4 py-4 text-[16px] leading-6 text-white outline-none"
         />
       </section>
 

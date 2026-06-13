@@ -199,7 +199,7 @@ export default function ChatMemberDrawer({
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="아이디 검색"
-              className="min-w-0 flex-1 bg-transparent text-[15px] outline-none"
+              className="min-w-0 flex-1 bg-transparent text-[16px] outline-none"
             />
           </label>
           {error && <p className="mt-2 text-xs text-red-500">{error}</p>}
