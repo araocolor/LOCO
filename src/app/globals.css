@@ -63,6 +63,7 @@
   --radius-card: 16px;
   --radius-input: 12px;
   --radius-pill: 9999px;
+  --sab: env(safe-area-inset-bottom);
 }
 
 *,

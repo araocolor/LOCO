@@ -71,6 +71,8 @@ interface GameState {
   finalScore: number | null;
   remainingLives: number;
   waitingOnPaddle: number;
+  paddleSoundSeq: number;
+  hitSoundSeq: number;
 }
 
 interface MemberLayout {
@@ -85,7 +87,7 @@ const BRICK_COLUMNS = 10;
 const BRICK_ROWS = 5;
 const BRICK_GAP = 6;
 const BOARD_SIDE_PADDING = 18;
-const BRICK_TOP = 148;
+const BRICK_TOP = 120;
 const PADDLE_Y_GAP = 98;
 const PADDLE_WIDTH_RATIO = 0.34;
 const START_BUTTON_HEIGHT = 44;
@@ -190,8 +192,13 @@ function getPaddleWidth(bounds: GameBounds) {
   return clamp(bounds.width * PADDLE_WIDTH_RATIO, 132, 176);
 }
 
+function getSafeAreaBottom() {
+  if (typeof window === "undefined") return 0;
+  return parseInt(getComputedStyle(document.documentElement).getPropertyValue("--sab") || "0", 10);
+}
+
 function getPaddleY(bounds: GameBounds) {
-  return bounds.height - PADDLE_Y_GAP;
+  return bounds.height - PADDLE_Y_GAP - getSafeAreaBottom();
 }
 
 function buildMemberLayouts(bounds: GameBounds, members: MemberGameProfile[]) {
@@ -271,6 +278,8 @@ function createInitialGame(bounds: GameBounds): GameState {
     finalScore: null,
     remainingLives: TOTAL_LIVES,
     waitingOnPaddle: 1,
+    paddleSoundSeq: 0,
+    hitSoundSeq: 0,
   };
 }
 
@@ -278,6 +287,7 @@ export default function MemberBreakoutGame({ members, userId, roomId, onExitGame
   const savedRef = useRef(false);
   const frameRef = useRef<number | null>(null);
   const boardRef = useRef<HTMLDivElement>(null);
+  const soundSeqRef = useRef({ paddle: 0, hit: 0 });
   const [bounds, setBounds] = useState<GameBounds>({ width: 0, height: 0 });
   const [game, setGame] = useState<GameState | null>(null);
   const [topRecord, setTopRecord] = useState<TopRecord | null>(null);
@@ -311,6 +321,20 @@ export default function MemberBreakoutGame({ members, userId, roomId, onExitGame
   useEffect(() => {
     handleSaveRecord();
   }, [handleSaveRecord]);
+
+  useEffect(() => {
+    if (!game) return;
+    if (game.paddleSoundSeq > soundSeqRef.current.paddle) {
+      playSound("game-stik", { volume: 0.5 });
+    }
+    if (game.hitSoundSeq > soundSeqRef.current.hit) {
+      playSound("game-hit", { volume: 0.35 });
+    }
+    soundSeqRef.current = {
+      paddle: game.paddleSoundSeq,
+      hit: game.hitSoundSeq,
+    };
+  }, [game]);
 
   const memberLayouts = useMemo(() => buildMemberLayouts(bounds, members), [bounds, members]);
   const confettiPieces = useMemo(
@@ -375,8 +399,6 @@ export default function MemberBreakoutGame({ members, userId, roomId, onExitGame
     const step = (time: number) => {
       const dt = Math.min(32, time - previous) / 1000;
       previous = time;
-      let shouldPlayPaddleSound = false;
-      let shouldPlayHitSound = false;
 
       setGame((current) => {
         if (!current) return current;
@@ -400,6 +422,8 @@ export default function MemberBreakoutGame({ members, userId, roomId, onExitGame
         let launched = current.launched;
         let remainingLives = current.remainingLives;
         let waitingOnPaddle = current.waitingOnPaddle;
+        let paddleSoundSeq = current.paddleSoundSeq;
+        let hitSoundSeq = current.hitSoundSeq;
 
         const readyRescues = Object.entries(nextPendingReleaseAt).filter(([, releaseAt]) => releaseAt <= time);
         if (readyRescues.length > 0) {
@@ -471,7 +495,7 @@ export default function MemberBreakoutGame({ members, userId, roomId, onExitGame
             nextBall.x >= current.paddleX - paddleHalf - 8 &&
             nextBall.x <= current.paddleX + paddleHalf + 8
           ) {
-            shouldPlayPaddleSound = true;
+            paddleSoundSeq += 1;
             const offset = clamp((nextBall.x - current.paddleX) / paddleHalf, -1, 1);
             nextBall.x = clamp(nextBall.x, current.paddleX - paddleHalf, current.paddleX + paddleHalf);
             nextBall.y = paddleY - nextBall.radius - 1;
@@ -489,7 +513,7 @@ export default function MemberBreakoutGame({ members, userId, roomId, onExitGame
           );
 
           if (hitBrickIndex >= 0) {
-            shouldPlayHitSound = true;
+            hitSoundSeq += 1;
             const hitBrick = nextBricks[hitBrickIndex];
             nextBricks = nextBricks.map((brick, index) =>
               index === hitBrickIndex ? { ...brick, alive: false } : brick
@@ -524,7 +548,7 @@ export default function MemberBreakoutGame({ members, userId, roomId, onExitGame
           });
 
           if (hitMember) {
-            shouldPlayHitSound = true;
+            hitSoundSeq += 1;
             nextHitAt = { ...nextHitAt, [hitMember.member.userId]: time };
             nextPendingReleaseAt = {
               ...nextPendingReleaseAt,
@@ -594,6 +618,8 @@ export default function MemberBreakoutGame({ members, userId, roomId, onExitGame
             finalScore,
             remainingLives: 0,
             waitingOnPaddle: 0,
+            paddleSoundSeq,
+            hitSoundSeq,
           };
         }
 
@@ -635,6 +661,8 @@ export default function MemberBreakoutGame({ members, userId, roomId, onExitGame
             finalScore,
             remainingLives,
             waitingOnPaddle,
+            paddleSoundSeq,
+            hitSoundSeq,
           };
         }
 
@@ -652,15 +680,10 @@ export default function MemberBreakoutGame({ members, userId, roomId, onExitGame
           launched,
           remainingLives,
           waitingOnPaddle,
+          paddleSoundSeq,
+          hitSoundSeq,
         };
       });
-
-      if (shouldPlayPaddleSound) {
-        playSound("game-stik", { volume: 0.5 });
-      }
-      if (shouldPlayHitSound) {
-        playSound("game-hit", { volume: 0.35 });
-      }
 
       frameRef.current = window.requestAnimationFrame(step);
     };
@@ -747,7 +770,7 @@ export default function MemberBreakoutGame({ members, userId, roomId, onExitGame
   }
 
   return (
-    <div className="relative h-full min-h-full overflow-hidden bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.48),_transparent_34%),linear-gradient(180deg,_#1f3357_0%,_#284976_48%,_#1b2640_100%)]">
+    <div className="relative h-full min-h-full overflow-hidden select-none bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.48),_transparent_34%),linear-gradient(180deg,_#1f3357_0%,_#284976_48%,_#1b2640_100%)]">
       <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(transparent_0%,transparent_96%,rgba(255,255,255,0.08)_100%),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:100%_100%,24px_24px,24px_24px]" />
       <div className="relative z-10 flex items-center justify-between px-5 pb-2 pt-5 text-white">
         <div>
@@ -911,7 +934,7 @@ export default function MemberBreakoutGame({ members, userId, roomId, onExitGame
         )}
 
         {game && game.status === "running" && displayReserve > 0 && (
-          <div className="absolute bottom-5 right-14 z-20 flex items-center gap-5">
+          <div className="absolute right-14 z-20 flex items-center gap-5" style={{ bottom: 'calc(28px + env(safe-area-inset-bottom))' }}>
             {Array.from({ length: displayReserve }, (_, i) => (
               <button
                 key={i}
@@ -928,7 +951,8 @@ export default function MemberBreakoutGame({ members, userId, roomId, onExitGame
           type="button"
           onClick={onExitGame}
           aria-label="게임 종료"
-          className="absolute bottom-2 left-4 z-20 flex h-9 w-9 items-center justify-center rounded-full border border-white/18 bg-[#0f172a]/72 text-white shadow-[0_12px_24px_rgba(15,23,42,0.32)] transition hover:bg-[#162033]"
+          className="absolute left-10 z-20 flex h-9 w-9 items-center justify-center rounded-full border border-white/18 bg-[#0f172a]/72 text-white shadow-[0_12px_24px_rgba(15,23,42,0.32)] transition hover:bg-[#162033]"
+          style={{ bottom: 'calc(16px + env(safe-area-inset-bottom))' }}
         >
           <Power size={15} strokeWidth={2.4} />
         </button>
