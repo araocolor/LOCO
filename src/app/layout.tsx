@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { AuthProvider } from "@/lib/auth-context";
 import AppDeepLinkHandler from "@/components/features/AppDeepLinkHandler";
+import PushInitializer from "@/components/features/PushInitializer";
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -26,6 +27,7 @@ export default function RootLayout({
     <html lang="ko" className="h-full" style={{ backgroundColor: '#ffffff' }}>
       <body className="h-full flex flex-col antialiased hide-scrollbar bg-gray-100 overflow-hidden">
         <AppDeepLinkHandler />
+        <PushInitializer />
         <AuthProvider>{children}</AuthProvider>
       </body>
     </html>

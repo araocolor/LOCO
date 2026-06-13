@@ -4,7 +4,7 @@ import { useEffect, useState, useRef, useMemo } from "react";
 import type { UIEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { isChatMuted } from "@/lib/chat-mute";
+import { isChatMuted, syncChatMuteFromServer } from "@/lib/chat-mute";
 import { canPlayAlertSound, incrementChatUnread, setChatUnread, getChatUnread, getChatUnreadByType, fetchChatUnread } from "@/lib/unread-store";
 import { playSound } from "@/lib/sound";
 import { PROFILE_AVATAR_UPDATED_EVENT, type ProfileAvatarUpdatedDetail } from "@/lib/profile-events";
@@ -61,6 +61,7 @@ interface ChatRoomApiItem {
     created_at: string;
     sender?: OtherUser | null;
   }>;
+  muted?: boolean;
   unread_count: number;
   updated_at: string;
   created_at: string;
@@ -493,6 +494,10 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
   }
 
   function mapChatRoom(item: ChatRoomApiItem): Conversation {
+    if (item.muted !== undefined) {
+      syncChatMuteFromServer(item.id, item.muted);
+    }
+
     const otherMember = item.type === "direct"
       ? item.members.find((member) => member.user_id !== userId)
       : item.type === "self"

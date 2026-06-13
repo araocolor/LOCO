@@ -16,4 +16,20 @@ export function setChatMuted(roomId: string, muted: boolean) {
       localStorage.removeItem(PREFIX + roomId);
     }
   } catch {}
+
+  fetch("/api/chat/rooms/mute", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ roomId, muted }),
+  }).catch(() => {});
+}
+
+export function syncChatMuteFromServer(roomId: string, muted: boolean) {
+  try {
+    if (muted) {
+      localStorage.setItem(PREFIX + roomId, "1");
+    } else {
+      localStorage.removeItem(PREFIX + roomId);
+    }
+  } catch {}
 }

@@ -10,6 +10,7 @@ import {
   normalizeMessageContent,
   requireActiveRoomMember,
 } from "../../../_lib";
+import { sendChatPush } from "@/lib/push-send";
 
 const MESSAGE_KINDS = new Set<ChatMessageKind>(["text", "image", "file", "system", "emoji"]);
 const MESSAGE_REACTION_TYPES = ["heart", "like", "laugh", "wow", "sad"] as const;
@@ -243,6 +244,17 @@ export async function POST(
       }).length;
       unreadCountField = { unread_count: unread };
     }
+
+    const senderProfiles = await getProfiles([user.id]);
+    const senderNickname = senderProfiles[0]?.nickname ?? "알 수 없음";
+
+    sendChatPush({
+      roomId,
+      senderId: user.id,
+      senderNickname,
+      messageContent: content,
+      messageKind: kind,
+    }).catch((err) => console.error("[chat-push]", err));
 
     return NextResponse.json({
       data: {

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import Image from "next/image";
-import { ArrowLeft, Heart, Settings, Trash2 } from "lucide-react";
+import { ArrowLeft, Bell, ChevronRight, Heart, Settings, Trash2, Volume2, VolumeX, X } from "lucide-react";
 import UserProfileModal from "@/components/user/UserProfileModal";
 import CachedClassDetailPage from "@/components/class/CachedClassDetailPage";
 import { readNotificationCache, writeNotificationCache } from "@/lib/notification-cache";
@@ -135,6 +135,8 @@ export default function NotificationsTab({ userId }: NotificationsTabProps) {
   const [profileModalTarget, setProfileModalTarget] = useState<NotificationItem["actor"]>(null);
   const [activeTab, setActiveTab] = useState<NotificationTab>("class");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [soundOff, setSoundOff] = useState(false);
+  const [soundOffLoading, setSoundOffLoading] = useState(false);
   const [classDetailId, setClassDetailId] = useState<string | null>(null);
   const [viewedTabs, setViewedTabs] = useState<Set<NotificationTab>>(new Set(["class"]));
   const viewedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -209,6 +211,33 @@ export default function NotificationsTab({ userId }: NotificationsTabProps) {
     }, 0);
     setNotificationUnread(totalUnread);
   }, [notificationsByTab, viewedTabs, loadedTabs]);
+
+  useEffect(() => {
+    if (!settingsOpen) return;
+    fetch("/api/notifications/settings")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json) => {
+        if (json) setSoundOff(json.notification_sound_off ?? false);
+      })
+      .catch(() => {});
+  }, [settingsOpen]);
+
+  const handleToggleSoundOff = async () => {
+    const next = !soundOff;
+    setSoundOff(next);
+    setSoundOffLoading(true);
+    try {
+      await fetch("/api/notifications/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notification_sound_off: next }),
+      });
+    } catch {
+      setSoundOff(!next);
+    } finally {
+      setSoundOffLoading(false);
+    }
+  };
 
   useEffect(() => {
     document.body.style.overflow = settingsOpen || Boolean(classDetailId) ? "hidden" : "";
@@ -554,25 +583,46 @@ export default function NotificationsTab({ userId }: NotificationsTabProps) {
         }`}
         onClick={() => setSettingsOpen(false)}
       />
-      <aside
-        className={`fixed top-0 right-0 z-[150] h-full w-full max-w-[500px] bg-white transition-transform duration-300 ease-in-out ${
-          settingsOpen ? "translate-x-0" : "translate-x-full"
+      <div
+        className={`fixed top-0 left-0 h-full w-full bg-white z-[150] flex flex-col transition-transform duration-300 ease-in-out ${
+          settingsOpen ? "translate-x-0" : "-translate-x-full"
         }`}
         style={{ paddingTop: 'env(safe-area-inset-top)' }}
         aria-label="알림설정"
       >
-        <div className="relative flex h-14 items-center justify-center border-b border-gray-100">
-          <button
-            type="button"
-            aria-label="알림설정 닫기"
-            onClick={() => setSettingsOpen(false)}
-            className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-semibold text-gray-600"
-          >
-            닫기
+        <div className="flex-shrink-0 flex items-center justify-between px-4 h-14 border-b border-gray-100">
+          <span className="text-[20px] font-bold text-[#333333]">설정</span>
+          <button type="button" onClick={() => setSettingsOpen(false)}>
+            <X className="w-5 h-5 text-gray-500" />
           </button>
-          <h2 className="text-[20px] font-bold text-[#333333]">알림설정</h2>
         </div>
-      </aside>
+        <div className="flex-1 overflow-y-auto">
+          <div className="border-t border-gray-100">
+            <div className="flex items-center gap-3 w-full px-5 py-2.5">
+              <span className="text-gray-400">
+                {soundOff ? <VolumeX size={18} /> : <Volume2 size={18} />}
+              </span>
+              <span className="flex-1 text-[17px] text-[#333333]">알림 소리</span>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={!soundOff}
+                disabled={soundOffLoading}
+                onClick={handleToggleSoundOff}
+                className={`relative inline-flex h-[22px] w-[36px] shrink-0 rounded-full transition-colors duration-200 focus:outline-none ${
+                  !soundOff ? "bg-[#34C759]" : "bg-[#E5E5EA]"
+                }`}
+              >
+                <span
+                  className={`inline-block h-[18px] w-[18px] rounded-full bg-white shadow-md transition-transform duration-200 mt-[2px] ${
+                    !soundOff ? "translate-x-[16px]" : "translate-x-[2px]"
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <div
         className={`fixed inset-0 z-[160] bg-white flex flex-col transition-transform duration-300 ease-in-out ${

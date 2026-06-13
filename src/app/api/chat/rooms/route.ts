@@ -97,10 +97,10 @@ export async function GET() {
     const admin = createAdminClient();
     const { data: myMemberships, error: membershipError } = await admin
       .from("chat_room_members")
-      .select("room_id, user_id, role, status, last_read_at, created_at")
+      .select("room_id, user_id, role, status, last_read_at, muted, created_at")
       .eq("user_id", user.id)
       .eq("status", "active")
-      .returns<ChatMemberRow[]>();
+      .returns<(ChatMemberRow & { muted: boolean })[]>();
 
     if (membershipError) throw membershipError;
 
@@ -226,6 +226,7 @@ export async function GET() {
                 created_at: lastMessage.created_at,
               }
             : null,
+          muted: membershipMap.get(room.id)?.muted ?? false,
           unread_count: unreadCountMap.get(room.id) ?? 0,
           updated_at: room.last_message_at ?? room.updated_at,
           created_at: room.created_at,

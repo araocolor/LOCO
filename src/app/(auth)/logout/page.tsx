@@ -14,6 +14,12 @@ export default function LogoutPage() {
     localStorage.clear();
     sessionStorage.clear();
 
+    if (navigator.userAgent.includes("XlatinApp")) {
+      import("@/lib/push-notifications").then(({ removePushToken }) => {
+        removePushToken();
+      });
+    }
+
     const startTime = Date.now();
     const duration = 2000;
 
