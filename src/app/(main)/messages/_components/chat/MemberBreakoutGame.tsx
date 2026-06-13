@@ -73,6 +73,7 @@ interface GameState {
   waitingOnPaddle: number;
   paddleSoundSeq: number;
   hitSoundSeq: number;
+  endSoundSeq: number;
 }
 
 interface MemberLayout {
@@ -280,6 +281,7 @@ function createInitialGame(bounds: GameBounds): GameState {
     waitingOnPaddle: 1,
     paddleSoundSeq: 0,
     hitSoundSeq: 0,
+    endSoundSeq: 0,
   };
 }
 
@@ -287,7 +289,7 @@ export default function MemberBreakoutGame({ members, userId, roomId, onExitGame
   const savedRef = useRef(false);
   const frameRef = useRef<number | null>(null);
   const boardRef = useRef<HTMLDivElement>(null);
-  const soundSeqRef = useRef({ paddle: 0, hit: 0 });
+  const soundSeqRef = useRef({ paddle: 0, hit: 0, end: 0 });
   const [bounds, setBounds] = useState<GameBounds>({ width: 0, height: 0 });
   const [game, setGame] = useState<GameState | null>(null);
   const [topRecord, setTopRecord] = useState<TopRecord | null>(null);
@@ -330,9 +332,13 @@ export default function MemberBreakoutGame({ members, userId, roomId, onExitGame
     if (game.hitSoundSeq > soundSeqRef.current.hit) {
       playSound("game-hit", { volume: 0.35 });
     }
+    if (game.endSoundSeq > soundSeqRef.current.end) {
+      playSound("game-end", { volume: 0.35 });
+    }
     soundSeqRef.current = {
       paddle: game.paddleSoundSeq,
       hit: game.hitSoundSeq,
+      end: game.endSoundSeq,
     };
   }, [game]);
 
@@ -424,6 +430,7 @@ export default function MemberBreakoutGame({ members, userId, roomId, onExitGame
         let waitingOnPaddle = current.waitingOnPaddle;
         let paddleSoundSeq = current.paddleSoundSeq;
         let hitSoundSeq = current.hitSoundSeq;
+        const endSoundSeq = current.endSoundSeq;
 
         const readyRescues = Object.entries(nextPendingReleaseAt).filter(([, releaseAt]) => releaseAt <= time);
         if (readyRescues.length > 0) {
@@ -620,6 +627,7 @@ export default function MemberBreakoutGame({ members, userId, roomId, onExitGame
             waitingOnPaddle: 0,
             paddleSoundSeq,
             hitSoundSeq,
+            endSoundSeq: endSoundSeq + 1,
           };
         }
 
@@ -663,6 +671,7 @@ export default function MemberBreakoutGame({ members, userId, roomId, onExitGame
             waitingOnPaddle,
             paddleSoundSeq,
             hitSoundSeq,
+            endSoundSeq: endSoundSeq + 1,
           };
         }
 
@@ -682,6 +691,7 @@ export default function MemberBreakoutGame({ members, userId, roomId, onExitGame
           waitingOnPaddle,
           paddleSoundSeq,
           hitSoundSeq,
+          endSoundSeq,
         };
       });
 
@@ -715,6 +725,7 @@ export default function MemberBreakoutGame({ members, userId, roomId, onExitGame
     if (!bounds.width || !bounds.height) return;
     primeSound("game-stik");
     primeSound("game-hit");
+    primeSound("game-end");
     const now = performance.now();
     setGame((current) => {
       if (!current || current.status !== "running") return current;
