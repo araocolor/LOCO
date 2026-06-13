@@ -19,7 +19,7 @@ export default async function MainLayout({
 
   return (
     <div className="flex justify-center h-full bg-gray-100">
-      <div className="relative flex flex-col w-full max-w-[500px] h-full bg-white overflow-hidden">
+      <div className="relative flex flex-col w-full max-w-[500px] h-full bg-white overflow-hidden" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
         <MainContentShell>
           <TabbedMain />
           {children}
