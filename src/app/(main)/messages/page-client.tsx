@@ -5,6 +5,8 @@ import type { UIEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { isChatMuted } from "@/lib/chat-mute";
+import { canPlayAlertSound, incrementChatUnread, fetchChatUnread } from "@/lib/unread-store";
+import { playSound } from "@/lib/sound";
 import { PROFILE_AVATAR_UPDATED_EVENT, type ProfileAvatarUpdatedDetail } from "@/lib/profile-events";
 import { PRESENCE_EVENT } from "@/components/features/PresenceTracker";
 import ConversationList from "./_components/ConversationList";
@@ -905,17 +907,9 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
   const lastTypingSentRef = useRef(0);
   const typingClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [otherTyping, setOtherTyping] = useState(false);
-  const arrivedAudioRef = useRef<HTMLAudioElement | null>(null);
-
   function playArrivedSound() {
-    try {
-      if (!arrivedAudioRef.current) {
-        arrivedAudioRef.current = new Audio("/sound/realtime_alert_arrived_02.mp3");
-        arrivedAudioRef.current.volume = 0.7;
-      }
-      arrivedAudioRef.current.currentTime = 0;
-      void arrivedAudioRef.current.play();
-    } catch {}
+    if (!canPlayAlertSound()) return;
+    playSound("chat-arrived");
   }
 
   function scheduleListRefresh() {
@@ -945,6 +939,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
           const cached = readMessageCache(roomId);
           if (cached.some((m) => m.id === latest.id)) return;
           if (!isChatMuted(roomId)) playArrivedSound();
+          incrementChatUnread();
           appendMessageCache(roomId, latest);
         } catch {}
       })();
@@ -1253,6 +1248,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
       writeAllPreviewCaches(next);
       return next;
     });
+    void fetchChatUnread();
 
     const hadCache = cachedMessages.length > 0;
     if (hadCache) setChatLoading(false);

@@ -6,6 +6,8 @@ const SOUND_FILE_BY_NAME = {
   "game-stik": "game_stik.mp3",
   "game-hit": "send_02.mp3",
   "game-end": "loco_charging.mp3",
+  "chat-arrived": "realtime_alert_arrived_02.mp3",
+  "notification-arrived": "alert01.mp3",
 } as const;
 
 type SoundName = keyof typeof SOUND_FILE_BY_NAME;

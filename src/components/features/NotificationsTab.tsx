@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import Image from "next/image";
 import { ArrowLeft, Heart, Settings, Trash2 } from "lucide-react";
 import UserProfileModal from "@/components/user/UserProfileModal";
 import CachedClassDetailPage from "@/components/class/CachedClassDetailPage";
 import { readNotificationCache, writeNotificationCache } from "@/lib/notification-cache";
+import { setNotificationUnread } from "@/lib/unread-store";
 
 interface NotificationItem {
   id: string;
@@ -134,6 +135,8 @@ export default function NotificationsTab({ userId }: NotificationsTabProps) {
   const [activeTab, setActiveTab] = useState<NotificationTab>("class");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [classDetailId, setClassDetailId] = useState<string | null>(null);
+  const [viewedTabs, setViewedTabs] = useState<Set<NotificationTab>>(new Set(["class"]));
+  const viewedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchNotifications = useCallback(async (tab: NotificationTab, silent = false) => {
     if (loadedTabs[tab]) return;
@@ -179,6 +182,29 @@ export default function NotificationsTab({ userId }: NotificationsTabProps) {
       void fetchNotifications("other", true);
     });
   }, [activeTab, fetchNotifications, loadedTabs.class]);
+
+  useEffect(() => {
+    if (viewedTimerRef.current) clearTimeout(viewedTimerRef.current);
+    viewedTimerRef.current = setTimeout(() => {
+      setViewedTabs((prev) => {
+        if (prev.has(activeTab)) return prev;
+        const next = new Set(prev);
+        next.add(activeTab);
+        return next;
+      });
+    }, 2000);
+    return () => {
+      if (viewedTimerRef.current) clearTimeout(viewedTimerRef.current);
+    };
+  }, [activeTab]);
+
+  useEffect(() => {
+    const totalUnread = NOTIFICATION_TABS.reduce((sum, tab) => {
+      if (viewedTabs.has(tab)) return sum;
+      return sum + notificationsByTab[tab].filter((n) => !n.is_read).length;
+    }, 0);
+    setNotificationUnread(totalUnread);
+  }, [notificationsByTab, viewedTabs]);
 
   useEffect(() => {
     document.body.style.overflow = settingsOpen || Boolean(classDetailId) ? "hidden" : "";
@@ -335,38 +361,29 @@ export default function NotificationsTab({ userId }: NotificationsTabProps) {
             </div>
           </div>
           <div className="flex pl-4 pr-4 gap-2 pb-2 overflow-x-auto scrollbar-hide whitespace-nowrap">
-            <button
-              onClick={() => { setActiveTab("class"); setEditMode(false); setSelectedIds(new Set()); }}
-              className={`px-3.5 py-1.5 rounded-full text-[15px] font-semibold transition-colors ${
-                activeTab === "class" ? "bg-black text-white" : "bg-gray-100 text-black/60"
-              }`}
-            >
-              클래스
-            </button>
-            <button
-              onClick={() => { setActiveTab("comment"); setEditMode(false); setSelectedIds(new Set()); }}
-              className={`px-3.5 py-1.5 rounded-full text-[15px] font-semibold transition-colors ${
-                activeTab === "comment" ? "bg-black text-white" : "bg-gray-100 text-black/60"
-              }`}
-            >
-              댓글
-            </button>
-            <button
-              onClick={() => { setActiveTab("heart"); setEditMode(false); setSelectedIds(new Set()); }}
-              className={`px-3.5 py-1.5 rounded-full text-[15px] font-semibold transition-colors ${
-                activeTab === "heart" ? "bg-black text-white" : "bg-gray-100 text-black/60"
-              }`}
-            >
-              하트
-            </button>
-            <button
-              onClick={() => { setActiveTab("other"); setEditMode(false); setSelectedIds(new Set()); }}
-              className={`px-3.5 py-1.5 rounded-full text-[15px] font-semibold transition-colors ${
-                activeTab === "other" ? "bg-black text-white" : "bg-gray-100 text-black/60"
-              }`}
-            >
-              결제
-            </button>
+            {(["class", "comment", "heart", "other"] as const).map((tab) => {
+              const label = tab === "class" ? "클래스" : tab === "comment" ? "댓글" : tab === "heart" ? "하트" : "결제";
+              const unreadCount = notificationsByTab[tab].filter((n) => !n.is_read).length;
+              const showBadge = activeTab !== tab && !viewedTabs.has(tab) && unreadCount > 0;
+              return (
+                <button
+                  key={tab}
+                  onClick={() => { setActiveTab(tab); setEditMode(false); setSelectedIds(new Set()); }}
+                  className={`relative px-3.5 py-1.5 rounded-full text-[15px] font-semibold transition-colors ${
+                    activeTab === tab ? "bg-black text-white" : "bg-gray-100 text-black/60"
+                  }`}
+                >
+                  {label}
+                  {showBadge && (
+                    <span className="absolute -top-1 -right-1 min-w-[16px] h-[16px] rounded-full bg-blue-500 border-2 border-white flex items-center justify-center">
+                      <span className="text-[9px] font-bold text-white leading-none px-0.5">
+                        {unreadCount > 99 ? "99+" : unreadCount}
+                      </span>
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         </header>
 

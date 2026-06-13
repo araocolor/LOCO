@@ -5,6 +5,18 @@ import { useScrollChromeVisibility } from "@/hooks/useScrollChromeVisibility";
 import { type MainTabId, getMainTab, subscribeMainTab, replaceMainTab } from "@/lib/main-tab";
 import { useAuth } from "@/lib/auth-context";
 import { prefetchNotifications } from "@/lib/notification-cache";
+import { createClient } from "@/lib/supabase/client";
+import { playSound } from "@/lib/sound";
+import {
+  getChatUnread,
+  getNotificationUnread,
+  subscribeChatUnread,
+  subscribeNotificationUnread,
+  fetchChatUnread,
+  fetchNotificationUnread,
+  incrementNotificationUnread,
+  canPlayAlertSound,
+} from "@/lib/unread-store";
 
 const HOME_SUBTAB_CHANGE_EVENT = "loco-home-subtab-change";
 type HomeSubTab = "allClasses" | "mySubscriptions" | "friendClasses";
@@ -77,15 +89,27 @@ const NAV_ITEMS: {
   },
 ];
 
+function BadgeDot({ count, color }: { count: number; color: "red" | "blue" }) {
+  if (count <= 0) return null;
+  const bg = color === "red" ? "bg-red-500" : "bg-blue-500";
+  return (
+    <span className={`absolute -right-1.5 -top-1 min-w-[18px] h-[18px] rounded-full ${bg} border-2 border-white flex items-center justify-center`}>
+      <span className="text-[10px] font-bold text-white leading-none px-0.5">
+        {count > 99 ? "99+" : count}
+      </span>
+    </span>
+  );
+}
+
 export default function BottomNav() {
   const pathname = usePathname();
   const [hydrated, setHydrated] = useState(false);
-  const [hasUnreadNotifications, setHasUnreadNotifications] = useState(false);
-  const [hasUnreadMessages, setHasUnreadMessages] = useState(false);
   const [homeSubTab, setHomeSubTab] = useState<HomeSubTab>("allClasses");
   const loginUnreadSoundPlayedUserRef = useRef<string | null>(null);
   const { user } = useAuth();
   const activeTab = useSyncExternalStore(subscribeMainTab, getMainTab, () => "home" as const);
+  const chatUnread = useSyncExternalStore(subscribeChatUnread, getChatUnread, () => 0);
+  const notificationUnread = useSyncExternalStore(subscribeNotificationUnread, getNotificationUnread, () => 0);
   const shouldAutoHide = pathname === "/" && activeTab === "home" && homeSubTab === "allClasses";
   const isChromeVisible = useScrollChromeVisibility(shouldAutoHide);
 
@@ -106,41 +130,48 @@ export default function BottomNav() {
   }, []);
 
   useEffect(() => {
-    fetch("/api/notifications/unread-count")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((json) => {
-        const hasUnread = (json?.count ?? 0) > 0;
-        setHasUnreadNotifications(hasUnread);
-        if (hasUnread) {
-          prefetchNotifications(user?.id);
+    if (!user?.id) return;
+    void fetchNotificationUnread();
+    void fetchChatUnread();
+
+    if (notificationUnread > 0) {
+      prefetchNotifications(user.id);
+    }
+  }, [user?.id, notificationUnread]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`bottom-nav-notifications-${user.id}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${user.id}` },
+        () => {
+          incrementNotificationUnread();
+          if (canPlayAlertSound()) playSound("notification-arrived");
         }
-      })
-      .catch(() => {});
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
   }, [user?.id]);
 
   useEffect(() => {
     if (!user?.id) {
-      queueMicrotask(() => setHasUnreadMessages(false));
       loginUnreadSoundPlayedUserRef.current = null;
       return;
     }
 
-    fetch("/api/chat/unread-count?type=direct")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((json) => {
-        const hasUnread = (json?.count ?? 0) > 0;
-        setHasUnreadMessages(hasUnread);
-        if (!hasUnread || loginUnreadSoundPlayedUserRef.current === user.id) return;
-
-        loginUnreadSoundPlayedUserRef.current = user.id;
-        try {
-          const audio = new Audio("/sound/login_arrived_message.mp3");
-          audio.volume = 0.7;
-          void audio.play();
-        } catch {}
-      })
-      .catch(() => {});
-  }, [user?.id]);
+    if (chatUnread > 0 && loginUnreadSoundPlayedUserRef.current !== user.id) {
+      loginUnreadSoundPlayedUserRef.current = user.id;
+      try {
+        const audio = new Audio("/sound/login_arrived_message.mp3");
+        audio.volume = 0.7;
+        void audio.play();
+      } catch {}
+    }
+  }, [user?.id, chatUnread]);
 
   if (pathname.startsWith("/classes/") || pathname.startsWith("/users/")) return null;
   if (!hydrated) return null;
@@ -166,11 +197,11 @@ export default function BottomNav() {
           >
             <span className="relative">
               {renderIcon(isActive)}
-              {tabId === "notifications" && !isActive && hasUnreadNotifications && (
-                <span className="absolute -right-0.5 -top-0.5 h-[14px] w-[14px] rounded-full bg-red-500 border-2 border-white" />
+              {tabId === "messages" && !isActive && chatUnread > 0 && (
+                <BadgeDot count={chatUnread} color="red" />
               )}
-              {tabId === "messages" && !isActive && hasUnreadMessages && (
-                <span className="absolute -right-0.5 -top-0.5 h-[14px] w-[14px] rounded-full bg-red-500 border-2 border-white" />
+              {tabId === "notifications" && !isActive && notificationUnread > 0 && (
+                <BadgeDot count={notificationUnread} color="blue" />
               )}
             </span>
             <span className="sr-only">{label}</span>

@@ -6,6 +6,7 @@ import Avatar from "@/components/ui/Avatar";
 import { useAuth } from "@/lib/auth-context";
 import { createClient } from "@/lib/supabase/client";
 import { replaceMainTab } from "@/lib/main-tab";
+import { getChatUnread, subscribeChatUnread } from "@/lib/unread-store";
 import type { MessageMenuTab } from "@/app/(main)/messages/_types";
 
 const MSG_TAB_EVENT = "loco-message-tab-change";
@@ -21,11 +22,19 @@ export function replaceMsgTab(tab: MessageMenuTab) {
   window.dispatchEvent(new CustomEvent<MessageMenuTab>(MSG_TAB_EVENT, { detail: tab }));
 }
 
+const TAB_LABELS: Record<MessageMenuTab, string> = {
+  friends: "친구들",
+  direct: "1:1대화",
+  groups: "그룹",
+  class: "클래스",
+};
+
 export default function MessagesHeaderClient() {
   const { user } = useAuth();
   const [nickname, setNickname] = useState("me");
   const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null);
   const activeMenuTab = useSyncExternalStore(subscribeMsgTab, getMsgTab, () => "friends" as const);
+  const chatUnread = useSyncExternalStore(subscribeChatUnread, getChatUnread, () => 0);
 
   useEffect(() => {
     if (!user) {
@@ -68,11 +77,14 @@ export default function MessagesHeaderClient() {
             <button
               key={tab}
               onClick={() => replaceMsgTab(tab)}
-              className={`px-3.5 py-1.5 rounded-full text-[15px] font-semibold transition-colors ${
+              className={`relative px-3.5 py-1.5 rounded-full text-[15px] font-semibold transition-colors ${
                 activeMenuTab === tab ? "bg-black text-white" : "bg-gray-100 text-black/60"
               }`}
             >
-              {tab === "friends" ? "친구들" : tab === "direct" ? "1:1대화" : tab === "groups" ? "그룹" : "클래스"}
+              {TAB_LABELS[tab]}
+              {tab !== "friends" && activeMenuTab !== tab && chatUnread > 0 && (
+                <span className="absolute -top-1 -right-1 h-[8px] w-[8px] rounded-full bg-red-500" />
+              )}
             </button>
           ))}
         </div>
