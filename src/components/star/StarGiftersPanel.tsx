@@ -27,7 +27,7 @@ export default function StarGiftersPanel({
   return (
     <>
       <div className="fixed inset-0 z-[70] bg-black/30" />
-      <div className="fixed inset-y-0 right-0 z-[71] w-full max-w-[500px] bg-white shadow-xl flex flex-col page-slide-in-from-right">
+      <div className="fixed inset-y-0 right-0 z-[71] w-full max-w-[500px] bg-white shadow-xl flex flex-col page-slide-in-from-right" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
         <header className="border-b border-[#e5e7eb]">
           <div className="relative h-14 px-4 flex items-center">
             <div className="font-black text-[22px] text-[#4d4d4d] leading-none">

@@ -229,6 +229,7 @@ export default function CreateClassDrawer({ open, onClose }: CreateClassDrawerPr
       />
       <div
         className={`relative w-full max-w-[500px] bg-[#f4f4f4] flex flex-col transition-transform duration-300 ease-out ${slideIn ? "translate-y-0" : "translate-y-full"}`}
+        style={{ paddingTop: 'env(safe-area-inset-top)' }}
       >
         <header className="shrink-0 bg-white border-b border-[#e5e7eb]">
           <div className="relative flex h-14 items-center px-4">
