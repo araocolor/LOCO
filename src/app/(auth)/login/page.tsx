@@ -148,7 +148,7 @@ function LoginForm() {
             onClick={() => { setShowEmailForm(false); setError(""); }}
             className="mt-6 text-sm text-gray-400 underline"
           >
-            다른 방법으로 로그인
+            구글 아이디로 로그인
           </button>
         </>
       )}
