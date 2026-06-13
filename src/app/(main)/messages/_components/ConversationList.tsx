@@ -16,8 +16,6 @@ interface ConversationListProps {
   onOpenSelfChat: () => void;
   onOpenProfile: (userId: string) => void;
   onFriendMessageSent: (roomId: string) => void;
-  onCreateChat?: () => void;
-  setActiveMenuTab: (tab: MessageMenuTab) => void;
   formatDate: (dateStr: string) => string;
   truncateMessage: (content: string, length?: number) => string;
 }
@@ -32,8 +30,6 @@ export default function ConversationList({
   onOpenProfile,
   onOpenSelfChat,
   onFriendMessageSent,
-  onCreateChat,
-  setActiveMenuTab,
   formatDate,
   truncateMessage,
 }: ConversationListProps) {

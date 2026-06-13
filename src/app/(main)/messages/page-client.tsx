@@ -1532,8 +1532,6 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
         onFriendMessageSent={() => {
           void handleFriendMessageSent();
         }}
-        onCreateChat={() => setCreateChatOpen(true)}
-        setActiveMenuTab={setActiveMenuTab}
         formatDate={formatDate}
         truncateMessage={truncateMessage}
       />
