@@ -108,7 +108,7 @@ export default memo(function MessageBubble({
       )}
       <div className={`flex ${isMine ? "justify-end" : "justify-start"} gap-2 items-end`}>
         {!isMine && <span className="text-xs text-gray-700 flex-shrink-0 order-2">{formatTime(msg.sent_at)}</span>}
-        <div className={`flex ${isMine ? "flex-col items-end" : ""} gap-1`}>
+        <div className={`flex flex-col ${isMine ? "items-end" : "items-start"} gap-1`}>
           <div className={`flex items-end gap-1 ${isMine ? "flex-row" : "flex-row-reverse"}`}>
             {(() => {
               const activeReactions = MESSAGE_REACTIONS.filter((reaction) => {
