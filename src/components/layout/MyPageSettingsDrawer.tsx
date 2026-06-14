@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import {
+  Award,
   Bell,
   BellRing,
   Bookmark,
@@ -23,6 +24,8 @@ import {
   X,
 } from "lucide-react";
 import { RiVerifiedBadgeFill } from "react-icons/ri";
+import PurchaseHistoryDrawer from "@/components/user/PurchaseHistoryDrawer";
+import type { PurchaseItem, PurchaseTab } from "@/components/user/PurchaseHistoryDrawer";
 import LegalDrawer from "@/components/legal/LegalDrawer";
 import RefundPolicyContent from "@/components/legal/RefundPolicyContent";
 import PrivacyPolicyContent from "@/components/legal/PrivacyPolicyContent";
@@ -101,8 +104,22 @@ export default function MyPageSettingsDrawer({ open, onClose }: MyPageSettingsDr
   const [privacyOpen, setPrivacyOpen] = useState(false);
   const [termsOpen, setTermsOpen] = useState(false);
   const [verifyOpen, setVerifyOpen] = useState(false);
+  const [purchaseOpen, setPurchaseOpen] = useState(false);
+  const [purchaseTab, setPurchaseTab] = useState<PurchaseTab>("credit");
 
   const settingsProfile = useSettingsProfile();
+
+  const purchaseItems: PurchaseItem[] = [
+    { id: "p1", name: "크레딧 100개 충전", imageUrl: null, unitPrice: 5000, quantity: 2, totalPrice: 10000, purchasedAt: "2026-06-08T14:30:00", category: "credit" },
+    { id: "p2", name: "크레딧 50개 충전", imageUrl: null, unitPrice: 3000, quantity: 1, totalPrice: 3000, purchasedAt: "2026-06-05T10:15:00", category: "credit" },
+    { id: "p3", name: "골드 별선물", imageUrl: null, unitPrice: 15000, quantity: 1, totalPrice: 15000, purchasedAt: "2026-06-03T09:00:00", category: "badge" },
+    { id: "p4", name: "실버 별선물", imageUrl: null, unitPrice: 8000, quantity: 3, totalPrice: 24000, purchasedAt: "2026-05-28T16:45:00", category: "badge" },
+  ];
+
+  function openPurchase(tab: PurchaseTab) {
+    setPurchaseTab(tab);
+    setPurchaseOpen(true);
+  }
 
   const [toggles, setToggles] = useState<Record<string, boolean>>({
     sound: true,
@@ -222,6 +239,7 @@ export default function MyPageSettingsDrawer({ open, onClose }: MyPageSettingsDr
                 onOpenRefund={() => setRefundOpen(true)}
                 onOpenPrivacy={() => setPrivacyOpen(true)}
                 onOpenVerify={() => setVerifyOpen(true)}
+                onOpenPurchase={openPurchase}
               />
             </div>
 
@@ -277,6 +295,13 @@ export default function MyPageSettingsDrawer({ open, onClose }: MyPageSettingsDr
         onClose={() => setVerifyOpen(false)}
         profileImageUrl={settingsProfile?.profile_image_url ?? null}
       />
+
+      <PurchaseHistoryDrawer
+        open={purchaseOpen}
+        onClose={() => setPurchaseOpen(false)}
+        items={purchaseItems}
+        initialTab={purchaseTab}
+      />
     </>
   );
 }
@@ -291,6 +316,7 @@ function GeneralSettings({
   onOpenRefund,
   onOpenPrivacy,
   onOpenVerify,
+  onOpenPurchase,
 }: {
   profile: SettingsProfile | null;
   toggles: Record<string, boolean>;
@@ -301,6 +327,7 @@ function GeneralSettings({
   onOpenRefund: () => void;
   onOpenPrivacy: () => void;
   onOpenVerify: () => void;
+  onOpenPurchase: (tab: PurchaseTab) => void;
 }) {
   return (
     <div className="px-4 pb-10">
@@ -472,6 +499,22 @@ function GeneralSettings({
           icon={<MapPin size={20} />}
           label="위치정보동의"
           onClick={() => onOpenDetail("locationConsent")}
+        />
+      </div>
+
+      {/* 구매목록 */}
+      <div className="pt-6" />
+      <div className="bg-white rounded-xl overflow-hidden">
+        <SettingsLinkRow
+          icon={<CreditCard size={20} />}
+          label="크레딧"
+          onClick={() => onOpenPurchase("credit")}
+        />
+        <div className="h-[1px] bg-gray-100 mx-4" />
+        <SettingsLinkRow
+          icon={<Award size={20} />}
+          label="별선물"
+          onClick={() => onOpenPurchase("badge")}
         />
       </div>
 

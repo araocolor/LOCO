@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
-import { UserCircle, X, Settings, HeartHandshake, Star, SmilePlus, UsersRound, CreditCard, Award, Megaphone, Headphones, FileText, ShieldCheck, ChevronRight, ReceiptText } from "lucide-react";
+import { UserCircle, X, Settings, HeartHandshake, Star, SmilePlus, UsersRound, CreditCard, Megaphone, Headphones, FileText, ShieldCheck, ChevronRight, ReceiptText } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { fetchWithAuthRetry } from "@/lib/auth/fetch-with-auth-retry";
 import { prefetchBoardPostsCache } from "@/lib/board-session-cache";
@@ -22,8 +22,6 @@ import TermsOfServiceContent from "@/components/legal/TermsOfServiceContent";
 import RefundPolicyContent from "@/components/legal/RefundPolicyContent";
 import StarChargeSheet from "@/components/star/StarChargeSheet";
 import StarGiftersPanel from "@/components/star/StarGiftersPanel";
-import PurchaseHistoryDrawer from "./PurchaseHistoryDrawer";
-import type { PurchaseItem, PurchaseTab } from "./PurchaseHistoryDrawer";
 import CustomerServiceDrawer from "./CustomerServiceDrawer";
 import type { CustomerServiceTab } from "./CustomerServiceDrawer";
 
@@ -211,62 +209,12 @@ export default function MyPageClient({
   const [businessInfoOpen, setBusinessInfoOpen] = useState(true);
   const [starGiverProfileId, setStarGiverProfileId] = useState<string | null>(null);
   const [avatarZoomOpen, setAvatarZoomOpen] = useState(false);
-  const [purchaseDrawerOpen, setPurchaseDrawerOpen] = useState(false);
-  const [purchaseInitialTab, setPurchaseInitialTab] = useState<PurchaseTab>("credit");
   const [csDrawerOpen, setCsDrawerOpen] = useState(false);
   const [csInitialTab, setCsInitialTab] = useState<CustomerServiceTab>("notice");
 
   useEffect(() => {
     void prefetchBoardPostsCache();
   }, []);
-
-  function openPurchaseDrawer(tab: PurchaseTab) {
-    setPurchaseInitialTab(tab);
-    setPurchaseDrawerOpen(true);
-  }
-
-  const purchaseItems: PurchaseItem[] = [
-    {
-      id: "p1",
-      name: "크레딧 100개 충전",
-      imageUrl: null,
-      unitPrice: 5000,
-      quantity: 2,
-      totalPrice: 10000,
-      purchasedAt: "2026-06-08T14:30:00",
-      category: "credit",
-    },
-    {
-      id: "p2",
-      name: "크레딧 50개 충전",
-      imageUrl: null,
-      unitPrice: 3000,
-      quantity: 1,
-      totalPrice: 3000,
-      purchasedAt: "2026-06-05T10:15:00",
-      category: "credit",
-    },
-    {
-      id: "p3",
-      name: "골드 별선물",
-      imageUrl: null,
-      unitPrice: 15000,
-      quantity: 1,
-      totalPrice: 15000,
-      purchasedAt: "2026-06-03T09:00:00",
-      category: "badge",
-    },
-    {
-      id: "p4",
-      name: "실버 별선물",
-      imageUrl: null,
-      unitPrice: 8000,
-      quantity: 3,
-      totalPrice: 24000,
-      purchasedAt: "2026-05-28T16:45:00",
-      category: "badge",
-    },
-  ];
 
   useEffect(() => {
     try {
@@ -704,23 +652,6 @@ export default function MyPageClient({
         )}
       </div>
 
-      {/* 구매목록 */}
-      <div className="mx-4 mt-6 rounded-xl bg-white border border-gray-100 shadow-sm overflow-hidden">
-        <div className="px-4 pt-4 pb-2">
-          <span className="text-[15px] font-bold text-gray-800">구매목록</span>
-        </div>
-        <button type="button" onClick={() => openPurchaseDrawer("credit")} className="flex w-full items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors">
-          <CreditCard size={22} className="text-gray-500" />
-          <span className="flex-1 text-left text-[16px] text-gray-800">크레딧</span>
-          <ChevronRight size={18} className="text-gray-400" />
-        </button>
-        <button type="button" onClick={() => openPurchaseDrawer("badge")} className="flex w-full items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors">
-          <Award size={22} className="text-gray-500" />
-          <span className="flex-1 text-left text-[16px] text-gray-800">별선물</span>
-          <ChevronRight size={18} className="text-gray-400" />
-        </button>
-      </div>
-
       {/* 고객지원 */}
       <div className="mx-4 mt-4 mb-8 rounded-xl bg-white border border-gray-100 shadow-sm overflow-hidden">
         <div className="px-4 pt-4 pb-2">
@@ -1080,13 +1011,6 @@ export default function MyPageClient({
           </div>
         </>
       )}
-
-      <PurchaseHistoryDrawer
-        open={purchaseDrawerOpen}
-        onClose={() => setPurchaseDrawerOpen(false)}
-        items={purchaseItems}
-        initialTab={purchaseInitialTab}
-      />
 
       <CustomerServiceDrawer
         open={csDrawerOpen}
