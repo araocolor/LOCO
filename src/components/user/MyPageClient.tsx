@@ -159,6 +159,7 @@ export default function MyPageClient({
   const router = useRouter();
   const [editOpen, setEditOpen] = useState(false);
   const [editMode, setEditMode] = useState<ProfileEditMode>("normal");
+  const [slideIn, setSlideIn] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(profile.profile_image_url);
   const [avatarHdUrl, setAvatarHdUrl] = useState<string | null>(
@@ -472,7 +473,16 @@ export default function MyPageClient({
     setFavoriteGenres(nextProfileMeta.favorite_genre ?? []);
     setMemberTypes(nextProfileMeta.member_type ?? []);
     setEditMode(mode);
-    setEditOpen(true);
+    if (mode === "professional") {
+      setSlideIn(false);
+      setEditOpen(true);
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => setSlideIn(true));
+      });
+    } else {
+      setSlideIn(false);
+      setEditOpen(true);
+    }
   }
 
   useEffect(() => {
@@ -795,7 +805,11 @@ export default function MyPageClient({
             </button>
           </div>
 
-          <div className="flex-1 overflow-y-auto pr-1 space-y-3 mb-4">
+          <div className={`flex-1 overflow-y-auto pr-1 space-y-3 mb-4 transition-all duration-500 ease-out ${
+            editMode === "professional"
+              ? slideIn ? "translate-x-0 opacity-100" : "translate-x-full opacity-0"
+              : ""
+          }`}>
             {/* 아바타 + 아이디 */}
             <div className="flex flex-col items-center mb-6">
               <input

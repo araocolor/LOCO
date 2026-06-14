@@ -53,17 +53,21 @@ export const CLASS_TYPES = [
 ] as const;
 
 export const MEMBER_TYPES = [
-  "일반회원",
-  "운영진",
+  "활동회원",
+  "DJ",
+  "안무가",
+  "사진/영상",
+  "소셜댄서",
   "인스트럭터",
   "인플루언서",
   "프로댄서",
-  "오거나이저",
-  "아카데미대표",
   "독립군",
   "왕초보",
   "Artist",
+  "아카데미대표",
+  "오거나이저",
   "클럽공식채널",
+  "운영진",
 ] as const;
 
 export const MAX_MEMBER_TYPE = 3;
