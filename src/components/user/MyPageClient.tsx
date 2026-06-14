@@ -832,11 +832,17 @@ export default function MyPageClient({
         onClick={() => setEditOpen(false)}
       />
       <div
-        className={`fixed top-0 left-0 right-0 z-[60] bg-white h-screen transition-transform duration-300 ease-in-out ${
+        className={`fixed top-0 left-0 right-0 z-[60] bg-white h-[100dvh] transition-transform duration-300 ease-in-out ${
           editOpen ? "translate-y-0" : "-translate-y-full"
         }`}
       >
-        <div className="h-full flex flex-col p-4">
+        <div
+          className="h-full flex flex-col px-4"
+          style={{
+            paddingTop: "calc(env(safe-area-inset-top) + 16px)",
+            paddingBottom: "calc(env(safe-area-inset-bottom) + 16px)",
+          }}
+        >
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-lg font-bold">프로필 편집</h2>
             <button onClick={() => setEditOpen(false)} className="p-1 hover:bg-gray-100 rounded">
