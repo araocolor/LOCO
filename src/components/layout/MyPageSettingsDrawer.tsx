@@ -15,6 +15,8 @@ import {
   Lock,
   MapPin,
   MessageCircle,
+  ReceiptText,
+  ShieldCheck,
   Users,
   UserCircle,
   Volume2,
@@ -25,6 +27,7 @@ import LegalDrawer from "@/components/legal/LegalDrawer";
 import RefundPolicyContent from "@/components/legal/RefundPolicyContent";
 import PrivacyPolicyContent from "@/components/legal/PrivacyPolicyContent";
 import TermsOfServiceContent from "@/components/legal/TermsOfServiceContent";
+import ProfessionalVerifyDrawer from "./ProfessionalVerifyDrawer";
 import { PROFILE_EDIT_OPEN_EVENT } from "@/lib/profile-events";
 
 interface MyPageSettingsDrawerProps {
@@ -97,6 +100,7 @@ export default function MyPageSettingsDrawer({ open, onClose }: MyPageSettingsDr
   const [refundOpen, setRefundOpen] = useState(false);
   const [privacyOpen, setPrivacyOpen] = useState(false);
   const [termsOpen, setTermsOpen] = useState(false);
+  const [verifyOpen, setVerifyOpen] = useState(false);
 
   const settingsProfile = useSettingsProfile();
 
@@ -214,6 +218,10 @@ export default function MyPageSettingsDrawer({ open, onClose }: MyPageSettingsDr
                 onToggle={handleToggle}
                 onOpenDetail={setDetailId}
                 onOpenProfileEdit={openProfileEdit}
+                onOpenTerms={() => setTermsOpen(true)}
+                onOpenRefund={() => setRefundOpen(true)}
+                onOpenPrivacy={() => setPrivacyOpen(true)}
+                onOpenVerify={() => setVerifyOpen(true)}
               />
             </div>
 
@@ -263,6 +271,12 @@ export default function MyPageSettingsDrawer({ open, onClose }: MyPageSettingsDr
       <LegalDrawer open={termsOpen} onClose={() => setTermsOpen(false)} title="서비스 이용약관">
         <TermsOfServiceContent />
       </LegalDrawer>
+
+      <ProfessionalVerifyDrawer
+        open={verifyOpen}
+        onClose={() => setVerifyOpen(false)}
+        profileImageUrl={settingsProfile?.profile_image_url ?? null}
+      />
     </>
   );
 }
@@ -273,12 +287,20 @@ function GeneralSettings({
   onToggle,
   onOpenDetail,
   onOpenProfileEdit,
+  onOpenTerms,
+  onOpenRefund,
+  onOpenPrivacy,
+  onOpenVerify,
 }: {
   profile: SettingsProfile | null;
   toggles: Record<string, boolean>;
   onToggle: (key: string) => void;
   onOpenDetail: (id: DetailSettingId) => void;
   onOpenProfileEdit: () => void;
+  onOpenTerms: () => void;
+  onOpenRefund: () => void;
+  onOpenPrivacy: () => void;
+  onOpenVerify: () => void;
 }) {
   return (
     <div className="px-4 pb-10">
@@ -306,10 +328,10 @@ function GeneralSettings({
           <ChevronRight size={20} strokeWidth={2.8} className="text-gray-500" />
         </button>
         <div className="h-[1px] bg-gray-100 mx-4" />
-        <button type="button" className="flex items-center w-full px-4 py-3.5 active:bg-gray-50">
+        <button type="button" onClick={onOpenVerify} className="flex items-center w-full px-4 py-3.5 active:bg-gray-50">
           <span className="ml-[52px] flex items-center gap-1 flex-1 text-[15px] text-[#333]">
             <RiVerifiedBadgeFill size={22} color="#1D9BF0" className="shrink-0" />
-            프로필 인증신청
+            공식프로필 인증신청
           </span>
           <ChevronRight size={20} strokeWidth={2.8} className="text-gray-500" />
         </button>
@@ -452,6 +474,28 @@ function GeneralSettings({
           onClick={() => onOpenDetail("locationConsent")}
         />
       </div>
+
+      {/* 이용약관 */}
+      <div className="pt-6" />
+      <div className="bg-white rounded-xl overflow-hidden">
+        <SettingsLinkRow
+          icon={<FileText size={20} />}
+          label="서비스 이용약관"
+          onClick={onOpenTerms}
+        />
+        <div className="h-[1px] bg-gray-100 mx-4" />
+        <SettingsLinkRow
+          icon={<ReceiptText size={20} />}
+          label="환불정책"
+          onClick={onOpenRefund}
+        />
+        <div className="h-[1px] bg-gray-100 mx-4" />
+        <SettingsLinkRow
+          icon={<ShieldCheck size={20} />}
+          label="개인정보처리방침"
+          onClick={onOpenPrivacy}
+        />
+      </div>
     </div>
   );
 }
@@ -510,6 +554,7 @@ function DetailSettings({
     </div>
   );
 }
+
 
 function getDetailSetting({
   detailId,
