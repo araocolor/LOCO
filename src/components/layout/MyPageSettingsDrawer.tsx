@@ -25,6 +25,7 @@ import LegalDrawer from "@/components/legal/LegalDrawer";
 import RefundPolicyContent from "@/components/legal/RefundPolicyContent";
 import PrivacyPolicyContent from "@/components/legal/PrivacyPolicyContent";
 import TermsOfServiceContent from "@/components/legal/TermsOfServiceContent";
+import { PROFILE_EDIT_OPEN_EVENT } from "@/lib/profile-events";
 
 interface MyPageSettingsDrawerProps {
   open: boolean;
@@ -177,6 +178,11 @@ export default function MyPageSettingsDrawer({ open, onClose }: MyPageSettingsDr
     onClose();
   }
 
+  function openProfileEdit() {
+    closeSettings();
+    window.dispatchEvent(new Event(PROFILE_EDIT_OPEN_EVENT));
+  }
+
   return (
     <>
       {open ? (
@@ -207,6 +213,7 @@ export default function MyPageSettingsDrawer({ open, onClose }: MyPageSettingsDr
                 toggles={toggles}
                 onToggle={handleToggle}
                 onOpenDetail={setDetailId}
+                onOpenProfileEdit={openProfileEdit}
               />
             </div>
 
@@ -220,9 +227,9 @@ export default function MyPageSettingsDrawer({ open, onClose }: MyPageSettingsDr
                 <>
                   <div className="relative flex-shrink-0 px-4 pt-3 pb-2">
                     <button type="button" onClick={() => setDetailId(null)} className="flex h-10 w-10 items-center justify-center text-[#333]">
-                      <ChevronLeft size={22} />
+                      <ChevronLeft size={25} />
                     </button>
-                    <p className="pointer-events-none absolute left-1/2 top-[26px] -translate-x-1/2 -translate-y-1/2 text-[17px] font-semibold text-[#333]">
+                    <p className="pointer-events-none absolute left-1/2 top-[32px] -translate-x-1/2 -translate-y-1/2 text-[21px] font-bold text-[#333]">
                       세부설정
                     </p>
                   </div>
@@ -265,17 +272,19 @@ function GeneralSettings({
   toggles,
   onToggle,
   onOpenDetail,
+  onOpenProfileEdit,
 }: {
   profile: SettingsProfile | null;
   toggles: Record<string, boolean>;
   onToggle: (key: string) => void;
   onOpenDetail: (id: DetailSettingId) => void;
+  onOpenProfileEdit: () => void;
 }) {
   return (
     <div className="px-4 pb-10">
       <div className="bg-white rounded-xl overflow-hidden">
 
-        <button type="button" className="flex items-center w-full px-4 py-3 active:bg-gray-50">
+        <button type="button" onClick={onOpenProfileEdit} className="flex items-center w-full px-4 py-3 active:bg-gray-50">
           <div className="w-[60px] h-[60px] rounded-full overflow-hidden flex-shrink-0 bg-gray-100">
             {profile?.profile_image_url ? (
               <Image
@@ -291,10 +300,10 @@ function GeneralSettings({
             )}
           </div>
           <div className="ml-3 flex-1 text-left">
-            <p className="text-[17px] font-bold text-[#333]">{profile?.nickname ?? "사용자"}</p>
-            <p className="text-[13px] text-gray-400">{profile?.email ?? ""}</p>
+            <p className="text-[18px] font-bold text-[#333]">{profile?.nickname ?? "사용자"}</p>
+            <p className="text-[15px] text-gray-400">{profile?.email ?? ""}</p>
           </div>
-          <ChevronRight size={18} className="text-gray-300" />
+          <ChevronRight size={20} strokeWidth={2.8} className="text-gray-500" />
         </button>
         <div className="h-[1px] bg-gray-100 mx-4" />
         <button type="button" className="flex items-center w-full px-4 py-3.5 active:bg-gray-50">
@@ -302,7 +311,7 @@ function GeneralSettings({
             <RiVerifiedBadgeFill size={22} color="#1D9BF0" className="shrink-0" />
             프로필 인증신청
           </span>
-          <ChevronRight size={18} className="text-gray-300" />
+          <ChevronRight size={20} strokeWidth={2.8} className="text-gray-500" />
         </button>
       </div>
 
@@ -475,10 +484,10 @@ function DetailSettings({
   });
 
   return (
-    <div className="px-4 pb-10">
+    <div className="px-4 pt-3 pb-10">
       <div className="bg-white rounded-xl p-4">
         <p className="text-[18px] font-bold text-[#333]">{detail.label}</p>
-        <p className="pt-2 text-[14px] leading-[1.6] text-gray-500">
+        <p className="pt-2 text-[15px] leading-[1.6] text-gray-500">
           {detail.description}
         </p>
       </div>
@@ -628,7 +637,7 @@ function SettingsLinkRow({
     >
       {icon && <span className="text-[#333]">{icon}</span>}
       <span className={`${icon ? "ml-3" : "ml-[32px]"} flex-1 text-left text-[17px] text-[#333]`}>{label}</span>
-      <ChevronRight size={18} className="text-gray-300" />
+      <ChevronRight size={20} strokeWidth={2.8} className="text-gray-500" />
     </button>
   );
 }

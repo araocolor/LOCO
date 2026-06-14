@@ -10,7 +10,7 @@ import { fetchWithAuthRetry } from "@/lib/auth/fetch-with-auth-retry";
 import { prefetchBoardPostsCache } from "@/lib/board-session-cache";
 import { parseBookmarkEntries } from "@/lib/bookmarks/local";
 import { REGIONS, MEMBER_TYPES } from "@/lib/constants";
-import { PROFILE_AVATAR_UPDATED_EVENT } from "@/lib/profile-events";
+import { PROFILE_AVATAR_UPDATED_EVENT, PROFILE_EDIT_OPEN_EVENT } from "@/lib/profile-events";
 import AvatarCropModal from "./AvatarCropModal";
 import { ClassImage } from "@/types/class";
 import Avatar from "@/components/ui/Avatar";
@@ -516,6 +516,13 @@ export default function MyPageClient({
     setMemberTypes(nextProfileMeta.member_type ?? []);
     setEditOpen(true);
   }
+
+  useEffect(() => {
+    window.addEventListener(PROFILE_EDIT_OPEN_EVENT, handleOpenEditModal);
+    return () => {
+      window.removeEventListener(PROFILE_EDIT_OPEN_EVENT, handleOpenEditModal);
+    };
+  });
 
   const isKoreaSelected = country === "대한민국";
   const receivedStarCount = profile.received_star_count ?? 0;
