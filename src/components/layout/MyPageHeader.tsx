@@ -1,24 +1,29 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import {
   BadgeCheck,
   Bell,
+  BellRing,
   Bookmark,
+  ChevronDown,
   ChevronRight,
-  FileText,
-  Languages,
-  LogOut,
-  MapPin,
-  Settings,
-  MessageCircle,
-  ReceiptText,
-  ShieldCheck,
-  SlidersHorizontal,
-  Tag,
+  CreditCard,
   Eye,
+  FileText,
+  Heart,
+  Lock,
+  MapPin,
+  MessageCircle,
+  Monitor,
+  Search,
+  Settings,
+  Shield,
+  Users,
   UserCircle,
+  Volume2,
   X,
 } from "lucide-react";
 import { RiVerifiedBadgeFill } from "react-icons/ri";
@@ -27,187 +32,74 @@ import LegalDrawer from "@/components/legal/LegalDrawer";
 import RefundPolicyContent from "@/components/legal/RefundPolicyContent";
 import PrivacyPolicyContent from "@/components/legal/PrivacyPolicyContent";
 import TermsOfServiceContent from "@/components/legal/TermsOfServiceContent";
-import type { ReactNode } from "react";
-
-type SubItem = { label: string };
-
-type SelectGroup = { group: string; values: string[] };
-
-type MenuItemDef = {
-  id: string;
-  icon: ReactNode | null;
-  label: string;
-  subItems: SubItem[];
-  selectOptions?: SelectGroup[];
-  infoLines?: string[];
-  actionLabel?: string;
-  emptyText?: string;
-  blacklistGrid?: boolean;
-  danger?: boolean;
-  subtle?: boolean;
-  noAccordion?: boolean;
-};
-
-type SectionDef = {
-  title?: string;
-  items: MenuItemDef[];
-};
 
 type MyPageTab = "all";
 
-const SECTIONS: SectionDef[] = [
-  {
-    title: "클래스 공개범위 설정",
-    items: [
-      {
-        id: "notification-settings",
-        icon: <Bell size={18} />,
-        label: "알림설정",
-        subItems: [{ label: "알림표시" }, { label: "소리설정" }],
-      },
-      {
-        id: "class-privacy",
-        icon: <SlidersHorizontal size={18} />,
-        label: "업로드 클래스",
-        subItems: [{ label: "전체공개" }, { label: "친구공개" }, { label: "비공개" }],
-      },
-      {
-        id: "bookmark",
-        icon: <Bookmark size={18} />,
-        label: "북마크 클래스",
-        subItems: [{ label: "전체공개" }, { label: "친구공유" }, { label: "비공개" }],
-      },
-    ],
-  },
-  {
-    title: "내 프로필 공개범위 설정",
-    items: [
-      {
-        id: "profile-privacy",
-        icon: <Eye size={18} />,
-        label: "내 프로필 공개",
-        subItems: [{ label: "모든사람" }, { label: "내 친구" }, { label: "비공개" }],
-      },
-      {
-        id: "profile-badge",
-        icon: <BadgeCheck size={18} />,
-        label: "프로필 인증마크",
-        subItems: [],
-        infoLines: [
-          "앱 서비스 기능사용 권한과 추가 기능이 부여됩니다.",
-          "동호회, 아카데미, 행사 대표자 및 운영자를 인증합니다.",
-        ],
-        actionLabel: "프로필 배지 신청",
-      },
-    ],
-  },
-  {
-    title: "메세지 공개범위 설정",
-    items: [
-      {
-        id: "message-privacy",
-        icon: <MessageCircle size={18} />,
-        label: "메시지 설정",
-        subItems: [{ label: "모든사람" }, { label: "친구끼리" }, { label: "비공개" }],
-      },
-      {
-        id: "tag-privacy",
-        icon: <Tag size={18} />,
-        label: "친구 표시",
-        subItems: [{ label: "모든사람" }, { label: "비공개" }],
-      },
-    ],
-  },
-  {
-    title: "개인정보 및 환불정책",
-    items: [
-      {
-        id: "refund-policy",
-        icon: <ReceiptText size={18} />,
-        label: "환불정책",
-        noAccordion: true,
-        subItems: [],
-      },
-      {
-        id: "privacy-policy",
-        icon: <ShieldCheck size={18} />,
-        label: "개인정보처리방침",
-        noAccordion: true,
-        subItems: [],
-      },
-      {
-        id: "terms",
-        icon: <FileText size={18} />,
-        label: "이용약관",
-        noAccordion: true,
-        subItems: [],
-      },
-    ],
-  },
-  {
-    title: "국가 및 언어",
-    items: [
-      {
-        id: "logout",
-        icon: <LogOut size={18} />,
-        label: "로그아웃",
-        subItems: [],
-        noAccordion: true,
-      },
-      {
-        id: "language",
-        icon: <Languages size={18} />,
-        label: "표시언어",
-        subItems: [{ label: "샘플 1" }],
-        selectOptions: [
-          {
-            group: "",
-            values: ["한국어", "English", "Español", "Français", "Italiano", "Deutsch", "Português", "中文", "日本語", "Tiếng Việt", "ภาษาไทย", "हिंदी"],
-          },
-        ],
-      },
-      {
-        id: "location",
-        icon: <MapPin size={18} />,
-        label: "국가",
-        subItems: [{ label: "샘플 1" }],
-        selectOptions: [
-          {
-            group: "유럽",
-            values: ["스페인", "프랑스", "이탈리아", "영국", "독일", "네덜란드", "벨기에", "포르투갈", "스위스", "오스트리아", "폴란드", "체코", "헝가리", "루마니아", "불가리아", "그리스", "세르비아", "크로아티아", "스웨덴", "노르웨이"],
-          },
-          {
-            group: "아시아",
-            values: ["한국", "일본", "중국", "대만", "홍콩", "싱가포르", "태국", "베트남", "필리핀", "인도"],
-          },
-          {
-            group: "아메리카 대륙",
-            values: ["미국", "캐나다", "멕시코", "쿠바", "도미니카공화국", "푸에르토리코", "콜롬비아", "페루", "브라질", "아르헨티나"],
-          },
-        ],
-      },
-    ],
-  },
-];
+interface SettingsProfile {
+  nickname: string;
+  email: string | null;
+  profile_image_url: string | null;
+}
+
+function useSettingsProfile(): SettingsProfile | null {
+  const [profile, setProfile] = useState<SettingsProfile | null>(null);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("loco_mypage_cache_local_v3");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        const p = parsed?.profile;
+        if (p?.nickname) {
+          setProfile({
+            nickname: p.nickname,
+            email: p.email ?? null,
+            profile_image_url: p.profile_image_url ?? null,
+          });
+        }
+      }
+    } catch {}
+  }, []);
+
+  return profile;
+}
 
 export default function MyPageHeader() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const currentTab = (searchParams.get("section") as MyPageTab | null) ?? "all";
   const [open, setOpen] = useState(false);
-  const [openIds, setOpenIds] = useState<Set<string>>(new Set());
+  const scrollRef = useRef<HTMLDivElement>(null);
   const [refundOpen, setRefundOpen] = useState(false);
   const [privacyOpen, setPrivacyOpen] = useState(false);
   const [termsOpen, setTermsOpen] = useState(false);
+
+  const settingsProfile = useSettingsProfile();
+
   const [toggles, setToggles] = useState<Record<string, boolean>>({
-    "bookmark-0": true,
-    "myclasses-0": true,
-    "class-privacy-0": true,
-    "profile-privacy-0": true,
-    "message-privacy-0": true,
-    "tag-privacy-0": true,
+    sound: true,
+    push: true,
+    friendAlert: true,
+    locationConsent: true,
+    // 알림설정 탭
+    chatAllSound: true,
+    chatBadge: true,
+    chatDm: true,
+    chatGroup: true,
+    chatClass: true,
+    newsAllSound: true,
+    newsBadge: true,
+    newsClass: true,
+    newsComment: true,
+    newsLike: true,
+    newsReply: true,
+    newsPayment: true,
   });
-  const [selections, setSelections] = useState<Record<string, string>>({});
+
+  const [classPrivacy, setClassPrivacy] = useState("public");
+  const [messagePrivacy, setMessagePrivacy] = useState("public");
+  const [expandedCard, setExpandedCard] = useState<string | null>(null);
+  const [firstScreen, setFirstScreen] = useState("search");
 
   useEffect(() => {
     document.body.style.overflow = open ? "hidden" : "";
@@ -216,29 +108,36 @@ export default function MyPageHeader() {
     };
   }, [open]);
 
-  function handleItemClick(id: string, noAccordion?: boolean) {
-    if (noAccordion) return;
-    setOpenIds((prev) => {
-      if (prev.has(id)) return new Set<string>();
-      return new Set<string>([id]);
-    });
-  }
+  const chatSubKeys = ["chatDm", "chatGroup", "chatClass"];
+  const newsSubKeys = ["newsClass", "newsComment", "newsLike", "newsReply"];
 
   function handleToggle(key: string) {
+    if (key === "newsPayment") return;
     setToggles((prev) => {
-      if (prev[key]) return prev;
-      const itemId = key.split("-").slice(0, -1).join("-");
-      const next = { ...prev };
-      Object.keys(next).forEach((k) => {
-        if (k.startsWith(itemId + "-")) next[k] = false;
-      });
-      next[key] = true;
+      const next = { ...prev, [key]: !prev[key] };
+
+      if (key === "chatAllSound") {
+        const val = next.chatAllSound;
+        chatSubKeys.forEach((k) => { next[k] = val; });
+      } else if (chatSubKeys.includes(key)) {
+        const allOn = chatSubKeys.every((k) => next[k]);
+        next.chatAllSound = allOn;
+      }
+
+      if (key === "newsAllSound") {
+        const val = next.newsAllSound;
+        newsSubKeys.forEach((k) => { next[k] = val; });
+      } else if (newsSubKeys.includes(key)) {
+        const allOn = newsSubKeys.every((k) => next[k]);
+        next.newsAllSound = allOn;
+      }
+
       return next;
     });
   }
 
-  function handleLogout() {
-    window.location.href = "/logout";
+  function toggleExpand(id: string) {
+    setExpandedCard((prev) => (prev === id ? null : id));
   }
 
   return (
@@ -248,7 +147,7 @@ export default function MyPageHeader() {
           <div className="font-black text-[22px] text-[#4d4d4d] leading-none">
             프로필
           </div>
-          <button type="button" onClick={() => setOpen(true)} className="ml-auto h-12 w-12 -mr-2 flex items-center justify-center text-gray-700">
+          <button type="button" onClick={() => { setOpen(true); scrollRef.current?.scrollTo(0, 0); }} className="ml-auto h-12 w-12 -mr-2 flex items-center justify-center text-gray-700">
             <Settings size={22} strokeWidth={2.2} />
           </button>
         </div>
@@ -273,160 +172,33 @@ export default function MyPageHeader() {
 
       {/* 슬라이드 시트 */}
       <div
-        className={`fixed top-0 left-0 h-full w-full bg-white z-[200] flex flex-col transition-transform duration-300 ease-in-out ${
+        className={`fixed top-0 left-0 h-full w-full bg-[#f2f2f7] z-[200] flex flex-col transition-transform duration-300 ease-in-out ${
           open ? "translate-x-0" : "-translate-x-full"
         }`}
-        style={{ paddingTop: 'env(safe-area-inset-top)' }}
+        style={{ paddingTop: "env(safe-area-inset-top)" }}
       >
-        {/* 시트 헤더 - 고정 */}
-        <div className="flex-shrink-0 flex items-center justify-between px-4 h-14 border-b border-gray-100">
-          <span className="text-[20px] font-bold text-[#333333]">설정</span>
+        {/* 닫기 버튼 */}
+        <div className="flex-shrink-0 flex justify-end px-4 pt-3">
           <button type="button" onClick={() => setOpen(false)}>
             <X className="w-5 h-5 text-gray-500" />
           </button>
         </div>
 
-        {/* 섹션 목록 - 스크롤 */}
-        <div className="flex-1 overflow-y-auto">
-        {SECTIONS.map((section) => (
-          <div key={section.title ?? "default"} className="border-t border-gray-100">
-            {section.title && (
-              <p className="h-2 overflow-hidden px-5 text-[0px] leading-none text-white">
-                {section.title}
-              </p>
-            )}
-            {section.items.map((item) => {
-              const isOpen = openIds.has(item.id);
-              return (
-                <div key={item.id}>
-                  <button
-                    type="button"
-                    className={`flex items-center gap-3 w-full px-5 text-left transition-colors duration-200 active:bg-gray-100 ${
-                      item.id === "logout" ? "py-4" : "py-2.5"
-                    } ${isOpen ? "bg-gray-50" : "hover:bg-gray-50"}`}
-                    onClick={() => {
-                      if (item.id === "logout") {
-                        handleLogout();
-                      } else if (item.id === "refund-policy") {
-                        setRefundOpen(true);
-                      } else if (item.id === "privacy-policy") {
-                        setPrivacyOpen(true);
-                      } else if (item.id === "terms") {
-                        setTermsOpen(true);
-                      } else {
-                        handleItemClick(item.id, item.noAccordion);
-                      }
-                    }}
-                  >
-                    {item.icon && (
-                      <span className={item.subtle ? "text-white" : item.danger ? "text-red-500" : "text-gray-400"}>
-                        {item.icon}
-                      </span>
-                    )}
-                    <span
-                      className={`${item.subtle ? "" : "flex-1"} ${
-                        item.subtle
-                          ? "text-[14px] text-white"
-                          : item.danger
-                          ? "text-[17px] text-red-500"
-                          : "text-[17px] text-[#333333]"
-                      } ${isOpen ? "font-bold" : ""}`}
-                    >
-                      {item.label}
-                    </span>
-                    {!item.noAccordion && (
-                      <ChevronRight
-                        size={16}
-                        className={`text-gray-300 shrink-0 transition-transform duration-200 ${
-                          isOpen ? "rotate-90" : ""
-                        }`}
-                      />
-                    )}
-                  </button>
-
-                  {/* 아코디언 서브 항목 */}
-                  {isOpen && (
-                    <div className="bg-gray-50 border-t border-gray-100 pl-[50px] pr-5 py-1.5">
-                      {item.blacklistGrid ? (
-                        <div className="grid grid-cols-6 gap-2 py-1">
-                          {[0, 1, 2].map((i) => (
-                            <div
-                              key={i}
-                              className="flex flex-col items-center gap-1"
-                            >
-                              <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center">
-                                <UserCircle size={28} className="text-gray-400" />
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      ) : item.emptyText ? (
-                        <p className="text-[14px] text-gray-400 py-1">{item.emptyText}</p>
-                      ) : item.infoLines ? (
-                        <div className="space-y-1.5">
-                          {item.infoLines.map((line) => (
-                            <p key={line} className="text-[14px] text-gray-500 leading-snug">{line}</p>
-                          ))}
-                          {item.actionLabel && (
-                            <div className="mt-3 flex items-center gap-2">
-                              <button
-                                type="button"
-                                className="rounded-xl bg-[#FEE500] px-5 py-2 text-[14px] font-bold text-[#191919]"
-                              >
-                                {item.actionLabel}
-                              </button>
-                              <RiVerifiedBadgeFill size={34} color="#1D9BF0" />
-                            </div>
-                          )}
-                        </div>
-                      ) : item.selectOptions ? (
-                        <select
-                          className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-[15px] text-[#333333] focus:outline-none"
-                          value={selections[item.id] ?? ""}
-                          onChange={(e) =>
-                            setSelections((prev) => ({ ...prev, [item.id]: e.target.value }))
-                          }
-                        >
-                          <option value="" disabled>선택해주세요</option>
-                          {item.selectOptions.map((group) =>
-                            group.group ? (
-                              <optgroup key={group.group} label={group.group}>
-                                {group.values.map((v) => (
-                                  <option key={v} value={v}>{v}</option>
-                                ))}
-                              </optgroup>
-                            ) : (
-                              group.values.map((v) => (
-                                <option key={v} value={v}>{v}</option>
-                              ))
-                            )
-                          )}
-                        </select>
-                      ) : (
-                        item.subItems.map((sub, idx) => {
-                          const key = `${item.id}-${idx}`;
-                          const checked = toggles[key] ?? false;
-                          return (
-                            <div
-                              key={key}
-                              className="flex items-center justify-between py-2 border-b border-gray-100 last:border-b-0"
-                            >
-                              <span className="text-[15px] text-[#333333]">{sub.label}</span>
-                              <IosToggle
-                                checked={checked}
-                                onChange={() => handleToggle(key)}
-                              />
-                            </div>
-                          );
-                        })
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        ))}
+        {/* 콘텐츠 영역 */}
+        <div ref={scrollRef} className="flex-1 overflow-y-auto">
+          <GeneralSettings
+            profile={settingsProfile}
+            toggles={toggles}
+            onToggle={handleToggle}
+            classPrivacy={classPrivacy}
+            onClassPrivacy={setClassPrivacy}
+            messagePrivacy={messagePrivacy}
+            onMessagePrivacy={setMessagePrivacy}
+            expandedCard={expandedCard}
+            onToggleExpand={toggleExpand}
+            firstScreen={firstScreen}
+            onFirstScreen={setFirstScreen}
+          />
         </div>
       </div>
 
@@ -442,6 +214,283 @@ export default function MyPageHeader() {
         <TermsOfServiceContent />
       </LegalDrawer>
     </>
+  );
+}
+
+/* ── 일반설정 탭 ── */
+
+function GeneralSettings({
+  profile,
+  toggles,
+  onToggle,
+  classPrivacy,
+  onClassPrivacy,
+  messagePrivacy,
+  onMessagePrivacy,
+  expandedCard,
+  onToggleExpand,
+  firstScreen,
+  onFirstScreen,
+}: {
+  profile: SettingsProfile | null;
+  toggles: Record<string, boolean>;
+  onToggle: (key: string) => void;
+  classPrivacy: string;
+  onClassPrivacy: (v: string) => void;
+  messagePrivacy: string;
+  onMessagePrivacy: (v: string) => void;
+  expandedCard: string | null;
+  onToggleExpand: (id: string) => void;
+  firstScreen: string;
+  onFirstScreen: (v: string) => void;
+}) {
+  return (
+    <div className="px-4 pb-10">
+      {/* 설정 제목 */}
+      <p className="text-[28px] font-bold text-[#333] pt-2 pb-3">설정</p>
+      <div className="bg-white rounded-xl overflow-hidden">
+
+        <button type="button" className="flex items-center w-full px-4 py-3 active:bg-gray-50">
+          <div className="w-[60px] h-[60px] rounded-full overflow-hidden flex-shrink-0 bg-gray-100">
+            {profile?.profile_image_url ? (
+              <Image
+                src={profile.profile_image_url}
+                alt="프로필"
+                width={60}
+                height={60}
+                className="w-[60px] h-[60px] object-cover"
+                unoptimized
+              />
+            ) : (
+              <UserCircle size={60} className="text-gray-300" />
+            )}
+          </div>
+          <div className="ml-3 flex-1 text-left">
+            <p className="text-[17px] font-bold text-[#333]">{profile?.nickname ?? "사용자"}</p>
+            <p className="text-[13px] text-gray-400">{profile?.email ?? ""}</p>
+          </div>
+          <ChevronRight size={18} className="text-gray-300" />
+        </button>
+        <div className="h-[1px] bg-gray-100 mx-4" />
+        <button type="button" className="flex items-center w-full px-4 py-3.5 active:bg-gray-50">
+          <span className="ml-[52px] flex items-center gap-1 flex-1 text-[15px] text-[#333]">
+            <RiVerifiedBadgeFill size={22} color="#1D9BF0" className="shrink-0" />
+            프로필 인증신청
+          </span>
+          <ChevronRight size={18} className="text-gray-300" />
+        </button>
+      </div>
+
+      {/* 2. 일반 */}
+      <div className="pt-6" />
+      <div className="bg-white rounded-xl overflow-hidden">
+        <SettingsRow
+          icon={<Volume2 size={20} />}
+          label="전체소리설정"
+          right={<IosToggle checked={toggles.sound} onChange={() => onToggle("sound")} />}
+        />
+        <div className="h-[1px] bg-gray-100 mx-4" />
+        <SettingsRow
+          icon={<BellRing size={20} />}
+          label="알림 푸시"
+          right={<IosToggle checked={toggles.push} onChange={() => onToggle("push")} />}
+        />
+      </div>
+
+      {/* 채팅알림 */}
+      <div className="pt-6" />
+      <div className="bg-white rounded-xl overflow-hidden">
+        <SettingsRow
+          icon={<MessageCircle size={20} />}
+          label="채팅알림"
+          right={<IosToggle checked={toggles.chatAllSound} onChange={() => onToggle("chatAllSound")} />}
+        />
+        <div className="h-[1px] bg-gray-100 mx-4" />
+        <SettingsRow
+          icon={<Users size={20} />}
+          label="1:1대화"
+          right={<IosToggle checked={toggles.chatDm} onChange={() => onToggle("chatDm")} />}
+        />
+        <div className="h-[1px] bg-gray-100 mx-4" />
+        <SettingsRow
+          icon={<Users size={20} />}
+          label="그룹"
+          right={<IosToggle checked={toggles.chatGroup} onChange={() => onToggle("chatGroup")} />}
+        />
+        <div className="h-[1px] bg-gray-100 mx-4" />
+        <SettingsRow
+          icon={<Bookmark size={20} />}
+          label="클래스"
+          right={<IosToggle checked={toggles.chatClass} onChange={() => onToggle("chatClass")} />}
+        />
+      </div>
+
+      {/* 소식알림 */}
+      <div className="pt-6" />
+      <div className="bg-white rounded-xl overflow-hidden">
+        <SettingsRow
+          icon={<Bell size={20} />}
+          label="전체소식알림"
+          right={<IosToggle checked={toggles.newsAllSound} onChange={() => onToggle("newsAllSound")} />}
+        />
+        <div className="h-[1px] bg-gray-100 mx-4" />
+        <SettingsRow
+          icon={<FileText size={20} />}
+          label="수업신청"
+          right={<IosToggle checked={toggles.newsClass} onChange={() => onToggle("newsClass")} />}
+        />
+        <div className="h-[1px] bg-gray-100 mx-4" />
+        <SettingsRow
+          icon={<MessageCircle size={20} />}
+          label="댓글알림"
+          right={<IosToggle checked={toggles.newsComment} onChange={() => onToggle("newsComment")} />}
+        />
+        <div className="h-[1px] bg-gray-100 mx-4" />
+        <SettingsRow
+          icon={<Heart size={20} />}
+          label="좋아요알림"
+          right={<IosToggle checked={toggles.newsLike} onChange={() => onToggle("newsLike")} />}
+        />
+        <div className="h-[1px] bg-gray-100 mx-4" />
+        <div className="opacity-50">
+          <SettingsRow
+            icon={<CreditCard size={20} />}
+            label="결제알림"
+            right={<IosToggle checked={true} onChange={() => {}} />}
+          />
+        </div>
+      </div>
+
+      {/* 클래스 설정 */}
+      <div className="pt-6" />
+      <div className="bg-white rounded-xl overflow-hidden">
+        <SettingsRow
+          icon={<Eye size={20} />}
+          label="클래스전체공개"
+          right={<IosToggle checked={classPrivacy === "public"} onChange={() => onClassPrivacy("public")} />}
+        />
+        <div className="h-[1px] bg-gray-100 mx-4" />
+        <SettingsRow
+          icon={<Users size={20} />}
+          label="친구허용"
+          right={<IosToggle checked={classPrivacy === "friends"} onChange={() => onClassPrivacy("friends")} />}
+        />
+        <div className="h-[1px] bg-gray-100 mx-4" />
+        <SettingsRow
+          icon={<Lock size={20} />}
+          label="전체비공개"
+          right={<IosToggle checked={classPrivacy === "private"} onChange={() => onClassPrivacy("private")} />}
+        />
+      </div>
+
+      {/* 메세지 설정 */}
+      <div className="pt-6" />
+      <div className="bg-white rounded-xl overflow-hidden">
+        <SettingsRow
+          icon={<Eye size={20} />}
+          label="메세지전체수신"
+          right={<IosToggle checked={messagePrivacy === "public"} onChange={() => onMessagePrivacy("public")} />}
+        />
+        <div className="h-[1px] bg-gray-100 mx-4" />
+        <SettingsRow
+          icon={<Users size={20} />}
+          label="친구허용"
+          right={<IosToggle checked={messagePrivacy === "friends"} onChange={() => onMessagePrivacy("friends")} />}
+        />
+        <div className="h-[1px] bg-gray-100 mx-4" />
+        <SettingsRow
+          icon={<Lock size={20} />}
+          label="비공개"
+          right={<IosToggle checked={messagePrivacy === "private"} onChange={() => onMessagePrivacy("private")} />}
+        />
+      </div>
+
+      {/* 회원찾기 */}
+      <div className="pt-6" />
+      <div className="bg-white rounded-xl overflow-hidden">
+        <SettingsRow
+          icon={<Heart size={20} />}
+          label="이근처친구알림"
+          right={<IosToggle checked={toggles.friendAlert} onChange={() => onToggle("friendAlert")} />}
+        />
+        <div className="h-[1px] bg-gray-100 mx-4" />
+        <SettingsRow
+          icon={<MapPin size={20} />}
+          label="위치정보동의"
+          right={<IosToggle checked={toggles.locationConsent} onChange={() => onToggle("locationConsent")} />}
+        />
+      </div>
+    </div>
+  );
+}
+
+/* ── 공통 컴포넌트 ── */
+
+function CardTitle({ title }: { title: string }) {
+  return (
+    <div className="px-4 pt-3 pb-1">
+      <p className="text-[13px] font-semibold text-gray-400">{title}</p>
+    </div>
+  );
+}
+
+function SectionTitle({ title }: { title: string }) {
+  return (
+    <p className="px-1 pt-6 pb-2 text-[17px] font-bold text-[#333]">
+      {title}
+    </p>
+  );
+}
+
+function SettingsRow({
+  icon,
+  label,
+  right,
+}: {
+  icon?: React.ReactNode;
+  label: string;
+  right?: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-center px-4 py-3.5">
+      {icon && <span className="text-[#333]">{icon}</span>}
+      <span className={`${icon ? "ml-3" : "ml-[32px]"} flex-1 text-[17px] text-[#333]`}>{label}</span>
+      {right}
+    </div>
+  );
+}
+
+function PrivacyOption({
+  label,
+  desc,
+  selected,
+  onSelect,
+}: {
+  label: string;
+  desc: string;
+  selected: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className={`flex items-start gap-3 w-full px-3 py-2.5 rounded-lg mb-1 transition-colors ${
+        selected ? "bg-gray-900" : "bg-gray-50"
+      }`}
+    >
+      <div
+        className={`mt-0.5 w-[18px] h-[18px] rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
+          selected ? "border-white" : "border-gray-300"
+        }`}
+      >
+        {selected && <div className="w-[8px] h-[8px] rounded-full bg-white" />}
+      </div>
+      <div className="text-left">
+        <p className={`text-[14px] font-medium ${selected ? "text-white" : "text-[#333]"}`}>{label}</p>
+        <p className={`text-[12px] mt-0.5 ${selected ? "text-gray-300" : "text-gray-400"}`}>{desc}</p>
+      </div>
+    </button>
   );
 }
 
