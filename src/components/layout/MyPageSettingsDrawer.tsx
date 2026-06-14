@@ -31,7 +31,7 @@ import RefundPolicyContent from "@/components/legal/RefundPolicyContent";
 import PrivacyPolicyContent from "@/components/legal/PrivacyPolicyContent";
 import TermsOfServiceContent from "@/components/legal/TermsOfServiceContent";
 import ProfessionalVerifyDrawer from "./ProfessionalVerifyDrawer";
-import { PROFILE_EDIT_OPEN_EVENT } from "@/lib/profile-events";
+import { PROFILE_EDIT_OPEN_EVENT, PROFESSIONAL_VERIFY_OPEN_EVENT } from "@/lib/profile-events";
 
 interface MyPageSettingsDrawerProps {
   open: boolean;
@@ -159,6 +159,14 @@ export default function MyPageSettingsDrawer({ open, onClose }: MyPageSettingsDr
     if (!detailId || !detailScrollRef.current) return;
     detailScrollRef.current.scrollTo(0, 0);
   }, [detailId]);
+
+  useEffect(() => {
+    function onOpenVerify() {
+      setVerifyOpen(true);
+    }
+    window.addEventListener(PROFESSIONAL_VERIFY_OPEN_EVENT, onOpenVerify);
+    return () => window.removeEventListener(PROFESSIONAL_VERIFY_OPEN_EVENT, onOpenVerify);
+  }, []);
 
   const chatSubKeys = ["chatDm", "chatGroup", "chatClass"];
   const newsSubKeys = ["newsClass", "newsComment", "newsLike", "newsReply"];

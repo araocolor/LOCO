@@ -1,8 +1,11 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import { Search, BarChart3, Megaphone, BadgeCheck, UserCircle, ChevronLeft } from "lucide-react";
+import { PROFILE_EDIT_OPEN_EVENT } from "@/lib/profile-events";
+import type { ProfileEditOpenDetail } from "@/lib/profile-events";
+import PhoneVerifyDrawer from "./PhoneVerifyDrawer";
 
 interface ProfessionalVerifyDrawerProps {
   open: boolean;
@@ -42,12 +45,16 @@ export default function ProfessionalVerifyDrawer({
   onClose,
   profileImageUrl,
 }: ProfessionalVerifyDrawerProps) {
+  const [phoneVerifyOpen, setPhoneVerifyOpen] = useState(false);
+
   useEffect(() => {
-    document.body.style.overflow = open ? "hidden" : "";
+    if (!phoneVerifyOpen) {
+      document.body.style.overflow = open ? "hidden" : "";
+    }
     return () => {
       document.body.style.overflow = "";
     };
-  }, [open]);
+  }, [open, phoneVerifyOpen]);
 
   if (!open) return null;
 
@@ -124,13 +131,23 @@ export default function ProfessionalVerifyDrawer({
         >
           <button
             type="button"
-            onClick={() => {}}
+            onClick={() => setPhoneVerifyOpen(true)}
             className="w-full py-4 rounded-full bg-[#FACC15] text-[17px] font-bold text-[#333] active:brightness-95 transition-all"
           >
             다음
           </button>
         </div>
       </div>
+
+      <PhoneVerifyDrawer
+        open={phoneVerifyOpen}
+        onClose={() => setPhoneVerifyOpen(false)}
+        onVerified={() => {
+          setPhoneVerifyOpen(false);
+          onClose();
+          window.dispatchEvent(new CustomEvent<ProfileEditOpenDetail>(PROFILE_EDIT_OPEN_EVENT, { detail: { mode: "professional" } }));
+        }}
+      />
     </>
   );
 }

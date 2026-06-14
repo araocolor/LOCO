@@ -4,13 +4,14 @@ import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
-import { UserCircle, X, Settings, HeartHandshake, Star, SmilePlus, UsersRound, CreditCard, Megaphone, Headphones, FileText, ShieldCheck, ChevronRight, ReceiptText } from "lucide-react";
+import { UserCircle, X, Settings, HeartHandshake, Star, SmilePlus, UsersRound, CreditCard, Megaphone, Headphones, FileText, ShieldCheck, ChevronRight, ReceiptText, Award } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { fetchWithAuthRetry } from "@/lib/auth/fetch-with-auth-retry";
 import { prefetchBoardPostsCache } from "@/lib/board-session-cache";
 import { parseBookmarkEntries } from "@/lib/bookmarks/local";
 import { REGIONS, MEMBER_TYPES } from "@/lib/constants";
-import { PROFILE_AVATAR_UPDATED_EVENT, PROFILE_EDIT_OPEN_EVENT } from "@/lib/profile-events";
+import { PROFILE_AVATAR_UPDATED_EVENT, PROFILE_EDIT_OPEN_EVENT, PROFESSIONAL_VERIFY_OPEN_EVENT } from "@/lib/profile-events";
+import type { ProfileEditMode, ProfileEditOpenDetail } from "@/lib/profile-events";
 import AvatarCropModal from "./AvatarCropModal";
 import { ClassImage } from "@/types/class";
 import Avatar from "@/components/ui/Avatar";
@@ -28,7 +29,7 @@ import type { CustomerServiceTab } from "./CustomerServiceDrawer";
 
 function getMemberTypeLabel(type: string) {
   if (type === "인스트럭터") return "강사";
-  if (type === "일반회원") return "활동회원";
+  if (type === "활동회원") return "활동회원";
   if (type === "독립군") return "잠수중";
   return type;
 }
@@ -150,11 +151,14 @@ export default function MyPageClient({
     { value: "salsa", label: "살사" },
     { value: "bachata", label: "바차타" },
     { value: "kizomba", label: "키좀바" },
-    { value: "bachata_zouk", label: "바차타쥬크" },
+    { value: "bachata_zouk", label: "쥬크" },
   ] as const;
   const MAX_FAVORITE_GENRE = 2;
+  const PRO_FIRST_TYPES = ["아카데미대표", "오거나이저", "클럽공식채널", "운영진", "인플루언서", "프로댄서"];
+  const PRO_MEMBER_TYPES = [...PRO_FIRST_TYPES, ...MEMBER_TYPES.filter((t) => !PRO_FIRST_TYPES.includes(t))];
   const router = useRouter();
   const [editOpen, setEditOpen] = useState(false);
+  const [editMode, setEditMode] = useState<ProfileEditMode>("normal");
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(profile.profile_image_url);
   const [avatarHdUrl, setAvatarHdUrl] = useState<string | null>(
@@ -209,6 +213,7 @@ export default function MyPageClient({
   const [businessInfoOpen, setBusinessInfoOpen] = useState(true);
   const [starGiverProfileId, setStarGiverProfileId] = useState<string | null>(null);
   const [avatarZoomOpen, setAvatarZoomOpen] = useState(false);
+  const [proProfileModalOpen, setProProfileModalOpen] = useState(false);
   const [csDrawerOpen, setCsDrawerOpen] = useState(false);
   const [csInitialTab, setCsInitialTab] = useState<CustomerServiceTab>("notice");
 
@@ -398,11 +403,15 @@ export default function MyPageClient({
     }
   }
 
+  const SOLO_GENRES = ["kizomba", "bachata_zouk"];
+
   function toggleFavoriteGenre(value: string) {
     setFavoriteGenres((prev) => {
       if (prev.includes(value)) return prev.filter((v) => v !== value);
-      if (prev.length >= MAX_FAVORITE_GENRE) return prev;
-      return [...prev, value];
+      if (SOLO_GENRES.includes(value)) return [value];
+      const filtered = prev.filter((v) => !SOLO_GENRES.includes(v));
+      if (filtered.length >= MAX_FAVORITE_GENRE) return filtered;
+      return [...filtered, value];
     });
   }
 
@@ -442,7 +451,7 @@ export default function MyPageClient({
     }
   }
 
-  function handleOpenEditModal() {
+  function handleOpenEditModal(mode: ProfileEditMode = "normal") {
     const cachedProfile = readMyPageCachedProfile(MY_PAGE_CACHE_KEY);
     const nextProfileMeta = {
       bio: cachedProfile?.bio ?? profileMeta.bio ?? profile.bio,
@@ -462,13 +471,18 @@ export default function MyPageClient({
     setRegion(nextProfileMeta.region ?? "");
     setFavoriteGenres(nextProfileMeta.favorite_genre ?? []);
     setMemberTypes(nextProfileMeta.member_type ?? []);
+    setEditMode(mode);
     setEditOpen(true);
   }
 
   useEffect(() => {
-    window.addEventListener(PROFILE_EDIT_OPEN_EVENT, handleOpenEditModal);
+    function onProfileEditOpen(e: Event) {
+      const detail = (e as CustomEvent<ProfileEditOpenDetail>).detail;
+      handleOpenEditModal(detail?.mode ?? "normal");
+    }
+    window.addEventListener(PROFILE_EDIT_OPEN_EVENT, onProfileEditOpen);
     return () => {
-      window.removeEventListener(PROFILE_EDIT_OPEN_EVENT, handleOpenEditModal);
+      window.removeEventListener(PROFILE_EDIT_OPEN_EVENT, onProfileEditOpen);
     };
   });
 
@@ -486,7 +500,7 @@ export default function MyPageClient({
             <div className="w-1/2 flex items-start">
               <div className="relative flex-shrink-0">
                 <button
-                  onClick={handleOpenEditModal}
+                  onClick={() => handleOpenEditModal()}
                   className="hover:opacity-80 transition-opacity cursor-pointer"
                 >
                   {avatarUrl ? (
@@ -503,7 +517,7 @@ export default function MyPageClient({
                   )}
                 </button>
                 <span
-                  onClick={handleOpenEditModal}
+                  onClick={() => handleOpenEditModal()}
                   className="absolute bottom-0 right-0 w-5 h-5 bg-white rounded-full flex items-center justify-center shadow-sm border border-gray-200 cursor-pointer"
                 >
                   <Settings size={14} className="text-gray-600" />
@@ -775,164 +789,187 @@ export default function MyPageClient({
           }}
         >
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-lg font-bold">프로필 편집</h2>
+            <h2 className="text-lg font-bold">{editMode === "professional" ? "공식프로필 편집" : "프로필 편집"}</h2>
             <button onClick={() => setEditOpen(false)} className="p-1 hover:bg-gray-100 rounded">
               <X size={20} />
             </button>
           </div>
 
-          {/* 1행: 아바타 + 아이디 (가운데 정렬) */}
-          <div className="flex flex-col items-center mb-6">
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={handleFileSelect}
-            />
-            <button
-              onClick={handleAvatarClick}
-              className="flex-shrink-0 mb-2 hover:opacity-80 transition-opacity cursor-pointer"
-            >
-              {avatarUrl ? (
-                <Image
-                  src={avatarUrl}
-                  alt="프로필"
-                  width={60}
-                  height={60}
-                  className="rounded-full object-cover w-[60px] h-[60px]"
-                  unoptimized
-                />
-              ) : (
-                <UserCircle size={60} className="text-gray-400" />
-              )}
-              {uploading && (
-                <span className="absolute text-[10px] text-white bg-black/60 px-2 py-0.5 rounded mt-1">
-                  업로드 중
+          <div className="flex-1 overflow-y-auto pr-1 space-y-3 mb-4">
+            {/* 아바타 + 아이디 */}
+            <div className="flex flex-col items-center mb-6">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleFileSelect}
+              />
+              <button
+                onClick={handleAvatarClick}
+                className="relative flex-shrink-0 mb-2 hover:opacity-80 transition-opacity cursor-pointer"
+              >
+                {avatarUrl ? (
+                  <Image
+                    src={avatarUrl}
+                    alt="프로필"
+                    width={70}
+                    height={70}
+                    className="rounded-full object-cover w-[70px] h-[70px]"
+                    unoptimized
+                  />
+                ) : (
+                  <UserCircle size={70} className="text-gray-400" />
+                )}
+                {editMode === "professional" && (
+                  <span className="absolute bottom-0 left-0 w-[26px] h-[26px] bg-yellow-400 rounded-full flex items-center justify-center shadow-sm border-2 border-white">
+                    <Award size={15} className="text-white" />
+                  </span>
+                )}
+                {uploading && (
+                  <span className="absolute text-[10px] text-white bg-black/60 px-2 py-0.5 rounded mt-1">
+                    업로드 중
+                  </span>
+                )}
+              </button>
+              <div className="flex items-center gap-2">
+                <span className="text-base font-semibold text-gray-900">{profile.nickname}</span>
+              </div>
+              {memberTypes[0] && (
+                <span className="px-2.5 py-0 rounded-full bg-gray-800 text-[13px]" style={{ color: "rgba(255,255,255,0.9)" }}>
+                  {getMemberTypeLabel(memberTypes[0])}
                 </span>
               )}
-            </button>
-            <div className="flex items-center gap-2">
-              <span className="text-base font-semibold text-gray-900">{profile.nickname}</span>
+              <span className="text-[14px] text-gray-500">{profile.email ?? ""}</span>
             </div>
-            {memberTypes[0] && (
-              <span className="px-2.5 py-0 rounded-full bg-gray-800 text-[13px]" style={{ color: "rgba(255,255,255,0.9)" }}>
-                {getMemberTypeLabel(memberTypes[0])}
-              </span>
-            )}
-            <span className="text-[14px] text-gray-500">{profile.email ?? ""}</span>
-          </div>
-
-          <div className="flex-1 overflow-y-auto pr-1 space-y-3 mb-4">
-            <section className="rounded-xl px-3 pt-0 pb-3">
-              <h3 className="text-sm font-semibold text-gray-900 mb-2">프로필 수정</h3>
-              <textarea
-                value={bio}
-                onChange={(e) => {
-                  const lines = e.target.value.split("\n");
-                  if (lines.length <= 4) setBio(e.target.value);
-                }}
-                placeholder="자기소개를 입력하세요 (최대 4줄)"
-                rows={4}
-                className="w-full overflow-hidden px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 resize-none" style={{ fontSize: "16px", color: "#000000cc" }}
-              />
-            </section>
-
-            <section className="rounded-xl px-3 pt-0 pb-3">
-              <h3 className="text-sm font-semibold text-gray-900 mb-2">활동지역</h3>
-              <div className="grid grid-cols-2 gap-2">
-                <select
-                  value={country}
-                  onChange={(e) => {
-                    setCountry(e.target.value);
-                    if (e.target.value !== "대한민국") setRegion("");
-                  }}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400 bg-white"
-                >
-                  <option value="">국가 선택</option>
-                  <option value="스페인">España</option>
-                  <option value="중국">中国</option>
-                  <option value="베트남">Việt Nam</option>
-                  <option value="일본">日本</option>
-                  <option value="대한민국">대한민국</option>
-                  <option value="미국">United States</option>
-                  <option value="러시아">Russia</option>
-                  <option value="기타">Other</option>
-                </select>
-                <select
-                  value={region}
-                  onChange={(e) => setRegion(e.target.value)}
-                  disabled={!isKoreaSelected}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400 bg-white disabled:bg-gray-100 disabled:text-gray-400"
-                >
-                  <option value="">도시 선택</option>
-                  {REGIONS.map((city) => (
-                    <option key={city} value={city}>
-                      {city}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </section>
-
-            <section className="rounded-xl p-3">
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="text-sm font-semibold text-gray-900">관심분야</h3>
-                <span className="text-xs text-gray-500">{favoriteGenres.length}/2</span>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {FAVORITE_GENRE_OPTIONS.map((genre) => {
-                  const active = favoriteGenres.includes(genre.value);
-                  const limitReached = !active && favoriteGenres.length >= MAX_FAVORITE_GENRE;
-                  return (
-                    <button
-                      key={genre.value}
-                      type="button"
-                      onClick={() => toggleFavoriteGenre(genre.value)}
-                      disabled={limitReached}
-                      className={`px-3 py-1.5 rounded-full text-sm border transition-colors ${
-                        active
-                          ? "bg-yellow-400 border-yellow-500 text-gray-900"
-                          : "bg-white border-gray-300 text-gray-700"
-                      } ${limitReached ? "opacity-40 cursor-not-allowed" : "hover:border-gray-400"}`}
-                    >
-                      {genre.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </section>
-
-            <section>
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="text-sm font-semibold text-gray-900">회원구분</h3>
-                <span className="text-xs text-gray-500">{memberTypes.length}/1</span>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {MEMBER_TYPES.map((type) => {
-                  const active = memberTypes.includes(type);
-                  const isMain = memberTypes[0] === type;
-                  return (
-                    <button
-                      key={type}
-                      type="button"
-                      onClick={() => {
-                        setMemberTypes(active ? [] : [type]);
+            {(editMode === "professional"
+              ? ["memberType", "bio", "region", "genre"] as const
+              : ["bio", "region", "genre", "memberType"] as const
+            ).map((section) => {
+              if (section === "bio") return (
+                <section key="bio" className="rounded-xl px-3 pt-0 pb-3">
+                  <h3 className="text-sm font-semibold text-gray-900 mb-2">프로필 수정</h3>
+                  <textarea
+                    value={bio}
+                    onChange={(e) => {
+                      const lines = e.target.value.split("\n");
+                      if (lines.length <= 4) setBio(e.target.value);
+                    }}
+                    placeholder="자기소개를 입력하세요 (최대 4줄)"
+                    rows={4}
+                    className="w-full overflow-hidden px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 resize-none" style={{ fontSize: "16px", color: "#000000cc" }}
+                  />
+                </section>
+              );
+              if (section === "region") return (
+                <section key="region" className="rounded-xl px-3 pt-0 pb-3">
+                  <h3 className="text-sm font-semibold text-gray-900 mb-2">활동지역</h3>
+                  <div className="grid grid-cols-2 gap-2">
+                    <select
+                      value={country}
+                      onChange={(e) => {
+                        setCountry(e.target.value);
+                        if (e.target.value !== "대한민국") setRegion("");
                       }}
-                      className={`px-3 py-1.5 rounded-full text-sm border transition-colors ${
-                        isMain
-                          ? "bg-gray-800 border-gray-800 text-white"
-                          : active
-                          ? "bg-yellow-400 border-yellow-500 text-gray-900"
-                          : "bg-white border-gray-300 text-gray-700"
-                      } hover:border-gray-400`}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400 bg-white"
                     >
-                      {getMemberTypeLabel(type)}
-                    </button>
-                  );
-                })}
-              </div>
-            </section>
+                      <option value="">국가 선택</option>
+                      <option value="스페인">España</option>
+                      <option value="중국">中国</option>
+                      <option value="베트남">Việt Nam</option>
+                      <option value="일본">日本</option>
+                      <option value="대한민국">대한민국</option>
+                      <option value="미국">United States</option>
+                      <option value="러시아">Russia</option>
+                      <option value="기타">Other</option>
+                    </select>
+                    <select
+                      value={region}
+                      onChange={(e) => setRegion(e.target.value)}
+                      disabled={!isKoreaSelected}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400 bg-white disabled:bg-gray-100 disabled:text-gray-400"
+                    >
+                      <option value="">도시 선택</option>
+                      {REGIONS.map((city) => (
+                        <option key={city} value={city}>
+                          {city}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </section>
+              );
+              if (section === "genre") return (
+                <section key="genre" className="rounded-xl p-3">
+                  <div className="mb-2">
+                    <h3 className="text-sm font-semibold text-gray-900">활동분야</h3>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {FAVORITE_GENRE_OPTIONS.map((genre) => {
+                      const active = favoriteGenres.includes(genre.value);
+                      const limitReached = !active && favoriteGenres.length >= MAX_FAVORITE_GENRE;
+                      return (
+                        <button
+                          key={genre.value}
+                          type="button"
+                          onClick={() => toggleFavoriteGenre(genre.value)}
+                          disabled={limitReached}
+                          className={`px-3 py-1.5 rounded-full text-sm border transition-colors ${
+                            active
+                              ? "bg-yellow-400 border-yellow-500 text-gray-900"
+                              : "bg-white border-gray-300 text-gray-700"
+                          } ${limitReached ? "opacity-40 cursor-not-allowed" : "hover:border-gray-400"}`}
+                        >
+                          {genre.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </section>
+              );
+              if (section === "memberType") {
+                const isPro = editMode === "professional";
+                const typeList = isPro ? PRO_MEMBER_TYPES : MEMBER_TYPES;
+                return (
+                  <section key="memberType" className="rounded-xl px-3 pt-0 pb-3">
+                    <div className="mb-2">
+                      <h3 className="text-sm font-semibold text-gray-900">회원구분</h3>
+                    </div>
+                    <div className="flex flex-wrap gap-2 justify-center">
+                      {typeList.map((type) => {
+                        const restricted = !isPro && ["아카데미대표", "오거나이저", "클럽공식채널", "운영진"].includes(type);
+                        const active = memberTypes.includes(type);
+                        const isMain = memberTypes[0] === type;
+                        return (
+                          <button
+                            key={type}
+                            type="button"
+                            onClick={() => {
+                              if (restricted) {
+                                setProProfileModalOpen(true);
+                                return;
+                              }
+                              setMemberTypes(active ? [] : [type]);
+                            }}
+                            className={`px-3 py-1.5 rounded-full text-sm border transition-colors ${
+                              isMain
+                                ? "bg-gray-800 border-gray-800 text-white"
+                                : active
+                                ? "bg-yellow-400 border-yellow-500 text-gray-900"
+                                : "bg-white border-gray-300 text-gray-700"
+                            } ${restricted ? "opacity-40" : "hover:border-gray-400"}`}
+                          >
+                            {getMemberTypeLabel(type)}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </section>
+                );
+              }
+              return null;
+            })}
+            <div className="h-24" />
           </div>
 
           {/* 3행: 취소, 확인 버튼 */}
@@ -970,6 +1007,26 @@ export default function MyPageClient({
           onCancel={() => setSelectedImage(null)}
           onConfirm={handleCropConfirm}
         />
+      )}
+
+      {proProfileModalOpen && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setProProfileModalOpen(false)} />
+          <div className="relative bg-white rounded-2xl mx-8 p-6 max-w-sm w-full text-center">
+            <p className="text-[16px] font-bold text-[#333] mb-2">공식프로필 등록 후 선택할 수 있습니다.</p>
+            <button
+              type="button"
+              onClick={() => {
+                setProProfileModalOpen(false);
+                setEditOpen(false);
+                window.dispatchEvent(new Event(PROFESSIONAL_VERIFY_OPEN_EVENT));
+              }}
+              className="mt-4 w-full py-3 rounded-full bg-[#FACC15] text-[15px] font-bold text-[#333] active:brightness-95 transition-all"
+            >
+              공식프로필 신청하기
+            </button>
+          </div>
+        </div>
       )}
 
       <StarChargeSheet
