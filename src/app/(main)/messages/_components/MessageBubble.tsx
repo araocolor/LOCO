@@ -181,7 +181,7 @@ export default memo(function MessageBubble({
                 </div>
               )}
               {emojiData ? (
-                <Image src={emojiData.src} alt="이모지" width={120} height={120} draggable={false} onContextMenu={(e) => e.preventDefault()} className={`h-[120px] w-[120px] select-none object-contain ${emojiAnim ?? ""}`} style={{ WebkitTouchCallout: "none" }} />
+                <Image src={emojiData.src} alt="이모지" width={120} height={120} draggable={false} onContextMenu={(e) => e.preventDefault()} className={`h-[120px] w-[120px] select-none object-contain ${emojiAnim ?? ""}`} style={{ WebkitTouchCallout: "none" }} unoptimized />
               ) : imageData ? (
                 <div className="relative">
                   <button
@@ -189,7 +189,7 @@ export default memo(function MessageBubble({
                     onClick={() => !msg.send_status && onImageClick?.(msg.id, imageData.full, isMine)}
                     className="block"
                   >
-                    <Image src={imageData.thumb} alt="사진" width={100} height={100} className={`rounded-lg object-cover ${msg.send_status === "sending" ? "opacity-60" : ""}`} />
+                    <Image src={imageData.thumb} alt="사진" width={100} height={100} className={`rounded-lg object-cover ${msg.send_status === "sending" ? "opacity-60" : ""}`} unoptimized />
                   </button>
                   {msg.send_status === "sending" && (
                     <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-black/30">
