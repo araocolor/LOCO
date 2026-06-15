@@ -20,6 +20,7 @@ interface CachedProfile {
   member_type: string[];
   role: UserRole;
   profile_image_url: string | null;
+  org_name: string | null;
   kakao_notification_enabled: boolean;
   received_star_count: number;
   star_balance: number;
@@ -129,6 +130,7 @@ export default function MyPageCacheLoader() {
                   member_type: [],
                   role: "member" as const,
                   profile_image_url: p.profile_image_url ?? null,
+                  org_name: null,
                   kakao_notification_enabled: false,
                   received_star_count: 0,
                   star_balance: 0,

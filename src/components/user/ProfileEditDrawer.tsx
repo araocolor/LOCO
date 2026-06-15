@@ -31,6 +31,13 @@ function getMemberTypeLabel(type: string) {
   return type;
 }
 
+function maskEmail(email: string | null) {
+  if (!email) return "";
+  const [local, domain] = email.split("@");
+  if (!domain) return `${local.slice(0, 3)}****`;
+  return `${local.slice(0, 3)}****@${domain}`;
+}
+
 interface ProfileData {
   id: string;
   email: string | null;
@@ -41,6 +48,7 @@ interface ProfileData {
   favorite_genre: string[];
   member_type: string[];
   profile_image_url: string | null;
+  org_name: string | null;
 }
 
 interface ProfileEditDrawerProps {
@@ -50,7 +58,7 @@ interface ProfileEditDrawerProps {
   mode?: ProfileEditMode;
 }
 
-type CacheProfilePatch = Partial<Pick<ProfileData, "bio" | "country" | "region" | "favorite_genre" | "member_type" | "profile_image_url">>;
+type CacheProfilePatch = Partial<Pick<ProfileData, "bio" | "country" | "region" | "favorite_genre" | "member_type" | "profile_image_url" | "org_name">>;
 
 function readMyPageCachedProfile(): CacheProfilePatch | null {
   try {
@@ -96,12 +104,14 @@ export default function ProfileEditDrawer({ open, onClose, profile, mode = "norm
     region: profile.region,
     favorite_genre: profile.favorite_genre ?? [],
     member_type: profile.member_type ?? [],
+    org_name: profile.org_name,
   });
   const [bio, setBio] = useState(profileMeta.bio ?? "");
   const [country, setCountry] = useState(profileMeta.country ?? "대한민국");
   const [region, setRegion] = useState(profileMeta.region ?? "");
   const [favoriteGenres, setFavoriteGenres] = useState<string[]>(profileMeta.favorite_genre ?? []);
   const [memberTypes, setMemberTypes] = useState<string[]>(profileMeta.member_type ?? []);
+  const [organizationName, setOrganizationName] = useState(profileMeta.org_name ?? "");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -113,6 +123,7 @@ export default function ProfileEditDrawer({ open, onClose, profile, mode = "norm
       region: cachedProfile?.region ?? profileMeta.region ?? profile.region,
       favorite_genre: cachedProfile?.favorite_genre ?? profileMeta.favorite_genre ?? profile.favorite_genre ?? [],
       member_type: cachedProfile?.member_type ?? profileMeta.member_type ?? profile.member_type ?? [],
+      org_name: cachedProfile?.org_name ?? profileMeta.org_name ?? profile.org_name,
     };
     if (cachedProfile?.profile_image_url !== undefined) {
       setAvatarUrl(cachedProfile.profile_image_url ?? null);
@@ -123,6 +134,7 @@ export default function ProfileEditDrawer({ open, onClose, profile, mode = "norm
     setRegion(nextProfileMeta.region ?? "");
     setFavoriteGenres(nextProfileMeta.favorite_genre ?? []);
     setMemberTypes(nextProfileMeta.member_type ?? []);
+    setOrganizationName(nextProfileMeta.org_name ?? "");
     setEditMode(mode);
     if (mode === "professional") {
       setSlideIn(false);
@@ -218,6 +230,7 @@ export default function ProfileEditDrawer({ open, onClose, profile, mode = "norm
           region: region || null,
           favorite_genre: favoriteGenres,
           member_type: memberTypes,
+          org_name: organizationName.trim() || null,
         })
         .eq("id", profile.id);
 
@@ -229,6 +242,7 @@ export default function ProfileEditDrawer({ open, onClose, profile, mode = "norm
         region: region || null,
         favorite_genre: favoriteGenres,
         member_type: memberTypes,
+        org_name: organizationName.trim() || null,
       };
       setProfileMeta(nextProfileMeta);
       patchMyPageProfileCache(nextProfileMeta);
@@ -248,6 +262,7 @@ export default function ProfileEditDrawer({ open, onClose, profile, mode = "norm
     bio.trim() !== (profileMeta.bio ?? "") ||
     country !== (profileMeta.country ?? "대한민국") ||
     region !== (profileMeta.region ?? "") ||
+    organizationName.trim() !== (profileMeta.org_name ?? "") ||
     JSON.stringify(favoriteGenres) !== JSON.stringify(profileMeta.favorite_genre ?? []) ||
     JSON.stringify(memberTypes) !== JSON.stringify(profileMeta.member_type ?? []);
 
@@ -328,12 +343,25 @@ export default function ProfileEditDrawer({ open, onClose, profile, mode = "norm
                   {getMemberTypeLabel(memberTypes[0])}
                 </span>
               )}
-              <span className="text-[14px] text-gray-500">{profile.email ?? ""}</span>
+              <span className="text-[14px] text-gray-500">{maskEmail(profile.email)}</span>
             </div>
             {(editMode === "professional"
-              ? ["memberType", "bio", "region", "genre"] as const
+              ? ["memberType", "organization", "bio", "region", "genre"] as const
               : ["bio", "region", "genre", "memberType"] as const
             ).map((section) => {
+              if (section === "organization") return (
+                <section key="organization" className="rounded-xl px-3 pt-0 pb-3">
+                  <h3 className="text-sm font-semibold text-gray-900 mb-2">소속기관 및 단체</h3>
+                  <input
+                    type="text"
+                    value={organizationName}
+                    onChange={(e) => setOrganizationName(e.target.value)}
+                    placeholder="소속 기관이나 단체명을 입력하세요"
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400"
+                    style={{ fontSize: "16px", color: "#000000cc" }}
+                  />
+                </section>
+              );
               if (section === "bio") return (
                 <section key="bio" className="rounded-xl px-3 pt-0 pb-3">
                   <h3 className="text-sm font-semibold text-gray-900 mb-2">프로필 수정</h3>
@@ -343,7 +371,7 @@ export default function ProfileEditDrawer({ open, onClose, profile, mode = "norm
                       const lines = e.target.value.split("\n");
                       if (lines.length <= 4) setBio(e.target.value);
                     }}
-                    placeholder="자기소개를 입력하세요 (최대 4줄)"
+                    placeholder={"유튜브: https://youtube.com/@example\n인스타그램: https://instagram.com/example"}
                     rows={4}
                     className="w-full overflow-hidden px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 resize-none" style={{ fontSize: "16px", color: "#000000cc" }}
                   />

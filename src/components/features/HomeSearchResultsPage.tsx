@@ -48,6 +48,7 @@ interface Props {
   initialClasses?: ClassWithHost[];
   regionOverride?: string | null;
   periodOverride?: string | null;
+  yearOverride?: number;
   genreOverride?: string[];
   classTypeOverride?: string[];
   onClassSelect?: (classId: string) => void;
@@ -61,6 +62,7 @@ export default function HomeSearchResultsPage({
   initialClasses,
   regionOverride,
   periodOverride,
+  yearOverride,
   genreOverride,
   classTypeOverride,
   onClassSelect,
@@ -87,12 +89,13 @@ export default function HomeSearchResultsPage({
   const filterParam = useMemo(() => {
     const params = new URLSearchParams();
     if (region && region !== "전체") params.set("region", region);
+    if (yearOverride) params.set("year", String(yearOverride));
     if (period && period !== "전체") params.set("period", period);
     genres.forEach((genre) => params.append("genre", genre));
     classTypes.forEach((classType) => params.append("class_type", classType));
     const qs = params.toString();
     return qs ? `&${qs}` : "";
-  }, [region, period, genres, classTypes]);
+  }, [region, yearOverride, period, genres, classTypes]);
   const homeCacheKey = `${HOME_RESULTS_LOCAL_KEY}:${filterParam || "all"}`;
 
   const warmedImageUrlsRef = useRef<Set<string>>(new Set());
@@ -127,7 +130,9 @@ export default function HomeSearchResultsPage({
     }
     let filtered = region === "전체" ? classes : classes.filter((item) => item.region === region);
     if (period !== "전체") {
-      filtered = filtered.filter((item) => isInPeriod(item.datetime, period));
+      filtered = filtered.filter((item) => isInPeriod(item.datetime, period, yearOverride));
+    } else if (yearOverride) {
+      filtered = filtered.filter((item) => new Date(item.datetime).getFullYear() === yearOverride);
     }
     if (genres.length > 0) {
       const genreSet = new Set(genres);
@@ -138,7 +143,7 @@ export default function HomeSearchResultsPage({
       filtered = filtered.filter((item) => item.category && typeSet.has(item.category));
     }
     return filtered;
-  }, [classes, region, period, genres, classTypes, isBookmarkMode, bookmarkVersion]);
+  }, [classes, region, period, yearOverride, genres, classTypes, isBookmarkMode, bookmarkVersion]);
 
   const fillerCells = useMemo(() => {
     const remain = filteredClasses.length % 3;

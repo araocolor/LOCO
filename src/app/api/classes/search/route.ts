@@ -11,8 +11,14 @@ function expandCategory(value: string) {
   return [value];
 }
 
-function getPeriodRange(period: string | null, year = getSearchYear()) {
-  if (!period || period === "전체") return null;
+function getPeriodRange(period: string | null, year = getSearchYear(), fullYear = false) {
+  if (!period || period === "전체") {
+    if (!fullYear) return null;
+    return {
+      start: `${year}-01-01T00:00:00`,
+      end: `${year + 1}-01-01T00:00:00`,
+    };
+  }
   if (period === PREVIOUS_YEAR_PERIOD_VALUE) {
     return {
       start: `${year - 1}-01-01T00:00:00`,
@@ -38,6 +44,8 @@ export async function GET(request: NextRequest) {
   const host_id = searchParams.get("host_id");
   const keyword = searchParams.get("keyword");
   const sort = searchParams.get("sort") ?? "latest";
+  const requestedYear = Number.parseInt(searchParams.get("year") ?? "", 10);
+  const year = Number.isInteger(requestedYear) ? requestedYear : undefined;
   const requestedPage = Number.parseInt(searchParams.get("page") ?? "0", 10);
   const requestedLimit = Number.parseInt(searchParams.get("limit") ?? "10", 10);
 
@@ -58,7 +66,7 @@ export async function GET(request: NextRequest) {
 
   if (host_id) query = query.eq("host_id", host_id);
   if (region && region !== "전체") query = query.eq("region", region);
-  const periodRange = getPeriodRange(period);
+  const periodRange = getPeriodRange(period, year ?? getSearchYear(), Boolean(year));
   if (periodRange) query = query.gte("datetime", periodRange.start).lt("datetime", periodRange.end);
   const filteredCategories = Array.from(
     new Set(categoryFilters.filter((t) => t && t !== "전체").flatMap(expandCategory))

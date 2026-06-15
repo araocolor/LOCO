@@ -116,6 +116,35 @@ export default function AdminPageClient({
     }
   }
 
+  async function handleDeleteUser(userId: string, nickname: string) {
+    const confirmed = confirm(`${nickname || "이 회원"} 계정을 삭제할까요? 삭제 후 되돌릴 수 없습니다.`);
+    if (!confirmed) return;
+
+    setError("");
+    setSuccess("");
+    setRunningUserId(userId);
+
+    try {
+      const res = await fetch(`/api/admin/users/${userId}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error ?? "회원 삭제 중 오류가 발생했습니다.");
+        return;
+      }
+
+      setUsers((prev) => prev.filter((item) => item.id !== userId));
+      setProRequests((prev) => prev.filter((item) => item.user_id !== userId));
+      setSuccess("회원이 삭제되었습니다.");
+    } catch {
+      setError("회원 삭제 중 오류가 발생했습니다.");
+    } finally {
+      setRunningUserId("");
+    }
+  }
+
   async function handleProRequest(requestId: string, action: "approve" | "reject") {
     setError("");
     setSuccess("");
@@ -190,10 +219,11 @@ export default function AdminPageClient({
   }
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-4 pb-24 space-y-5">
-      <div className="sticky top-14 z-30 bg-[#f6f8fb] py-2">
-        <h1 className="text-xl font-bold">관리자 페이지</h1>
-      </div>
+    <div className="fixed inset-0 overflow-y-auto bg-[#f6f8fb]">
+      <div className="max-w-5xl mx-auto px-4 py-4 pb-24 space-y-5">
+        <div className="sticky top-0 z-30 bg-[#f6f8fb] py-2">
+          <h1 className="text-xl font-bold">관리자 페이지</h1>
+        </div>
 
       {error && <p className="error-text">{error}</p>}
       {success && <p className="text-sm text-green-600">{success}</p>}
@@ -265,14 +295,24 @@ export default function AdminPageClient({
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-gray-600">{ROLE_LABELS[item.role]}</span>
                     {item.role !== "admin" && (
-                      <button
-                        type="button"
-                        className="btn-outline text-xs py-1.5 px-3"
-                        disabled={runningUserId === item.id}
-                        onClick={() => handleChangeRole(item.id, item.role === "pro" ? "member" : "pro")}
-                      >
-                        {item.role === "pro" ? "member로" : "pro로"}
-                      </button>
+                      <>
+                        <button
+                          type="button"
+                          className="btn-outline text-xs py-1.5 px-3"
+                          disabled={runningUserId === item.id}
+                          onClick={() => handleChangeRole(item.id, item.role === "pro" ? "member" : "pro")}
+                        >
+                          {item.role === "pro" ? "member로" : "pro로"}
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-outline text-xs py-1.5 px-3 text-red-500 border-red-200"
+                          disabled={runningUserId === item.id}
+                          onClick={() => handleDeleteUser(item.id, item.nickname)}
+                        >
+                          삭제
+                        </button>
+                      </>
                     )}
                   </div>
                 </div>
@@ -315,6 +355,7 @@ export default function AdminPageClient({
           </div>
         )}
       </section>
+      </div>
     </div>
   );
 }

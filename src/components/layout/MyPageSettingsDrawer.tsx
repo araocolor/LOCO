@@ -47,12 +47,14 @@ interface SettingsProfile {
   id: string;
   nickname: string;
   email: string | null;
+  role: "member" | "pro" | "admin";
   profile_image_url: string | null;
   bio: string | null;
   country: string | null;
   region: string | null;
   favorite_genre: string[];
   member_type: string[];
+  org_name: string | null;
 }
 
 type DetailSettingId =
@@ -77,6 +79,13 @@ type DetailSettingId =
   | "locationConsent"
   | "loginInfo";
 
+function maskEmail(email: string | null) {
+  if (!email) return "";
+  const [local, domain] = email.split("@");
+  if (!domain) return `${local.slice(0, 3)}****`;
+  return `${local.slice(0, 3)}****@${domain}`;
+}
+
 type DetailSectionRow = {
   icon: React.ReactNode;
   label: string;
@@ -100,12 +109,14 @@ function useSettingsProfile(open: boolean): SettingsProfile | null {
             id: p.id ?? "",
             nickname: p.nickname,
             email: p.email ?? null,
+            role: p.role ?? "member",
             profile_image_url: p.profile_image_url ?? null,
             bio: p.bio ?? null,
             country: p.country ?? null,
             region: p.region ?? null,
             favorite_genre: p.favorite_genre ?? [],
             member_type: p.member_type ?? [],
+            org_name: p.org_name ?? null,
           });
         }
       }
@@ -351,6 +362,7 @@ export default function MyPageSettingsDrawer({ open, onClose }: MyPageSettingsDr
           open={profileEditOpen}
           onClose={() => setProfileEditOpen(false)}
           profile={settingsProfile}
+          mode={settingsProfile.role === "pro" ? "professional" : "normal"}
         />
       )}
     </>
@@ -380,6 +392,8 @@ function GeneralSettings({
   onOpenVerify: () => void;
   onOpenPurchase: (tab: PurchaseTab) => void;
 }) {
+  const isProfessional = profile?.role === "pro";
+
   return (
     <div className="px-4 pb-10">
       <div className="bg-white rounded-xl overflow-hidden">
@@ -401,17 +415,21 @@ function GeneralSettings({
           </div>
           <div className="ml-3 flex-1 text-left">
             <p className="text-[18px] font-bold text-[#333]">{profile?.nickname ?? "사용자"}</p>
-            <p className="text-[15px] text-gray-400">{profile?.email ?? ""}</p>
+            <p className="text-[15px] text-gray-400">{maskEmail(profile?.email ?? null)}</p>
           </div>
           <ChevronRight size={20} strokeWidth={2.8} className="text-gray-500" />
         </button>
         <div className="h-[1px] bg-gray-100 mx-4" />
-        <button type="button" onClick={onOpenVerify} className="flex items-center w-full px-4 py-3.5 active:bg-gray-50">
+        <button
+          type="button"
+          onClick={isProfessional ? undefined : onOpenVerify}
+          className={`flex items-center w-full px-4 py-3.5 ${isProfessional ? "cursor-default" : "active:bg-gray-50"}`}
+        >
           <span className="ml-[52px] flex items-center gap-1 flex-1 text-[15px] text-[#333]">
             <RiVerifiedBadgeFill size={22} color="#1D9BF0" className="shrink-0" />
-            공식프로필 인증신청
+            {isProfessional ? "공식프로필 인증완료" : "공식프로필 인증신청"}
           </span>
-          <ChevronRight size={20} strokeWidth={2.8} className="text-gray-500" />
+          {!isProfessional && <ChevronRight size={20} strokeWidth={2.8} className="text-gray-500" />}
         </button>
       </div>
 

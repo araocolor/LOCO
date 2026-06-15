@@ -41,6 +41,7 @@ interface MyPageSummary {
     member_type: string[];
     role: UserRole;
     profile_image_url: string | null;
+    org_name: string | null;
     kakao_notification_enabled: boolean;
     received_star_count: number;
     star_balance: number;
@@ -73,7 +74,7 @@ export async function GET() {
     const [profileResult, appliedResult, myClassesResult, proRequestResult, followingResult, followersResult, friendsResult, subscriptionResult, receivedStarRowsResult, starWalletResult] = await Promise.all([
       supabase
         .from("profiles")
-        .select("id, email, nickname, bio, country, region, favorite_genre, member_type, role, profile_image_url, kakao_notification_enabled")
+        .select("id, email, nickname, bio, country, region, favorite_genre, member_type, role, profile_image_url, org_name, kakao_notification_enabled")
         .eq("id", user.id)
         .single(),
       supabase
@@ -198,6 +199,7 @@ export async function GET() {
         member_type: profile.member_type ?? [],
         role: profile.role as UserRole,
         profile_image_url: profile.profile_image_url,
+        org_name: profile.org_name,
         kakao_notification_enabled: profile.kakao_notification_enabled,
         received_star_count: receivedStarRowsResult.error
           ? 0

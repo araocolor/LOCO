@@ -14,7 +14,6 @@ import { GENRES, REGIONS_WITH_ALL } from "@/lib/constants";
 import { ClassWithHost } from "@/components/class/ClassCard";
 import CachedClassDetailPage from "@/components/class/CachedClassDetailPage";
 import CreateClassDrawer from "@/components/class/CreateClassDrawer";
-import HotClassesTab from "@/components/features/HotClassesTab";
 import HomeSearchResultsPage from "@/components/features/HomeSearchResultsPage";
 import MyClassesTab from "@/components/features/MyClassesTab";
 import { useScrollChromeVisibility } from "@/hooks/useScrollChromeVisibility";
@@ -274,7 +273,7 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
               activeTab === "mySubscriptions" ? "bg-black text-white" : "bg-gray-100 text-black/[0.65]"
             }`}
           >
-            내클
+            내클래스
           </button>
           <button
             onClick={() => setActiveTab("friendClasses")}
@@ -282,7 +281,7 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
               activeTab === "friendClasses" ? "bg-black text-white" : "bg-gray-100 text-black/[0.65]"
             }`}
           >
-            핫클
+            이벤트/파티
           </button>
           <button
             onClick={() => setActiveTab("allClasses")}
@@ -306,7 +305,7 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
             <button
               type="button"
               aria-label={allViewMode === "grid" ? "카드 보기" : "격자 보기"}
-              className="ml-auto mr-[4px] pb-2 text-gray-400"
+              className="mt-1 ml-auto mr-[4px] text-gray-400"
               onClick={() => setAllViewMode((v) => (v === "grid" ? "card" : "grid"))}
             >
               {allViewMode === "grid" ? (
@@ -492,9 +491,14 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
         </>
       )}
       {activeTab === "friendClasses" && (
-        <HotClassesTab
-          cachedClasses={[...myClasses, ...participatingClasses, ...friendClasses]}
+        <HomeSearchResultsPage
+          regionOverride="전체"
+          periodOverride="전체"
+          yearOverride={2026}
+          genreOverride={[]}
+          classTypeOverride={["party"]}
           onClassSelect={(id) => setClassDetailId(id)}
+          viewMode="card"
         />
       )}
       {activeTab === "mySubscriptions" && (

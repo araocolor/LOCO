@@ -106,6 +106,7 @@ interface Profile {
   favorite_genre: string[];
   member_type: string[];
   profile_image_url: string | null;
+  org_name: string | null;
   received_star_count?: number;
   star_balance?: number;
 }
@@ -123,7 +124,7 @@ interface Props {
   };
 }
 
-type CacheProfilePatch = Partial<Pick<Profile, "bio" | "country" | "region" | "favorite_genre" | "member_type" | "profile_image_url">>;
+type CacheProfilePatch = Partial<Pick<Profile, "bio" | "country" | "region" | "favorite_genre" | "member_type" | "profile_image_url" | "org_name">>;
 const STAR_BALANCE_UPDATED_EVENT = "loco:star-balance-updated";
 
 function readMyPageCachedProfile(cacheKey: string): CacheProfilePatch | null {
@@ -329,8 +330,8 @@ export default function MyPageClient({
     fetchAndRefresh().catch(() => {});
   }, [profile.id]);
 
-  function handleOpenEditModal(mode: ProfileEditMode = "normal") {
-    setEditMode(mode);
+  function handleOpenEditModal(mode?: ProfileEditMode) {
+    setEditMode(mode ?? (profile.role === "pro" ? "professional" : "normal"));
     setEditOpen(true);
   }
 
