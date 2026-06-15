@@ -124,6 +124,7 @@ export default function MyPageCacheLoader() {
                   id: p.id ?? "",
                   email: null,
                   nickname: p.nickname,
+                  nickname_changed_at: null,
                   bio: null,
                   country: null,
                   region: p.region ?? null,
