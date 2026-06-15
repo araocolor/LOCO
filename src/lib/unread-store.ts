@@ -1,7 +1,7 @@
 let chatUnreadCount = 0;
 let chatUnreadByType = { direct: 0, group: 0, class: 0 };
 let notificationUnreadCount = 0;
-let notificationUnreadByTab = { class: 0, comment: 0, heart: 0, other: 0 };
+let notificationUnreadByTab = { class: 0, comment: 0, general: 0 };
 
 const chatListeners = new Set<() => void>();
 const notificationListeners = new Set<() => void>();
@@ -31,7 +31,7 @@ export function setChatUnread(count: number, byType?: { direct: number; group: n
   notifyChatListeners();
 }
 
-export function setNotificationUnread(count: number, byTab?: { class: number; comment: number; heart: number; other: number }) {
+export function setNotificationUnread(count: number, byTab?: { class: number; comment: number; general: number }) {
   notificationUnreadCount = count;
   if (byTab) notificationUnreadByTab = { ...byTab };
   notificationListeners.forEach((cb) => cb());
@@ -59,7 +59,7 @@ export async function fetchNotificationUnread() {
     const res = await fetch("/api/notifications/unread-count");
     if (!res.ok) return;
     const json = await res.json();
-    const byTab = json?.byTab ?? { class: 0, comment: 0, heart: 0, other: 0 };
+    const byTab = json?.byTab ?? { class: 0, comment: 0, general: 0 };
     const total = json?.count ?? 0;
     setNotificationUnread(total, byTab);
   } catch {}

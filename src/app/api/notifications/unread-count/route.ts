@@ -3,14 +3,13 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 const NOTIFICATION_TYPES_BY_TAB = {
-  class: ["friend_class_created", "star_gift_received", "class_application"],
-  comment: ["class_comment", "comment_reply"],
-  heart: ["class_like"],
-  other: ["pre_charge_issued"],
+  class: ["friend_class_created", "class_application"],
+  comment: ["class_comment", "comment_reply", "class_like"],
+  general: ["pre_charge_issued", "nickname_changed", "star_gift_received"],
 } as const;
 
 type NotificationTab = keyof typeof NOTIFICATION_TYPES_BY_TAB;
-const TABS: NotificationTab[] = ["class", "comment", "heart", "other"];
+const TABS: NotificationTab[] = ["class", "comment", "general"];
 
 export async function GET() {
   const supabase = await createClient();

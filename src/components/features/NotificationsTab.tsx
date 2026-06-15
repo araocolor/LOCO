@@ -9,6 +9,8 @@ import { readNotificationCache, writeNotificationCache } from "@/lib/notificatio
 import { useSyncExternalStore } from "react";
 import { setNotificationUnread, getNotificationUnreadByTab, subscribeNotificationUnread } from "@/lib/unread-store";
 
+type NotificationTab = "class" | "comment" | "general";
+
 interface NotificationItem {
   id: string;
   type: string;
@@ -26,8 +28,6 @@ interface NotificationItem {
 interface NotificationsTabProps {
   userId?: string | null;
 }
-
-type NotificationTab = "class" | "comment" | "heart" | "other";
 
 function formatTime(dateStr: string) {
   const now = Date.now();
@@ -122,18 +122,18 @@ function formatMessage(item: NotificationItem): React.ReactNode {
   }
 }
 
-const NOTIFICATION_TABS: NotificationTab[] = ["class", "comment", "heart", "other"];
+const NOTIFICATION_TABS: NotificationTab[] = ["class", "comment", "general"];
 
 function getEmptyNotificationMap(): Record<NotificationTab, NotificationItem[]> {
-  return { class: [], comment: [], heart: [], other: [] };
+  return { class: [], comment: [], general: [] };
 }
 
 function getEmptyLoadingMap(): Record<NotificationTab, boolean> {
-  return { class: false, comment: false, heart: false, other: false };
+  return { class: false, comment: false, general: false };
 }
 
 function getEmptyLoadedMap(): Record<NotificationTab, boolean> {
-  return { class: false, comment: false, heart: false, other: false };
+  return { class: false, comment: false, general: false };
 }
 
 export default function NotificationsTab({ userId }: NotificationsTabProps) {
@@ -149,7 +149,7 @@ export default function NotificationsTab({ userId }: NotificationsTabProps) {
   const [classDetailId, setClassDetailId] = useState<string | null>(null);
   const [viewedTabs, setViewedTabs] = useState<Set<NotificationTab>>(new Set(["class"]));
   const viewedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const initialUnreadByTab = useSyncExternalStore(subscribeNotificationUnread, getNotificationUnreadByTab, () => ({ class: 0, comment: 0, heart: 0, other: 0 }));
+  const initialUnreadByTab = useSyncExternalStore(subscribeNotificationUnread, getNotificationUnreadByTab, () => ({ class: 0, comment: 0, general: 0 }));
 
   const fetchNotifications = useCallback(async (tab: NotificationTab, silent = false) => {
     if (loadedTabs[tab]) return;
@@ -191,8 +191,7 @@ export default function NotificationsTab({ userId }: NotificationsTabProps) {
     if (!loadedTabs.class || activeTab !== "class") return;
     queueMicrotask(() => {
       void fetchNotifications("comment", true);
-      void fetchNotifications("heart", true);
-      void fetchNotifications("other", true);
+      void fetchNotifications("general", true);
     });
   }, [activeTab, fetchNotifications, loadedTabs.class]);
 
@@ -205,11 +204,22 @@ export default function NotificationsTab({ userId }: NotificationsTabProps) {
         next.add(activeTab);
         return next;
       });
-    }, 2000);
+      fetch("/api/notifications/read-tab", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tab: activeTab }),
+      }).then(() => {
+        setNotificationsByTab((prev) => {
+          const updated = prev[activeTab].map((n) => (n.is_read ? n : { ...n, is_read: true }));
+          writeNotificationCache(userId, activeTab, updated);
+          return { ...prev, [activeTab]: updated };
+        });
+      }).catch(() => {});
+    }, 500);
     return () => {
       if (viewedTimerRef.current) clearTimeout(viewedTimerRef.current);
     };
-  }, [activeTab]);
+  }, [activeTab, userId]);
 
   useEffect(() => {
     const allLoaded = NOTIFICATION_TABS.every((tab) => loadedTabs[tab]);
@@ -403,8 +413,8 @@ export default function NotificationsTab({ userId }: NotificationsTabProps) {
             </div>
           </div>
           <div className="flex pl-4 pr-4 gap-2 pb-2 overflow-x-auto scrollbar-hide whitespace-nowrap">
-            {(["class", "comment", "heart", "other"] as const).map((tab) => {
-              const label = tab === "class" ? "클래스" : tab === "comment" ? "댓글" : tab === "heart" ? "하트" : "결제";
+            {(["class", "comment", "general"] as const).map((tab) => {
+              const label = tab === "class" ? "클래스" : tab === "comment" ? "댓글" : "일반";
               const unreadCount = loadedTabs[tab]
                 ? notificationsByTab[tab].filter((n) => !n.is_read).length
                 : initialUnreadByTab[tab];
@@ -491,7 +501,7 @@ export default function NotificationsTab({ userId }: NotificationsTabProps) {
                             ? approvedIds.has(appId) || item.meta?.application_status === "approved"
                             : false;
                           return isApproved ? (
-                            <span className="ml-1 text-[14px] text-green-600 align-middle">확인완료</span>
+                            <span className="ml-1 text-[14px] text-green-600 align-middle">승인됨</span>
                           ) : null;
                         })()}
                     </p>
