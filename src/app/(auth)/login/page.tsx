@@ -237,14 +237,6 @@ export default function LoginPage() {
 
   return (
     <main className="relative flex min-h-screen items-center justify-center p-4">
-      <button
-        type="button"
-        onClick={() => window.history.back()}
-        className="absolute top-4 left-4 flex items-center justify-center rounded-full border border-gray-300"
-        style={{ width: "44px", height: "44px", color: "#999999", fontSize: "18px" }}
-      >
-        {"<"}
-      </button>
       <div className="w-full max-w-sm rounded-2xl bg-white p-8">
         <h1 className="font-bold text-center mb-1" style={{ fontSize: "30px" }}>Xlatin</h1>
         <p className="text-sm text-center mb-8" style={{ color: "#999999" }}>

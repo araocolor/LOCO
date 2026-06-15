@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
-import { Search, BarChart3, Megaphone, BadgeCheck, UserCircle, ChevronLeft } from "lucide-react";
+import { Search, BarChart3, Megaphone, BadgeCheck, UserCircle, ChevronLeft, Award } from "lucide-react";
 import { PROFILE_EDIT_OPEN_EVENT } from "@/lib/profile-events";
 import type { ProfileEditOpenDetail } from "@/lib/profile-events";
 import PhoneVerifyDrawer from "./PhoneVerifyDrawer";
@@ -83,19 +83,24 @@ export default function ProfessionalVerifyDrawer({
         <div className="min-h-0 flex-1 overflow-y-auto">
           {/* 아바타 */}
           <div className="flex justify-center pt-8 pb-6">
-            <div className="w-[130px] h-[130px] rounded-full overflow-hidden bg-gray-100">
-              {profileImageUrl ? (
-                <Image
-                  src={profileImageUrl}
-                  alt="프로필"
-                  width={130}
-                  height={130}
-                  className="w-[130px] h-[130px] object-cover"
-                  unoptimized
-                />
-              ) : (
-                <UserCircle size={130} className="text-gray-300" />
-              )}
+            <div className="relative">
+              <div className="w-[130px] h-[130px] rounded-full overflow-hidden bg-gray-100">
+                {profileImageUrl ? (
+                  <Image
+                    src={profileImageUrl}
+                    alt="프로필"
+                    width={130}
+                    height={130}
+                    className="w-[130px] h-[130px] object-cover"
+                    unoptimized
+                  />
+                ) : (
+                  <UserCircle size={130} className="text-gray-300" />
+                )}
+              </div>
+              <span className="absolute bottom-0 left-0 w-[48px] h-[48px] bg-yellow-400 rounded-full flex items-center justify-center shadow-sm border-4 border-white">
+                <Award size={28} className="text-white" />
+              </span>
             </div>
           </div>
 
