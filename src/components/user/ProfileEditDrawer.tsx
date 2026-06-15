@@ -357,7 +357,7 @@ export default function ProfileEditDrawer({ open, onClose, profile, mode = "norm
                   {getMemberTypeLabel(memberTypes[0])}
                 </span>
               )}
-              <span className="text-[14px] text-gray-500">{maskEmail(profile.email)}</span>
+              <span className="text-[14px] text-gray-500">{editMode === "professional" ? (profile.email ?? "") : maskEmail(profile.email)}</span>
             </div>
             {(editMode === "professional"
               ? ["memberType", "organization", "bio", "region", "genre"] as const
@@ -483,9 +483,9 @@ export default function ProfileEditDrawer({ open, onClose, profile, mode = "norm
                             }}
                             className={`px-3 py-1.5 rounded-full text-sm border transition-colors ${
                               isMain
-                                ? "bg-gray-800 border-gray-800 text-white"
+                                ? (editMode === "professional" ? "bg-[#1D9BF0] border-[#1D9BF0] text-white" : "bg-gray-800 border-gray-800 text-white")
                                 : active
-                                ? "bg-yellow-400 border-yellow-500 text-gray-900"
+                                ? (editMode === "professional" ? "bg-[#1D9BF0]/60 border-[#1D9BF0] text-white" : "bg-yellow-400 border-yellow-500 text-gray-900")
                                 : "bg-white border-gray-300 text-gray-700"
                             } ${restricted ? "opacity-40" : "hover:border-gray-400"}`}
                           >
