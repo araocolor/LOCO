@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { UserCircle, X, Settings, HeartHandshake, Star, SmilePlus, UsersRound, CreditCard, Megaphone, Headphones, FileText, ShieldCheck, ChevronRight, ReceiptText, Award } from "lucide-react";
@@ -8,10 +8,8 @@ import { createClient } from "@/lib/supabase/client";
 import { fetchWithAuthRetry } from "@/lib/auth/fetch-with-auth-retry";
 import { prefetchBoardPostsCache } from "@/lib/board-session-cache";
 import { parseBookmarkEntries } from "@/lib/bookmarks/local";
-import { REGIONS, MEMBER_TYPES } from "@/lib/constants";
-import { PROFILE_AVATAR_UPDATED_EVENT, PROFILE_EDIT_OPEN_EVENT, PROFESSIONAL_VERIFY_OPEN_EVENT } from "@/lib/profile-events";
+import { PROFILE_EDIT_OPEN_EVENT } from "@/lib/profile-events";
 import type { ProfileEditMode, ProfileEditOpenDetail } from "@/lib/profile-events";
-import AvatarCropModal from "./AvatarCropModal";
 import ProfileEditDrawer from "./ProfileEditDrawer";
 import { ClassImage } from "@/types/class";
 import Avatar from "@/components/ui/Avatar";
@@ -147,22 +145,29 @@ export default function MyPageClient({
   starGivers: initialStarGivers = [],
 }: Props) {
   const MY_PAGE_CACHE_KEY = "loco_mypage_cache_local_v3";
-  const FAVORITE_GENRE_OPTIONS = [
-    { value: "salsa", label: "살사" },
-    { value: "bachata", label: "바차타" },
-    { value: "kizomba", label: "키좀바" },
-    { value: "bachata_zouk", label: "쥬크" },
-  ] as const;
-  const MAX_FAVORITE_GENRE = 2;
-  const PRO_FIRST_TYPES = ["아카데미대표", "오거나이저", "클럽공식채널", "운영진", "인플루언서", "프로댄서"];
-  const PRO_MEMBER_TYPES = [...PRO_FIRST_TYPES, ...MEMBER_TYPES.filter((t) => !PRO_FIRST_TYPES.includes(t))];
   const router = useRouter();
   const [editOpen, setEditOpen] = useState(false);
   const [editMode, setEditMode] = useState<ProfileEditMode>("normal");
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(profile.profile_image_url);
-  const [avatarHdUrl, setAvatarHdUrl] = useState<string | null>(
-    profile.profile_image_url ? profile.profile_image_url.replace(/\.webp$/, "_hd.webp") : null
-  );
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(() => {
+    if (profile.profile_image_url) return profile.profile_image_url;
+    if (typeof window === "undefined") return null;
+    try {
+      const raw = localStorage.getItem(MY_PAGE_CACHE_KEY);
+      if (raw) return JSON.parse(raw)?.profile?.profile_image_url ?? null;
+    } catch {}
+    return null;
+  });
+  const [avatarHdUrl, setAvatarHdUrl] = useState<string | null>(() => {
+    const url = profile.profile_image_url ?? (() => {
+      if (typeof window === "undefined") return null;
+      try {
+        const raw = localStorage.getItem(MY_PAGE_CACHE_KEY);
+        if (raw) return JSON.parse(raw)?.profile?.profile_image_url ?? null;
+      } catch {}
+      return null;
+    })();
+    return url ? url.replace(/\.webp$/, "_hd.webp") : null;
+  });
   const [myClasses] = useState<GridClass[]>(initialMyClasses);
   const [bookmarkClasses, setBookmarkClasses] = useState<GridClass[]>([]);
   const [friendsCount, setFriendsCount] = useState<number>(socialCounts?.friends ?? 0);

@@ -35,7 +35,7 @@ import RefundPolicyContent from "@/components/legal/RefundPolicyContent";
 import PrivacyPolicyContent from "@/components/legal/PrivacyPolicyContent";
 import TermsOfServiceContent from "@/components/legal/TermsOfServiceContent";
 import ProfessionalVerifyDrawer from "./ProfessionalVerifyDrawer";
-import { PROFILE_EDIT_OPEN_EVENT, PROFESSIONAL_VERIFY_OPEN_EVENT } from "@/lib/profile-events";
+import { PROFESSIONAL_VERIFY_OPEN_EVENT } from "@/lib/profile-events";
 import ProfileEditDrawer from "@/components/user/ProfileEditDrawer";
 
 interface MyPageSettingsDrawerProps {
@@ -85,16 +85,18 @@ type DetailSectionRow = {
   disabled?: boolean;
 };
 
-function useSettingsProfile(): SettingsProfile | null {
-  const [profile] = useState<SettingsProfile | null>(() => {
-    if (typeof window === "undefined") return null;
+function useSettingsProfile(open: boolean): SettingsProfile | null {
+  const [profile, setProfile] = useState<SettingsProfile | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
     try {
       const raw = localStorage.getItem("loco_mypage_cache_local_v3");
       if (raw) {
         const parsed = JSON.parse(raw);
         const p = parsed?.profile;
         if (p?.nickname) {
-          return {
+          setProfile({
             id: p.id ?? "",
             nickname: p.nickname,
             email: p.email ?? null,
@@ -104,13 +106,11 @@ function useSettingsProfile(): SettingsProfile | null {
             region: p.region ?? null,
             favorite_genre: p.favorite_genre ?? [],
             member_type: p.member_type ?? [],
-          };
+          });
         }
       }
     } catch {}
-
-    return null;
-  });
+  }, [open]);
 
   return profile;
 }
@@ -128,7 +128,7 @@ export default function MyPageSettingsDrawer({ open, onClose }: MyPageSettingsDr
   const [purchaseOpen, setPurchaseOpen] = useState(false);
   const [purchaseTab, setPurchaseTab] = useState<PurchaseTab>("credit");
 
-  const settingsProfile = useSettingsProfile();
+  const settingsProfile = useSettingsProfile(open);
 
   const purchaseItems: PurchaseItem[] = [
     { id: "p1", name: "크레딧 100개 충전", imageUrl: null, unitPrice: 5000, quantity: 2, totalPrice: 10000, purchasedAt: "2026-06-08T14:30:00", category: "credit" },
