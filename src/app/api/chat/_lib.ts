@@ -33,6 +33,7 @@ export interface ChatProfileRow {
   id: string;
   nickname: string;
   profile_image_url: string | null;
+  nickname_changed_at: string | null;
 }
 
 export interface ChatMessageRow {
@@ -117,7 +118,7 @@ export async function getProfiles(userIds: string[]) {
   const admin = createAdminClient();
   const { data, error } = await admin
     .from("profiles")
-    .select("id, nickname, profile_image_url")
+    .select("id, nickname, profile_image_url, nickname_changed_at")
     .in("id", ids)
     .returns<ChatProfileRow[]>();
 

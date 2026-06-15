@@ -8,6 +8,7 @@ export interface ChatMemberProfile {
   profileImageUrl: string | null;
   role: "owner" | "admin" | "member";
   createdAt: string | null;
+  nicknameChangedAt: string | null;
   order: number;
 }
 
@@ -33,24 +34,33 @@ export default function MemberGrid({
       ) : (
         <div className="h-full min-h-full px-4 py-5">
           <div className="grid grid-cols-5 gap-x-4 gap-y-5">
-            {members.map((member) => (
-              <button
-                key={member.userId}
-                type="button"
-                onClick={() => onAvatarClick(member.userId)}
-                className="flex flex-col items-center gap-2"
-              >
-                <Avatar
-                  src={member.profileImageUrl}
-                  nickname={member.nickname}
-                  size={50}
-                  className={member.role === "owner" ? "border-2 border-white shadow-[0_0_0_2px_#ef4444]" : ""}
-                />
-                <span className="w-full truncate text-center text-[12px] font-medium text-black">
-                  {member.nickname}
-                </span>
-              </button>
-            ))}
+            {members.map((member) => {
+              const recentlyChanged = member.nicknameChangedAt
+                && (Date.now() - new Date(member.nicknameChangedAt).getTime()) < 7 * 24 * 60 * 60 * 1000;
+              return (
+                <button
+                  key={member.userId}
+                  type="button"
+                  onClick={() => onAvatarClick(member.userId)}
+                  className="flex flex-col items-center gap-2"
+                >
+                  <span className="relative">
+                    <Avatar
+                      src={member.profileImageUrl}
+                      nickname={member.nickname}
+                      size={50}
+                      className={member.role === "owner" ? "border-2 border-white shadow-[0_0_0_2px_#ef4444]" : ""}
+                    />
+                    {recentlyChanged && (
+                      <span className="absolute top-0 right-0 w-3 h-3 rounded-full bg-red-500 border-2 border-white" />
+                    )}
+                  </span>
+                  <span className="w-full truncate text-center text-[12px] font-medium text-black">
+                    {member.nickname}
+                  </span>
+                </button>
+              );
+            })}
           </div>
           {canAddMembers && (
             <div className="absolute inset-x-0 bottom-10 flex justify-center">

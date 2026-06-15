@@ -13,9 +13,13 @@ import {
   Eye,
   FileText,
   Heart,
+  KeyRound,
   Lock,
+  LogOut,
+  Mail,
   MapPin,
   MessageCircle,
+  Pencil,
   ReceiptText,
   ShieldCheck,
   Users,
@@ -63,7 +67,8 @@ type DetailSettingId =
   | "messageFriends"
   | "messagePrivate"
   | "friendAlert"
-  | "locationConsent";
+  | "locationConsent"
+  | "loginInfo";
 
 type DetailSectionRow = {
   icon: React.ReactNode;
@@ -292,6 +297,8 @@ export default function MyPageSettingsDrawer({ open, onClose }: MyPageSettingsDr
                       onClassPrivacy={setClassPrivacy}
                       messagePrivacy={messagePrivacy}
                       onMessagePrivacy={setMessagePrivacy}
+                      profile={settingsProfile}
+                      onClose={closeSettings}
                     />
                   </div>
                 </>
@@ -562,6 +569,16 @@ function GeneralSettings({
           onClick={onOpenPrivacy}
         />
       </div>
+
+      {/* 로그인 정보 */}
+      <div className="pt-6" />
+      <div className="bg-white rounded-xl overflow-hidden">
+        <SettingsLinkRow
+          icon={<KeyRound size={20} />}
+          label="아이디 수정"
+          onClick={() => onOpenDetail("loginInfo")}
+        />
+      </div>
     </div>
   );
 }
@@ -574,6 +591,8 @@ function DetailSettings({
   onClassPrivacy,
   messagePrivacy,
   onMessagePrivacy,
+  profile,
+  onClose,
 }: {
   detailId: DetailSettingId;
   toggles: Record<string, boolean>;
@@ -582,7 +601,19 @@ function DetailSettings({
   onClassPrivacy: (value: string) => void;
   messagePrivacy: string;
   onMessagePrivacy: (value: string) => void;
+  profile: SettingsProfile | null;
+  onClose: () => void;
 }) {
+  if (detailId === "loginInfo") {
+    return (
+      <LoginInfoDetail
+        nickname={profile?.nickname ?? null}
+        email={profile?.email ?? null}
+        onClose={onClose}
+      />
+    );
+  }
+
   const detail = getDetailSetting({
     detailId,
     toggles,
@@ -592,6 +623,8 @@ function DetailSettings({
     messagePrivacy,
     onMessagePrivacy,
   });
+
+  if (!detail) return null;
 
   return (
     <div className="px-4 pt-3 pb-10">
@@ -750,6 +783,128 @@ function SettingsLinkRow({
       <span className={`${icon ? "ml-3" : "ml-[32px]"} flex-1 text-left text-[17px] text-[#333]`}>{label}</span>
       <ChevronRight size={20} strokeWidth={2.8} className="text-gray-500" />
     </button>
+  );
+}
+
+function LoginInfoDetail({
+  nickname,
+  onClose,
+}: {
+  nickname: string | null;
+  email: string | null;
+  onClose: () => void;
+}) {
+  const [modalOpen, setModalOpen] = useState(false);
+  const [newNickname, setNewNickname] = useState(nickname ?? "");
+  const [saving, setSaving] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  function handleLogout() {
+    onClose();
+    window.location.href = "/logout";
+  }
+
+  async function handleChangeNickname() {
+    const trimmed = newNickname.trim();
+    if (!trimmed || trimmed === nickname) {
+      setErrorMsg(trimmed === nickname ? "현재 아이디와 동일합니다." : "아이디를 입력해주세요.");
+      return;
+    }
+    setSaving(true);
+    setErrorMsg(null);
+    try {
+      const res = await fetch("/api/users/nickname", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nickname: trimmed }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setErrorMsg(data.message ?? "변경에 실패했습니다.");
+        return;
+      }
+      setModalOpen(false);
+      onClose();
+      window.location.href = "/logout";
+    } catch {
+      setErrorMsg("네트워크 오류가 발생했습니다.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <>
+      <div className="px-4 pt-3 pb-10">
+        <div className="bg-white rounded-xl p-4">
+          <p className="text-[18px] font-bold text-[#333]">로그인 정보</p>
+          <p className="pt-2 text-[15px] leading-[1.6] text-gray-500">
+            로그인은 이메일 방식으로 인증을 합니다.{"\n"}
+            아이디는 1개월에 한번만 수정할 수 있습니다.
+          </p>
+        </div>
+
+        <div className="pt-6" />
+        <div className="bg-white rounded-xl overflow-hidden">
+          <button
+            type="button"
+            onClick={() => { setNewNickname(nickname ?? ""); setErrorMsg(null); setModalOpen(true); }}
+            className="flex w-full items-center px-4 py-3.5 active:bg-gray-50"
+          >
+            <span className="text-[#333]"><Pencil size={20} /></span>
+            <span className="ml-3 flex-1 text-left text-[17px] text-[#333]">아이디 수정</span>
+            <span className="text-[15px] text-gray-400 mr-2">{nickname ?? ""}</span>
+            <ChevronRight size={20} strokeWidth={2.8} className="text-gray-500" />
+          </button>
+          <div className="h-[1px] bg-gray-100 mx-4" />
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="flex w-full items-center px-4 py-3.5 active:bg-gray-50"
+          >
+            <span className="text-[#333]"><LogOut size={20} /></span>
+            <span className="ml-3 flex-1 text-left text-[17px] text-red-500">로그아웃</span>
+          </button>
+        </div>
+      </div>
+
+      {modalOpen && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setModalOpen(false)} />
+          <div className="relative bg-white rounded-2xl w-[85%] max-w-[340px] p-6">
+            <p className="text-[18px] font-bold text-[#333] text-center">아이디 수정</p>
+            <p className="pt-2 text-[14px] text-gray-400 text-center">새로운 아이디를 입력해주세요</p>
+            <input
+              type="text"
+              value={newNickname}
+              onChange={(e) => { setNewNickname(e.target.value); setErrorMsg(null); }}
+              placeholder="아이디"
+              className="mt-4 w-full rounded-lg border border-gray-200 px-4 py-3 text-[16px] text-[#333] outline-none focus:border-gray-400"
+            />
+            {errorMsg && (
+              <p className="mt-2 text-[13px] text-red-500">{errorMsg}</p>
+            )}
+            <div className="mt-5 flex gap-3">
+              <button
+                type="button"
+                onClick={() => setModalOpen(false)}
+                className="flex-1 rounded-lg bg-gray-100 py-3 text-[16px] font-semibold text-gray-500"
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                onClick={handleChangeNickname}
+                disabled={saving}
+                className="flex-1 rounded-lg bg-black py-3 text-[16px] font-semibold text-white disabled:opacity-50"
+              >
+                {saving ? "변경 중..." : "변경"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 

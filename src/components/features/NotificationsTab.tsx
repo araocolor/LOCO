@@ -108,6 +108,15 @@ function formatMessage(item: NotificationItem): React.ReactNode {
           <b className="text-[16px]">{creditAmount}</b>회 충전을 발급하였습니다.
         </>
       );
+    case "nickname_changed": {
+      const newNick = typeof meta.new_nickname === "string" ? meta.new_nickname : "";
+      return (
+        <>
+          <b className="text-[16px]">{nickname}</b>님이 아이디를{" "}
+          <b className="text-[16px]">{newNick}</b>로 변경하였습니다.
+        </>
+      );
+    }
     default:
       return "알림";
   }

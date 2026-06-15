@@ -211,6 +211,7 @@ export default function ChatDrawer({
         profileImageUrl: member.profile?.profile_image_url ?? null,
         role: member.role,
         createdAt: member.created_at ?? null,
+        nicknameChangedAt: member.profile?.nickname_changed_at ?? null,
         order: unique.size,
       });
     });

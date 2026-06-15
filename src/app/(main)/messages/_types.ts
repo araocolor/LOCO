@@ -80,6 +80,7 @@ export interface OtherUser {
   id: string;
   nickname: string;
   profile_image_url: string | null;
+  nickname_changed_at?: string | null;
 }
 
 export interface MyProfile {

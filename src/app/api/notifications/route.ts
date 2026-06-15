@@ -9,7 +9,7 @@ const NOTIFICATION_TYPES_BY_TAB: Record<NotificationTab, string[]> = {
   class: ["friend_class_created", "star_gift_received", "class_application"],
   comment: ["class_comment", "comment_reply"],
   heart: ["class_like"],
-  other: ["pre_charge_issued"],
+  other: ["pre_charge_issued", "nickname_changed"],
 };
 
 function getNotificationTab(value: string | null): NotificationTab {

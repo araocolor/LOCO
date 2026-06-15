@@ -115,6 +115,22 @@ export default function ChatTimeline({
           ) : null;
 
           if (item.kind === "msg") {
+            if (item.msg.kind === "system") {
+              prevMsgItem = null;
+              return (
+                <React.Fragment key={`m-${item.msg.id}`}>
+                  {dateSeparator}
+                  <div className="flex items-center justify-center my-2 gap-2">
+                    <span className="px-4 py-1 rounded-full bg-black/20 text-white text-xs font-medium backdrop-blur-sm">
+                      {item.msg.content}
+                    </span>
+                    <span className="text-[10px] text-white/70 whitespace-nowrap">
+                      {formatTime(item.msg.sent_at)}
+                    </span>
+                  </div>
+                </React.Fragment>
+              );
+            }
             const prev = prevMsgItem;
             if (showDateSeparator) prevMsgItem = null;
             else prevMsgItem = item.msg;
