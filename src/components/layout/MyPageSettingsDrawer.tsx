@@ -36,6 +36,7 @@ import PrivacyPolicyContent from "@/components/legal/PrivacyPolicyContent";
 import TermsOfServiceContent from "@/components/legal/TermsOfServiceContent";
 import ProfessionalVerifyDrawer from "./ProfessionalVerifyDrawer";
 import { PROFILE_EDIT_OPEN_EVENT, PROFESSIONAL_VERIFY_OPEN_EVENT } from "@/lib/profile-events";
+import ProfileEditDrawer from "@/components/user/ProfileEditDrawer";
 
 interface MyPageSettingsDrawerProps {
   open: boolean;
@@ -43,9 +44,15 @@ interface MyPageSettingsDrawerProps {
 }
 
 interface SettingsProfile {
+  id: string;
   nickname: string;
   email: string | null;
   profile_image_url: string | null;
+  bio: string | null;
+  country: string | null;
+  region: string | null;
+  favorite_genre: string[];
+  member_type: string[];
 }
 
 type DetailSettingId =
@@ -88,9 +95,15 @@ function useSettingsProfile(): SettingsProfile | null {
         const p = parsed?.profile;
         if (p?.nickname) {
           return {
+            id: p.id ?? "",
             nickname: p.nickname,
             email: p.email ?? null,
             profile_image_url: p.profile_image_url ?? null,
+            bio: p.bio ?? null,
+            country: p.country ?? null,
+            region: p.region ?? null,
+            favorite_genre: p.favorite_genre ?? [],
+            member_type: p.member_type ?? [],
           };
         }
       }
@@ -111,6 +124,7 @@ export default function MyPageSettingsDrawer({ open, onClose }: MyPageSettingsDr
   const [privacyOpen, setPrivacyOpen] = useState(false);
   const [termsOpen, setTermsOpen] = useState(false);
   const [verifyOpen, setVerifyOpen] = useState(false);
+  const [profileEditOpen, setProfileEditOpen] = useState(false);
   const [purchaseOpen, setPurchaseOpen] = useState(false);
   const [purchaseTab, setPurchaseTab] = useState<PurchaseTab>("credit");
 
@@ -228,8 +242,7 @@ export default function MyPageSettingsDrawer({ open, onClose }: MyPageSettingsDr
   }
 
   function openProfileEdit() {
-    closeSettings();
-    window.dispatchEvent(new Event(PROFILE_EDIT_OPEN_EVENT));
+    setProfileEditOpen(true);
   }
 
   return (
@@ -332,6 +345,14 @@ export default function MyPageSettingsDrawer({ open, onClose }: MyPageSettingsDr
         items={purchaseItems}
         initialTab={purchaseTab}
       />
+
+      {settingsProfile && (
+        <ProfileEditDrawer
+          open={profileEditOpen}
+          onClose={() => setProfileEditOpen(false)}
+          profile={settingsProfile}
+        />
+      )}
     </>
   );
 }
