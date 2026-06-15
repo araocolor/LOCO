@@ -473,7 +473,7 @@ export default function ChatDrawer({
 
         <div
           className={`absolute inset-0 chat-drawer-scroll overflow-y-auto px-0 py-0 ${displayedActiveTab === "members" ? "" : "invisible pointer-events-none"}`}
-          style={{ backgroundColor: contentBackgroundColor }}
+          style={chatBgStyle}
         >
           <MemberGrid
             canAddMembers={canAddMembers}
@@ -485,7 +485,7 @@ export default function ChatDrawer({
 
         <div
           className={`absolute inset-0 chat-drawer-scroll overflow-y-auto px-4 py-5 ${displayedActiveTab === "class" ? "" : "invisible pointer-events-none"}`}
-          style={{ backgroundColor: contentBackgroundColor }}
+          style={chatBgStyle}
         >
           <ClassNoticePanel
             canWriteClassNotice={canWriteClassNotice}
@@ -509,7 +509,7 @@ export default function ChatDrawer({
 
         <div
           className={`absolute inset-0 chat-drawer-scroll overflow-y-auto px-4 py-4 ${displayedActiveTab === "archive" ? "" : "invisible pointer-events-none"}`}
-          style={{ backgroundColor: contentBackgroundColor }}
+          style={chatBgStyle}
         >
           <ArchiveGrid items={archiveItems} />
         </div>
