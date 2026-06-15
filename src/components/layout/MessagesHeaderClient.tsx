@@ -1,12 +1,10 @@
 "use client";
 
-import { useEffect, useState, useSyncExternalStore } from "react";
-import { MessageCirclePlus } from "lucide-react";
-import Avatar from "@/components/ui/Avatar";
+import { useState, useSyncExternalStore } from "react";
+import { MessageCirclePlus, Settings } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
-import { createClient } from "@/lib/supabase/client";
-import { replaceMainTab } from "@/lib/main-tab";
 import { getChatUnreadByType, subscribeChatUnread } from "@/lib/unread-store";
+import MyPageSettingsDrawer from "./MyPageSettingsDrawer";
 import type { MessageMenuTab } from "@/app/(main)/messages/_types";
 
 const MSG_TAB_EVENT = "loco-message-tab-change";
@@ -31,43 +29,24 @@ const TAB_LABELS: Record<MessageMenuTab, string> = {
 
 export default function MessagesHeaderClient() {
   const { user } = useAuth();
-  const [nickname, setNickname] = useState("me");
-  const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const activeMenuTab = useSyncExternalStore(subscribeMsgTab, getMsgTab, () => "friends" as const);
   const chatUnreadByType = useSyncExternalStore(subscribeChatUnread, getChatUnreadByType, () => ({ direct: 0, group: 0, class: 0 }));
 
-  useEffect(() => {
-    if (!user) {
-      setNickname("me");
-      setProfileImageUrl(null);
-      return;
-    }
-    const supabase = createClient();
-    supabase
-      .from("profiles")
-      .select("nickname, profile_image_url")
-      .eq("id", user.id)
-      .single()
-      .then(({ data }) => {
-        if (!data) return;
-        setNickname(data.nickname ?? "me");
-        setProfileImageUrl(data.profile_image_url ?? null);
-      });
-  }, [user]);
-
   return (
+    <>
     <header className="sticky top-0 z-50 bg-white border-b border-[#e5e7eb]">
       <div className="relative h-14 px-4 flex items-center">
         <div className="font-black text-[22px] text-[#4d4d4d] leading-none">
           채팅
         </div>
-        {user && profileImageUrl && (
+        {user && (
           <button
             type="button"
-            className="absolute right-4"
-            onClick={() => replaceMainTab("mypage")}
+            className="absolute right-4 h-12 w-12 -mr-2 flex items-center justify-center text-gray-700"
+            onClick={() => setSettingsOpen(true)}
           >
-            <Avatar src={profileImageUrl} nickname={nickname} size={28} />
+            <Settings size={22} strokeWidth={2.2} />
           </button>
         )}
       </div>
@@ -99,5 +78,11 @@ export default function MessagesHeaderClient() {
         </button>
       </div>
     </header>
+
+    <MyPageSettingsDrawer
+      open={settingsOpen}
+      onClose={() => setSettingsOpen(false)}
+    />
+    </>
   );
 }

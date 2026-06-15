@@ -98,6 +98,8 @@ function useSettingsProfile(): SettingsProfile | null {
 }
 
 export default function MyPageSettingsDrawer({ open, onClose }: MyPageSettingsDrawerProps) {
+  const [visible, setVisible] = useState(false);
+  const [animateIn, setAnimateIn] = useState(false);
   const [detailId, setDetailId] = useState<DetailSettingId | null>(null);
   const detailScrollRef = useRef<HTMLDivElement>(null);
   const [refundOpen, setRefundOpen] = useState(false);
@@ -202,6 +204,19 @@ export default function MyPageSettingsDrawer({ open, onClose }: MyPageSettingsDr
     });
   }
 
+  useEffect(() => {
+    if (open) {
+      setVisible(true);
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => setAnimateIn(true));
+      });
+    } else {
+      setAnimateIn(false);
+      const timer = setTimeout(() => setVisible(false), 300);
+      return () => clearTimeout(timer);
+    }
+  }, [open]);
+
   function closeSettings() {
     setDetailId(null);
     onClose();
@@ -214,17 +229,17 @@ export default function MyPageSettingsDrawer({ open, onClose }: MyPageSettingsDr
 
   return (
     <>
-      {open ? (
+      {visible ? (
         <>
           {/* 배경 오버레이 */}
           <div
-            className="fixed inset-0 z-[150] bg-black/40 transition-opacity duration-300"
+            className={`fixed inset-0 z-[150] bg-black/40 transition-opacity duration-300 ${animateIn ? "opacity-100" : "opacity-0"}`}
             onClick={closeSettings}
           />
 
           {/* 슬라이드 시트 */}
           <div
-            className="fixed top-0 left-0 h-full w-full bg-[#f2f2f7] z-[200] flex flex-col transition-transform duration-300 ease-in-out translate-x-0"
+            className={`fixed top-0 left-0 h-full w-full bg-[#f2f2f7] z-[200] flex flex-col transition-transform duration-300 ease-in-out ${animateIn ? "translate-x-0" : "translate-x-full"}`}
             style={{ paddingTop: "env(safe-area-inset-top)" }}
           >
             <div className="relative flex-shrink-0 px-4 pt-3 pb-3">

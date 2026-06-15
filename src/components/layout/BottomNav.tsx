@@ -7,6 +7,7 @@ import { useAuth } from "@/lib/auth-context";
 import { prefetchNotifications } from "@/lib/notification-cache";
 import { createClient } from "@/lib/supabase/client";
 import { playSound } from "@/lib/sound";
+import Avatar from "@/components/ui/Avatar";
 import {
   getChatUnread,
   getNotificationUnread,
@@ -105,6 +106,8 @@ export default function BottomNav() {
   const pathname = usePathname();
   const [hydrated, setHydrated] = useState(false);
   const [homeSubTab, setHomeSubTab] = useState<HomeSubTab>("allClasses");
+  const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null);
+  const [nickname, setNickname] = useState("me");
   const loginUnreadSoundPlayedUserRef = useRef<string | null>(null);
   const { user } = useAuth();
   const activeTab = useSyncExternalStore(subscribeMainTab, getMainTab, () => "home" as const);
@@ -128,6 +131,25 @@ export default function BottomNav() {
     window.addEventListener(HOME_SUBTAB_CHANGE_EVENT, handleHomeSubTabChange);
     return () => window.removeEventListener(HOME_SUBTAB_CHANGE_EVENT, handleHomeSubTabChange);
   }, []);
+
+  useEffect(() => {
+    if (!user?.id) {
+      setProfileImageUrl(null);
+      setNickname("me");
+      return;
+    }
+    const supabase = createClient();
+    supabase
+      .from("profiles")
+      .select("nickname, profile_image_url")
+      .eq("id", user.id)
+      .single()
+      .then(({ data }) => {
+        if (!data) return;
+        setNickname(data.nickname ?? "me");
+        setProfileImageUrl(data.profile_image_url ?? null);
+      });
+  }, [user?.id]);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -194,7 +216,11 @@ export default function BottomNav() {
             style={isActive ? { color: activeColor } : undefined}
           >
             <span className="relative">
-              {renderIcon(isActive)}
+              {tabId === "mypage" && !isActive && user && profileImageUrl ? (
+                <Avatar src={profileImageUrl} nickname={nickname} size={30} />
+              ) : (
+                renderIcon(isActive)
+              )}
               {tabId === "messages" && chatUnread > 0 && (
                 <BadgeDot count={chatUnread} color="red" />
               )}
