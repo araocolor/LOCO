@@ -561,3 +561,8 @@ body {
   from { transform: translateY(-60px); opacity: 0; }
   to { transform: translateY(0); opacity: 1; }
 }
+
+@keyframes breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.06); }
+}

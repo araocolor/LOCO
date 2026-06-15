@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { UserCircle, X, Award } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { fetchWithAuthRetry } from "@/lib/auth/fetch-with-auth-retry";
 import { REGIONS, MEMBER_TYPES } from "@/lib/constants";
 import { PROFILE_AVATAR_UPDATED_EVENT, PROFESSIONAL_VERIFY_OPEN_EVENT } from "@/lib/profile-events";
 import type { ProfileEditMode } from "@/lib/profile-events";
@@ -233,6 +234,22 @@ export default function ProfileEditDrawer({ open, onClose, profile, mode = "norm
           org_name: organizationName.trim() || null,
         })
         .eq("id", profile.id);
+
+      if (editMode === "professional") {
+        const res = await fetchWithAuthRetry("/api/mypage/upgrade-role", { method: "POST" });
+        if (res.ok) {
+          try {
+            const raw = localStorage.getItem(MY_PAGE_CACHE_KEY);
+            if (raw) {
+              const parsed = JSON.parse(raw);
+              if (parsed.profile) {
+                parsed.profile.role = "pro";
+                localStorage.setItem(MY_PAGE_CACHE_KEY, JSON.stringify(parsed));
+              }
+            }
+          } catch {}
+        }
+      }
 
       if (error) throw error;
 
@@ -496,7 +513,7 @@ export default function ProfileEditDrawer({ open, onClose, profile, mode = "norm
               취소
             </button>
             <button
-              onClick={() => { if (hasChange) handleSaveProfile(); else onClose(); }}
+              onClick={() => { if (editMode === "professional" || hasChange) handleSaveProfile(); else onClose(); }}
               disabled={saving}
               className="px-4 py-2 bg-yellow-400 text-gray-900 font-medium rounded-lg hover:bg-yellow-500 transition-colors text-sm disabled:opacity-60"
             >

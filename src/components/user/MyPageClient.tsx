@@ -12,6 +12,7 @@ import { PROFILE_EDIT_OPEN_EVENT } from "@/lib/profile-events";
 import type { ProfileEditMode, ProfileEditOpenDetail } from "@/lib/profile-events";
 import ProfileEditDrawer from "./ProfileEditDrawer";
 import { ClassImage } from "@/types/class";
+import { RiVerifiedBadgeFill } from "react-icons/ri";
 import Avatar from "@/components/ui/Avatar";
 import type { StarGiver } from "@/types/user";
 import UserProfileModal from "./UserProfileModal";
@@ -108,6 +109,7 @@ interface Profile {
   member_type: string[];
   profile_image_url: string | null;
   org_name: string | null;
+  role?: string;
   received_star_count?: number;
   star_balance?: number;
 }
@@ -407,7 +409,10 @@ export default function MyPageClient({
             </div>
           </div>
           {/* 2행~: 닉네임, 이메일, 자기소개 */}
-          <span className="text-[17px] font-bold text-[#333333]">{profile.nickname}</span>
+          <span className="flex items-center gap-1">
+            <span className="text-[17px] font-bold text-[#333333]">{profile.nickname}</span>
+            {profile.role === "pro" && <RiVerifiedBadgeFill size={18} color="#1D9BF0" />}
+          </span>
           {profile.member_type?.[0] && (
             <span className="px-2.5 py-0 rounded-full bg-gray-800 text-white text-[13px] self-start">
               {getMemberTypeLabel(profile.member_type[0])}
@@ -415,11 +420,6 @@ export default function MyPageClient({
           )}
           <span className="text-[14px] text-gray-400 -mt-1">
             {profile.email ?? ""}
-            {" "}
-            <span className="inline-flex items-center gap-1 text-[13px] text-gray-400 align-middle">
-              <Star size={13} className="text-yellow-500" fill="currentColor" />
-              {starBalance}개 남음
-            </span>
           </span>
           {profile.bio && (
             <span className="text-[16px] w-[80%] mt-2" style={{ color: "#000000cc" }}>{profile.bio}</span>

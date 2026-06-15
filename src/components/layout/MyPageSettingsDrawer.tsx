@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import Image from "next/image";
 import {
   Award,
@@ -90,7 +91,7 @@ type DetailSectionRow = {
   disabled?: boolean;
 };
 
-function useSettingsProfile(open: boolean): SettingsProfile | null {
+function useSettingsProfile(open: boolean, refreshKey?: number): SettingsProfile | null {
   const [profile, setProfile] = useState<SettingsProfile | null>(null);
 
   useEffect(() => {
@@ -117,8 +118,8 @@ function useSettingsProfile(open: boolean): SettingsProfile | null {
           });
         }
       }
-    } catch {}
-  }, [open]);
+    } catch {};
+  }, [open, refreshKey]);
 
   return profile;
 }
@@ -145,8 +146,9 @@ export default function MyPageSettingsDrawer({ open, onClose }: MyPageSettingsDr
   const [profileEditOpen, setProfileEditOpen] = useState(false);
   const [purchaseOpen, setPurchaseOpen] = useState(false);
   const [purchaseTab, setPurchaseTab] = useState<PurchaseTab>("credit");
+  const [profileRefreshKey, setProfileRefreshKey] = useState(0);
 
-  const settingsProfile = useSettingsProfile(open);
+  const settingsProfile = useSettingsProfile(open, profileRefreshKey);
 
   const purchaseItems: PurchaseItem[] = [
     { id: "p1", name: "크레딧 100개 충전", imageUrl: null, unitPrice: 5000, quantity: 2, totalPrice: 10000, purchasedAt: "2026-06-08T14:30:00", category: "credit" },
@@ -254,9 +256,12 @@ export default function MyPageSettingsDrawer({ open, onClose }: MyPageSettingsDr
     }
   }, [open]);
 
+  const router = useRouter();
+
   function closeSettings() {
     setDetailId(null);
     onClose();
+    router.refresh();
   }
 
   function openProfileEdit() {
@@ -367,7 +372,7 @@ export default function MyPageSettingsDrawer({ open, onClose }: MyPageSettingsDr
       {settingsProfile && (
         <ProfileEditDrawer
           open={profileEditOpen}
-          onClose={() => setProfileEditOpen(false)}
+          onClose={() => { setProfileEditOpen(false); setProfileRefreshKey((k) => k + 1); }}
           profile={settingsProfile}
           mode={settingsProfile.role === "pro" ? "professional" : "normal"}
         />
