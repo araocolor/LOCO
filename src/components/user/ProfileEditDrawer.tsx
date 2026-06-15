@@ -3,7 +3,8 @@
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { UserCircle, X, Award } from "lucide-react";
+import { UserCircle, X } from "lucide-react";
+import { RiVerifiedBadgeFill } from "react-icons/ri";
 import { createClient } from "@/lib/supabase/client";
 import { fetchWithAuthRetry } from "@/lib/auth/fetch-with-auth-retry";
 import { REGIONS, MEMBER_TYPES } from "@/lib/constants";
@@ -317,7 +318,7 @@ export default function ProfileEditDrawer({ open, onClose, profile, mode = "norm
               ? slideIn ? "translate-x-0 opacity-100" : "translate-x-full opacity-0"
               : ""
           }`}>
-            <div className="flex flex-col items-center mb-6">
+            <div className="flex flex-col items-center mb-6 mt-1">
               <input
                 ref={fileInputRef}
                 type="file"
@@ -327,7 +328,7 @@ export default function ProfileEditDrawer({ open, onClose, profile, mode = "norm
               />
               <button
                 onClick={handleAvatarClick}
-                className="relative flex-shrink-0 mb-2 hover:opacity-80 transition-opacity cursor-pointer"
+                className={`relative flex-shrink-0 mb-2 hover:opacity-80 transition-opacity cursor-pointer rounded-full${editMode === "professional" ? " border border-white outline outline-2 outline-[#1D9BF0]" : ""}`}
               >
                 {avatarUrl ? (
                   <Image
@@ -341,22 +342,18 @@ export default function ProfileEditDrawer({ open, onClose, profile, mode = "norm
                 ) : (
                   <UserCircle size={70} className="text-gray-400" />
                 )}
-                {editMode === "professional" && (
-                  <span className="absolute bottom-0 left-0 w-[26px] h-[26px] bg-yellow-400 rounded-full flex items-center justify-center shadow-sm border-2 border-white">
-                    <Award size={15} className="text-white" />
-                  </span>
-                )}
                 {uploading && (
                   <span className="absolute text-[10px] text-white bg-black/60 px-2 py-0.5 rounded mt-1">
                     업로드 중
                   </span>
                 )}
               </button>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1">
                 <span className="text-base font-semibold text-gray-900">{profile.nickname}</span>
+                {editMode === "professional" && <RiVerifiedBadgeFill size={18} color="#1D9BF0" />}
               </div>
               {memberTypes[0] && (
-                <span className="px-2.5 py-0 rounded-full bg-gray-800 text-[13px]" style={{ color: "rgba(255,255,255,0.9)" }}>
+                <span className={`px-2.5 py-0 rounded-full text-[13px] ${editMode === "professional" ? "bg-[#1D9BF0] text-white" : "bg-gray-800 text-white/90"}`}>
                   {getMemberTypeLabel(memberTypes[0])}
                 </span>
               )}

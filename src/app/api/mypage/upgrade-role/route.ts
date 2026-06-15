@@ -29,7 +29,8 @@ export async function POST() {
     .eq("id", user.id);
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("role upgrade failed:", error.message);
+    return NextResponse.json({ error: "역할 변경에 실패했습니다" }, { status: 500 });
   }
 
   return NextResponse.json({ ok: true });

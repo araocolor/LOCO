@@ -84,7 +84,7 @@ export default function ProfessionalVerifyDrawer({
           {/* 아바타 */}
           <div className="flex justify-center pt-8 pb-6">
             <div className="relative animate-[breathe_3s_ease-in-out_infinite]">
-              <div className="w-[130px] h-[130px] rounded-full overflow-hidden bg-gray-100">
+              <div className="w-[130px] h-[130px] rounded-full overflow-hidden bg-gray-100 border border-white outline outline-2 outline-[#1D9BF0]">
                 {profileImageUrl ? (
                   <Image
                     src={profileImageUrl}

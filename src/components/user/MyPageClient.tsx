@@ -370,7 +370,7 @@ export default function MyPageClient({
                       alt="프로필"
                       width={60}
                       height={60}
-                      className="rounded-full object-cover w-[60px] h-[60px]"
+                      className={`rounded-full object-cover w-[60px] h-[60px]${profile.role === "pro" ? " border border-white outline outline-2 outline-[#1D9BF0]" : ""}`}
                       unoptimized
                     />
                   ) : (
@@ -414,7 +414,7 @@ export default function MyPageClient({
             {profile.role === "pro" && <RiVerifiedBadgeFill size={18} color="#1D9BF0" />}
           </span>
           {profile.member_type?.[0] && (
-            <span className="px-2.5 py-0 rounded-full bg-gray-800 text-white text-[13px] self-start">
+            <span className={`px-2.5 py-0 rounded-full text-[13px] self-start ${profile.role === "pro" ? "bg-[#1D9BF0] text-white" : "bg-gray-800 text-white"}`}>
               {getMemberTypeLabel(profile.member_type[0])}
             </span>
           )}

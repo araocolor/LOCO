@@ -154,7 +154,7 @@ export default function AvatarCropModal({ imageSrc, onCancel, onConfirm }: Props
 
   if (!img) {
     return (
-      <div className="fixed inset-0 z-[100] bg-black/50 flex items-center justify-center">
+      <div className="fixed inset-0 z-[270] bg-black/50 flex items-center justify-center">
         <div className="text-white text-sm">이미지 로딩 중...</div>
       </div>
     );
@@ -163,7 +163,7 @@ export default function AvatarCropModal({ imageSrc, onCancel, onConfirm }: Props
   const baseScale = Math.max(CIRCLE / img.width, CIRCLE / img.height);
 
   return (
-    <div className="fixed inset-0 z-[100] bg-black/60 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[270] bg-black/60 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl overflow-hidden flex flex-col" style={{ width: FRAME_W }}>
         <div className="flex items-center justify-between px-3 py-1.5 border-b">
           <span className="text-xs font-semibold">사진 편집</span>

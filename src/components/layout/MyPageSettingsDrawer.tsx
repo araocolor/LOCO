@@ -411,7 +411,7 @@ function GeneralSettings({
       <div className="bg-white rounded-xl overflow-hidden">
 
         <button type="button" onClick={onOpenProfileEdit} className="flex items-center w-full px-4 py-3 active:bg-gray-50">
-          <div className="w-[60px] h-[60px] rounded-full overflow-hidden flex-shrink-0 bg-gray-100">
+          <div className={`w-[60px] h-[60px] rounded-full overflow-hidden flex-shrink-0 bg-gray-100${profile?.role === "pro" ? " border border-white outline outline-2 outline-[#1D9BF0]" : ""}`}>
             {profile?.profile_image_url ? (
               <Image
                 src={profile.profile_image_url}
