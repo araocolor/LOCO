@@ -22,6 +22,7 @@ import {
   Pencil,
   ReceiptText,
   ShieldCheck,
+  Star,
   Users,
   UserCircle,
   Volume2,
@@ -46,6 +47,7 @@ interface MyPageSettingsDrawerProps {
 interface SettingsProfile {
   id: string;
   nickname: string;
+  nickname_changed_at: string | null;
   email: string | null;
   role: "member" | "pro" | "admin";
   profile_image_url: string | null;
@@ -77,14 +79,8 @@ type DetailSettingId =
   | "messagePrivate"
   | "friendAlert"
   | "locationConsent"
-  | "loginInfo";
-
-function maskEmail(email: string | null) {
-  if (!email) return "";
-  const [local, domain] = email.split("@");
-  if (!domain) return `${local.slice(0, 3)}****`;
-  return `${local.slice(0, 3)}****@${domain}`;
-}
+  | "loginInfo"
+  | "accountDelete";
 
 type DetailSectionRow = {
   icon: React.ReactNode;
@@ -108,6 +104,7 @@ function useSettingsProfile(open: boolean): SettingsProfile | null {
           setProfile({
             id: p.id ?? "",
             nickname: p.nickname,
+            nickname_changed_at: p.nickname_changed_at ?? null,
             email: p.email ?? null,
             role: p.role ?? "member",
             profile_image_url: p.profile_image_url ?? null,
@@ -124,6 +121,16 @@ function useSettingsProfile(open: boolean): SettingsProfile | null {
   }, [open]);
 
   return profile;
+}
+
+function getNicknameChangeRemainingDays(nicknameChangedAt: string | null) {
+  if (!nicknameChangedAt) return 0;
+  const changedTime = new Date(nicknameChangedAt).getTime();
+  if (Number.isNaN(changedTime)) return 0;
+  const nextAvailableTime = changedTime + 30 * 24 * 60 * 60 * 1000;
+  const remainingMs = nextAvailableTime - Date.now();
+  if (remainingMs <= 0) return 0;
+  return Math.ceil(remainingMs / (24 * 60 * 60 * 1000));
 }
 
 export default function MyPageSettingsDrawer({ open, onClose }: MyPageSettingsDrawerProps) {
@@ -415,7 +422,7 @@ function GeneralSettings({
           </div>
           <div className="ml-3 flex-1 text-left">
             <p className="text-[18px] font-bold text-[#333]">{profile?.nickname ?? "사용자"}</p>
-            <p className="text-[15px] text-gray-400">{maskEmail(profile?.email ?? null)}</p>
+            <p className="text-[15px] text-gray-400">{profile?.email ?? ""}</p>
           </div>
           <ChevronRight size={20} strokeWidth={2.8} className="text-gray-500" />
         </button>
@@ -617,6 +624,23 @@ function GeneralSettings({
           label="아이디 수정"
           onClick={() => onOpenDetail("loginInfo")}
         />
+        <div className="h-[1px] bg-gray-100 mx-4" />
+        <SettingsLinkRow
+          icon={<LogOut size={20} />}
+          label="로그아웃"
+          onClick={() => { window.location.href = "/logout"; }}
+          showChevron={false}
+        />
+      </div>
+
+      {/* 회원탈퇴 */}
+      <div className="pt-6" />
+      <div className="bg-white rounded-xl overflow-hidden">
+        <SettingsLinkRow
+          icon={<UserCircle size={20} />}
+          label="회원탈퇴"
+          onClick={() => onOpenDetail("accountDelete")}
+        />
       </div>
     </div>
   );
@@ -648,9 +672,14 @@ function DetailSettings({
       <LoginInfoDetail
         nickname={profile?.nickname ?? null}
         email={profile?.email ?? null}
+        nicknameChangedAt={profile?.nickname_changed_at ?? null}
         onClose={onClose}
       />
     );
+  }
+
+  if (detailId === "accountDelete") {
+    return <AccountDeleteDetail />;
   }
 
   const detail = getDetailSetting({
@@ -807,10 +836,12 @@ function SettingsLinkRow({
   icon,
   label,
   onClick,
+  showChevron = true,
 }: {
   icon?: React.ReactNode;
   label: string;
   onClick: () => void;
+  showChevron?: boolean;
 }) {
   return (
     <button
@@ -820,17 +851,157 @@ function SettingsLinkRow({
     >
       {icon && <span className="text-[#333]">{icon}</span>}
       <span className={`${icon ? "ml-3" : "ml-[32px]"} flex-1 text-left text-[17px] text-[#333]`}>{label}</span>
-      <ChevronRight size={20} strokeWidth={2.8} className="text-gray-500" />
+      {showChevron && <ChevronRight size={20} strokeWidth={2.8} className="text-gray-500" />}
     </button>
+  );
+}
+
+function AccountDeleteDetail() {
+  const [loading, setLoading] = useState(true);
+  const [deleting, setDeleting] = useState(false);
+  const [successOpen, setSuccessOpen] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
+  const [eligibility, setEligibility] = useState<{
+    nickname: string;
+    starBalance: number;
+    classRoomCount: number;
+    canDelete: boolean;
+  } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/account/delete-eligibility")
+      .then((res) => res.json())
+      .then((json) => {
+        if (!cancelled) {
+          setEligibility(json);
+          setErrorMsg(json.error ?? "");
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setErrorMsg("회원탈퇴 정보를 불러오지 못했습니다.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function handleDeleteAccount() {
+    if (!eligibility?.canDelete || deleting) return;
+    const confirmed = confirm("회원탈퇴를 진행할까요? 탈퇴 후에는 계정 복구가 어렵습니다.");
+    if (!confirmed) return;
+
+    setDeleting(true);
+    setErrorMsg("");
+    try {
+      const res = await fetch("/api/account/delete", { method: "DELETE" });
+      const json = await res.json();
+      if (!res.ok) {
+        setErrorMsg(json.error ?? "회원탈퇴 처리에 실패했습니다.");
+        return;
+      }
+      setSuccessOpen(true);
+      setTimeout(() => {
+        window.location.href = "/logout";
+      }, 2000);
+    } catch {
+      setErrorMsg("회원탈퇴 처리 중 네트워크 오류가 발생했습니다.");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  const nickname = eligibility?.nickname ?? "회원";
+  const starBalance = eligibility?.starBalance ?? 0;
+  const classRoomCount = eligibility?.classRoomCount ?? 0;
+  const canDelete = eligibility?.canDelete === true;
+
+  return (
+    <>
+      <div className="px-4 pt-3 pb-10">
+        <div className="bg-white rounded-xl p-4">
+          <p className="text-[18px] font-bold text-[#333]">회원탈퇴</p>
+          <div className="pt-3 space-y-3 text-[15px] leading-[1.6] text-gray-500">
+            <p>회원탈퇴를 진행하면 계정 로그인 정보, 프로필 정보, 설정 정보가 삭제됩니다.</p>
+            <p>작성한 클래스, 댓글, 신청 내역, 결제 및 크레딧 이용 기록 등 서비스 이용 과정에서 생성된 정보도 삭제되거나 더 이상 계정과 연결되지 않을 수 있습니다.</p>
+            <p>단, 결제 기록, 환불 및 분쟁 처리 기록, 부정 이용 방지 및 법령상 보관이 필요한 정보는 관련 법령에 따라 일정 기간 보관될 수 있습니다.</p>
+            <p>개인정보처리방침에 따라 회원가입 및 로그인 정보는 탈퇴 후 최대 30일, 결제 관련 기록은 5년, 소비자 불만 또는 분쟁 처리 기록은 3년, 접속 로그는 3개월 동안 보관될 수 있습니다.</p>
+            <p>탈퇴 후에는 계정 복구가 어려우며, 보유 크레딧과 일부 이용 기록은 복구되지 않습니다.</p>
+          </div>
+        </div>
+
+        <div className="pt-6" />
+        <div className="bg-white rounded-xl p-5 text-center">
+          {loading ? (
+            <p className="text-[15px] text-gray-400">확인 중...</p>
+          ) : starBalance > 0 ? (
+            <>
+              <div className="flex justify-center">
+                <Image src="/app_img/grey/tino_smile_grey.png" alt="" width={60} height={60} className="h-[60px] w-[60px] object-contain" />
+              </div>
+              <p className="pt-4 text-[16px] leading-[1.6] text-[#333]">
+                <span className="font-bold">{nickname}</span>님 현재{" "}
+                <span className="inline-flex items-center gap-1 align-[-2px]">
+                  <Star size={16} className="fill-yellow-400 text-yellow-400" />
+                  <span>{starBalance}개</span>
+                </span>
+                가 남아 있습니다. !
+                <br />
+                누군가에게 선물 하신후에 탈퇴처리 가능하십니다.
+              </p>
+            </>
+          ) : classRoomCount > 0 ? (
+            <>
+              <div className="flex justify-center">
+                <Image src="/app_img/grey/no result_grey.png" alt="" width={60} height={60} className="h-[60px] w-[60px] object-contain" />
+              </div>
+              <p className="pt-4 text-[16px] leading-[1.6] text-[#333]">
+                <span className="font-bold">{nickname}</span>님 현재 가입된 클래스가 있습니다.
+                <br />
+                관련 클래스대화방을 퇴장 하신후 처리 가능하십니다.
+              </p>
+            </>
+          ) : (
+            <p className="text-[16px] leading-[1.6] text-[#333]">
+              <span className="font-bold">{nickname}</span>님 회원탈퇴를 진행할 수 있습니다.
+            </p>
+          )}
+
+          {errorMsg && <p className="pt-3 text-[13px] text-red-500">{errorMsg}</p>}
+
+          <button
+            type="button"
+            onClick={handleDeleteAccount}
+            disabled={!canDelete || deleting}
+            className="mt-5 w-full rounded-full bg-[#FACC15] py-4 text-[16px] font-bold text-[#333] disabled:opacity-40"
+          >
+            {deleting ? "처리 중..." : "회원탈퇴하기"}
+          </button>
+        </div>
+      </div>
+
+      {successOpen && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/40">
+          <div className="mx-8 w-full max-w-sm rounded-2xl bg-white p-6 text-center">
+            <p className="text-[17px] font-bold text-[#333]">정상적으로 탈퇴 처리 되었습니다</p>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
 function LoginInfoDetail({
   nickname,
+  nicknameChangedAt,
   onClose,
 }: {
   nickname: string | null;
   email: string | null;
+  nicknameChangedAt: string | null;
   onClose: () => void;
 }) {
   const [modalOpen, setModalOpen] = useState(false);
@@ -838,11 +1009,7 @@ function LoginInfoDetail({
   const [saving, setSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [showSuccess, setShowSuccess] = useState(false);
-
-  function handleLogout() {
-    onClose();
-    window.location.href = "/logout";
-  }
+  const remainingDays = getNicknameChangeRemainingDays(nicknameChangedAt);
 
   async function handleChangeNickname() {
     const trimmed = newNickname.trim();
@@ -892,24 +1059,24 @@ function LoginInfoDetail({
         <div className="bg-white rounded-xl overflow-hidden">
           <button
             type="button"
-            onClick={() => { setNewNickname(nickname ?? ""); setErrorMsg(null); setModalOpen(true); }}
-            className="flex w-full items-center px-4 py-3.5 active:bg-gray-50"
+            onClick={() => {
+              if (remainingDays > 0) return;
+              setNewNickname(nickname ?? "");
+              setErrorMsg(null);
+              setModalOpen(true);
+            }}
+            disabled={remainingDays > 0}
+            className="flex w-full items-center px-4 py-3.5 active:bg-gray-50 disabled:opacity-40"
           >
             <span className="text-[#333]"><Pencil size={20} /></span>
             <span className="ml-3 flex-1 text-left text-[17px] text-[#333]">아이디 수정</span>
             <span className="text-[15px] text-gray-400 mr-2">{nickname ?? ""}</span>
             <ChevronRight size={20} strokeWidth={2.8} className="text-gray-500" />
           </button>
-          <div className="h-[1px] bg-gray-100 mx-4" />
-          <button
-            type="button"
-            onClick={handleLogout}
-            className="flex w-full items-center px-4 py-3.5 active:bg-gray-50"
-          >
-            <span className="text-[#333]"><LogOut size={20} /></span>
-            <span className="ml-3 flex-1 text-left text-[17px] text-red-500">로그아웃</span>
-          </button>
         </div>
+        <p className="px-4 pt-3 text-[15px] leading-[1.6] text-[#333]">
+          {remainingDays > 0 ? `${remainingDays}일 이후 수정 가능합니다.` : "현재, 아이디 변경이 가능합니다."}
+        </p>
       </div>
 
       {modalOpen && (

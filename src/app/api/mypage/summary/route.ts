@@ -34,6 +34,7 @@ interface MyPageSummary {
     id: string;
     email: string | null;
     nickname: string;
+    nickname_changed_at: string | null;
     bio: string | null;
     country: string | null;
     region: string | null;
@@ -74,7 +75,7 @@ export async function GET() {
     const [profileResult, appliedResult, myClassesResult, proRequestResult, followingResult, followersResult, friendsResult, subscriptionResult, receivedStarRowsResult, starWalletResult] = await Promise.all([
       supabase
         .from("profiles")
-        .select("id, email, nickname, bio, country, region, favorite_genre, member_type, role, profile_image_url, org_name, kakao_notification_enabled")
+        .select("id, email, nickname, nickname_changed_at, bio, country, region, favorite_genre, member_type, role, profile_image_url, org_name, kakao_notification_enabled")
         .eq("id", user.id)
         .single(),
       supabase
@@ -192,6 +193,7 @@ export async function GET() {
         id: profile.id,
         email: profile.email,
         nickname: profile.nickname,
+        nickname_changed_at: profile.nickname_changed_at,
         bio: profile.bio,
         country: profile.country,
         region: profile.region,

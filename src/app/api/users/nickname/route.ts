@@ -22,7 +22,9 @@ export async function PATCH(request: Request) {
     );
   }
 
-  const { data: profile } = await supabase
+  const admin = createAdminClient();
+
+  const { data: profile } = await admin
     .from("profiles")
     .select("nickname, nickname_changed_at")
     .eq("id", user.id)
@@ -41,23 +43,20 @@ export async function PATCH(request: Request) {
 
   if (profile.nickname_changed_at) {
     const lastChanged = new Date(profile.nickname_changed_at);
-    const oneMonthAgo = new Date();
-    oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+    const nextAvailable = new Date(lastChanged.getTime() + 30 * 24 * 60 * 60 * 1000);
 
-    if (lastChanged > oneMonthAgo) {
-      const nextAvailable = new Date(lastChanged);
-      nextAvailable.setMonth(nextAvailable.getMonth() + 1);
+    if (nextAvailable > new Date()) {
       return NextResponse.json(
         {
           error: "too_soon",
-          message: `아이디는 1개월에 한 번만 변경할 수 있습니다. ${nextAvailable.toLocaleDateString("ko-KR")} 이후에 변경 가능합니다.`,
+          message: `아이디는 30일에 한 번만 변경할 수 있습니다. ${nextAvailable.toLocaleDateString("ko-KR")} 이후에 변경 가능합니다.`,
         },
         { status: 429 }
       );
     }
   }
 
-  const { data: existing } = await supabase
+  const { data: existing } = await admin
     .from("profiles")
     .select("id")
     .eq("nickname", newNickname)
@@ -72,23 +71,25 @@ export async function PATCH(request: Request) {
   }
 
   const oldNickname = profile.nickname;
+  const nicknameChangedAt = new Date().toISOString();
 
-  const { error } = await supabase
+  const { data: updatedProfile, error } = await admin
     .from("profiles")
     .update({
       nickname: newNickname,
-      nickname_changed_at: new Date().toISOString(),
+      nickname_changed_at: nicknameChangedAt,
     })
-    .eq("id", user.id);
+    .eq("id", user.id)
+    .select("nickname_changed_at")
+    .single();
 
-  if (error) {
+  if (error || !updatedProfile?.nickname_changed_at) {
     return NextResponse.json(
       { error: "update_failed", message: "변경에 실패했습니다." },
       { status: 500 }
     );
   }
 
-  const admin = createAdminClient();
   const systemMessage = `${oldNickname}님이 아이디를 ${newNickname}로 변경하였습니다.`;
 
   try {
@@ -145,5 +146,6 @@ export async function PATCH(request: Request) {
     success: true,
     oldNickname,
     newNickname,
+    nicknameChangedAt: updatedProfile.nickname_changed_at,
   });
 }

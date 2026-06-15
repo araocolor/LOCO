@@ -100,6 +100,7 @@ interface Profile {
   id: string;
   email: string | null;
   nickname: string;
+  nickname_changed_at?: string | null;
   bio: string | null;
   country: string | null;
   region: string | null;
