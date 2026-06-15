@@ -82,7 +82,10 @@ export default function MyPageCacheLoader() {
       if (!cancelled) {
         const nextData = json as MyPageSummaryCache;
         setData(nextData);
-        try { localStorage.setItem(cacheKey, JSON.stringify(nextData)); } catch {}
+        try {
+          localStorage.setItem(cacheKey, JSON.stringify(nextData));
+          window.dispatchEvent(new Event("loco:profile-cache-updated"));
+        } catch {}
       }
       return true;
     }

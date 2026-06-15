@@ -170,6 +170,18 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
         try {
           localStorage.setItem(getHomeMyClassesCacheKey(uid), JSON.stringify(json));
         } catch {}
+        if (json.profile) {
+          try {
+            const cacheKey = "loco_mypage_cache_local_v3";
+            const raw = localStorage.getItem(cacheKey);
+            const existing = raw ? JSON.parse(raw) : {};
+            localStorage.setItem(cacheKey, JSON.stringify({
+              ...existing,
+              profile: { ...existing?.profile, ...json.profile },
+            }));
+            window.dispatchEvent(new Event("loco:profile-cache-updated"));
+          } catch {}
+        }
         void fetchFriendClasses(uid, silent);
       } catch {
       } finally {

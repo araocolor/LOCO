@@ -161,29 +161,19 @@ export default function BottomNav() {
       });
       return;
     }
-    try {
-      const raw = localStorage.getItem("loco_mypage_cache_local_v3");
-      if (raw) {
+    function readCache() {
+      try {
+        const raw = localStorage.getItem("loco_mypage_cache_local_v3");
+        if (!raw) return;
         const parsed = JSON.parse(raw);
-        queueMicrotask(() => {
-          setNickname(parsed?.profile?.nickname ?? "me");
-          setProfileImageUrl(parsed?.profile?.profile_image_url ?? null);
-        });
-        return;
-      }
-    } catch {}
-
-    fetch("/api/mypage/summary", { method: "GET", cache: "no-store" })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((json) => {
-        if (!json?.profile) return;
-        try { localStorage.setItem("loco_mypage_cache_local_v3", JSON.stringify(json)); } catch {}
-        queueMicrotask(() => {
-          setNickname(json.profile.nickname ?? "me");
-          setProfileImageUrl(json.profile.profile_image_url ?? null);
-        });
-      })
-      .catch(() => {});
+        setNickname(parsed?.profile?.nickname ?? "me");
+        setProfileImageUrl(parsed?.profile?.profile_image_url ?? null);
+      } catch {}
+    }
+    readCache();
+    function handleCacheUpdated() { readCache(); }
+    window.addEventListener("loco:profile-cache-updated", handleCacheUpdated);
+    return () => window.removeEventListener("loco:profile-cache-updated", handleCacheUpdated);
   }, [user?.id]);
 
   useEffect(() => {
