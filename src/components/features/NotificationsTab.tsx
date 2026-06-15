@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import Image from "next/image";
-import { ArrowLeft, Bell, ChevronRight, Heart, Settings, Trash2, Volume2, VolumeX, X } from "lucide-react";
+import { ArrowLeft, Trash2 } from "lucide-react";
 import UserProfileModal from "@/components/user/UserProfileModal";
 import CachedClassDetailPage from "@/components/class/CachedClassDetailPage";
 import { readNotificationCache, writeNotificationCache } from "@/lib/notification-cache";
@@ -143,9 +143,6 @@ export default function NotificationsTab({ userId }: NotificationsTabProps) {
   const [loadedTabs, setLoadedTabs] = useState<Record<NotificationTab, boolean>>(getEmptyLoadedMap);
   const [profileModalTarget, setProfileModalTarget] = useState<NotificationItem["actor"]>(null);
   const [activeTab, setActiveTab] = useState<NotificationTab>("class");
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [soundOff, setSoundOff] = useState(false);
-  const [soundOffLoading, setSoundOffLoading] = useState(false);
   const [classDetailId, setClassDetailId] = useState<string | null>(null);
   const [viewedTabs, setViewedTabs] = useState<Set<NotificationTab>>(new Set(["class"]));
   const viewedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -232,38 +229,11 @@ export default function NotificationsTab({ userId }: NotificationsTabProps) {
   }, [notificationsByTab, viewedTabs, loadedTabs]);
 
   useEffect(() => {
-    if (!settingsOpen) return;
-    fetch("/api/notifications/settings")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((json) => {
-        if (json) setSoundOff(json.notification_sound_off ?? false);
-      })
-      .catch(() => {});
-  }, [settingsOpen]);
-
-  const handleToggleSoundOff = async () => {
-    const next = !soundOff;
-    setSoundOff(next);
-    setSoundOffLoading(true);
-    try {
-      await fetch("/api/notifications/settings", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ notification_sound_off: next }),
-      });
-    } catch {
-      setSoundOff(!next);
-    } finally {
-      setSoundOffLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    document.body.style.overflow = settingsOpen || Boolean(classDetailId) ? "hidden" : "";
+    document.body.style.overflow = classDetailId ? "hidden" : "";
     return () => {
       document.body.style.overflow = "";
     };
-  }, [settingsOpen, classDetailId]);
+  }, [classDetailId]);
 
   const markAsRead = async (id: string) => {
     setNotificationsByTab((prev) => {
@@ -387,7 +357,7 @@ export default function NotificationsTab({ userId }: NotificationsTabProps) {
               {editMode ? (
                 <button
                   type="button"
-                  className="h-10 px-1 -mr-1 flex items-center justify-center text-[14px] font-semibold text-gray-600"
+                  className="h-12 w-12 -mr-2 flex items-center justify-center text-[14px] font-semibold text-gray-600"
                   onClick={() => { setEditMode(false); setSelectedIds(new Set()); }}
                 >
                   취소
@@ -396,20 +366,12 @@ export default function NotificationsTab({ userId }: NotificationsTabProps) {
                 <button
                   type="button"
                   aria-label="알림 삭제"
-                  className="h-10 px-1 -mr-1 flex items-center justify-center text-gray-700"
+                  className="h-12 w-12 -mr-2 flex items-center justify-center text-gray-700"
                   onClick={() => setEditMode(true)}
                 >
                   <Trash2 size={20} strokeWidth={2.2} />
                 </button>
               )}
-              <button
-                type="button"
-                aria-label="설정"
-                className="h-12 w-12 -mr-2 flex items-center justify-center text-gray-700"
-                onClick={() => setSettingsOpen(true)}
-              >
-                <Settings size={22} strokeWidth={2.2} />
-              </button>
             </div>
           </div>
           <div className="flex pl-4 pr-4 gap-2 pb-2 overflow-x-auto scrollbar-hide whitespace-nowrap">
@@ -595,53 +557,6 @@ export default function NotificationsTab({ userId }: NotificationsTabProps) {
           onClose={() => setProfileModalTarget(null)}
         />
       )}
-
-      <div
-        className={`fixed inset-0 z-[140] bg-black/40 transition-opacity duration-300 ${
-          settingsOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
-        }`}
-        onClick={() => setSettingsOpen(false)}
-      />
-      <div
-        className={`fixed top-0 left-0 h-full w-full bg-white z-[150] flex flex-col transition-transform duration-300 ease-in-out ${
-          settingsOpen ? "translate-x-0" : "-translate-x-full"
-        }`}
-        style={{ paddingTop: 'env(safe-area-inset-top)' }}
-        aria-label="알림설정"
-      >
-        <div className="flex-shrink-0 flex items-center justify-between px-4 h-14 border-b border-gray-100">
-          <span className="text-[20px] font-bold text-[#333333]">설정</span>
-          <button type="button" onClick={() => setSettingsOpen(false)}>
-            <X className="w-5 h-5 text-gray-500" />
-          </button>
-        </div>
-        <div className="flex-1 overflow-y-auto">
-          <div className="border-t border-gray-100">
-            <div className="flex items-center gap-3 w-full px-5 py-2.5">
-              <span className="text-gray-400">
-                {soundOff ? <VolumeX size={18} /> : <Volume2 size={18} />}
-              </span>
-              <span className="flex-1 text-[17px] text-[#333333]">알림 소리</span>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={!soundOff}
-                disabled={soundOffLoading}
-                onClick={handleToggleSoundOff}
-                className={`relative inline-flex h-[22px] w-[36px] shrink-0 rounded-full transition-colors duration-200 focus:outline-none ${
-                  !soundOff ? "bg-[#34C759]" : "bg-[#E5E5EA]"
-                }`}
-              >
-                <span
-                  className={`inline-block h-[18px] w-[18px] rounded-full bg-white shadow-md transition-transform duration-200 mt-[2px] ${
-                    !soundOff ? "translate-x-[16px]" : "translate-x-[2px]"
-                  }`}
-                />
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
 
       <div
         className={`fixed inset-0 z-[160] bg-white flex flex-col transition-transform duration-300 ease-in-out ${
