@@ -131,7 +131,7 @@ export default function ConversationList({
               className="border-b border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors"
             >
               {(() => {
-                const isMine = conv.last_message?.is_mine;
+                const isMine = conv.last_message?.kind !== "system" && conv.last_message?.is_mine;
                 const lastContent = conv.last_message?.content ?? "";
                 const classImageUrl = conv.type === "class" ? conv.class_image_url : null;
                 let fallbackPreview = "";

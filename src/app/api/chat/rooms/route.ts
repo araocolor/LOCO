@@ -134,22 +134,12 @@ export async function GET() {
     const classIds = activeRooms
       .map((room) => room.class_id)
       .filter((id): id is string => Boolean(id));
-    const lastMessageIds = activeRooms
-      .map((room) => room.last_message_id)
-      .filter((id): id is string => Boolean(id));
 
     const [
-      { data: lastMessages, error: lastMessagesError },
       profiles,
       { data: classRows, error: classRowsError },
+      ...latestVisibleMessageResults
     ] = await Promise.all([
-      lastMessageIds.length > 0
-        ? admin
-            .from("chat_messages")
-            .select("id, room_id, sender_id, kind, content, deleted_at, created_at")
-            .in("id", lastMessageIds)
-            .returns<ChatMessageRow[]>()
-        : Promise.resolve({ data: [], error: null }),
       getProfiles((members ?? []).map((member) => member.user_id)),
       classIds.length > 0
         ? admin
@@ -158,10 +148,23 @@ export async function GET() {
             .in("id", classIds)
             .returns<Array<{ id: string; images: ClassImageItem[] | null }>>()
         : Promise.resolve({ data: [], error: null }),
+      ...activeRooms.map((room) =>
+        admin
+          .from("chat_messages")
+          .select("id, room_id, sender_id, kind, content, deleted_at, created_at")
+          .eq("room_id", room.id)
+          .neq("kind", "system")
+          .is("deleted_at", null)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .returns<ChatMessageRow[]>()
+      ),
     ]);
 
-    if (lastMessagesError) throw lastMessagesError;
     if (classRowsError) throw classRowsError;
+    latestVisibleMessageResults.forEach((result) => {
+      if (result.error) throw result.error;
+    });
 
     const profileMap = new Map(profiles.map((profile) => [profile.id, profile]));
     const classImageMap = new Map(
@@ -175,7 +178,11 @@ export async function GET() {
     (members ?? []).forEach((member) => {
       memberMap.set(member.room_id, [...(memberMap.get(member.room_id) ?? []), member]);
     });
-    const messageMap = new Map((lastMessages ?? []).map((message) => [message.id, message]));
+    const latestVisibleMessageMap = new Map<string, ChatMessageRow>();
+    activeRooms.forEach((room, index) => {
+      const message = latestVisibleMessageResults[index]?.data?.[0];
+      if (message) latestVisibleMessageMap.set(room.id, message);
+    });
 
     const unreadCounts = await Promise.all(
       activeRoomIds.map(async (roomId) => {
@@ -199,7 +206,7 @@ export async function GET() {
     const result = activeRooms
       .map((room) => {
         const roomMembers = memberMap.get(room.id) ?? [];
-        const lastMessage = room.last_message_id ? messageMap.get(room.last_message_id) ?? null : null;
+        const lastMessage = latestVisibleMessageMap.get(room.id) ?? null;
 
         return {
           id: room.id,
@@ -228,7 +235,7 @@ export async function GET() {
             : null,
           muted: membershipMap.get(room.id)?.muted ?? false,
           unread_count: unreadCountMap.get(room.id) ?? 0,
-          updated_at: room.last_message_at ?? room.updated_at,
+          updated_at: lastMessage?.created_at ?? room.updated_at,
           created_at: room.created_at,
         };
       })

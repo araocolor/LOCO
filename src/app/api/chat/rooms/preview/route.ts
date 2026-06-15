@@ -140,16 +140,11 @@ export async function GET(request: NextRequest) {
     const classIds = activeRooms
       .map((room) => room.class_id)
       .filter((id): id is string => Boolean(id));
-    const lastMessageIds = activeRooms
-      .map((room) => room.last_message_id)
-      .filter((id): id is string => Boolean(id));
-
     const RECENT_MESSAGES_LIMIT = 10;
 
     const [
       { data: classRows, error: classRowsError },
-      { data: lastMessages, error: lastMessagesError },
-      ...recentMessageResults
+      ...messageResults
     ] = await Promise.all([
       classIds.length > 0
         ? admin
@@ -158,13 +153,17 @@ export async function GET(request: NextRequest) {
             .in("id", classIds)
             .returns<ClassPreviewRow[]>()
         : Promise.resolve({ data: [], error: null }),
-      lastMessageIds.length > 0
-        ? admin
-            .from("chat_messages")
-            .select("id, room_id, sender_id, kind, content, deleted_at, created_at")
-            .in("id", lastMessageIds)
-            .returns<ChatMessageRow[]>()
-        : Promise.resolve({ data: [], error: null }),
+      ...activeRooms.map((room) =>
+        admin
+          .from("chat_messages")
+          .select("id, room_id, sender_id, kind, content, deleted_at, created_at")
+          .eq("room_id", room.id)
+          .neq("kind", "system")
+          .is("deleted_at", null)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .returns<ChatMessageRow[]>()
+      ),
       ...activeRooms.map((room) =>
         admin
           .from("chat_messages")
@@ -178,11 +177,32 @@ export async function GET(request: NextRequest) {
     ]);
 
     if (classRowsError) throw classRowsError;
-    if (lastMessagesError) throw lastMessagesError;
+
+    const latestVisibleMessageResults = messageResults.slice(0, activeRooms.length) as Array<{
+      data: ChatMessageRow[] | null;
+      error: unknown;
+    }>;
+    const recentMessageResults = messageResults.slice(activeRooms.length) as Array<{
+      data: ChatMessageRow[] | null;
+      error: unknown;
+    }>;
+
+    latestVisibleMessageResults.forEach((result) => {
+      if (result.error) throw result.error;
+    });
+    recentMessageResults.forEach((result) => {
+      if (result.error) throw result.error;
+    });
+
+    const latestVisibleMessageMap = new Map<string, ChatMessageRow>();
+    activeRooms.forEach((room, index) => {
+      const message = latestVisibleMessageResults[index]?.data?.[0];
+      if (message) latestVisibleMessageMap.set(room.id, message);
+    });
 
     const recentMessagesMap = new Map<string, ChatMessageRow[]>();
     activeRooms.forEach((room, index) => {
-      const result = recentMessageResults[index] as { data: ChatMessageRow[] | null; error: unknown };
+      const result = recentMessageResults[index];
       const rows = (result.data ?? []).reverse();
       recentMessagesMap.set(room.id, rows);
     });
@@ -190,15 +210,15 @@ export async function GET(request: NextRequest) {
     const recentSenderIds = new Set(
       Array.from(recentMessagesMap.values()).flat().map((msg) => msg.sender_id)
     );
+    const latestVisibleSenderIds = Array.from(latestVisibleMessageMap.values()).map((msg) => msg.sender_id);
     const displayMemberIds = Array.from(displayMembersByRoom.values())
       .flat()
       .map((member) => member.user_id);
-    const profileIds = Array.from(new Set([...displayMemberIds, ...recentSenderIds]));
+    const profileIds = Array.from(new Set([...displayMemberIds, ...recentSenderIds, ...latestVisibleSenderIds]));
 
     const profiles = await getProfiles(profileIds);
     const profileMap = new Map(profiles.map((profile) => [profile.id, profile]));
     const classMap = new Map((classRows ?? []).map((row) => [row.id, row]));
-    const messageMap = new Map((lastMessages ?? []).map((message) => [message.id, message]));
 
     const membershipMap = new Map((myMemberships ?? []).map((m) => [m.room_id, m]));
     const unreadCounts = await Promise.all(
@@ -224,7 +244,7 @@ export async function GET(request: NextRequest) {
       .map((room) => {
         const roomMembers = memberMap.get(room.id) ?? [];
         const displayMembers = displayMembersByRoom.get(room.id) ?? [];
-        const lastMessage = room.last_message_id ? messageMap.get(room.last_message_id) ?? null : null;
+        const lastMessage = latestVisibleMessageMap.get(room.id) ?? null;
         const classPreview = room.class_id ? classMap.get(room.class_id) ?? null : null;
         const classImageUrl =
           classPreview?.images?.[0]?.icon_url ?? classPreview?.images?.[0]?.card_url ?? null;
@@ -260,7 +280,8 @@ export async function GET(request: NextRequest) {
               if (msg.kind === "image") {
                 try {
                   const parsed = JSON.parse(content);
-                  const { full: _full, ...rest } = parsed;
+                  delete parsed.full;
+                  const rest = parsed;
                   content = JSON.stringify(rest);
                 } catch {}
               }
@@ -268,7 +289,8 @@ export async function GET(request: NextRequest) {
                 try {
                   const parsed = JSON.parse(content);
                   if (parsed?.type === "video") {
-                    const { url: _url, ...rest } = parsed;
+                    delete parsed.url;
+                    const rest = parsed;
                     content = JSON.stringify(rest);
                   }
                 } catch {}
@@ -284,10 +306,10 @@ export async function GET(request: NextRequest) {
                 created_at: msg.created_at,
                 sender: senderProfile,
               };
-            }),
+          }),
           muted: membershipMap.get(room.id)?.muted ?? false,
           unread_count: unreadCountMap.get(room.id) ?? 0,
-          updated_at: room.last_message_at ?? room.updated_at,
+          updated_at: lastMessage?.created_at ?? room.updated_at,
           created_at: room.created_at,
         };
       })
