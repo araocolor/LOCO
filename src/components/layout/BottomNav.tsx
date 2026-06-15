@@ -106,8 +106,29 @@ export default function BottomNav() {
   const pathname = usePathname();
   const [hydrated, setHydrated] = useState(false);
   const [homeSubTab, setHomeSubTab] = useState<HomeSubTab>("allClasses");
-  const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null);
-  const [nickname, setNickname] = useState("me");
+  const [profileImageUrl, setProfileImageUrl] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      const raw = localStorage.getItem("loco_mypage_cache_local_v3");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        return parsed?.profile?.profile_image_url ?? null;
+      }
+    } catch {}
+    return null;
+  });
+  const [nickname, setNickname] = useState(() => {
+    if (typeof window === "undefined") return "me";
+    try {
+      const raw = localStorage.getItem("loco_mypage_cache_local_v3");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        return parsed?.profile?.nickname ?? "me";
+      }
+    } catch {}
+    return "me";
+  });
+  const [avatarLoadFailed, setAvatarLoadFailed] = useState(false);
   const loginUnreadSoundPlayedUserRef = useRef<string | null>(null);
   const { user } = useAuth();
   const activeTab = useSyncExternalStore(subscribeMainTab, getMainTab, () => "home" as const);
@@ -134,22 +155,26 @@ export default function BottomNav() {
 
   useEffect(() => {
     if (!user?.id) {
-      setProfileImageUrl(null);
-      setNickname("me");
+      queueMicrotask(() => {
+        setProfileImageUrl(null);
+        setNickname("me");
+      });
       return;
     }
-    const supabase = createClient();
-    supabase
-      .from("profiles")
-      .select("nickname, profile_image_url")
-      .eq("id", user.id)
-      .single()
-      .then(({ data }) => {
-        if (!data) return;
-        setNickname(data.nickname ?? "me");
-        setProfileImageUrl(data.profile_image_url ?? null);
+    try {
+      const raw = localStorage.getItem("loco_mypage_cache_local_v3");
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      queueMicrotask(() => {
+        setNickname(parsed?.profile?.nickname ?? "me");
+        setProfileImageUrl(parsed?.profile?.profile_image_url ?? null);
       });
+    } catch {}
   }, [user?.id]);
+
+  useEffect(() => {
+    queueMicrotask(() => setAvatarLoadFailed(false));
+  }, [profileImageUrl]);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -204,6 +229,7 @@ export default function BottomNav() {
     >
       {NAV_ITEMS.map(({ tabId, label, activeColor, renderIcon }) => {
         const isActive = activeTab === tabId;
+        const shouldShowAvatar = tabId === "mypage" && !isActive && user && profileImageUrl && !avatarLoadFailed;
         const className =
           "h-[65px] w-full min-w-0 flex flex-col items-center justify-start pt-3 gap-0.5 text-black/60 transition-colors";
 
@@ -216,8 +242,8 @@ export default function BottomNav() {
             style={isActive ? { color: activeColor } : undefined}
           >
             <span className="relative">
-              {tabId === "mypage" && !isActive && user && profileImageUrl ? (
-                <Avatar src={profileImageUrl} nickname={nickname} size={30} />
+              {shouldShowAvatar ? (
+                <Avatar src={profileImageUrl} nickname={nickname} size={30} onError={() => setAvatarLoadFailed(true)} />
               ) : (
                 renderIcon(isActive)
               )}

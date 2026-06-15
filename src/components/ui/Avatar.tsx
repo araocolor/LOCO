@@ -7,13 +7,14 @@ interface AvatarProps {
   nickname: string;
   size: number;
   className?: string;
+  onError?: () => void;
 }
 
 function getDiceBearUrl(nickname: string) {
   return `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(nickname)}`;
 }
 
-export default function Avatar({ src, nickname, size, className = "" }: AvatarProps) {
+export default function Avatar({ src, nickname, size, className = "", onError }: AvatarProps) {
   if (!src) {
     return (
       <img
@@ -23,6 +24,7 @@ export default function Avatar({ src, nickname, size, className = "" }: AvatarPr
         height={size}
         className={`rounded-full flex-shrink-0 ${className}`}
         style={{ width: size, height: size }}
+        onError={onError}
       />
     );
   }
@@ -35,6 +37,7 @@ export default function Avatar({ src, nickname, size, className = "" }: AvatarPr
       height={size}
       className={`rounded-full object-cover flex-shrink-0 ${className}`}
       style={{ width: size, height: size }}
+      onError={onError}
     />
   );
 }
