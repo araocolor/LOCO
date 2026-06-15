@@ -798,6 +798,7 @@ function LoginInfoDetail({
   const [newNickname, setNewNickname] = useState(nickname ?? "");
   const [saving, setSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [showSuccess, setShowSuccess] = useState(false);
 
   function handleLogout() {
     onClose();
@@ -823,9 +824,13 @@ function LoginInfoDetail({
         setErrorMsg(data.message ?? "변경에 실패했습니다.");
         return;
       }
-      setModalOpen(false);
-      onClose();
-      window.location.href = "/logout";
+      setShowSuccess(true);
+      setTimeout(() => {
+        setShowSuccess(false);
+        setModalOpen(false);
+        onClose();
+        window.location.href = "/logout";
+      }, 1000);
     } catch {
       setErrorMsg("네트워크 오류가 발생했습니다.");
     } finally {
@@ -870,37 +875,50 @@ function LoginInfoDetail({
 
       {modalOpen && (
         <div className="fixed inset-0 z-[300] flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setModalOpen(false)} />
+          <div className="absolute inset-0 bg-black/40" onClick={() => !showSuccess && setModalOpen(false)} />
           <div className="relative bg-white rounded-2xl w-[85%] max-w-[340px] p-6">
-            <p className="text-[18px] font-bold text-[#333] text-center">아이디 수정</p>
-            <p className="pt-2 text-[14px] text-gray-400 text-center">새로운 아이디를 입력해주세요</p>
-            <input
-              type="text"
-              value={newNickname}
-              onChange={(e) => { setNewNickname(e.target.value); setErrorMsg(null); }}
-              placeholder="아이디"
-              className="mt-4 w-full rounded-lg border border-gray-200 px-4 py-3 text-[16px] text-[#333] outline-none focus:border-gray-400"
-            />
-            {errorMsg && (
-              <p className="mt-2 text-[13px] text-red-500">{errorMsg}</p>
+            {showSuccess ? (
+              <div className="flex flex-col items-center py-6">
+                <div className="w-16 h-16 rounded-full bg-green-500 flex items-center justify-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                </div>
+                <p className="mt-4 text-[16px] font-semibold text-[#333]">변경 완료</p>
+              </div>
+            ) : (
+              <>
+                <p className="text-[18px] font-bold text-[#333] text-center">아이디 수정</p>
+                <p className="pt-2 text-[14px] text-gray-400 text-center">새로운 아이디를 입력해주세요</p>
+                <input
+                  type="text"
+                  value={newNickname}
+                  onChange={(e) => { setNewNickname(e.target.value); setErrorMsg(null); }}
+                  placeholder="아이디"
+                  className="mt-4 w-full rounded-lg border border-gray-200 px-4 py-3 text-[16px] text-[#333] outline-none focus:border-gray-400"
+                />
+                {errorMsg && (
+                  <p className="mt-2 text-[13px] text-red-500">{errorMsg}</p>
+                )}
+                <div className="mt-5 flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setModalOpen(false)}
+                    className="flex-1 rounded-lg bg-gray-100 py-3 text-[16px] font-semibold text-gray-500"
+                  >
+                    취소
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleChangeNickname}
+                    disabled={saving}
+                    className="flex-1 rounded-lg bg-black py-3 text-[16px] font-semibold text-white disabled:opacity-50"
+                  >
+                    {saving ? "변경 중..." : "변경"}
+                  </button>
+                </div>
+              </>
             )}
-            <div className="mt-5 flex gap-3">
-              <button
-                type="button"
-                onClick={() => setModalOpen(false)}
-                className="flex-1 rounded-lg bg-gray-100 py-3 text-[16px] font-semibold text-gray-500"
-              >
-                취소
-              </button>
-              <button
-                type="button"
-                onClick={handleChangeNickname}
-                disabled={saving}
-                className="flex-1 rounded-lg bg-black py-3 text-[16px] font-semibold text-white disabled:opacity-50"
-              >
-                {saving ? "변경 중..." : "변경"}
-              </button>
-            </div>
           </div>
         </div>
       )}

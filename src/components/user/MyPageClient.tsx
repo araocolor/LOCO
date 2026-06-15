@@ -744,7 +744,7 @@ export default function MyPageClient({
         <div className="flex h-[55px] w-[55px] shrink-0 items-center justify-center">
           <Image
             src="/character/yelly_icon.png"
-            alt="Loco로꼬"
+            alt="Xlatin"
             width={55}
             height={55}
             className="h-auto w-[55px] object-contain"

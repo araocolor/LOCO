@@ -59,7 +59,7 @@ export default function SignupPage() {
   return (
     <main className="flex min-h-screen items-center justify-center p-4">
       <div className="w-full max-w-sm card p-8">
-        <h1 className="text-2xl font-bold text-center mb-1">LOCO 시작하기</h1>
+        <h1 className="text-2xl font-bold text-center mb-1">Xlatin 시작하기</h1>
         <p className="text-sm text-center mb-8" style={{ color: "#999999" }}>
           Google 계정으로 안전하게 가입하세요
         </p>
