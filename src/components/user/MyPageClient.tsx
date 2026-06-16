@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { UserCircle, X, Settings, HeartHandshake, Star, SmilePlus, UsersRound, CreditCard, Megaphone, Headphones, FileText, ShieldCheck, ChevronRight, ReceiptText, Award } from "lucide-react";
 import { fetchWithAuthRetry } from "@/lib/auth/fetch-with-auth-retry";
@@ -22,6 +21,8 @@ import StarChargeSheet from "@/components/star/StarChargeSheet";
 import StarGiftersPanel from "@/components/star/StarGiftersPanel";
 import CustomerServiceDrawer from "./CustomerServiceDrawer";
 import type { CustomerServiceTab } from "./CustomerServiceDrawer";
+import CachedClassDetailPage from "@/components/class/CachedClassDetailPage";
+import ClassHeader from "@/components/layout/ClassHeader";
 
 const HOME_MY_CLASSES_CACHE_KEY = "loco_home_my_classes_v1";
 
@@ -46,6 +47,9 @@ interface GridClass {
   title: string;
   status?: string;
   created_at?: string;
+  isBookmark?: boolean;
+  isOwned?: boolean;
+  isApplied?: boolean;
 }
 
 interface HomeMyClassesCache {
@@ -105,12 +109,11 @@ function readMyPageCachedProfile(cacheKey: string): CacheProfilePatch | null {
 
 export default function MyPageClient({
   profile,
-  allClasses,
+  allClasses: initialAllClasses,
   socialCounts,
   starGivers: initialStarGivers = [],
 }: Props) {
   const MY_PAGE_CACHE_KEY = "loco_mypage_cache_local_v3";
-  const router = useRouter();
   const [editOpen, setEditOpen] = useState(false);
   const [editMode, setEditMode] = useState<ProfileEditMode>("normal");
   const [avatarUrl, setAvatarUrl] = useState<string | null>(() => {
@@ -145,12 +148,42 @@ export default function MyPageClient({
     })();
     return url ? url.replace(/\.webp$/, "_hd.webp") : null;
   });
+  const [allClasses, setAllClasses] = useState<GridClass[]>(initialAllClasses);
   const [regionalClasses, setRegionalClasses] = useState<GridClass[]>([]);
   const [regionalClassRegion, setRegionalClassRegion] = useState<string | null>(profile.region);
   const [friendsCount, setFriendsCount] = useState<number>(socialCounts?.friends ?? 0);
   const [followingCount, setFollowingCount] = useState<number>(socialCounts?.following ?? 0);
   const [starBalanceOverride, setStarBalanceOverride] = useState<number | null>(null);
   const starBalance = starBalanceOverride ?? profile.star_balance ?? 0;
+
+  useEffect(() => {
+    setAllClasses(initialAllClasses);
+  }, [initialAllClasses]);
+
+  useEffect(() => {
+    function handleBookmarkChanged(e: Event) {
+      const detail = (e as CustomEvent<{ classId: string; bookmarked: boolean; classInfo?: GridClass | null }>).detail;
+      if (!detail) return;
+      if (detail.bookmarked && detail.classInfo) {
+        setAllClasses((prev) => {
+          if (prev.some((c) => c.id === detail.classId)) {
+            return prev.map((c) => c.id === detail.classId ? { ...c, isBookmark: true } : c);
+          }
+          return [...prev, { ...detail.classInfo!, isBookmark: true }];
+        });
+      } else {
+        setAllClasses((prev) =>
+          prev.flatMap((c) => {
+            if (c.id !== detail.classId) return [c];
+            if (c.isOwned || c.isApplied) return [{ ...c, isBookmark: false }];
+            return [];
+          })
+        );
+      }
+    }
+    window.addEventListener("bookmarkChanged", handleBookmarkChanged);
+    return () => window.removeEventListener("bookmarkChanged", handleBookmarkChanged);
+  }, []);
 
   useEffect(() => {
     if (socialCounts?.friends != null) setFriendsCount(socialCounts.friends);
@@ -193,6 +226,7 @@ export default function MyPageClient({
   const [proProfileModalOpen, setProProfileModalOpen] = useState(false);
   const [csDrawerOpen, setCsDrawerOpen] = useState(false);
   const [csInitialTab, setCsInitialTab] = useState<CustomerServiceTab>("notice");
+  const [classDetailId, setClassDetailId] = useState<string | null>(null);
 
   useEffect(() => {
     void prefetchBoardPostsCache();
@@ -392,7 +426,7 @@ export default function MyPageClient({
                 <button
                   key={item.id}
                   type="button"
-                  onClick={() => router.push(`/classes/${item.id}`)}
+                  onClick={() => setClassDetailId(item.id)}
                   className="aspect-square bg-gray-100 relative overflow-hidden cursor-pointer"
                 >
                   {item.images?.[0]?.card_url ? (
@@ -401,6 +435,11 @@ export default function MyPageClient({
                     <div className="w-full h-full flex items-center justify-center bg-gray-100">
                       <span className="text-gray-300 text-xs">없음</span>
                     </div>
+                  )}
+                  {item.isBookmark && (
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="white" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="absolute top-1.5 right-1.5">
+                      <polygon points="19 21 12 16 5 21 5 3 19 3" />
+                    </svg>
                   )}
                 </button>
               ))}
@@ -420,7 +459,7 @@ export default function MyPageClient({
                 <button
                   key={item.id + "-regional"}
                   type="button"
-                  onClick={() => router.push(`/classes/${item.id}`)}
+                  onClick={() => setClassDetailId(item.id)}
                   className="aspect-square bg-gray-100 relative overflow-hidden cursor-pointer"
                 >
                   {item.images?.[0]?.card_url ? (
@@ -592,6 +631,22 @@ export default function MyPageClient({
         onClose={() => setCsDrawerOpen(false)}
         initialTab={csInitialTab}
       />
+
+      <div
+        className={`fixed inset-0 z-[70] bg-white flex flex-col transition-transform duration-300 ease-in-out ${
+          classDetailId ? "translate-x-0" : "translate-x-full"
+        }`}
+      >
+        <ClassHeader onBack={() => setClassDetailId(null)} />
+        <div className="flex-1 overflow-y-auto">
+          {classDetailId && (
+            <CachedClassDetailPage
+              classIdOverride={classDetailId}
+              onClose={() => setClassDetailId(null)}
+            />
+          )}
+        </div>
+      </div>
 
     </div>
   );

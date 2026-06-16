@@ -35,6 +35,9 @@ interface AllClassItem {
   status: string;
   created_at: string;
   images: { card_url: string }[] | null;
+  isBookmark?: boolean;
+  isOwned?: boolean;
+  isApplied?: boolean;
 }
 
 interface MyPageSummary {
@@ -201,26 +204,34 @@ export async function GET() {
       })
       .filter((item): item is AllClassItem => item !== null);
 
-    const bookmarkClassItems: AllClassItem[] = (bookmarkResult.error ? [] : bookmarkResult.data ?? [])
-      .map((row) => {
-        const cls = row.classes as unknown as { id: string; title: string; status: string; images: { card_url: string }[] | null } | null;
-        if (!cls) return null;
-        return {
-          id: cls.id,
-          title: cls.title,
-          status: cls.status,
-          created_at: row.created_at,
-          images: cls.images,
-        };
-      })
-      .filter((item): item is AllClassItem => item !== null);
+    const bookmarkClassItems: AllClassItem[] = [];
+    for (const row of (bookmarkResult.error ? [] : bookmarkResult.data ?? [])) {
+      const cls = row.classes as unknown as { id: string; title: string; status: string; images: { card_url: string }[] | null } | null;
+      if (!cls) continue;
+      bookmarkClassItems.push({
+        id: cls.id,
+        title: cls.title,
+        status: cls.status,
+        created_at: row.created_at,
+        images: cls.images,
+        isBookmark: true,
+      });
+    }
 
+    const ownedIds = new Set(myClassItems.map((item) => item.id));
+    const appliedIds = new Set(appliedClassItems.map((item) => item.id));
+    const bookmarkIds = new Set(bookmarkClassItems.map((item) => item.id));
     const seen = new Set<string>();
     const allClasses: AllClassItem[] = [];
     for (const item of [...myClassItems, ...appliedClassItems, ...bookmarkClassItems]) {
       if (!seen.has(item.id)) {
         seen.add(item.id);
-        allClasses.push(item);
+        allClasses.push({
+          ...item,
+          isOwned: ownedIds.has(item.id) || undefined,
+          isApplied: appliedIds.has(item.id) || undefined,
+          isBookmark: bookmarkIds.has(item.id) || undefined,
+        });
       }
     }
 

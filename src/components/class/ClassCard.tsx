@@ -255,7 +255,18 @@ export default function ClassCard({ classData, priorityImage = false, onClassSel
       );
       setBookmarked(true);
     }
-    window.dispatchEvent(new CustomEvent("bookmarkChanged"));
+    window.dispatchEvent(new CustomEvent("bookmarkChanged", {
+      detail: {
+        classId: id,
+        bookmarked: !isBookmarked,
+        classInfo: {
+          id: classData.id,
+          title: classData.title,
+          status: classData.status,
+          images: classData.images,
+        },
+      },
+    }));
     fetch("/api/bookmarks/toggle", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

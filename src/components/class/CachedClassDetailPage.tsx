@@ -403,7 +403,18 @@ export default function CachedClassDetailPage({
         : [...bookmarks, { id: classId, created_at: new Date().toISOString() }];
       localStorage.setItem(BOOKMARKS_CACHE_KEY, JSON.stringify(next));
       setBookmarked(!isSaved);
-      window.dispatchEvent(new CustomEvent("bookmarkChanged"));
+      window.dispatchEvent(new CustomEvent("bookmarkChanged", {
+        detail: {
+          classId,
+          bookmarked: !isSaved,
+          classInfo: displayClass ? {
+            id: displayClass.id,
+            title: displayClass.title,
+            status: displayClass.status,
+            images: displayClass.images,
+          } : null,
+        },
+      }));
     } catch {}
   }
 
