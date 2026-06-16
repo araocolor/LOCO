@@ -33,7 +33,7 @@ export default function ClassHeader({
   }, []);
 
   return (
-    <header className={`sticky top-0 z-50 bg-white px-4 relative flex items-center ${className}`}>
+    <header className={`sticky top-0 z-50 bg-white px-4 relative flex items-center ${className}`} style={{ paddingTop: 'env(safe-area-inset-top)' }}>
       <div className="w-10 flex items-center justify-start">
         {!hideBackButton && (
           <HeaderBackCircleButton
