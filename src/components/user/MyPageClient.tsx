@@ -388,7 +388,7 @@ export default function MyPageClient({
             <div className="w-1/2 flex justify-end">
               <div className="grid grid-cols-3 w-full max-w-[250px] text-center">
                 <div className="flex flex-col items-center gap-0.5">
-                  <HeartHandshake size={25} className="text-yellow-400" fill="#facc15" />
+                  <HeartHandshake size={25} />
                   <span className="text-[18px] font-bold text-gray-900 leading-tight">{friendsCount}</span>
                 </div>
                 <button
