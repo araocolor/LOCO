@@ -1023,7 +1023,7 @@ export default function ClassCard({ classData, priorityImage = false, onClassSel
             <button
               type="button"
               aria-label="사진 다운로드"
-              className="absolute top-4 left-4 z-20 text-white"
+              className="absolute left-4 z-20 text-white" style={{ top: "calc(env(safe-area-inset-top) + 1rem)" }}
               onClick={(e) => { e.stopPropagation(); handleDownloadImage(currentLightboxImageUrl); }}
             >
               <svg
@@ -1046,7 +1046,7 @@ export default function ClassCard({ classData, priorityImage = false, onClassSel
           <button
             type="button"
             aria-label="닫기"
-            className="absolute top-4 right-4 z-20 text-white"
+            className="absolute right-4 z-20 text-white" style={{ top: "calc(env(safe-area-inset-top) + 1rem)" }}
             onClick={() => setLightboxOpen(false)}
           >
             <svg
