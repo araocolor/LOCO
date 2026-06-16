@@ -19,6 +19,8 @@ interface MyClassesTabProps {
   participatingLoading: boolean;
   friendClasses?: ClassWithHost[];
   friendClassesLoading?: boolean;
+  regionalClasses?: ClassWithHost[];
+  regionName?: string | null;
   onRetry: () => void;
   onClassSelect?: (classId: string) => void;
   viewMode?: "grid" | "card";
@@ -114,11 +116,14 @@ export default function MyClassesTab({
   participatingLoading,
   friendClasses = [],
   friendClassesLoading = false,
+  regionalClasses = [],
+  regionName,
   onClassSelect,
   viewMode = "grid",
 }: MyClassesTabProps) {
   const approvedCount = participatingClasses.filter((classData) => classData.application_status === "approved").length;
   const pendingCount = participatingClasses.filter((classData) => classData.application_status === "pending").length;
+  const allEmpty = classes.length === 0 && participatingClasses.length === 0 && friendClasses.length === 0;
 
   if (loading) {
     return (
@@ -141,43 +146,58 @@ export default function MyClassesTab({
         <ClassGrid classes={classes} onClassSelect={onClassSelect} />
       )}
 
-      <SectionLabel>
-        신청한클래스 <span className="text-gray-400 font-medium">{participatingClasses.length}</span>
-        <span className="ml-2 text-sm font-medium text-gray-500">
-          완료 <span className="text-gray-900">{approvedCount}</span>
-          <span className="mx-1 text-gray-300">|</span>
-          대기중 <span className="text-yellow-600">{pendingCount}</span>
-        </span>
-      </SectionLabel>
-      {participatingLoading ? (
-        <div className="flex items-center justify-center h-24 text-gray-400">
-          로딩 중...
-        </div>
-      ) : participatingClasses.length === 0 ? (
-        <div className="flex items-center justify-center h-24 text-gray-400">
-          <p className="text-sm">참여신청 클래스가 없습니다.</p>
-        </div>
-      ) : viewMode === "card" ? (
-        <ClassCardList classes={participatingClasses} />
+      {allEmpty ? (
+        regionalClasses.length > 0 && (
+          <>
+            <SectionLabel>{regionName} 클래스</SectionLabel>
+            {viewMode === "card" ? (
+              <ClassCardList classes={regionalClasses} />
+            ) : (
+              <ClassGrid classes={regionalClasses} onClassSelect={onClassSelect} />
+            )}
+          </>
+        )
       ) : (
-        <ClassGrid classes={participatingClasses} onClassSelect={onClassSelect} />
-      )}
+        <>
+          <SectionLabel>
+            신청한클래스 <span className="text-gray-400 font-medium">{participatingClasses.length}</span>
+            <span className="ml-2 text-sm font-medium text-gray-500">
+              완료 <span className="text-gray-900">{approvedCount}</span>
+              <span className="mx-1 text-gray-300">|</span>
+              대기중 <span className="text-yellow-600">{pendingCount}</span>
+            </span>
+          </SectionLabel>
+          {participatingLoading ? (
+            <div className="flex items-center justify-center h-24 text-gray-400">
+              로딩 중...
+            </div>
+          ) : participatingClasses.length === 0 ? (
+            <div className="flex items-center justify-center h-24 text-gray-400">
+              <p className="text-sm">참여신청 클래스가 없습니다.</p>
+            </div>
+          ) : viewMode === "card" ? (
+            <ClassCardList classes={participatingClasses} />
+          ) : (
+            <ClassGrid classes={participatingClasses} onClassSelect={onClassSelect} />
+          )}
 
-      <SectionLabel>
-        친구클래스 <span className="text-gray-400 font-medium">{friendClasses.length}</span>
-      </SectionLabel>
-      {friendClassesLoading ? (
-        <div className="flex items-center justify-center h-24 text-gray-400">
-          로딩 중...
-        </div>
-      ) : friendClasses.length === 0 ? (
-        <div className="flex items-center justify-center h-24 text-gray-400">
-          <p className="text-sm">친구가 개설한 클래스가 없습니다</p>
-        </div>
-      ) : viewMode === "card" ? (
-        <ClassCardList classes={friendClasses} />
-      ) : (
-        <ClassGrid classes={friendClasses} onClassSelect={onClassSelect} />
+          <SectionLabel>
+            친구클래스 <span className="text-gray-400 font-medium">{friendClasses.length}</span>
+          </SectionLabel>
+          {friendClassesLoading ? (
+            <div className="flex items-center justify-center h-24 text-gray-400">
+              로딩 중...
+            </div>
+          ) : friendClasses.length === 0 ? (
+            <div className="flex items-center justify-center h-24 text-gray-400">
+              <p className="text-sm">친구가 개설한 클래스가 없습니다</p>
+            </div>
+          ) : viewMode === "card" ? (
+            <ClassCardList classes={friendClasses} />
+          ) : (
+            <ClassGrid classes={friendClasses} onClassSelect={onClassSelect} />
+          )}
+        </>
       )}
 
     </div>

@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { UserCircle, X } from "lucide-react";
+import { Pencil, UserCircle, X } from "lucide-react";
 import { RiVerifiedBadgeFill } from "react-icons/ri";
 import { createClient } from "@/lib/supabase/client";
 import { fetchWithAuthRetry } from "@/lib/auth/fetch-with-auth-retry";
@@ -31,13 +31,6 @@ function getMemberTypeLabel(type: string) {
   if (type === "활동회원") return "활동회원";
   if (type === "독립군") return "잠수중";
   return type;
-}
-
-function maskEmail(email: string | null) {
-  if (!email) return "";
-  const [local, domain] = email.split("@");
-  if (!domain) return `${local.slice(0, 3)}****`;
-  return `${local.slice(0, 3)}****@${domain}`;
 }
 
 interface ProfileData {
@@ -146,7 +139,17 @@ export default function ProfileEditDrawer({ open, onClose, profile, mode = "norm
     } else {
       setSlideIn(false);
     }
-  }, [open]);
+  }, [
+    open,
+    mode,
+    profile.bio,
+    profile.country,
+    profile.region,
+    profile.favorite_genre,
+    profile.member_type,
+    profile.org_name,
+    profile.profile_image_url,
+  ]);
 
   function handleAvatarClick() {
     fileInputRef.current?.click();
@@ -340,10 +343,15 @@ export default function ProfileEditDrawer({ open, onClose, profile, mode = "norm
                     unoptimized
                   />
                 ) : (
-                  <UserCircle size={70} className="text-gray-400" />
+                  <>
+                    <UserCircle size={70} className="text-gray-400" />
+                    <span className="absolute bottom-0 right-0 flex h-6 w-6 items-center justify-center rounded-full bg-[#fee500] text-[#191600] shadow-sm ring-2 ring-white">
+                      <Pencil size={13} strokeWidth={2.4} />
+                    </span>
+                  </>
                 )}
                 {uploading && (
-                  <span className="absolute text-[10px] text-white bg-black/60 px-2 py-0.5 rounded mt-1">
+                  <span className="absolute top-full left-1/2 mt-1 -translate-x-1/2 whitespace-nowrap text-[10px] text-white bg-black/60 px-2 py-0.5 rounded">
                     업로드 중
                   </span>
                 )}
@@ -357,7 +365,7 @@ export default function ProfileEditDrawer({ open, onClose, profile, mode = "norm
                   {getMemberTypeLabel(memberTypes[0])}
                 </span>
               )}
-              <span className="text-[14px] text-gray-500">{editMode === "professional" ? (profile.email ?? "") : maskEmail(profile.email)}</span>
+              <span className="text-[14px] text-gray-500">{profile.email ?? ""}</span>
             </div>
             {(editMode === "professional"
               ? ["memberType", "organization", "bio", "region", "genre"] as const
@@ -385,7 +393,7 @@ export default function ProfileEditDrawer({ open, onClose, profile, mode = "norm
                       const lines = e.target.value.split("\n");
                       if (lines.length <= 4) setBio(e.target.value);
                     }}
-                    placeholder={"유튜브: https://youtube.com/@example\n인스타그램: https://instagram.com/example"}
+                    placeholder={"자기소개를 입력하세요\n예: 좋아하는 장르, 활동 지역, 춤을 시작한 계기"}
                     rows={4}
                     className="w-full overflow-hidden px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 resize-none" style={{ fontSize: "16px", color: "#000000cc" }}
                   />

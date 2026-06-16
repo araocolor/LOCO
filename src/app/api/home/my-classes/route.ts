@@ -73,7 +73,7 @@ export async function GET() {
             .select("*, host:profiles!host_id(id, nickname, profile_image_url)")
             .eq("region", region)
             .order("created_at", { ascending: false })
-            .limit(HOME_CLASS_LIMIT)
+            .limit(12)
         : Promise.resolve({ data: [], error: null }),
     ]);
 

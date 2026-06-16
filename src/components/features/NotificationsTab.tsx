@@ -408,8 +408,9 @@ export default function NotificationsTab({ userId }: NotificationsTabProps) {
           {loading ? (
             <div className="flex items-center justify-center h-32 text-gray-400">로딩 중...</div>
           ) : filteredNotifications.length === 0 ? (
-            <div className="flex items-center justify-center h-32">
-              <p className="text-sm text-gray-400">알림이 없습니다</p>
+            <div className="flex flex-col items-center justify-center flex-1 min-h-[60dvh]">
+              <Image src="/app_img/surprise.png" alt="" width={80} height={80} unoptimized />
+              <p className="text-sm text-gray-400 mt-3">현재 알림이 없습니다</p>
             </div>
           ) : (
             <ul>

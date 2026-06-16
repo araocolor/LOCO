@@ -64,9 +64,9 @@ export default function ConversationList({
             <Image
               src="/character/tino.png"
               alt="Tino"
-              width={72}
-              height={72}
-              className="mb-2 h-[72px] w-[72px] object-contain"
+              width={80}
+              height={80}
+              className="mb-2 h-[80px] w-[80px] object-contain"
               priority={false}
             />
             <p className="text-sm">
@@ -88,19 +88,14 @@ export default function ConversationList({
                 <div className="flex-1 px-3 py-3">
                   <div className="flex items-start gap-3">
                     <div className="flex-shrink-0 relative">
-                      {myProfile?.profile_image_url ? (
-                        <Image
-                          src={myProfile.profile_image_url}
-                          alt="나"
-                          width={43}
-                          height={43}
-                          className="h-[43px] w-[43px] rounded-[19px] object-cover"
-                        />
-                      ) : (
-                        <div className="flex h-[43px] w-[43px] items-center justify-center rounded-[19px] bg-gray-200 text-xs font-medium text-gray-500">
-                          {myProfile?.nickname?.[0] ?? "나"}
-                        </div>
-                      )}
+                      <Image
+                        src={myProfile?.profile_image_url || "/no face/noface01.png"}
+                        alt="나"
+                        width={43}
+                        height={43}
+                        className="h-[43px] w-[43px] rounded-[19px] object-cover"
+                        unoptimized
+                      />
                     </div>
                     <div className="flex-1 min-w-0 pt-0.5">
                       <div className="flex items-center justify-between">
@@ -244,18 +239,15 @@ export default function ConversationList({
                                 </div>
                               ))}
                             </div>
-                          ) : conv.other_user?.profile_image_url ? (
+                          ) : (
                             <Image
-                              src={conv.other_user.profile_image_url}
-                              alt={conv.other_user.nickname}
+                              src={conv.other_user?.profile_image_url || NO_FACE_IMAGES[Math.floor(Math.random() * NO_FACE_IMAGES.length)]}
+                              alt={conv.other_user?.nickname ?? ""}
                               width={43}
                               height={43}
                               className="h-[43px] w-[43px] rounded-[19px] object-cover"
+                              unoptimized
                             />
-                          ) : (
-                            <div className="flex h-[43px] w-[43px] items-center justify-center rounded-[19px] bg-gray-200 text-xs font-medium text-gray-500">
-                              {avatarText}
-                            </div>
                           )}
                           {showOnlineDot && (
                             <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-green-500 border-2 border-white" />

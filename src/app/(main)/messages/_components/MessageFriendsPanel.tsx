@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { ReactNode, UIEvent } from "react";
+import Image from "next/image";
 import { Check, LayoutGrid, LayoutList, Plus, UsersRound } from "lucide-react";
 import Avatar from "@/components/ui/Avatar";
 import SendMessageModal from "@/components/modal/SendMessageModal";
@@ -334,6 +335,13 @@ export default function MessageFriendsPanel({ onlineIds, onMessageSent }: Messag
           </div>
         )}
       </section>
+
+      {connectedFriends.length <= 5 && (
+        <div className="flex flex-col items-center justify-center py-8">
+          <Image src="/app_img/serch.png" alt="" width={80} height={80} unoptimized />
+          <p className="text-sm text-gray-400 mt-3">위에 친구를 추가하실 수 있습니다</p>
+        </div>
+      )}
 
       {profileModalTarget && (
         <UserProfileModal

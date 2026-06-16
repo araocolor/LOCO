@@ -8,6 +8,30 @@ import { prefetchNotifications } from "@/lib/notification-cache";
 import { createClient } from "@/lib/supabase/client";
 import { playSound } from "@/lib/sound";
 import Avatar from "@/components/ui/Avatar";
+
+const NO_FACE_IMAGES = [
+  "/no face/noface01.png",
+  "/no face/noface02.png",
+  "/no face/noface03.png",
+  "/no face/noface04.png",
+];
+
+function getOrCreateNoFaceUrl(): string {
+  const key = "loco_mypage_cache_local_v3";
+  try {
+    const raw = localStorage.getItem(key);
+    const parsed = raw ? JSON.parse(raw) : {};
+    if (parsed?.profile?.profile_image_url) return parsed.profile.profile_image_url;
+    const randomFace = NO_FACE_IMAGES[Math.floor(Math.random() * NO_FACE_IMAGES.length)];
+    localStorage.setItem(key, JSON.stringify({
+      ...parsed,
+      profile: { ...parsed.profile, profile_image_url: randomFace },
+    }));
+    return randomFace;
+  } catch {
+    return NO_FACE_IMAGES[Math.floor(Math.random() * NO_FACE_IMAGES.length)];
+  }
+}
 import {
   getChatUnread,
   getNotificationUnread,
@@ -108,14 +132,7 @@ export default function BottomNav() {
   const [homeSubTab, setHomeSubTab] = useState<HomeSubTab>("allClasses");
   const [profileImageUrl, setProfileImageUrl] = useState<string | null>(() => {
     if (typeof window === "undefined") return null;
-    try {
-      const raw = localStorage.getItem("loco_mypage_cache_local_v3");
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        return parsed?.profile?.profile_image_url ?? null;
-      }
-    } catch {}
-    return null;
+    return getOrCreateNoFaceUrl();
   });
   const [nickname, setNickname] = useState(() => {
     if (typeof window === "undefined") return "me";
@@ -167,7 +184,7 @@ export default function BottomNav() {
         if (!raw) return;
         const parsed = JSON.parse(raw);
         setNickname(parsed?.profile?.nickname ?? "me");
-        setProfileImageUrl(parsed?.profile?.profile_image_url ?? null);
+        setProfileImageUrl(parsed?.profile?.profile_image_url || getOrCreateNoFaceUrl());
       } catch {}
     }
     readCache();

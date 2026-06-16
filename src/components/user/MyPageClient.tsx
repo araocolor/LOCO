@@ -8,8 +8,8 @@ import { createClient } from "@/lib/supabase/client";
 import { fetchWithAuthRetry } from "@/lib/auth/fetch-with-auth-retry";
 import { prefetchBoardPostsCache } from "@/lib/board-session-cache";
 import { parseBookmarkEntries } from "@/lib/bookmarks/local";
-import { PROFILE_EDIT_OPEN_EVENT } from "@/lib/profile-events";
-import type { ProfileEditMode, ProfileEditOpenDetail } from "@/lib/profile-events";
+import { PROFILE_AVATAR_UPDATED_EVENT, PROFILE_EDIT_OPEN_EVENT } from "@/lib/profile-events";
+import type { ProfileAvatarUpdatedDetail, ProfileEditMode, ProfileEditOpenDetail } from "@/lib/profile-events";
 import ProfileEditDrawer from "./ProfileEditDrawer";
 import { ClassImage } from "@/types/class";
 import { RiVerifiedBadgeFill } from "react-icons/ri";
@@ -25,6 +25,14 @@ import StarGiftersPanel from "@/components/star/StarGiftersPanel";
 import CustomerServiceDrawer from "./CustomerServiceDrawer";
 import type { CustomerServiceTab } from "./CustomerServiceDrawer";
 
+const HOME_MY_CLASSES_CACHE_KEY = "loco_home_my_classes_v1";
+
+const NO_FACE_IMAGES = [
+  "/no face/noface01.png",
+  "/no face/noface02.png",
+  "/no face/noface03.png",
+  "/no face/noface04.png",
+];
 
 function getMemberTypeLabel(type: string) {
   if (type === "인스트럭터") return "강사";
@@ -41,6 +49,14 @@ interface GridClass {
   status?: string;
   created_at?: string;
   isBookmark?: boolean;
+}
+
+interface HomeMyClassesCache {
+  profile?: {
+    id?: string;
+    region?: string | null;
+  };
+  regionalClasses?: GridClass[];
 }
 
 interface AppliedClass {
@@ -95,6 +111,10 @@ function hasBookmarkClass(row: BookmarkClassRow): row is BookmarkClassRow & {
   classes: BookmarkClassInfo | BookmarkClassInfo[];
 } {
   return getBookmarkClassInfo(row) !== null;
+}
+
+function getHomeMyClassesCacheKey(userId: string) {
+  return `${HOME_MY_CLASSES_CACHE_KEY}:${userId}`;
 }
 
 interface Profile {
@@ -154,12 +174,24 @@ export default function MyPageClient({
   const [editMode, setEditMode] = useState<ProfileEditMode>("normal");
   const [avatarUrl, setAvatarUrl] = useState<string | null>(() => {
     if (profile.profile_image_url) return profile.profile_image_url;
-    if (typeof window === "undefined") return null;
+    if (typeof window === "undefined") return NO_FACE_IMAGES[Math.floor(Math.random() * NO_FACE_IMAGES.length)];
     try {
       const raw = localStorage.getItem(MY_PAGE_CACHE_KEY);
-      if (raw) return JSON.parse(raw)?.profile?.profile_image_url ?? null;
+      if (raw) {
+        const cached = JSON.parse(raw)?.profile?.profile_image_url;
+        if (cached) return cached;
+      }
     } catch {}
-    return null;
+    const randomFace = NO_FACE_IMAGES[Math.floor(Math.random() * NO_FACE_IMAGES.length)];
+    try {
+      const raw = localStorage.getItem(MY_PAGE_CACHE_KEY);
+      const parsed = raw ? JSON.parse(raw) : {};
+      localStorage.setItem(MY_PAGE_CACHE_KEY, JSON.stringify({
+        ...parsed,
+        profile: { ...parsed.profile, profile_image_url: randomFace },
+      }));
+    } catch {}
+    return randomFace;
   });
   const [avatarHdUrl, setAvatarHdUrl] = useState<string | null>(() => {
     const url = profile.profile_image_url ?? (() => {
@@ -174,6 +206,8 @@ export default function MyPageClient({
   });
   const [myClasses] = useState<GridClass[]>(initialMyClasses);
   const [bookmarkClasses, setBookmarkClasses] = useState<GridClass[]>([]);
+  const [regionalClasses, setRegionalClasses] = useState<GridClass[]>([]);
+  const [regionalClassRegion, setRegionalClassRegion] = useState<string | null>(profile.region);
   const [friendsCount, setFriendsCount] = useState<number>(socialCounts?.friends ?? 0);
   const [followingCount, setFollowingCount] = useState<number>(socialCounts?.following ?? 0);
   const [starBalanceOverride, setStarBalanceOverride] = useState<number | null>(null);
@@ -197,6 +231,17 @@ export default function MyPageClient({
     window.addEventListener(STAR_BALANCE_UPDATED_EVENT, handleStarBalanceUpdated);
     return () => window.removeEventListener(STAR_BALANCE_UPDATED_EVENT, handleStarBalanceUpdated);
   }, [profile.star_balance]);
+
+  useEffect(() => {
+    function handleAvatarUpdated(event: Event) {
+      const detail = (event as CustomEvent<ProfileAvatarUpdatedDetail>).detail;
+      setAvatarUrl(detail.profile_image_url);
+      setAvatarHdUrl(detail.profile_image_url ? detail.profile_image_url.replace(/\.webp$/, "_hd.webp") : null);
+    }
+
+    window.addEventListener(PROFILE_AVATAR_UPDATED_EVENT, handleAvatarUpdated);
+    return () => window.removeEventListener(PROFILE_AVATAR_UPDATED_EVENT, handleAvatarUpdated);
+  }, []);
 
   const [starGiversOpen, setStarGiversOpen] = useState(false);
   const [privacyOpen, setPrivacyOpen] = useState(false);
@@ -332,6 +377,30 @@ export default function MyPageClient({
 
     fetchAndRefresh().catch(() => {});
   }, [profile.id]);
+
+  useEffect(() => {
+    const cacheKey = getHomeMyClassesCacheKey(profile.id);
+
+    function readRegionalClassesCache() {
+      try {
+        const raw = localStorage.getItem(cacheKey);
+        if (!raw) return;
+        const parsed = JSON.parse(raw) as HomeMyClassesCache;
+        if (parsed.profile?.id && parsed.profile.id !== profile.id) return;
+        setRegionalClasses(Array.isArray(parsed.regionalClasses) ? parsed.regionalClasses : []);
+        setRegionalClassRegion(parsed.profile?.region ?? profile.region ?? null);
+      } catch {}
+    }
+
+    readRegionalClassesCache();
+
+    function handleStorage(event: StorageEvent) {
+      if (event.key === cacheKey) readRegionalClassesCache();
+    }
+
+    window.addEventListener("storage", handleStorage);
+    return () => window.removeEventListener("storage", handleStorage);
+  }, [profile.id, profile.region]);
 
   function handleOpenEditModal(mode?: ProfileEditMode) {
     setEditMode(mode ?? (profile.role === "pro" ? "professional" : "normal"));
@@ -512,6 +581,34 @@ export default function MyPageClient({
                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="white" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="absolute top-1.5 right-1.5">
                     <polygon points="19 21 12 16 5 21 5 3 19 3" />
                   </svg>
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+
+        {regionalClasses.length > 0 && (
+          <>
+            <div className="px-4 pt-5 pb-2">
+              <span className="text-[15px] font-bold text-gray-800">
+                {regionalClassRegion ? `${regionalClassRegion} 클래스` : "지역 클래스"}
+              </span>
+            </div>
+            <div className="grid grid-cols-3 gap-[1px]">
+              {regionalClasses.map((item) => (
+                <button
+                  key={item.id + "-regional"}
+                  type="button"
+                  onClick={() => router.push(`/classes/${item.id}`)}
+                  className="aspect-square bg-gray-100 relative overflow-hidden cursor-pointer"
+                >
+                  {item.images?.[0]?.card_url ? (
+                    <Image src={item.images[0].card_url} alt={item.title} fill className="object-cover" unoptimized />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-gray-100">
+                      <span className="text-gray-300 text-xs">없음</span>
+                    </div>
+                  )}
                 </button>
               ))}
             </div>

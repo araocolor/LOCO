@@ -60,6 +60,8 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
   const [participatingClassesLoading, setParticipatingClassesLoading] = useState(false);
   const [friendClasses, setFriendClasses] = useState<ClassWithHost[]>([]);
   const [friendClassesLoading, setFriendClassesLoading] = useState(false);
+  const [regionalClasses, setRegionalClasses] = useState<ClassWithHost[]>([]);
+  const [userRegion, setUserRegion] = useState<string | null>(null);
   const [classDetailId, setClassDetailId] = useState<string | null>(null);
   const [createDrawerOpen, setCreateDrawerOpen] = useState(false);
   const [allViewMode, setAllViewMode] = useState<"grid" | "card">("grid");
@@ -138,6 +140,8 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
   const applyHomeMyClassesPayload = useCallback((payload: HomeMyClassesPayload) => {
     setMyClasses(payload.myClasses ?? []);
     setParticipatingClasses(payload.participatingClasses ?? []);
+    setRegionalClasses(payload.regionalClasses ?? []);
+    setUserRegion(payload.profile?.region ?? null);
   }, []);
 
   const fetchFriendClasses = useCallback(async (uid: string, silent?: boolean) => {
@@ -510,6 +514,8 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
           participatingLoading={participatingClassesLoading}
           friendClasses={friendClasses}
           friendClassesLoading={friendClassesLoading}
+          regionalClasses={regionalClasses}
+          regionName={userRegion}
           onRetry={() => userId && fetchHomeMyClasses(userId)}
           onClassSelect={(id) => setClassDetailId(id)}
           viewMode="grid"
