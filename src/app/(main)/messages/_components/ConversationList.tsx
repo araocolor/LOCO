@@ -6,12 +6,7 @@ import type { Conversation, MessageMenuTab, MyProfile } from "../_types";
 import { getMessagePreviewText, parseMessageContent } from "../_lib/message-content";
 import MessageFriendsPanel from "./MessageFriendsPanel";
 
-const NO_FACE_IMAGES = [
-  "/no face/noface01.png",
-  "/no face/noface02.png",
-  "/no face/noface03.png",
-  "/no face/noface04.png",
-];
+const DEFAULT_AVATAR = "/no face/noface.png";
 
 interface ConversationListProps {
   activeMenuTab: MessageMenuTab;
@@ -96,7 +91,7 @@ export default function ConversationList({
                   <div className="flex items-start gap-3">
                     <div className="flex-shrink-0 relative">
                       <Image
-                        src={myProfile?.profile_image_url || "/no face/noface01.png"}
+                        src={myProfile?.profile_image_url || DEFAULT_AVATAR}
                         alt="나"
                         width={43}
                         height={43}
@@ -248,7 +243,7 @@ export default function ConversationList({
                             </div>
                           ) : (
                             <Image
-                              src={conv.other_user?.profile_image_url || NO_FACE_IMAGES[Math.floor(Math.random() * NO_FACE_IMAGES.length)]}
+                              src={conv.other_user?.profile_image_url || DEFAULT_AVATAR}
                               alt={conv.other_user?.nickname ?? ""}
                               width={43}
                               height={43}

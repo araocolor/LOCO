@@ -26,12 +26,7 @@ import ClassHeader from "@/components/layout/ClassHeader";
 
 const HOME_MY_CLASSES_CACHE_KEY = "loco_home_my_classes_v1";
 
-const NO_FACE_IMAGES = [
-  "/no face/noface01.png",
-  "/no face/noface02.png",
-  "/no face/noface03.png",
-  "/no face/noface04.png",
-];
+const DEFAULT_AVATAR = "/no face/noface.png";
 
 function getMemberTypeLabel(type: string) {
   if (type === "인스트럭터") return "강사";
@@ -118,7 +113,7 @@ export default function MyPageClient({
   const [editMode, setEditMode] = useState<ProfileEditMode>("normal");
   const [avatarUrl, setAvatarUrl] = useState<string | null>(() => {
     if (profile.profile_image_url) return profile.profile_image_url;
-    if (typeof window === "undefined") return NO_FACE_IMAGES[Math.floor(Math.random() * NO_FACE_IMAGES.length)];
+    if (typeof window === "undefined") return DEFAULT_AVATAR;
     try {
       const raw = localStorage.getItem(MY_PAGE_CACHE_KEY);
       if (raw) {
@@ -126,16 +121,15 @@ export default function MyPageClient({
         if (cached) return cached;
       }
     } catch {}
-    const randomFace = NO_FACE_IMAGES[Math.floor(Math.random() * NO_FACE_IMAGES.length)];
     try {
       const raw = localStorage.getItem(MY_PAGE_CACHE_KEY);
       const parsed = raw ? JSON.parse(raw) : {};
       localStorage.setItem(MY_PAGE_CACHE_KEY, JSON.stringify({
         ...parsed,
-        profile: { ...parsed.profile, profile_image_url: randomFace },
+        profile: { ...parsed.profile, profile_image_url: DEFAULT_AVATAR },
       }));
     } catch {}
-    return randomFace;
+    return DEFAULT_AVATAR;
   });
   const [avatarHdUrl, setAvatarHdUrl] = useState<string | null>(() => {
     const url = profile.profile_image_url ?? (() => {

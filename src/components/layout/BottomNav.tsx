@@ -9,12 +9,7 @@ import { createClient } from "@/lib/supabase/client";
 import { playSound } from "@/lib/sound";
 import Avatar from "@/components/ui/Avatar";
 
-const NO_FACE_IMAGES = [
-  "/no face/noface01.png",
-  "/no face/noface02.png",
-  "/no face/noface03.png",
-  "/no face/noface04.png",
-];
+const DEFAULT_AVATAR = "/no face/noface.png";
 
 function getOrCreateNoFaceUrl(): string {
   const key = "loco_mypage_cache_local_v3";
@@ -22,14 +17,13 @@ function getOrCreateNoFaceUrl(): string {
     const raw = localStorage.getItem(key);
     const parsed = raw ? JSON.parse(raw) : {};
     if (parsed?.profile?.profile_image_url) return parsed.profile.profile_image_url;
-    const randomFace = NO_FACE_IMAGES[Math.floor(Math.random() * NO_FACE_IMAGES.length)];
     localStorage.setItem(key, JSON.stringify({
       ...parsed,
-      profile: { ...parsed.profile, profile_image_url: randomFace },
+      profile: { ...parsed.profile, profile_image_url: DEFAULT_AVATAR },
     }));
-    return randomFace;
+    return DEFAULT_AVATAR;
   } catch {
-    return NO_FACE_IMAGES[Math.floor(Math.random() * NO_FACE_IMAGES.length)];
+    return DEFAULT_AVATAR;
   }
 }
 import {
