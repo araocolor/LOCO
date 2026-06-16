@@ -16,15 +16,13 @@ import CachedClassDetailPage from "@/components/class/CachedClassDetailPage";
 import ClassHeader from "@/components/layout/ClassHeader";
 import CreateClassDrawer from "@/components/class/CreateClassDrawer";
 import HomeSearchResultsPage from "@/components/features/HomeSearchResultsPage";
-import MyClassesTab from "@/components/features/MyClassesTab";
 import { useScrollChromeVisibility } from "@/hooks/useScrollChromeVisibility";
 import { useAuth } from "@/lib/auth-context";
 
 const HOME_MY_CLASSES_CACHE_KEY = "loco_home_my_classes_v1";
-const HOME_FRIEND_CLASSES_CACHE_KEY = "loco_home_friend_classes_v1";
 const HOME_SUBTAB_CHANGE_EVENT = "loco-home-subtab-change";
 
-type MainTab = "allClasses" | "mySubscriptions" | "friendClasses";
+type MainTab = "allClasses" | "friendClasses";
 
 interface MainTabbedHomePageProps {
   initialClasses: ClassWithHost[];
@@ -46,22 +44,10 @@ function getHomeMyClassesCacheKey(userId: string) {
   return `${HOME_MY_CLASSES_CACHE_KEY}:${userId}`;
 }
 
-function getHomeFriendClassesCacheKey(userId: string) {
-  return `${HOME_FRIEND_CLASSES_CACHE_KEY}:${userId}`;
-}
-
 export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePageProps) {
   const [activeTab, setActiveTab] = useState<MainTab>("allClasses");
   const { user } = useAuth();
   const userId = user?.id ?? null;
-  const [myClasses, setMyClasses] = useState<ClassWithHost[]>([]);
-  const [myClassesLoading, setMyClassesLoading] = useState(false);
-  const [participatingClasses, setParticipatingClasses] = useState<ClassWithHost[]>([]);
-  const [participatingClassesLoading, setParticipatingClassesLoading] = useState(false);
-  const [friendClasses, setFriendClasses] = useState<ClassWithHost[]>([]);
-  const [friendClassesLoading, setFriendClassesLoading] = useState(false);
-  const [regionalClasses, setRegionalClasses] = useState<ClassWithHost[]>([]);
-  const [userRegion, setUserRegion] = useState<string | null>(null);
   const [classDetailId, setClassDetailId] = useState<string | null>(null);
   const [createDrawerOpen, setCreateDrawerOpen] = useState(false);
   const [allViewMode, setAllViewMode] = useState<"grid" | "card">("grid");
@@ -137,40 +123,13 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
     return () => document.removeEventListener("click", handleClick);
   }, [openMenu]);
 
-  const applyHomeMyClassesPayload = useCallback((payload: HomeMyClassesPayload) => {
-    setMyClasses(payload.myClasses ?? []);
-    setParticipatingClasses(payload.participatingClasses ?? []);
-    setRegionalClasses(payload.regionalClasses ?? []);
-    setUserRegion(payload.profile?.region ?? null);
-  }, []);
-
-  const fetchFriendClasses = useCallback(async (uid: string, silent?: boolean) => {
-    if (!silent) setFriendClassesLoading(true);
-    try {
-      const res = await fetch("/api/home/friend-classes");
-      if (!res.ok) return;
-      const json = await res.json();
-      setFriendClasses(json.friendClasses ?? []);
-      try {
-        localStorage.setItem(getHomeFriendClassesCacheKey(uid), JSON.stringify(json));
-      } catch {}
-    } catch {
-    } finally {
-      setFriendClassesLoading(false);
-    }
-  }, []);
-
-  const fetchHomeMyClasses = useCallback(
-    async (uid: string, silent?: boolean) => {
-      if (!silent) {
-        setMyClassesLoading(true);
-        setParticipatingClassesLoading(true);
-      }
+  useEffect(() => {
+    if (!userId) return;
+    async function syncHomeCache(uid: string) {
       try {
         const res = await fetch("/api/home/my-classes");
         if (!res.ok) return;
         const json = (await res.json()) as HomeMyClassesPayload;
-        applyHomeMyClassesPayload(json);
         try {
           localStorage.setItem(getHomeMyClassesCacheKey(uid), JSON.stringify(json));
         } catch {}
@@ -186,68 +145,10 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
             window.dispatchEvent(new Event("loco:profile-cache-updated"));
           } catch {}
         }
-        void fetchFriendClasses(uid, silent);
-      } catch {
-      } finally {
-        setMyClassesLoading(false);
-        setParticipatingClassesLoading(false);
-      }
-    },
-    [applyHomeMyClassesPayload, fetchFriendClasses]
-  );
-
-  useEffect(() => {
-    if (!userId) {
-      queueMicrotask(() => setMyClasses([]));
-      queueMicrotask(() => setParticipatingClasses([]));
-      queueMicrotask(() => setFriendClasses([]));
-      return;
+      } catch {}
     }
-
-    let cachedPayload: HomeMyClassesPayload | null = null;
-    try {
-      const raw = localStorage.getItem(getHomeMyClassesCacheKey(userId));
-      cachedPayload = raw ? (JSON.parse(raw) as HomeMyClassesPayload) : null;
-    } catch {
-      cachedPayload = null;
-    }
-
-    let cachedFriendClasses: ClassWithHost[] | null = null;
-    try {
-      const raw = localStorage.getItem(getHomeFriendClassesCacheKey(userId));
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        cachedFriendClasses = parsed.friendClasses ?? null;
-      }
-    } catch {
-      cachedFriendClasses = null;
-    }
-
-    const hasCached = cachedPayload?.profile?.id === userId;
-    const hasFriendCached = Array.isArray(cachedFriendClasses) && cachedFriendClasses.length > 0;
-    queueMicrotask(() => {
-      if (hasCached && cachedPayload) {
-        applyHomeMyClassesPayload(cachedPayload);
-      }
-      if (hasFriendCached && cachedFriendClasses) {
-        setFriendClasses(cachedFriendClasses);
-      }
-      void fetchHomeMyClasses(userId, hasCached);
-    });
-  }, [userId, fetchHomeMyClasses, applyHomeMyClassesPayload]);
-
-  useEffect(() => {
-    const handler = (e: Event) => {
-      const deletedId = (e as CustomEvent<string>).detail;
-      if (!deletedId) return;
-      const remove = (list: ClassWithHost[]) => list.filter((c) => c.id !== deletedId);
-      setMyClasses(remove);
-      setParticipatingClasses(remove);
-      setFriendClasses(remove);
-    };
-    window.addEventListener("class-deleted", handler);
-    return () => window.removeEventListener("class-deleted", handler);
-  }, []);
+    void syncHomeCache(userId);
+  }, [userId]);
 
   useEffect(() => {
     window.dispatchEvent(new CustomEvent<MainTab>(HOME_SUBTAB_CHANGE_EVENT, { detail: activeTab }));
@@ -272,14 +173,6 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
           </button>
         </div>
         <div className="flex pl-4 pr-4 gap-2 pb-2 overflow-x-auto scrollbar-hide whitespace-nowrap">
-          <button
-            onClick={() => setActiveTab("mySubscriptions")}
-            className={`px-3.5 py-1.5 rounded-full text-[15px] font-semibold transition-colors ${
-              activeTab === "mySubscriptions" ? "bg-black text-white" : "bg-gray-100 text-black/[0.65]"
-            }`}
-          >
-            내클래스
-          </button>
           <button
             onClick={() => setActiveTab("friendClasses")}
             className={`px-3.5 py-1.5 rounded-full text-[15px] font-semibold transition-colors ${
@@ -506,21 +399,7 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
           viewMode="card"
         />
       )}
-      {activeTab === "mySubscriptions" && (
-        <MyClassesTab
-          classes={myClasses}
-          loading={myClassesLoading}
-          participatingClasses={participatingClasses}
-          participatingLoading={participatingClassesLoading}
-          friendClasses={friendClasses}
-          friendClassesLoading={friendClassesLoading}
-          regionalClasses={regionalClasses}
-          regionName={userRegion}
-          onRetry={() => userId && fetchHomeMyClasses(userId)}
-          onClassSelect={(id) => setClassDetailId(id)}
-          viewMode="grid"
-        />
-      )}
+
 
       {!classDetailId && (
         <div className="fixed bottom-24 left-1/2 z-[60] w-full max-w-[500px] -translate-x-1/2 pointer-events-none">

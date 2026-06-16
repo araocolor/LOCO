@@ -4,10 +4,8 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { UserCircle, X, Settings, HeartHandshake, Star, SmilePlus, UsersRound, CreditCard, Megaphone, Headphones, FileText, ShieldCheck, ChevronRight, ReceiptText, Award } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
 import { fetchWithAuthRetry } from "@/lib/auth/fetch-with-auth-retry";
 import { prefetchBoardPostsCache } from "@/lib/board-session-cache";
-import { parseBookmarkEntries } from "@/lib/bookmarks/local";
 import { PROFILE_AVATAR_UPDATED_EVENT, PROFILE_EDIT_OPEN_EVENT } from "@/lib/profile-events";
 import type { ProfileAvatarUpdatedDetail, ProfileEditMode, ProfileEditOpenDetail } from "@/lib/profile-events";
 import ProfileEditDrawer from "./ProfileEditDrawer";
@@ -48,7 +46,6 @@ interface GridClass {
   title: string;
   status?: string;
   created_at?: string;
-  isBookmark?: boolean;
 }
 
 interface HomeMyClassesCache {
@@ -57,60 +54,6 @@ interface HomeMyClassesCache {
     region?: string | null;
   };
   regionalClasses?: GridClass[];
-}
-
-interface AppliedClass {
-  id: string;
-  status: string;
-  created_at: string;
-  class: {
-    id: string;
-    title: string;
-    datetime: string;
-    region: string;
-    status: string;
-    images: ClassImage[] | null;
-  } | null;
-}
-
-interface HomeClassCache {
-  id: string;
-  images: ClassImage[] | null;
-  title: string;
-}
-
-interface BookmarkClassRow {
-  created_at: string;
-  classes:
-    | {
-        id: string;
-        images: ClassImage[] | null;
-        title: string;
-      }
-    | {
-        id: string;
-        images: ClassImage[] | null;
-        title: string;
-      }[]
-    | null;
-}
-
-interface BookmarkClassInfo {
-  id: string;
-  images: ClassImage[] | null;
-  title: string;
-}
-
-function getBookmarkClassInfo(row: BookmarkClassRow): BookmarkClassInfo | null {
-  if (!row.classes) return null;
-  if (Array.isArray(row.classes)) return row.classes[0] ?? null;
-  return row.classes;
-}
-
-function hasBookmarkClass(row: BookmarkClassRow): row is BookmarkClassRow & {
-  classes: BookmarkClassInfo | BookmarkClassInfo[];
-} {
-  return getBookmarkClassInfo(row) !== null;
 }
 
 function getHomeMyClassesCacheKey(userId: string) {
@@ -136,8 +79,7 @@ interface Profile {
 
 interface Props {
   profile: Profile;
-  myClasses: GridClass[];
-  appliedClasses?: AppliedClass[];
+  allClasses: GridClass[];
   starGivers?: StarGiver[];
   socialCounts?: {
     following: number;
@@ -163,8 +105,7 @@ function readMyPageCachedProfile(cacheKey: string): CacheProfilePatch | null {
 
 export default function MyPageClient({
   profile,
-  myClasses: initialMyClasses,
-  appliedClasses: initialAppliedClasses = [],
+  allClasses,
   socialCounts,
   starGivers: initialStarGivers = [],
 }: Props) {
@@ -204,8 +145,6 @@ export default function MyPageClient({
     })();
     return url ? url.replace(/\.webp$/, "_hd.webp") : null;
   });
-  const [myClasses] = useState<GridClass[]>(initialMyClasses);
-  const [bookmarkClasses, setBookmarkClasses] = useState<GridClass[]>([]);
   const [regionalClasses, setRegionalClasses] = useState<GridClass[]>([]);
   const [regionalClassRegion, setRegionalClassRegion] = useState<string | null>(profile.region);
   const [friendsCount, setFriendsCount] = useState<number>(socialCounts?.friends ?? 0);
@@ -322,61 +261,6 @@ export default function MyPageClient({
       localStorage.setItem(MY_PAGE_CACHE_KEY, JSON.stringify(next));
     } catch {}
   }
-
-  useEffect(() => {
-    const BOOKMARK_CLASSES_CACHE_KEY = "loco_bookmark_classes_v1";
-
-    function readBookmarkClassesCache(): GridClass[] | null {
-      try {
-        const raw = localStorage.getItem(BOOKMARK_CLASSES_CACHE_KEY);
-        if (!raw) return null;
-        const parsed = JSON.parse(raw) as GridClass[];
-        return Array.isArray(parsed) ? parsed : null;
-      } catch {
-        return null;
-      }
-    }
-
-    function writeBookmarkClassesCache(classes: GridClass[]) {
-      try {
-        localStorage.setItem(BOOKMARK_CLASSES_CACHE_KEY, JSON.stringify(classes));
-      } catch {}
-    }
-
-    const cached = readBookmarkClassesCache();
-    if (cached) {
-      setBookmarkClasses(cached);
-    }
-
-    async function fetchAndRefresh() {
-      const supabase = createClient();
-      const { data: bm } = await supabase
-        .from("class_bookmarks")
-        .select("class_id, created_at, classes(id, images, title)")
-        .eq("user_id", profile.id)
-        .order("created_at", { ascending: false });
-      const bmRows = (bm ?? []) as BookmarkClassRow[];
-      const bmClasses: GridClass[] = bmRows.flatMap((b) => {
-        if (!hasBookmarkClass(b)) return [];
-        const cls = getBookmarkClassInfo(b);
-        if (!cls) return [];
-        return [{
-          id: cls.id,
-          images: cls.images,
-          title: cls.title,
-          created_at: b.created_at,
-          isBookmark: true,
-        }];
-      });
-      setBookmarkClasses(bmClasses);
-      writeBookmarkClassesCache(bmClasses);
-      localStorage.setItem("loco_bookmark_ids_v1", JSON.stringify(
-        bmClasses.map((c) => ({ id: c.id, created_at: c.created_at }))
-      ));
-    }
-
-    fetchAndRefresh().catch(() => {});
-  }, [profile.id]);
 
   useEffect(() => {
     const cacheKey = getHomeMyClassesCacheKey(profile.id);
@@ -498,13 +382,13 @@ export default function MyPageClient({
 
       {/* 하단 클래스 섹션 */}
       <div className="flex-1 bg-white">
-        {myClasses.length > 0 && (
+        {allClasses.length > 0 && (
           <>
             <div className="px-4 pt-5 pb-2">
-              <span className="text-[15px] font-bold text-gray-800">내가 만든 클래스</span>
+              <span className="text-[15px] font-bold text-gray-800">마이클래스</span>
             </div>
             <div className="grid grid-cols-3 gap-[1px]">
-              {myClasses.map((item) => (
+              {allClasses.map((item) => (
                 <button
                   key={item.id}
                   type="button"
@@ -518,69 +402,6 @@ export default function MyPageClient({
                       <span className="text-gray-300 text-xs">없음</span>
                     </div>
                   )}
-                  {item.status === "recruiting" && (
-                    <div className="absolute top-1.5 right-1.5 w-3 h-3 rounded-full bg-green-500" />
-                  )}
-                </button>
-              ))}
-            </div>
-          </>
-        )}
-
-        {initialAppliedClasses.length > 0 && (
-          <>
-            <div className="px-4 pt-5 pb-2">
-              <span className="text-[15px] font-bold text-gray-800">참여중인 클래스</span>
-            </div>
-            <div className="grid grid-cols-3 gap-[1px]">
-              {initialAppliedClasses
-                .filter((app) => app.class)
-                .map((app) => (
-                  <button
-                    key={app.id}
-                    type="button"
-                    onClick={() => router.push(`/classes/${app.class!.id}`)}
-                    className="aspect-square bg-gray-100 relative overflow-hidden cursor-pointer"
-                  >
-                    {app.class!.images?.[0]?.card_url ? (
-                      <Image src={app.class!.images[0].card_url} alt={app.class!.title} fill className="object-cover" unoptimized />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center bg-gray-100">
-                        <span className="text-gray-300 text-xs">없음</span>
-                      </div>
-                    )}
-                    {app.status === "pending" && (
-                      <div className="absolute top-1.5 right-1.5 rounded-full bg-yellow-400 px-1.5 py-0.5 text-[10px] font-semibold text-gray-900">대기</div>
-                    )}
-                  </button>
-                ))}
-            </div>
-          </>
-        )}
-
-        {bookmarkClasses.length > 0 && (
-          <>
-            <div className="px-4 pt-5 pb-2">
-              <span className="text-[15px] font-bold text-gray-800">북마크 클래스</span>
-            </div>
-            <div className="grid grid-cols-3 gap-[1px]">
-              {bookmarkClasses.map((item) => (
-                <button
-                  key={item.id + "-bm"}
-                  type="button"
-                  onClick={() => router.push(`/classes/${item.id}`)}
-                  className="aspect-square bg-gray-100 relative overflow-hidden cursor-pointer"
-                >
-                  {item.images?.[0]?.card_url ? (
-                    <Image src={item.images[0].card_url} alt={item.title} fill className="object-cover" unoptimized />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center bg-gray-100">
-                      <span className="text-gray-300 text-xs">없음</span>
-                    </div>
-                  )}
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="white" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="absolute top-1.5 right-1.5">
-                    <polygon points="19 21 12 16 5 21 5 3 19 3" />
-                  </svg>
                 </button>
               ))}
             </div>

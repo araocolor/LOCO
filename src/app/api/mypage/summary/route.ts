@@ -29,6 +29,14 @@ interface MyClassRow {
   images: { card_url: string }[] | null;
 }
 
+interface AllClassItem {
+  id: string;
+  title: string;
+  status: string;
+  created_at: string;
+  images: { card_url: string }[] | null;
+}
+
 interface MyPageSummary {
   profile: {
     id: string;
@@ -47,8 +55,7 @@ interface MyPageSummary {
     received_star_count: number;
     star_balance: number;
   };
-  appliedClasses: AppliedClassRow[];
-  myClasses: MyClassRow[];
+  allClasses: AllClassItem[];
   hasPendingProRequest: boolean;
   socialCounts: {
     following: number;
@@ -72,7 +79,7 @@ export async function GET() {
 
     const admin = createAdminClient();
 
-    const [profileResult, appliedResult, myClassesResult, proRequestResult, followingResult, followersResult, friendsResult, subscriptionResult, receivedStarRowsResult, starWalletResult] = await Promise.all([
+    const [profileResult, appliedResult, myClassesResult, bookmarkResult, proRequestResult, followingResult, followersResult, friendsResult, subscriptionResult, receivedStarRowsResult, starWalletResult] = await Promise.all([
       supabase
         .from("profiles")
         .select("id, email, nickname, nickname_changed_at, bio, country, region, favorite_genre, member_type, role, profile_image_url, org_name, kakao_notification_enabled")
@@ -87,6 +94,11 @@ export async function GET() {
         .from("classes")
         .select("id, title, status, created_at, images")
         .eq("host_id", user.id)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("class_bookmarks")
+        .select("created_at, classes(id, title, status, images)")
+        .eq("user_id", user.id)
         .order("created_at", { ascending: false }),
       supabase
         .from("pro_requests")
@@ -136,6 +148,7 @@ export async function GET() {
 
     if (appliedResult.error) console.error("[mypage-summary] applied classes failed", appliedResult.error);
     if (myClassesResult.error) console.error("[mypage-summary] my classes failed", myClassesResult.error);
+    if (bookmarkResult.error) console.error("[mypage-summary] bookmark classes failed", bookmarkResult.error);
     if (proRequestResult.error) console.error("[mypage-summary] pro request failed", proRequestResult.error);
     if (followingResult.error) console.error("[mypage-summary] following count failed", followingResult.error);
     if (followersResult.error) console.error("[mypage-summary] followers count failed", followersResult.error);
@@ -166,25 +179,50 @@ export async function GET() {
       })
       .filter((giver): giver is StarGiver => giver !== null);
 
-    const appliedClasses: AppliedClassRow[] = (appliedResult.error ? [] : appliedResult.data ?? []).map((row) => {
-      const cls = row.class as unknown as AppliedClassInfo | null;
+    const myClassItems: AllClassItem[] = (myClassesResult.error ? [] : myClassesResult.data ?? []).map((c) => ({
+      id: c.id,
+      title: c.title,
+      status: c.status as string,
+      created_at: c.created_at,
+      images: c.images,
+    }));
 
-      return {
-        id: row.id,
-        status: row.status as ApplicationStatus,
-        created_at: row.created_at,
-        class: cls
-          ? {
-              id: cls.id,
-              title: cls.title,
-              datetime: cls.datetime,
-              region: cls.region,
-              status: cls.status as ClassStatus,
-              images: cls.images,
-            }
-          : null,
-      };
-    });
+    const appliedClassItems: AllClassItem[] = (appliedResult.error ? [] : appliedResult.data ?? [])
+      .map((row) => {
+        const cls = row.class as unknown as AppliedClassInfo | null;
+        if (!cls) return null;
+        return {
+          id: cls.id,
+          title: cls.title,
+          status: cls.status as string,
+          created_at: row.created_at,
+          images: cls.images,
+        };
+      })
+      .filter((item): item is AllClassItem => item !== null);
+
+    const bookmarkClassItems: AllClassItem[] = (bookmarkResult.error ? [] : bookmarkResult.data ?? [])
+      .map((row) => {
+        const cls = row.classes as unknown as { id: string; title: string; status: string; images: { card_url: string }[] | null } | null;
+        if (!cls) return null;
+        return {
+          id: cls.id,
+          title: cls.title,
+          status: cls.status,
+          created_at: row.created_at,
+          images: cls.images,
+        };
+      })
+      .filter((item): item is AllClassItem => item !== null);
+
+    const seen = new Set<string>();
+    const allClasses: AllClassItem[] = [];
+    for (const item of [...myClassItems, ...appliedClassItems, ...bookmarkClassItems]) {
+      if (!seen.has(item.id)) {
+        seen.add(item.id);
+        allClasses.push(item);
+      }
+    }
 
     const profile = profileResult.data;
 
@@ -208,8 +246,7 @@ export async function GET() {
           : (receivedStarRowsResult.data ?? []).reduce((total, row) => total + Number(row.count ?? 0), 0),
         star_balance: starWalletResult.error ? 0 : starWalletResult.data?.balance ?? 0,
       },
-      appliedClasses,
-      myClasses: (myClassesResult.error ? [] : myClassesResult.data ?? []) as MyClassRow[],
+      allClasses,
       hasPendingProRequest: proRequestResult.error ? false : !!proRequestResult.data,
       socialCounts: {
         following: followingResult.error ? 0 : followingResult.count ?? 0,

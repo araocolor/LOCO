@@ -3,8 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import MyPageClient from "@/components/user/MyPageClient";
-import type { ClassStatus, ClassImage } from "@/types/class";
-import type { ApplicationStatus } from "@/types/application";
+import type { ClassImage } from "@/types/class";
 import type { StarGiver, UserRole } from "@/types/user";
 
 const MY_PAGE_CACHE_KEY = "loco_mypage_cache_local_v3";
@@ -27,23 +26,7 @@ interface CachedProfile {
   star_balance: number;
 }
 
-interface CachedAppliedClassInfo {
-  id: string;
-  title: string;
-  datetime: string;
-  region: string;
-  status: ClassStatus;
-  images: ClassImage[] | null;
-}
-
-interface CachedAppliedClass {
-  id: string;
-  status: ApplicationStatus;
-  created_at: string;
-  class: CachedAppliedClassInfo | null;
-}
-
-interface CachedMyClass {
+interface CachedClassItem {
   id: string;
   title: string;
   status: string;
@@ -53,8 +36,7 @@ interface CachedMyClass {
 
 interface MyPageSummaryCache {
   profile: CachedProfile;
-  appliedClasses: CachedAppliedClass[];
-  myClasses: CachedMyClass[];
+  allClasses: CachedClassItem[];
   hasPendingProRequest: boolean;
   socialCounts?: {
     following: number;
@@ -111,7 +93,7 @@ export default function MyPageCacheLoader() {
             const p = hCache?.profile;
             if (p?.nickname) {
               const homeMyClasses = Array.isArray(hCache.myClasses)
-                ? (hCache.myClasses as CachedMyClass[]).map((c) => ({
+                ? (hCache.myClasses as CachedClassItem[]).map((c) => ({
                     id: c.id,
                     title: c.title,
                     status: c.status ?? "open",
@@ -137,8 +119,7 @@ export default function MyPageCacheLoader() {
                   received_star_count: 0,
                   star_balance: 0,
                 },
-                appliedClasses: [],
-                myClasses: homeMyClasses,
+                allClasses: homeMyClasses,
                 hasPendingProRequest: false,
               });
               hasCachedData = true;
@@ -172,8 +153,7 @@ export default function MyPageCacheLoader() {
   return (
     <MyPageClient
       profile={data.profile}
-      myClasses={data.myClasses ?? []}
-      appliedClasses={data.appliedClasses ?? []}
+      allClasses={data.allClasses ?? []}
       socialCounts={data.socialCounts}
       starGivers={data.starGivers ?? []}
     />
