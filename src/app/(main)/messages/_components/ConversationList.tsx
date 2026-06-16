@@ -6,6 +6,13 @@ import type { Conversation, MessageMenuTab, MyProfile } from "../_types";
 import { getMessagePreviewText, parseMessageContent } from "../_lib/message-content";
 import MessageFriendsPanel from "./MessageFriendsPanel";
 
+const NO_FACE_IMAGES = [
+  "/no face/noface01.png",
+  "/no face/noface02.png",
+  "/no face/noface03.png",
+  "/no face/noface04.png",
+];
+
 interface ConversationListProps {
   activeMenuTab: MessageMenuTab;
   conversations: Conversation[];
