@@ -70,7 +70,6 @@ type DetailSettingId =
   | "newsAllSound"
   | "newsClass"
   | "newsComment"
-  | "newsLike"
   | "newsPayment"
   | "classPublic"
   | "classFriends"
@@ -193,7 +192,39 @@ export default function MyPageSettingsDrawer({ open, onClose }: MyPageSettingsDr
   }, [open]);
 
   useEffect(() => {
-    if (open) setDetailId(null);
+    if (!open) return;
+    setDetailId(null);
+
+    function applySettings(data: Record<string, unknown>) {
+      setToggles((prev) => ({
+        ...prev,
+        chatAllSound: (data.chat_all as boolean) ?? true,
+        chatDm: (data.chat_dm as boolean) ?? true,
+        chatGroup: (data.chat_group as boolean) ?? true,
+        chatClass: (data.chat_class as boolean) ?? true,
+        newsAllSound: (data.news_all as boolean) ?? true,
+        newsClass: (data.news_class as boolean) ?? true,
+        newsComment: (data.news_comment as boolean) ?? true,
+        friendAlert: (data.friend_alert as boolean) ?? true,
+        locationConsent: (data.location_consent as boolean) ?? true,
+      }));
+      setClassPrivacy((data.class_visibility as string) ?? "public");
+      setMessagePrivacy((data.message_visibility as string) ?? "public");
+    }
+
+    const cached = localStorage.getItem("loco_notification_settings");
+    if (cached) {
+      try { applySettings(JSON.parse(cached)); return; } catch {}
+    }
+
+    fetch("/api/notification-settings")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.error) return;
+        applySettings(data);
+        localStorage.setItem("loco_notification_settings", JSON.stringify(data));
+      })
+      .catch(() => {});
   }, [open]);
 
   useEffect(() => {
@@ -210,7 +241,7 @@ export default function MyPageSettingsDrawer({ open, onClose }: MyPageSettingsDr
   }, []);
 
   const chatSubKeys = ["chatDm", "chatGroup", "chatClass"];
-  const newsSubKeys = ["newsClass", "newsComment", "newsLike", "newsReply"];
+  const newsSubKeys = ["newsClass", "newsComment"];
 
   function handleToggle(key: string) {
     if (key === "newsPayment") return;
@@ -259,9 +290,27 @@ export default function MyPageSettingsDrawer({ open, onClose }: MyPageSettingsDr
   const router = useRouter();
 
   function closeSettings() {
+    const settingsData = {
+      chat_all: toggles.chatAllSound,
+      chat_dm: toggles.chatDm,
+      chat_group: toggles.chatGroup,
+      chat_class: toggles.chatClass,
+      news_all: toggles.newsAllSound,
+      news_class: toggles.newsClass,
+      news_comment: toggles.newsComment,
+      class_visibility: classPrivacy,
+      message_visibility: messagePrivacy,
+      friend_alert: toggles.friendAlert,
+      location_consent: toggles.locationConsent,
+    };
+    localStorage.setItem("loco_notification_settings", JSON.stringify(settingsData));
+    fetch("/api/notification-settings", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(settingsData),
+    }).catch(() => {});
     setDetailId(null);
     onClose();
-    router.refresh();
   }
 
   function openProfileEdit() {
@@ -511,12 +560,6 @@ function GeneralSettings({
         />
         <div className="h-[1px] bg-gray-100 mx-4" />
         <SettingsLinkRow
-          icon={<Heart size={20} />}
-          label="좋아요알림"
-          onClick={() => onOpenDetail("newsLike")}
-        />
-        <div className="h-[1px] bg-gray-100 mx-4" />
-        <SettingsLinkRow
           icon={<CreditCard size={20} />}
           label="결제알림"
           onClick={() => onOpenDetail("newsPayment")}
@@ -759,7 +802,6 @@ function getDetailSetting({
     { icon: <Bell size={20} />, label: "전체소식알림", checked: toggles.newsAllSound, onToggle: () => onToggle("newsAllSound") },
     { icon: <FileText size={20} />, label: "수업신청", checked: toggles.newsClass, onToggle: () => onToggle("newsClass") },
     { icon: <MessageCircle size={20} />, label: "댓글알림", checked: toggles.newsComment, onToggle: () => onToggle("newsComment") },
-    { icon: <Heart size={20} />, label: "좋아요알림", checked: toggles.newsLike, onToggle: () => onToggle("newsLike") },
     { icon: <CreditCard size={20} />, label: "결제알림", checked: true, onToggle: () => {}, disabled: true },
   ];
   const classRows: DetailSectionRow[] = [
@@ -796,8 +838,6 @@ function getDetailSetting({
       return { icon: <FileText size={20} />, label: "수업신청", description: "내가 만든 클래스의 신청 알림 소리를 끕니다. 승인이 필요한 경우 표시는 유지됩니다.", checked: toggles.newsClass, onToggle: () => onToggle("newsClass"), sectionRows: newsRows };
     case "newsComment":
       return { icon: <MessageCircle size={20} />, label: "댓글알림", description: "클래스 댓글에 대한 소리와 알림 표시를 끕니다.", checked: toggles.newsComment, onToggle: () => onToggle("newsComment"), sectionRows: newsRows };
-    case "newsLike":
-      return { icon: <Heart size={20} />, label: "좋아요알림", description: "내가 만든 클래스의 좋아요 알림 표시를 끕니다.", checked: toggles.newsLike, onToggle: () => onToggle("newsLike"), sectionRows: newsRows };
     case "newsPayment":
       return { icon: <CreditCard size={20} />, label: "결제알림", description: "결제는 중요한 알림이라 소리와 알림이 표시됩니다. 소리는 모바일 기기 설정에서 끌 수 있습니다.", checked: true, onToggle: () => {}, disabled: true, sectionRows: newsRows };
     case "classPublic":
