@@ -147,7 +147,7 @@ export default function MyClassesTab({
         <ClassGrid classes={classes} onClassSelect={onClassSelect} />
       )}
 
-      {!allEmpty && (
+      {participatingClasses.length > 0 && (
         <>
           <SectionLabel>
             신청한클래스 <span className="text-gray-400 font-medium">{participatingClasses.length}</span>
@@ -157,32 +157,20 @@ export default function MyClassesTab({
               대기중 <span className="text-yellow-600">{pendingCount}</span>
             </span>
           </SectionLabel>
-          {participatingLoading ? (
-            <div className="flex items-center justify-center h-24 text-gray-400">
-              로딩 중...
-            </div>
-          ) : participatingClasses.length === 0 ? (
-            <div className="flex items-center justify-center h-24 text-gray-400">
-              <p className="text-sm">참여신청 클래스가 없습니다.</p>
-            </div>
-          ) : viewMode === "card" ? (
+          {viewMode === "card" ? (
             <ClassCardList classes={participatingClasses} />
           ) : (
             <ClassGrid classes={participatingClasses} onClassSelect={onClassSelect} />
           )}
+        </>
+      )}
 
+      {friendClasses.length > 0 && (
+        <>
           <SectionLabel>
             친구클래스 <span className="text-gray-400 font-medium">{friendClasses.length}</span>
           </SectionLabel>
-          {friendClassesLoading ? (
-            <div className="flex items-center justify-center h-24 text-gray-400">
-              로딩 중...
-            </div>
-          ) : friendClasses.length === 0 ? (
-            <div className="flex items-center justify-center h-24 text-gray-400">
-              <p className="text-sm">친구가 개설한 클래스가 없습니다</p>
-            </div>
-          ) : viewMode === "card" ? (
+          {viewMode === "card" ? (
             <ClassCardList classes={friendClasses} />
           ) : (
             <ClassGrid classes={friendClasses} onClassSelect={onClassSelect} />
