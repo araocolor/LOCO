@@ -2,13 +2,13 @@ import type { Tab } from "../_types/search";
 import { SEARCH_TAB_CHANGE_EVENT } from "./constants";
 
 export function getSearchTab(): Tab {
-  if (typeof window === "undefined") return "finder";
+  if (typeof window === "undefined") return "members";
   const tab = window.history.state?.tab;
   if (tab === "members") return "members";
   if (tab === "followings") return "followings";
   if (tab === "pending") return "pending";
   if (tab === "finder") return "finder";
-  return "finder";
+  return "members";
 }
 
 export function subscribeSearchTab(onStoreChange: () => void) {
