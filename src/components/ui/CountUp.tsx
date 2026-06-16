@@ -10,7 +10,7 @@ interface CountUpProps {
   onAnimationEnd?: () => void;
 }
 
-export default function CountUp({ value, duration = 1500, animate = true, className, onAnimationEnd }: CountUpProps) {
+export default function CountUp({ value, duration = 1000, animate = true, className, onAnimationEnd }: CountUpProps) {
   const [display, setDisplay] = useState<number | null>(animate ? null : value);
 
   useEffect(() => {

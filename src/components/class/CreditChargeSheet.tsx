@@ -7,6 +7,7 @@ import CreditChargeGame from "@/components/class/CreditChargeGame";
 import LegalDrawer from "@/components/legal/LegalDrawer";
 import TermsOfServiceContent from "@/components/legal/TermsOfServiceContent";
 import RefundPolicyContent from "@/components/legal/RefundPolicyContent";
+import CelebrationEffect from "@/components/ui/CelebrationEffect";
 
 const CHAT_FRIENDS_CACHE_KEY = "chat_friends_cache";
 
@@ -239,7 +240,8 @@ export default function CreditChargeSheet({ open, onClose, onComplete }: CreditC
       {showSuccessModal && (
         <div className="fixed inset-0 z-[300] flex items-center justify-center">
           <div className="absolute inset-0 bg-black/50" />
-          <div className="relative w-[320px] rounded-2xl bg-white px-6 py-8 text-center shadow-xl animate-sheet-slide-up">
+          <div className="relative w-[320px] overflow-hidden rounded-2xl bg-white px-6 py-8 text-center shadow-xl animate-sheet-slide-up">
+            <CelebrationEffect playSound />
             <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#fee500]">
               <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#191600" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="20 6 9 17 4 12" />

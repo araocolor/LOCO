@@ -40,12 +40,18 @@ function createParticles(count: number): Particle[] {
   }));
 }
 
-export default function CelebrationEffect({ onDone }: { onDone?: () => void }) {
+export default function CelebrationEffect({
+  onDone,
+  playSound = false,
+}: {
+  onDone?: () => void;
+  playSound?: boolean;
+}) {
   const [particles] = useState(() => createParticles(30));
   const [visible, setVisible] = useState(true);
 
   useEffect(() => {
-    playCoinSound();
+    if (playSound) playCoinSound();
     const timer = setTimeout(() => {
       setVisible(false);
       onDone?.();
