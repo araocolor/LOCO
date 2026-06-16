@@ -15,7 +15,7 @@ interface ClassHeaderProps {
 export default function ClassHeader({
   backExitAnimationClass,
   backExitDelayMs,
-  title = "클래스 정복",
+  title = "클래스 상세정보",
   className = "h-14",
   hideBackButton = false,
   onBack,
