@@ -124,6 +124,7 @@ export default function MyClassesTab({
   const approvedCount = participatingClasses.filter((classData) => classData.application_status === "approved").length;
   const pendingCount = participatingClasses.filter((classData) => classData.application_status === "pending").length;
   const allEmpty = classes.length === 0 && participatingClasses.length === 0 && friendClasses.length === 0;
+  const showRegional = (participatingClasses.length + friendClasses.length) <= 6 && regionalClasses.length > 0;
 
   if (loading) {
     return (
@@ -146,18 +147,7 @@ export default function MyClassesTab({
         <ClassGrid classes={classes} onClassSelect={onClassSelect} />
       )}
 
-      {allEmpty ? (
-        regionalClasses.length > 0 && (
-          <>
-            <SectionLabel>{regionName} 클래스</SectionLabel>
-            {viewMode === "card" ? (
-              <ClassCardList classes={regionalClasses} />
-            ) : (
-              <ClassGrid classes={regionalClasses} onClassSelect={onClassSelect} />
-            )}
-          </>
-        )
-      ) : (
+      {!allEmpty && (
         <>
           <SectionLabel>
             신청한클래스 <span className="text-gray-400 font-medium">{participatingClasses.length}</span>
@@ -196,6 +186,17 @@ export default function MyClassesTab({
             <ClassCardList classes={friendClasses} />
           ) : (
             <ClassGrid classes={friendClasses} onClassSelect={onClassSelect} />
+          )}
+        </>
+      )}
+
+      {showRegional && (
+        <>
+          <SectionLabel>{regionName} 클래스</SectionLabel>
+          {viewMode === "card" ? (
+            <ClassCardList classes={regionalClasses} />
+          ) : (
+            <ClassGrid classes={regionalClasses} onClassSelect={onClassSelect} />
           )}
         </>
       )}
