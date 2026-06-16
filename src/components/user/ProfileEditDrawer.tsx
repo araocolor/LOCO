@@ -13,6 +13,7 @@ import type { ProfileEditMode } from "@/lib/profile-events";
 import AvatarCropModal from "./AvatarCropModal";
 
 const MY_PAGE_CACHE_KEY = "loco_mypage_cache_local_v3";
+const DEFAULT_AVATAR = "/no face/noface.png";
 
 const FAVORITE_GENRE_OPTIONS = [
   { value: "salsa", label: "살사" },
@@ -153,6 +154,26 @@ export default function ProfileEditDrawer({ open, onClose, profile, mode = "norm
 
   function handleAvatarClick() {
     fileInputRef.current?.click();
+  }
+
+  async function handleResetAvatar() {
+    try {
+      const supabase = createClient();
+      const { data: list } = await supabase.storage.from("avatars").list(profile.id);
+      const oldFiles = (list ?? []).map((f) => `${profile.id}/${f.name}`);
+      if (oldFiles.length > 0) {
+        await supabase.storage.from("avatars").remove(oldFiles);
+      }
+      await supabase.from("profiles").update({ profile_image_url: null }).eq("id", profile.id);
+      setAvatarUrl(DEFAULT_AVATAR);
+      patchMyPageProfileCache({ profile_image_url: DEFAULT_AVATAR });
+      window.dispatchEvent(new CustomEvent(PROFILE_AVATAR_UPDATED_EVENT, {
+        detail: { nickname: profile.nickname, profile_image_url: DEFAULT_AVATAR },
+      }));
+      router.refresh();
+    } catch (err) {
+      console.error("아바타 초기화 실패:", err);
+    }
   }
 
   function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
@@ -329,42 +350,55 @@ export default function ProfileEditDrawer({ open, onClose, profile, mode = "norm
                 className="hidden"
                 onChange={handleFileSelect}
               />
-              <button
-                onClick={handleAvatarClick}
-                className={`relative flex-shrink-0 mb-2 hover:opacity-80 transition-opacity cursor-pointer rounded-full${editMode === "professional" ? " border border-white outline outline-2 outline-[#1D9BF0]" : ""}`}
-              >
-                {avatarUrl ? (
-                  <Image
-                    src={avatarUrl}
-                    alt="프로필"
-                    width={70}
-                    height={70}
-                    className="rounded-full object-cover w-[70px] h-[70px]"
-                    unoptimized
-                  />
-                ) : (
-                  <>
-                    <UserCircle size={70} className="text-gray-400" />
-                    <span className="absolute bottom-0 right-0 flex h-6 w-6 items-center justify-center rounded-full bg-[#fee500] text-[#191600] shadow-sm ring-2 ring-white">
-                      <Pencil size={13} strokeWidth={2.4} />
+              <div className="relative mb-0">
+                <button
+                  onClick={handleAvatarClick}
+                  className={`relative flex-shrink-0 hover:opacity-80 transition-opacity cursor-pointer rounded-full${editMode === "professional" ? " border border-white outline outline-2 outline-[#1D9BF0]" : ""}`}
+                >
+                  {avatarUrl ? (
+                    <Image
+                      src={avatarUrl}
+                      alt="프로필"
+                      width={90}
+                      height={90}
+                      className="rounded-full object-cover w-[90px] h-[90px]"
+                      unoptimized
+                    />
+                  ) : (
+                    <>
+                      <UserCircle size={90} className="text-gray-400" />
+                      <span className="absolute bottom-0 right-0 flex h-6 w-6 items-center justify-center rounded-full bg-[#fee500] text-[#191600] shadow-sm ring-2 ring-white">
+                        <Pencil size={13} strokeWidth={2.4} />
+                      </span>
+                    </>
+                  )}
+                  {uploading && (
+                    <span className="absolute top-full left-1/2 mt-1 -translate-x-1/2 whitespace-nowrap text-[10px] text-white bg-black/60 px-2 py-0.5 rounded">
+                      업로드 중
                     </span>
-                  </>
-                )}
-                {uploading && (
-                  <span className="absolute top-full left-1/2 mt-1 -translate-x-1/2 whitespace-nowrap text-[10px] text-white bg-black/60 px-2 py-0.5 rounded">
-                    업로드 중
-                  </span>
-                )}
-              </button>
+                  )}
+                </button>
+              </div>
               <div className="flex items-center gap-1">
-                <span className="text-base font-semibold text-gray-900">{profile.nickname}</span>
+                <span className="text-[17px] font-bold text-gray-900">{profile.nickname}</span>
                 {editMode === "professional" && <RiVerifiedBadgeFill size={18} color="#1D9BF0" />}
               </div>
-              {memberTypes[0] && (
-                <span className={`px-2.5 py-0 rounded-full text-[13px] ${editMode === "professional" ? "bg-[#1D9BF0] text-white" : "bg-gray-800 text-white/90"}`}>
-                  {getMemberTypeLabel(memberTypes[0])}
-                </span>
-              )}
+              <div className="flex items-center gap-1.5">
+                {memberTypes[0] && (
+                  <span className={`px-2.5 py-0 rounded-full text-[13px] ${editMode === "professional" ? "bg-[#1D9BF0] text-white" : "bg-gray-800 text-white/90"}`}>
+                    {getMemberTypeLabel(memberTypes[0])}
+                  </span>
+                )}
+                {avatarUrl && avatarUrl !== DEFAULT_AVATAR && (
+                  <button
+                    type="button"
+                    onClick={handleResetAvatar}
+                    className="px-2.5 py-0 rounded-full text-[13px] bg-black text-white"
+                  >
+                    사진초기화
+                  </button>
+                )}
+              </div>
               <span className="text-[14px] text-gray-500">{profile.email ?? ""}</span>
             </div>
             {(editMode === "professional"

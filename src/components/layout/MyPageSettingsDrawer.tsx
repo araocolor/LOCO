@@ -409,6 +409,7 @@ export default function MyPageSettingsDrawer({ open, onClose }: MyPageSettingsDr
         open={verifyOpen}
         onClose={() => setVerifyOpen(false)}
         profileImageUrl={settingsProfile?.profile_image_url ?? null}
+        profileId={settingsProfile?.id ?? ""}
       />
 
       <PurchaseHistoryDrawer

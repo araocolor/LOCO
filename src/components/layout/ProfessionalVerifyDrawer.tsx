@@ -1,16 +1,22 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import Image from "next/image";
-import { Search, BarChart3, Megaphone, BadgeCheck, UserCircle, ChevronLeft, Award } from "lucide-react";
-import { PROFILE_EDIT_OPEN_EVENT } from "@/lib/profile-events";
+import { useRouter } from "next/navigation";
+import { Search, BarChart3, Megaphone, BadgeCheck, Pencil, ChevronLeft, Award } from "lucide-react";
+import { PROFILE_EDIT_OPEN_EVENT, PROFILE_AVATAR_UPDATED_EVENT } from "@/lib/profile-events";
 import type { ProfileEditOpenDetail } from "@/lib/profile-events";
+import { createClient } from "@/lib/supabase/client";
+import AvatarCropModal from "@/components/user/AvatarCropModal";
 import PhoneVerifyDrawer from "./PhoneVerifyDrawer";
+
+const MY_PAGE_CACHE_KEY = "loco_mypage_cache_local_v3";
 
 interface ProfessionalVerifyDrawerProps {
   open: boolean;
   onClose: () => void;
   profileImageUrl: string | null;
+  profileId: string;
 }
 
 const FEATURES = [
@@ -44,8 +50,101 @@ export default function ProfessionalVerifyDrawer({
   open,
   onClose,
   profileImageUrl,
+  profileId,
 }: ProfessionalVerifyDrawerProps) {
+  const router = useRouter();
   const [phoneVerifyOpen, setPhoneVerifyOpen] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(profileImageUrl);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (open) setAvatarUrl(profileImageUrl);
+  }, [open, profileImageUrl]);
+
+  useEffect(() => {
+    function handleAvatarUpdated(e: Event) {
+      const detail = (e as CustomEvent<{ profile_image_url: string | null }>).detail;
+      setAvatarUrl(detail.profile_image_url);
+    }
+    window.addEventListener(PROFILE_AVATAR_UPDATED_EVENT, handleAvatarUpdated);
+    return () => window.removeEventListener(PROFILE_AVATAR_UPDATED_EVENT, handleAvatarUpdated);
+  }, []);
+
+  function handleAvatarClick() {
+    fileInputRef.current?.click();
+  }
+
+  function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => setSelectedImage(reader.result as string);
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  }
+
+  async function handleCropConfirm(blob: Blob, hdBlob: Blob) {
+    setSelectedImage(null);
+    setUploading(true);
+    try {
+      const supabase = createClient();
+      let uid = profileId;
+      if (!uid) {
+        const { data: { user } } = await supabase.auth.getUser();
+        uid = user?.id ?? "";
+      }
+      if (!uid) throw new Error("사용자 ID를 찾을 수 없습니다.");
+
+      const ts = Date.now();
+      const path = `${uid}/${ts}.webp`;
+      const hdPath = `${uid}/${ts}_hd.webp`;
+
+      const { data: list } = await supabase.storage.from("avatars").list(uid);
+      const oldFiles = (list ?? []).map((f) => `${uid}/${f.name}`);
+
+      const [upResult, hdUpResult] = await Promise.all([
+        supabase.storage.from("avatars").upload(path, blob, { contentType: "image/webp", upsert: false }),
+        supabase.storage.from("avatars").upload(hdPath, hdBlob, { contentType: "image/webp", upsert: false }),
+      ]);
+      if (upResult.error) throw upResult.error;
+      if (hdUpResult.error) throw hdUpResult.error;
+
+      const { data: { publicUrl } } = supabase.storage.from("avatars").getPublicUrl(path);
+
+      const { error: dbErr } = await supabase
+        .from("profiles")
+        .update({ profile_image_url: publicUrl })
+        .eq("id", uid);
+      if (dbErr) throw dbErr;
+
+      if (oldFiles.length > 0) {
+        await supabase.storage.from("avatars").remove(oldFiles);
+      }
+
+      setAvatarUrl(publicUrl);
+      try {
+        const raw = localStorage.getItem(MY_PAGE_CACHE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          localStorage.setItem(MY_PAGE_CACHE_KEY, JSON.stringify({
+            ...parsed,
+            profile: { ...parsed.profile, profile_image_url: publicUrl },
+          }));
+        }
+      } catch {}
+      window.dispatchEvent(new CustomEvent(PROFILE_AVATAR_UPDATED_EVENT, {
+        detail: { profile_image_url: publicUrl },
+      }));
+      router.refresh();
+    } catch (err) {
+      console.error("아바타 업로드 실패:", err);
+      alert("업로드에 실패했어요. 다시 시도해주세요.");
+    } finally {
+      setUploading(false);
+    }
+  }
 
   useEffect(() => {
     if (!phoneVerifyOpen) {
@@ -82,12 +181,19 @@ export default function ProfessionalVerifyDrawer({
         {/* 본문 */}
         <div className="min-h-0 flex-1 overflow-y-auto">
           {/* 아바타 */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handleFileSelect}
+          />
           <div className="flex justify-center pt-8 pb-6">
-            <div className="relative animate-[breathe_3s_ease-in-out_infinite]">
+            <button type="button" onClick={handleAvatarClick} className="relative animate-[breathe_3s_ease-in-out_infinite] cursor-pointer hover:opacity-80 transition-opacity">
               <div className="w-[130px] h-[130px] rounded-full overflow-hidden bg-gray-100 border border-white outline outline-2 outline-[#1D9BF0]">
-                {profileImageUrl ? (
+                {avatarUrl ? (
                   <Image
-                    src={profileImageUrl}
+                    src={avatarUrl}
                     alt="프로필"
                     width={130}
                     height={130}
@@ -95,14 +201,26 @@ export default function ProfessionalVerifyDrawer({
                     unoptimized
                   />
                 ) : (
-                  <UserCircle size={130} className="text-gray-300" />
+                  <div className="w-[130px] h-[130px] flex items-center justify-center">
+                    <Pencil size={48} className="text-gray-300" />
+                  </div>
                 )}
               </div>
               <span className="absolute bottom-0 left-0 w-[48px] h-[48px] bg-yellow-400 rounded-full flex items-center justify-center shadow-sm border-4 border-white">
                 <Award size={28} className="text-white" />
               </span>
-            </div>
+              {uploading && (
+                <span className="absolute top-full left-1/2 mt-1 -translate-x-1/2 whitespace-nowrap text-[10px] text-white bg-black/60 px-2 py-0.5 rounded">
+                  업로드 중
+                </span>
+              )}
+            </button>
           </div>
+          {!avatarUrl && (
+            <div className="flex justify-center -mt-3 pb-2">
+              <span className="px-4 py-1 rounded-full text-[13px] text-red-500 font-medium">아바타 등록필수</span>
+            </div>
+          )}
 
           {/* 제목 */}
           <div className="px-6 pb-8">
@@ -137,12 +255,25 @@ export default function ProfessionalVerifyDrawer({
           <button
             type="button"
             onClick={() => setPhoneVerifyOpen(true)}
-            className="w-full py-4 rounded-full bg-[#FACC15] text-[17px] font-bold text-[#333] active:brightness-95 transition-all"
+            disabled={!avatarUrl}
+            className={`w-full py-4 rounded-full text-[17px] font-bold transition-all ${
+              avatarUrl
+                ? "bg-[#FACC15] text-[#333] active:brightness-95"
+                : "bg-gray-200 text-gray-400 cursor-not-allowed"
+            }`}
           >
             다음
           </button>
         </div>
       </div>
+
+      {selectedImage && (
+        <AvatarCropModal
+          imageSrc={selectedImage}
+          onCancel={() => setSelectedImage(null)}
+          onConfirm={handleCropConfirm}
+        />
+      )}
 
       <PhoneVerifyDrawer
         open={phoneVerifyOpen}
