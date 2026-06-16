@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Crown, Power } from "lucide-react";
 import Avatar from "@/components/ui/Avatar";
-import { playSound, primeSound } from "@/lib/sound";
+import { playSound, preloadSound } from "@/lib/sound";
 import { fetchTopRecord, saveGameRecord, type TopRecord } from "./game-record";
 
 export interface MemberGameProfile {
@@ -390,6 +390,12 @@ export default function MemberBreakoutGame({ members, userId, roomId, onExitGame
   }, []);
 
   useEffect(() => {
+    preloadSound("game-stik");
+    preloadSound("game-hit");
+    preloadSound("game-end");
+  }, []);
+
+  useEffect(() => {
     if (!bounds.width || !bounds.height) return;
     const resetFrame = requestAnimationFrame(() => {
       setGame(createInitialGame(bounds));
@@ -723,9 +729,6 @@ export default function MemberBreakoutGame({ members, userId, roomId, onExitGame
 
   function launchGame() {
     if (!bounds.width || !bounds.height) return;
-    primeSound("game-stik");
-    primeSound("game-hit");
-    primeSound("game-end");
     const now = performance.now();
     setGame((current) => {
       if (!current || current.status !== "running") return current;

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Power } from "lucide-react";
 import Avatar from "@/components/ui/Avatar";
-import { playSound, primeSound } from "@/lib/sound";
+import { playSound, preloadSound } from "@/lib/sound";
 
 interface GameMember {
   userId: string;
@@ -311,6 +311,11 @@ export default function CreditChargeGame({ onSuccess, onCancel }: CreditChargeGa
   }, []);
 
   useEffect(() => {
+    preloadSound("game-stik");
+    preloadSound("game-hit");
+  }, []);
+
+  useEffect(() => {
     if (!bounds.width || !bounds.height) return;
     const resetFrame = requestAnimationFrame(() => {
       setGame(createInitialGame(bounds));
@@ -596,8 +601,6 @@ export default function CreditChargeGame({ onSuccess, onCancel }: CreditChargeGa
 
   function launchGame() {
     if (!bounds.width || !bounds.height) return;
-    primeSound("game-stik");
-    primeSound("game-hit");
     const now = performance.now();
     setGame((current) => {
       if (!current || current.status !== "running") return current;

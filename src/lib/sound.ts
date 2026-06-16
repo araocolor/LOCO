@@ -1,4 +1,6 @@
-const cache = new Map<string, HTMLAudioElement>();
+let ctx: AudioContext | null = null;
+const bufferCache = new Map<string, AudioBuffer>();
+
 const SOUND_FILE_BY_NAME = {
   "message-send": "message-send.mp3",
   "talk-send": "send_02.mp3",
@@ -12,45 +14,60 @@ const SOUND_FILE_BY_NAME = {
 
 type SoundName = keyof typeof SOUND_FILE_BY_NAME;
 
-function getAudio(name: SoundName) {
-  let audio = cache.get(name);
-  if (!audio) {
-    audio = new Audio(`/sound/${SOUND_FILE_BY_NAME[name]}`);
-    audio.preload = "auto";
-    cache.set(name, audio);
+function getContext(): AudioContext {
+  if (!ctx) {
+    ctx = new AudioContext();
   }
-  return audio;
+  if (ctx.state === "suspended") {
+    ctx.resume().catch(() => {});
+  }
+  return ctx;
+}
+
+async function loadBuffer(name: SoundName): Promise<AudioBuffer | null> {
+  const cached = bufferCache.get(name);
+  if (cached) return cached;
+
+  try {
+    const res = await fetch(`/sound/${SOUND_FILE_BY_NAME[name]}`);
+    const arrayBuffer = await res.arrayBuffer();
+    const audioBuffer = await getContext().decodeAudioData(arrayBuffer);
+    bufferCache.set(name, audioBuffer);
+    return audioBuffer;
+  } catch {
+    return null;
+  }
+}
+
+export function preloadSound(name: SoundName) {
+  loadBuffer(name).catch(() => {});
 }
 
 export function playSound(
   name: SoundName,
   options?: { volume?: number }
 ) {
-  try {
-    const audio = getAudio(name);
-    audio.currentTime = 0;
-    audio.volume = options?.volume ?? 0.7;
-    audio.play().catch(() => {});
-  } catch {}
+  const audioCtx = getContext();
+  const buffer = bufferCache.get(name);
+
+  if (!buffer) {
+    loadBuffer(name).then((buf) => {
+      if (buf) playSoundBuffer(audioCtx, buf, options?.volume ?? 0.5);
+    });
+    return;
+  }
+
+  playSoundBuffer(audioCtx, buffer, options?.volume ?? 0.5);
 }
 
-export function primeSound(name: SoundName) {
+function playSoundBuffer(audioCtx: AudioContext, buffer: AudioBuffer, volume: number) {
   try {
-    const audio = getAudio(name);
-    const originalMuted = audio.muted;
-    const originalVolume = audio.volume;
-    audio.muted = true;
-    audio.volume = 0;
-    audio.play()
-      .then(() => {
-        audio.pause();
-        audio.currentTime = 0;
-        audio.muted = originalMuted;
-        audio.volume = originalVolume;
-      })
-      .catch(() => {
-        audio.muted = originalMuted;
-        audio.volume = originalVolume;
-      });
+    const source = audioCtx.createBufferSource();
+    const gain = audioCtx.createGain();
+    source.buffer = buffer;
+    gain.gain.value = volume;
+    source.connect(gain);
+    gain.connect(audioCtx.destination);
+    source.start(0);
   } catch {}
 }
