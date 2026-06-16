@@ -595,7 +595,7 @@ export default function CachedClassDetailPage({
       {images.length > 0 ? (
         <ClassDetailImageGallery images={images} title={displayClass.title} />
       ) : (
-        <div className="w-full h-[160px] bg-gray-100 flex items-center justify-center text-5xl opacity-30">
+        <div className="w-full h-[160px] bg-gray-100 flex items-center justify-center text-5xl opacity-30" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
           🎵
         </div>
       )}

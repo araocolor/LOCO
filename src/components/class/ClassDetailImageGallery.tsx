@@ -89,7 +89,7 @@ export default function ClassDetailImageGallery({ images, title }: ClassDetailIm
   }, [images, imageKeys, loadedFullMap, readyForFull]);
 
   return (
-    <div className="flex overflow-x-auto snap-x snap-mandatory">
+    <div className="flex overflow-x-auto snap-x snap-mandatory" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
       {images.map((img, i) => {
         const key = imageKeys[i];
         const showFull = readyForFull && !!img.full_url && !!loadedFullMap[key];
