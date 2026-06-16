@@ -590,7 +590,7 @@ export default function NearbyMap({ soundEnabled = true, onRefreshControlChange 
   }
 
   return (
-    <div className="relative w-full bg-white flex flex-col" style={{ height: "calc(100vh - 160px)" }}>
+    <div className="relative w-full bg-white flex flex-col" style={{ height: "calc(100dvh - 160px)" }}>
       {/* 레이더 */}
       <div ref={layoutRef} className="relative w-full flex-1 overflow-hidden">
         <div
