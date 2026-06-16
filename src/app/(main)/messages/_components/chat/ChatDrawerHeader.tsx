@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, Info, Menu } from "lucide-react";
 import CachedClassDetailPage from "@/components/class/CachedClassDetailPage";
+import ClassHeader from "@/components/layout/ClassHeader";
 import type { OtherUser } from "../../_types";
 
 interface ChatDrawerHeaderProps {
@@ -139,19 +140,7 @@ export default function ChatDrawerHeader({
           }`}
           style={{ paddingTop: 'env(safe-area-inset-top)' }}
         >
-          <header className="sticky top-0 z-50 bg-white h-14 px-4 relative">
-            <button
-              onClick={() => setClassDetailOpen(false)}
-              className="absolute left-4 top-1/2 -translate-y-1/2 w-[37px] h-[37px] flex items-center justify-center text-gray-600 hover:text-gray-900"
-            >
-              <ArrowLeft size={20} />
-            </button>
-            <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-              <span className="font-bold text-[#4d4d4d]" style={{ fontSize: 18 }}>
-                클래스 정보
-              </span>
-            </div>
-          </header>
+          <ClassHeader onBack={() => setClassDetailOpen(false)} />
           <div className="flex-1 overflow-y-auto">
             <CachedClassDetailPage classIdOverride={classId} hideChat />
           </div>

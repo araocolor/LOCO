@@ -2,9 +2,10 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import Image from "next/image";
-import { ArrowLeft, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import UserProfileModal from "@/components/user/UserProfileModal";
 import CachedClassDetailPage from "@/components/class/CachedClassDetailPage";
+import ClassHeader from "@/components/layout/ClassHeader";
 import { readNotificationCache, writeNotificationCache } from "@/lib/notification-cache";
 import { useSyncExternalStore } from "react";
 import { setNotificationUnread, getNotificationUnreadByTab, subscribeNotificationUnread } from "@/lib/unread-store";
@@ -564,21 +565,7 @@ export default function NotificationsTab({ userId }: NotificationsTabProps) {
         }`}
         style={{ paddingTop: 'env(safe-area-inset-top)' }}
       >
-        <header className="sticky top-0 z-50 bg-white h-14 px-4 relative border-b border-gray-100">
-          <button
-            type="button"
-            onClick={() => setClassDetailId(null)}
-            className="absolute left-4 top-1/2 -translate-y-1/2 w-[37px] h-[37px] flex items-center justify-center text-gray-600"
-            aria-label="알림 목록으로 돌아가기"
-          >
-            <ArrowLeft size={20} />
-          </button>
-          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-            <span className="font-bold text-[#4d4d4d]" style={{ fontSize: 18 }}>
-              클래스 정보
-            </span>
-          </div>
-        </header>
+        <ClassHeader onBack={() => setClassDetailId(null)} />
         <div className="flex-1 overflow-y-auto">
           {classDetailId && (
             <CachedClassDetailPage

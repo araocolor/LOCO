@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, LayoutGrid, Plus, Presentation, Search, X } from "lucide-react";
+import { LayoutGrid, Plus, Presentation, Search, X } from "lucide-react";
 import {
   SEARCH_DEFAULTS_STORAGE_KEY,
   type SearchOptions,
@@ -13,6 +13,7 @@ import {
 import { GENRES, REGIONS_WITH_ALL } from "@/lib/constants";
 import { ClassWithHost } from "@/components/class/ClassCard";
 import CachedClassDetailPage from "@/components/class/CachedClassDetailPage";
+import ClassHeader from "@/components/layout/ClassHeader";
 import CreateClassDrawer from "@/components/class/CreateClassDrawer";
 import HomeSearchResultsPage from "@/components/features/HomeSearchResultsPage";
 import MyClassesTab from "@/components/features/MyClassesTab";
@@ -538,19 +539,7 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
           classDetailId ? "translate-x-0" : "translate-x-full"
         }`}
       >
-        <header className="sticky top-0 z-50 bg-white h-14 px-4 relative">
-          <button
-            onClick={() => setClassDetailId(null)}
-            className="absolute left-4 top-1/2 -translate-y-1/2 w-[37px] h-[37px] flex items-center justify-center text-gray-600 hover:text-gray-900"
-          >
-            <ArrowLeft size={20} />
-          </button>
-          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-            <span className="font-bold text-[#4d4d4d]" style={{ fontSize: 18 }}>
-              클래스 정보
-            </span>
-          </div>
-        </header>
+        <ClassHeader onBack={() => setClassDetailId(null)} />
         <div className="flex-1 overflow-y-auto">
           {classDetailId && (
             <CachedClassDetailPage
