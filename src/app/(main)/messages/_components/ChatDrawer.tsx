@@ -165,6 +165,9 @@ export default function ChatDrawer({
   const [pendingEmojiSrc, setPendingEmojiSrc] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [showGame, setShowGame] = useState(false);
+  // 게임 시작 시점의 회원을 고정한다. 게임 도중 부모 회원 목록이 바뀌어도
+  // 게임이 재시작되거나 아바타가 흔들리지 않도록 스냅샷을 사용한다.
+  const [gameMembers, setGameMembers] = useState<MemberGameProfile[]>([]);
   const [muted, setMuted] = useState(() => roomId ? isChatMuted(roomId) : false);
   const [bgType, setBgType] = useState<ChatBgType>(() => roomId ? getChatBg(roomId) : "image");
   const [bgSheetOpen, setBgSheetOpen] = useState(false);
@@ -538,7 +541,7 @@ export default function ChatDrawer({
         {showGame && (
           <div className="absolute inset-0 z-[10]">
             <MemberBreakoutGame
-              members={(memberProfiles as MemberGameProfile[]).slice(0, GAME_MEMBER_LIMIT)}
+              members={gameMembers}
               userId={userId}
               roomId={roomId ?? ""}
               onExitGame={() => setShowGame(false)}
@@ -616,7 +619,10 @@ export default function ChatDrawer({
         onClose={() => setMenuOpen(false)}
         onInvite={onOpenMemberDrawer}
         onLeave={onLeaveRoom}
-        onStartGame={() => setShowGame(true)}
+        onStartGame={() => {
+          setGameMembers((memberProfiles as MemberGameProfile[]).slice(0, GAME_MEMBER_LIMIT));
+          setShowGame(true);
+        }}
         onToggleMute={handleToggleMute}
         onOpenBgSetting={() => setBgSheetOpen(true)}
       />
