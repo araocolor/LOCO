@@ -9,7 +9,8 @@ const HOME_RESULTS_LOCAL_KEY = "loco_home_results_local_v1";
 const HOME_RESULTS_PAGE_SIZE = 12;
 
 const CHAT_ROOMS_PREVIEW_CACHE_PREFIX = "loco_chat_rooms_preview_cache_v1:";
-const CHAT_PREVIEW_TYPES = ["direct", "group", "class"] as const;
+// 웜업 받는 순서: 클래스 → 1:1(direct) → 그룹.
+const CHAT_PREVIEW_TYPES = ["class", "direct", "group"] as const;
 
 const MY_PAGE_CACHE_KEY = "loco_mypage_cache_local_v3";
 
@@ -35,21 +36,21 @@ async function warmHomeClasses(): Promise<void> {
 // page-client가 `${PREFIX}${userId}:${type}` 캐시를 `{ data, ts }` 형식으로 읽고
 // 읽는 시점에 정규화하므로, raw API 데이터를 그대로 저장한다.
 async function warmChatPreview(userId: string): Promise<void> {
-  await Promise.all(
-    CHAT_PREVIEW_TYPES.map(async (type) => {
-      const key = `${CHAT_ROOMS_PREVIEW_CACHE_PREFIX}${userId}:${type}`;
-      if (localStorage.getItem(key)) return;
-      try {
-        const res = await fetch(`/api/chat/rooms/preview?type=${type}`);
-        if (!res.ok) return;
-        const json = await res.json();
-        const data = (json.data ?? []) as unknown[];
-        localStorage.setItem(key, JSON.stringify({ data, ts: Date.now() }));
-      } catch {
-        // 웜업 실패는 무시. 화면 진입 시 다시 받는다.
-      }
-    })
-  );
+  // 동시 요청은 부하로 일부 타입이 통째로 실패할 수 있어 순차로 받는다.
+  // 순서: 클래스 → 1:1(direct) → 그룹.
+  for (const type of CHAT_PREVIEW_TYPES) {
+    const key = `${CHAT_ROOMS_PREVIEW_CACHE_PREFIX}${userId}:${type}`;
+    if (localStorage.getItem(key)) continue;
+    try {
+      const res = await fetch(`/api/chat/rooms/preview?type=${type}`);
+      if (!res.ok) continue;
+      const json = await res.json();
+      const data = (json.data ?? []) as unknown[];
+      localStorage.setItem(key, JSON.stringify({ data, ts: Date.now() }));
+    } catch {
+      // 웜업 실패는 무시. 화면 진입 시 다시 받는다.
+    }
+  }
 }
 
 // 마이페이지(프로필·내 클래스·북마크·지역필터·별/구독 수)를 미리 받아둔다.

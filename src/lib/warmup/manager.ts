@@ -17,10 +17,33 @@ let started = false;
 let running = false;
 
 // requestIdleCallback 폴백: 웹뷰/Safari 미지원 환경 대비.
+// 표준 동작을 흉내 낸다. 프레임마다 그리기에 남는 여유 시간을 보고,
+// 여유가 있으면 실행하고 없으면 다음 프레임으로 미룬다.
 function onIdle(cb: () => void) {
   const ric = (globalThis as { requestIdleCallback?: (cb: () => void) => void }).requestIdleCallback;
-  if (typeof ric === "function") ric(cb);
-  else setTimeout(cb, 1);
+  if (typeof ric === "function") {
+    ric(cb);
+    return;
+  }
+
+  const raf = (globalThis as { requestAnimationFrame?: (cb: (t: number) => void) => void }).requestAnimationFrame;
+  if (typeof raf !== "function") {
+    setTimeout(cb, 1);
+    return;
+  }
+
+  // 한 프레임(약 16ms) 중 그리기에 쓰고 남는 여유가 생길 때까지 다음 프레임으로 미룬다.
+  const FRAME_BUDGET = 16;
+  const IDLE_MARGIN = 8;
+  function tick(frameStart: number) {
+    const elapsed = performance.now() - frameStart;
+    if (FRAME_BUDGET - elapsed >= IDLE_MARGIN) {
+      cb();
+    } else {
+      raf!((t) => tick(t));
+    }
+  }
+  raf((t) => tick(t));
 }
 
 // 웜업 작업을 등록한다(아직 실행하지 않음).

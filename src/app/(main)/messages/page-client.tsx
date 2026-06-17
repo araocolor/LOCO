@@ -862,7 +862,7 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
       const timer = window.setTimeout(() => {
         void fetchConversationsByType(previewType, { force: true, limit: 3 })
           .then(() => setLoading(false))
-          .then(() => fetchConversationsByType(previewType, { force: true }));
+          .then(() => fetchConversationsByType(previewType, { force: true, limit: 20 }));
       }, 0);
       return () => window.clearTimeout(timer);
     }
