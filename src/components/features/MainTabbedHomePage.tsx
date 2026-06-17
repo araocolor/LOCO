@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { LayoutGrid, Plus, Presentation, Search, X } from "lucide-react";
+import { Bell, LayoutGrid, Plus, Presentation, Search, X } from "lucide-react";
 import {
   SEARCH_DEFAULTS_STORAGE_KEY,
   type SearchOptions,
@@ -18,6 +18,9 @@ import CreateClassDrawer from "@/components/class/CreateClassDrawer";
 import HomeSearchResultsPage from "@/components/features/HomeSearchResultsPage";
 import { useScrollChromeVisibility } from "@/hooks/useScrollChromeVisibility";
 import { useAuth } from "@/lib/auth-context";
+import NotificationsTab from "@/components/features/NotificationsTab";
+import { getNotificationUnread, subscribeNotificationUnread } from "@/lib/unread-store";
+import { useSyncExternalStore } from "react";
 
 const HOME_MY_CLASSES_CACHE_KEY = "loco_home_my_classes_v1";
 const HOME_SUBTAB_CHANGE_EVENT = "loco-home-subtab-change";
@@ -50,6 +53,7 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
   const userId = user?.id ?? null;
   const [classDetailId, setClassDetailId] = useState<string | null>(null);
   const [createDrawerOpen, setCreateDrawerOpen] = useState(false);
+  const [notiDrawerOpen, setNotiDrawerOpen] = useState(false);
   const [allViewMode, setAllViewMode] = useState<"grid" | "card">("grid");
   const [filterOpts, setFilterOpts] = useState<SearchOptions>(DEFAULT_SEARCH_OPTIONS);
   const [openMenu, setOpenMenu] = useState<"region" | "period" | "genre" | "class_type" | null>(
@@ -57,6 +61,7 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
   );
   const [isMySetting, setIsMySetting] = useState(false);
   const isChromeVisible = useScrollChromeVisibility(activeTab === "allClasses");
+  const notificationUnread = useSyncExternalStore(subscribeNotificationUnread, getNotificationUnread, () => 0);
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -165,11 +170,18 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
           <div className="font-black text-[22px] text-[#4d4d4d] leading-none">클래스</div>
           <button
             type="button"
-            aria-label="클래스 만들기"
-            className="ml-auto h-12 w-12 -mr-2 flex items-center justify-center text-gray-700"
-            onClick={() => setCreateDrawerOpen(true)}
+            aria-label="알림"
+            className="ml-auto relative h-12 w-12 -mr-2 flex items-center justify-center text-gray-700"
+            onClick={() => setNotiDrawerOpen(true)}
           >
-            <Plus size={22} strokeWidth={2.2} />
+            <Bell size={22} strokeWidth={2.2} />
+            {notificationUnread > 0 && (
+              <span className="absolute right-1 top-1.5 min-w-[18px] h-[18px] rounded-full bg-blue-500 border-2 border-white flex items-center justify-center">
+                <span className="text-[10px] font-bold text-white leading-none px-0.5">
+                  {notificationUnread > 99 ? "99+" : notificationUnread}
+                </span>
+              </span>
+            )}
           </button>
         </div>
         <div className="flex pl-4 pr-4 gap-2 pb-2 overflow-x-auto scrollbar-hide whitespace-nowrap">
@@ -418,6 +430,27 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
         open={createDrawerOpen}
         onClose={() => setCreateDrawerOpen(false)}
       />
+
+      <div
+        className={`fixed inset-0 z-[75] bg-white flex flex-col transition-transform duration-300 ease-in-out ${
+          notiDrawerOpen ? "translate-x-0" : "translate-x-full"
+        }`}
+      >
+        <div className="shrink-0 h-14 px-4 flex items-center border-b border-[#e5e7eb]">
+          <div className="font-black text-[22px] text-[#4d4d4d] leading-none">알림</div>
+          <button
+            type="button"
+            aria-label="닫기"
+            className="ml-auto h-12 w-12 -mr-2 flex items-center justify-center text-gray-700"
+            onClick={() => setNotiDrawerOpen(false)}
+          >
+            <X size={24} strokeWidth={2.2} />
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto">
+          {notiDrawerOpen && <NotificationsTab userId={userId} />}
+        </div>
+      </div>
 
       <div
         className={`fixed inset-0 z-[70] bg-white flex flex-col transition-transform duration-300 ease-in-out ${

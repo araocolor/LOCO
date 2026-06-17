@@ -7,7 +7,7 @@ import { useAuth } from "@/lib/auth-context";
 import MainTabbedHomePage from "@/components/features/MainTabbedHomePage";
 import MessagesHeaderClient from "@/components/layout/MessagesHeaderClient";
 import MessagesPageClient from "@/app/(main)/messages/page-client";
-import NotificationsTab from "@/components/features/NotificationsTab";
+import CustomerServiceContent from "@/components/user/CustomerServiceContent";
 import SearchPageClient from "@/app/(main)/search/_components/SearchPageClient";
 import MyPageHeader from "@/components/layout/MyPageHeader";
 import MyPageCacheLoader from "@/components/user/MyPageCacheLoader";
@@ -49,8 +49,8 @@ export default function TabbedMain() {
       )}
 
       {mounted.has("notifications") && (
-        <div className={activeTab === "notifications" ? "flex flex-col flex-1" : "hidden"}>
-          <NotificationsTab userId={user?.id} />
+        <div className={activeTab === "notifications" ? "flex flex-col flex-1 min-h-0" : "hidden"}>
+          <CustomerServiceContent active={activeTab === "notifications"} />
         </div>
       )}
 

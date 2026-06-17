@@ -9,7 +9,7 @@ interface ArchiveGridProps {
 
 export default function ArchiveGrid({ items }: ArchiveGridProps) {
   if (items.length === 0) {
-    return <div className="flex h-full items-center justify-center text-sm text-gray-400">보관된 항목이 없습니다</div>;
+    return <div className="flex h-full items-center justify-center text-sm text-white">보관된 항목이 없습니다</div>;
   }
 
   return (

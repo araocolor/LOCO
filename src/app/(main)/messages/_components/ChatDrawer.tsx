@@ -491,7 +491,6 @@ export default function ChatDrawer({
           style={chatBgStyle}
         >
           <ClassNoticePanel
-            canWriteClassNotice={canWriteClassNotice}
             isClassRoom={isClassRoom}
             notices={notices}
             noticeReactions={NOTICE_REACTIONS}
@@ -504,10 +503,29 @@ export default function ChatDrawer({
             formatTime={formatTime}
             onNoticeReaction={onNoticeReaction}
             onNoticeVote={onNoticeVote}
-            openNoticeDrawer={openNoticeDrawer}
             openEditNotice={openEditNotice}
             setDeleteTargetId={setDeleteTargetId}
           />
+          {isClassRoom && (
+            <div className="sticky bottom-0 flex justify-center gap-2 pt-3 pb-4">
+              <button
+                type="button"
+                onClick={() => openNoticeDrawer("vote")}
+                className="rounded-full bg-yellow-300 px-4 py-2 text-sm font-bold text-gray-900 shadow-md hover:bg-yellow-400"
+              >
+                투표작성
+              </button>
+              {canWriteClassNotice && (
+                <button
+                  type="button"
+                  onClick={() => openNoticeDrawer("notice")}
+                  className="rounded-full bg-yellow-300 px-4 py-2 text-sm font-bold text-gray-900 shadow-md hover:bg-yellow-400"
+                >
+                  공지작성
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         <div

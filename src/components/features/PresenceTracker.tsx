@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useAuth } from "@/lib/auth-context";
 
 export const PRESENCE_EVENT = "presence-online-ids-updated";
 
@@ -12,7 +13,10 @@ declare global {
 }
 
 export default function PresenceTracker() {
+  const { user } = useAuth();
+
   useEffect(() => {
+    if (!user) return;
     const supabase = createClient();
     const channel = supabase.channel("online-users");
 
@@ -29,13 +33,12 @@ export default function PresenceTracker() {
       .on("presence", { event: "leave" }, updateOnlineIds)
       .subscribe(async (status) => {
         if (status === "SUBSCRIBED") {
-          const { data: { user } } = await supabase.auth.getUser();
-          if (user) await channel.track({ user_id: user.id });
+          await channel.track({ user_id: user.id });
         }
       });
 
     return () => { supabase.removeChannel(channel); };
-  }, []);
+  }, [user]);
 
   return null;
 }

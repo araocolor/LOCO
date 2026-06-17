@@ -2,7 +2,7 @@
 
 import { BarChart3, Megaphone } from "lucide-react";
 import Avatar from "@/components/ui/Avatar";
-import type { ChatNotice, NoticeKind, NoticeReactionType, NoticeVoteType, OtherUser } from "../../_types";
+import type { ChatNotice, NoticeReactionType, NoticeVoteType, OtherUser } from "../../_types";
 
 interface NoticeReactionOption {
   type: NoticeReactionType;
@@ -15,7 +15,6 @@ interface NoticeVoteOption {
 }
 
 interface ClassNoticePanelProps {
-  canWriteClassNotice: boolean;
   isClassRoom: boolean;
   notices: ChatNotice[];
   noticeReactions: NoticeReactionOption[];
@@ -33,13 +32,11 @@ interface ClassNoticePanelProps {
   formatTime: (dateStr: string) => string;
   onNoticeReaction: (noticeId: string, reactionType: NoticeReactionType) => void;
   onNoticeVote: (noticeId: string, voteType: NoticeVoteType) => void;
-  openNoticeDrawer: (initialKind: NoticeKind) => void;
   openEditNotice: (notice: ChatNotice) => void;
   setDeleteTargetId: (noticeId: string) => void;
 }
 
 export default function ClassNoticePanel({
-  canWriteClassNotice,
   isClassRoom,
   notices,
   noticeReactions,
@@ -52,7 +49,6 @@ export default function ClassNoticePanel({
   formatTime,
   onNoticeReaction,
   onNoticeVote,
-  openNoticeDrawer,
   openEditNotice,
   setDeleteTargetId,
 }: ClassNoticePanelProps) {
@@ -62,24 +58,6 @@ export default function ClassNoticePanel({
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-center gap-2">
-        <button
-          type="button"
-          onClick={() => openNoticeDrawer("vote")}
-          className="rounded-full bg-yellow-300 px-4 py-2 text-sm font-bold text-gray-900 shadow-sm hover:bg-yellow-400"
-        >
-          투표작성
-        </button>
-        {canWriteClassNotice && (
-          <button
-            type="button"
-            onClick={() => openNoticeDrawer("notice")}
-            className="rounded-full bg-yellow-300 px-4 py-2 text-sm font-bold text-gray-900 shadow-sm hover:bg-yellow-400"
-          >
-            공지작성
-          </button>
-        )}
-      </div>
       {notices.length > 0 ? (
         <div className="space-y-4">
           {notices.map((notice, index) => {

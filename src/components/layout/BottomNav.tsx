@@ -27,9 +27,7 @@ function getOrCreateNoFaceUrl(): string {
 }
 import {
   getChatUnread,
-  getNotificationUnread,
   subscribeChatUnread,
-  subscribeNotificationUnread,
   fetchChatUnread,
   fetchNotificationUnread,
   incrementNotificationUnread,
@@ -69,13 +67,14 @@ const NAV_ITEMS: {
   },
   {
     tabId: "notifications",
-    label: "알림",
+    label: "커뮤니티",
     activeColor: "#E84040",
     renderIcon: (isActive: boolean) => (
       <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
-        <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
-        {isActive && <circle cx="12" cy="11" r="3" fill="currentColor" stroke="none" opacity={0.9} />}
+        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+        <circle cx="9" cy="7" r="4" fill={isActive ? "currentColor" : "none"} opacity={isActive ? 0.9 : undefined} />
+        <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
       </svg>
     ),
   },
@@ -143,7 +142,6 @@ export default function BottomNav() {
   const { user } = useAuth();
   const activeTab = useSyncExternalStore(subscribeMainTab, getMainTab, () => "home" as const);
   const chatUnread = useSyncExternalStore(subscribeChatUnread, getChatUnread, () => 0);
-  const notificationUnread = useSyncExternalStore(subscribeNotificationUnread, getNotificationUnread, () => 0);
   const shouldAutoHide = pathname === "/" && activeTab === "home" && homeSubTab === "allClasses";
   const isChromeVisible = useScrollChromeVisibility(shouldAutoHide);
 
@@ -262,9 +260,6 @@ export default function BottomNav() {
               )}
               {tabId === "messages" && chatUnread > 0 && (
                 <BadgeDot count={chatUnread} color="red" />
-              )}
-              {tabId === "notifications" && notificationUnread > 0 && (
-                <BadgeDot count={notificationUnread} color="blue" />
               )}
             </span>
             <span className="sr-only">{label}</span>
