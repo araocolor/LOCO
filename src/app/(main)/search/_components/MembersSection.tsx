@@ -87,7 +87,7 @@ export default function MembersSection({
   }, [membersFullyLoaded, onLoadMore]);
   return (
     <div className="px-4 pt-0 bg-white">
-      <div className="h-[120px] -mx-4 bg-gray-100 relative">
+      <div className="h-[150px] -mx-4 bg-gray-100 relative">
         <div
           ref={memberSearchPanelRef}
           onScroll={onMemberSearchPanelScroll}
