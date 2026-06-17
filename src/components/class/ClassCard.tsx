@@ -361,6 +361,7 @@ export default function ClassCard({ classData, priorityImage = false, onClassSel
   const lightboxTouchStartY = useRef(0);
   const lightboxPinchRef = useRef<{ dist: number; scale: number } | null>(null);
   const lightboxDragRef = useRef<{ x: number; y: number; ox: number; oy: number } | null>(null);
+  const lightboxLastTapAt = useRef(0);
 
   const primaryGenre = genres?.[0] ?? "other";
   const imageList = images ?? [];
@@ -381,6 +382,7 @@ export default function ClassCard({ classData, priorityImage = false, onClassSel
     setLightboxOffset({ x: 0, y: 0 });
     lightboxPinchRef.current = null;
     lightboxDragRef.current = null;
+    lightboxLastTapAt.current = 0;
   }
 
 
@@ -475,6 +477,12 @@ export default function ClassCard({ classData, priorityImage = false, onClassSel
       return;
     }
     if (lightboxScale > 1 && e.touches.length === 1) {
+      const now = Date.now();
+      if (now - lightboxLastTapAt.current < 300) {
+        resetLightboxZoom();
+        return;
+      }
+      lightboxLastTapAt.current = now;
       const touch = e.touches[0];
       lightboxDragRef.current = {
         x: touch.clientX,
@@ -1207,7 +1215,7 @@ export default function ClassCard({ classData, priorityImage = false, onClassSel
                 {imageList.map((img, index) => (
                   <div
                     key={`${img.full_url ?? img.card_url}-${index}`}
-                    className="min-w-full flex items-center justify-center"
+                    className="min-w-full flex items-center justify-center overflow-hidden"
                   >
                     <Image
                       src={img.full_url ?? img.card_url}
@@ -1216,8 +1224,15 @@ export default function ClassCard({ classData, priorityImage = false, onClassSel
                       height={1600}
                       className="w-full h-auto max-h-[88vh] object-contain select-none touch-none"
                       style={{
-                        transform: `translate3d(${lightboxOffset.x}px, ${lightboxOffset.y}px, 0) scale(${lightboxScale})`,
+                        transform:
+                          index === lightboxIndex
+                            ? `translate3d(${lightboxOffset.x}px, ${lightboxOffset.y}px, 0) scale(${lightboxScale})`
+                            : "none",
                         willChange: "transform",
+                      }}
+                      onDoubleClick={(e) => {
+                        e.stopPropagation();
+                        resetLightboxZoom();
                       }}
                       draggable={false}
                     />
