@@ -48,9 +48,9 @@ export default function TabbedMain() {
         </div>
       )}
 
-      {mounted.has("notifications") && (
-        <div className={activeTab === "notifications" ? "flex flex-col flex-1 min-h-0" : "hidden"}>
-          <CustomerServiceContent active={activeTab === "notifications"} />
+      {mounted.has("community") && (
+        <div className={activeTab === "community" ? "flex flex-col flex-1 min-h-0" : "hidden"}>
+          <CustomerServiceContent active={activeTab === "community"} />
         </div>
       )}
 

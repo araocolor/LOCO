@@ -66,7 +66,7 @@ const NAV_ITEMS: {
     ),
   },
   {
-    tabId: "notifications",
+    tabId: "community",
     label: "커뮤니티",
     activeColor: "#E84040",
     renderIcon: (isActive: boolean) => (

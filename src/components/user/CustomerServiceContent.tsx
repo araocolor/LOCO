@@ -90,7 +90,7 @@ export default function CustomerServiceContent({ active, initialTab = "notice", 
           <header className="sticky top-0 z-10 bg-white border-b border-[#e5e7eb]">
             <div className="relative h-14 px-4 flex items-center">
               <div className="font-black text-[22px] text-[#4d4d4d] leading-none">
-                고객센터
+                커뮤니티
               </div>
               {onClose && (
                 <button
