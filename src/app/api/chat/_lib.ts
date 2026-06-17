@@ -151,8 +151,24 @@ export function getRoomDisplayTitle(
 }
 
 const ALLOWED_EMOJI_SRCS = new Set([
-  "/character/character.png",
-  "/character/character_2.png",
+  "/tari/tino_angry.png",
+  "/tari/tino_best.png",
+  "/tari/tino_congulatu.png",
+  "/tari/tino_cry.png",
+  "/tari/tino_fight.png",
+  "/tari/tino_good.png",
+  "/tari/tino_goodmorning.png",
+  "/tari/tino_goodnight.png",
+  "/tari/tino_hehe.png",
+  "/tari/tino_hugry.png",
+  "/tari/tino_hul.png",
+  "/tari/tino_love.png",
+  "/tari/tino_ok.png",
+  "/tari/tino_sleey.png",
+  "/tari/tino_sorry.png",
+  "/tari/tino_sorry2.png",
+  "/tari/tino_thank.png",
+  "/tari/tino_zaza.png",
 ]);
 
 export function normalizeMessageContent(kind: ChatMessageKind, content: unknown) {
