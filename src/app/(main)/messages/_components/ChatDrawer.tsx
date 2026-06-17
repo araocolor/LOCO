@@ -25,6 +25,9 @@ import CachedClassDetailPage from "@/components/class/CachedClassDetailPage";
 import type { ChatNotice, Message, MessageReactionType, MyProfile, NoticeKind, NoticeReactionType, NoticeVoteType, OtherUser } from "../_types";
 import { buildTimeline, getArchiveItems } from "../_lib/message-content";
 
+// 게임에 표시할 최대 회원 수. 회원이 늘어도 게임 UI가 깨지지 않도록 상한을 둔다.
+const GAME_MEMBER_LIMIT = 12;
+
 interface ChatDrawerProps {
   attachOpen: boolean;
   chatLoading: boolean;
@@ -517,7 +520,7 @@ export default function ChatDrawer({
         {showGame && (
           <div className="absolute inset-0 z-[10]">
             <MemberBreakoutGame
-              members={memberProfiles as MemberGameProfile[]}
+              members={(memberProfiles as MemberGameProfile[]).slice(0, GAME_MEMBER_LIMIT)}
               userId={userId}
               roomId={roomId ?? ""}
               onExitGame={() => setShowGame(false)}

@@ -24,6 +24,7 @@ import {
   writeNoticeCache,
   patchMessageCache,
 } from "./_lib/message-cache";
+import { readRoomMembersCache, writeRoomMembersCache } from "./_lib/member-cache";
 import { isPreviewableTextMessage, isProcessingVideoMessage } from "./_lib/message-content";
 
 interface ChatRoomApiItem {
@@ -728,6 +729,9 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
     };
     if (!nextRoom.id) return;
 
+    // 방 진입 등으로 전체 회원을 받았으면 방별로 캐시에 저장한다(다음 진입 시 즉시 표시).
+    if (nextRoom.members) writeRoomMembersCache(nextRoom.id, nextRoom.members);
+
     setConversations((prev) => {
       const next = prev.map((conv) =>
         conv.id === nextRoom.id
@@ -1249,9 +1253,19 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
     const enteringConv = conversations.find((c) => c.id === roomId);
     const roomUnread = enteringConv?.unread_count ?? 0;
 
+    // 회원이 아직 없으면 캐시에서 즉시 채워 게임·회원보기를 바로 표시한다. 갱신은 payload가 한다.
+    const cachedMembers =
+      enteringConv?.members && enteringConv.members.length > 0 ? null : readRoomMembersCache(roomId);
+
     setConversations((prev) => {
       const next = prev.map((conv) =>
-        conv.id === roomId ? { ...conv, unread_count: 0 } : conv
+        conv.id === roomId
+          ? {
+              ...conv,
+              unread_count: 0,
+              members: cachedMembers ?? conv.members,
+            }
+          : conv
       );
       writeAllPreviewCaches(next);
       return next;
