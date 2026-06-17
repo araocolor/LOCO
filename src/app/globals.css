@@ -378,6 +378,28 @@ body {
   animation: page-slide-out-to-top 200ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+@keyframes class-lightbox-slide-left {
+  from {
+    transform: translateX(28px);
+    opacity: 0.92;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes class-lightbox-slide-right {
+  from {
+    transform: translateX(-28px);
+    opacity: 0.92;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
 @keyframes modal-check-draw {
   from {
     stroke-dashoffset: 26;

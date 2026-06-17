@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type TouchEvent as ReactTouchEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type TouchEvent as ReactTouchEvent } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -91,6 +91,7 @@ export default function ClassCard({ classData, priorityImage = false, onClassSel
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const [lightboxScale, setLightboxScale] = useState(1);
   const [lightboxOffset, setLightboxOffset] = useState({ x: 0, y: 0 });
+  const [lightboxSlideDirection, setLightboxSlideDirection] = useState<"left" | "right" | null>(null);
   const [messageModalOpen, setMessageModalOpen] = useState(false);
   const [enteringClassRoom, setEnteringClassRoom] = useState(false);
   const [applyingClass, setApplyingClass] = useState(false);
@@ -376,12 +377,21 @@ export default function ClassCard({ classData, priorityImage = false, onClassSel
     });
   }
 
-  function resetLightboxZoom() {
+  const resetLightboxZoom = useCallback(() => {
     setLightboxScale(1);
     setLightboxOffset({ x: 0, y: 0 });
     lightboxPinchRef.current = null;
     lightboxDragRef.current = null;
-  }
+  }, []);
+
+  const moveLightboxImage = useCallback((direction: "prev" | "next") => {
+    const nextIndex =
+      direction === "next" ? Math.min(lightboxIndex + 1, totalImages - 1) : Math.max(lightboxIndex - 1, 0);
+    if (nextIndex === lightboxIndex) return;
+    resetLightboxZoom();
+    setLightboxSlideDirection(direction === "next" ? "left" : "right");
+    setLightboxIndex(nextIndex);
+  }, [lightboxIndex, resetLightboxZoom, totalImages]);
 
 
   function renderClassImageFallback() {
@@ -440,12 +450,10 @@ export default function ClassCard({ classData, priorityImage = false, onClassSel
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") setLightboxOpen(false);
       if (e.key === "ArrowRight") {
-        resetLightboxZoom();
-        setLightboxIndex((i) => Math.min(i + 1, totalImages - 1));
+        moveLightboxImage("next");
       }
       if (e.key === "ArrowLeft") {
-        resetLightboxZoom();
-        setLightboxIndex((i) => Math.max(i - 1, 0));
+        moveLightboxImage("prev");
       }
     }
 
@@ -454,7 +462,7 @@ export default function ClassCard({ classData, priorityImage = false, onClassSel
       document.body.style.overflow = prevOverflow;
       window.removeEventListener("keydown", onKeyDown);
     };
-  }, [lightboxOpen, totalImages]);
+  }, [lightboxOpen, totalImages, moveLightboxImage]);
 
   const genreLabel =
     genres?.map((g) => DANCE_GENRE_LABELS[g as keyof typeof DANCE_GENRE_LABELS] ?? g).join(" · ") ??
@@ -530,12 +538,10 @@ export default function ClassCard({ classData, priorityImage = false, onClassSel
     const dy = lightboxTouchStartY.current - endY;
     if (Math.abs(dx) <= Math.abs(dy) || Math.abs(dx) < 40) return;
     if (dx > 0) {
-      resetLightboxZoom();
-      setLightboxIndex((i) => Math.min(i + 1, totalImages - 1));
+      moveLightboxImage("next");
     }
     if (dx < 0) {
-      resetLightboxZoom();
-      setLightboxIndex((i) => Math.max(i - 1, 0));
+      moveLightboxImage("prev");
     }
   }
 
@@ -1104,7 +1110,6 @@ export default function ClassCard({ classData, priorityImage = false, onClassSel
       {lightboxOpen && totalImages > 0 && (
         <div
           className="fixed inset-0 z-[260] bg-black/95 flex items-center justify-center"
-          onClick={() => setLightboxOpen(false)}
         >
           {currentLightboxImageUrl && (
             <button
@@ -1158,8 +1163,7 @@ export default function ClassCard({ classData, priorityImage = false, onClassSel
               className="absolute left-3 z-20 text-white/85 hover:text-white"
               onClick={(e) => {
                 e.stopPropagation();
-                resetLightboxZoom();
-                setLightboxIndex((i) => Math.max(i - 1, 0));
+                moveLightboxImage("prev");
               }}
             >
               <svg
@@ -1179,16 +1183,17 @@ export default function ClassCard({ classData, priorityImage = false, onClassSel
           )}
           <div
             className="relative flex w-full max-w-[900px] flex-col items-center overflow-visible"
-            onClick={(e) => {
-              if (lightboxScale > 1) {
-                e.stopPropagation();
-                return;
-              }
-              setLightboxOpen(false);
-            }}
+            onClick={(e) => e.stopPropagation()}
             onTouchStart={handleLightboxTouchStart}
             onTouchMove={handleLightboxTouchMove}
             onTouchEnd={handleLightboxTouchEnd}
+            onAnimationEnd={() => setLightboxSlideDirection(null)}
+            style={{
+              animation:
+                lightboxSlideDirection === null ? undefined : `class-lightbox-slide-${lightboxSlideDirection} 220ms ease-out`,
+              transform: `translate3d(${lightboxOffset.x}px, ${lightboxOffset.y}px, 0) scale(${lightboxScale})`,
+              willChange: "transform",
+            }}
           >
             {totalImages > 1 && (
               <div className="mb-3 text-sm text-white/85">
@@ -1204,10 +1209,6 @@ export default function ClassCard({ classData, priorityImage = false, onClassSel
                   width={1200}
                   height={1600}
                   className="w-full h-auto max-h-[88vh] object-contain select-none touch-none"
-                  style={{
-                    transform: `translate3d(${lightboxOffset.x}px, ${lightboxOffset.y}px, 0) scale(${lightboxScale})`,
-                    willChange: "transform",
-                  }}
                   draggable={false}
                 />
               )}
@@ -1220,8 +1221,7 @@ export default function ClassCard({ classData, priorityImage = false, onClassSel
               className="absolute right-3 z-20 text-white/85 hover:text-white"
               onClick={(e) => {
                 e.stopPropagation();
-                resetLightboxZoom();
-                setLightboxIndex((i) => Math.min(i + 1, totalImages - 1));
+                moveLightboxImage("next");
               }}
             >
               <svg
