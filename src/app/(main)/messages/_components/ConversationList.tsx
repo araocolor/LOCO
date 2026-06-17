@@ -256,8 +256,8 @@ export default function ConversationList({
                           )}
                         </button>
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-baseline gap-2">
-                            <span className="font-bold text-gray-900" style={{ fontSize: "17px" }}>
+                          <div className="flex items-baseline gap-2 min-w-0">
+                            <span className="font-bold text-gray-900 truncate min-w-0" style={{ fontSize: "17px" }}>
                               {displayNickname}
                               {isMine && (
                                 <span className="font-normal ml-1" style={{ fontSize: "15px" }}>
