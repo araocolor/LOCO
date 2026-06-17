@@ -28,10 +28,10 @@ export default function ChatComposer({
   onSendMessage,
 }: ChatComposerProps) {
   return (
-    <div className="border-t border-gray-100 px-[10px] pt-3 pb-3 flex gap-2 items-center min-h-[80px] max-w-full mx-auto">
+    <div className="border-t border-gray-100 px-[3px] pt-3 pb-3 flex gap-2 items-center min-h-[80px] max-w-full mx-auto">
       <button
         type="button"
-        className="text-gray-500 flex-shrink-0"
+        className="text-gray-500 flex-shrink-0 -ml-1"
         onClick={() => {
           setAttachOpen((v) => !v);
           setEmojiOpen(false);
@@ -39,7 +39,7 @@ export default function ChatComposer({
       >
         <Paperclip size={22} strokeWidth={2.5} />
       </button>
-      <div className="relative flex-1">
+      <div className="relative w-[280px]">
         <textarea
           value={newMessage}
           onChange={(e) => setNewMessage(e.target.value)}
