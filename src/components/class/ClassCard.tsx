@@ -89,6 +89,8 @@ export default function ClassCard({ classData, priorityImage = false, onClassSel
   const [shareComplete, setShareComplete] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
+  const [lightboxScale, setLightboxScale] = useState(1);
+  const [lightboxOffset, setLightboxOffset] = useState({ x: 0, y: 0 });
   const [messageModalOpen, setMessageModalOpen] = useState(false);
   const [enteringClassRoom, setEnteringClassRoom] = useState(false);
   const [applyingClass, setApplyingClass] = useState(false);
@@ -156,6 +158,7 @@ export default function ClassCard({ classData, priorityImage = false, onClassSel
   }, [id, classData.comment_count]);
 
   function handleImageClick() {
+    resetLightboxZoom();
     setLightboxIndex(imgIndex);
     setLightboxOpen(true);
   }
@@ -356,6 +359,8 @@ export default function ClassCard({ classData, priorityImage = false, onClassSel
   const sliderRef = useRef<HTMLDivElement>(null);
   const lightboxTouchStartX = useRef(0);
   const lightboxTouchStartY = useRef(0);
+  const lightboxPinchRef = useRef<{ dist: number; scale: number } | null>(null);
+  const lightboxDragRef = useRef<{ x: number; y: number; ox: number; oy: number } | null>(null);
 
   const primaryGenre = genres?.[0] ?? "other";
   const imageList = images ?? [];
@@ -369,6 +374,13 @@ export default function ClassCard({ classData, priorityImage = false, onClassSel
       next.add(url);
       return { classId: id, urls: next };
     });
+  }
+
+  function resetLightboxZoom() {
+    setLightboxScale(1);
+    setLightboxOffset({ x: 0, y: 0 });
+    lightboxPinchRef.current = null;
+    lightboxDragRef.current = null;
   }
 
 
@@ -427,8 +439,14 @@ export default function ClassCard({ classData, priorityImage = false, onClassSel
 
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") setLightboxOpen(false);
-      if (e.key === "ArrowRight") setLightboxIndex((i) => Math.min(i + 1, totalImages - 1));
-      if (e.key === "ArrowLeft") setLightboxIndex((i) => Math.max(i - 1, 0));
+      if (e.key === "ArrowRight") {
+        resetLightboxZoom();
+        setLightboxIndex((i) => Math.min(i + 1, totalImages - 1));
+      }
+      if (e.key === "ArrowLeft") {
+        resetLightboxZoom();
+        setLightboxIndex((i) => Math.max(i - 1, 0));
+      }
     }
 
     window.addEventListener("keydown", onKeyDown);
@@ -437,6 +455,7 @@ export default function ClassCard({ classData, priorityImage = false, onClassSel
       window.removeEventListener("keydown", onKeyDown);
     };
   }, [lightboxOpen, totalImages]);
+
   const genreLabel =
     genres?.map((g) => DANCE_GENRE_LABELS[g as keyof typeof DANCE_GENRE_LABELS] ?? g).join(" · ") ??
     "";
@@ -448,19 +467,76 @@ export default function ClassCard({ classData, priorityImage = false, onClassSel
     imageList[lightboxIndex]?.full_url ?? imageList[lightboxIndex]?.card_url ?? null;
 
   function handleLightboxTouchStart(e: ReactTouchEvent<HTMLDivElement>) {
+    if (e.touches.length === 2) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      lightboxPinchRef.current = { dist: Math.hypot(dx, dy), scale: lightboxScale };
+      lightboxDragRef.current = null;
+      return;
+    }
+    if (lightboxScale > 1 && e.touches.length === 1) {
+      const touch = e.touches[0];
+      lightboxDragRef.current = {
+        x: touch.clientX,
+        y: touch.clientY,
+        ox: lightboxOffset.x,
+        oy: lightboxOffset.y,
+      };
+      return;
+    }
     lightboxTouchStartX.current = e.touches[0].clientX;
     lightboxTouchStartY.current = e.touches[0].clientY;
   }
 
+  function clampLightboxOffset(x: number, y: number, scale: number) {
+    if (scale <= 1) return { x: 0, y: 0 };
+    const maxX = (window.innerWidth * (scale - 1)) / 2;
+    const maxY = (window.innerHeight * (scale - 1)) / 2;
+    return {
+      x: Math.max(-maxX, Math.min(maxX, x)),
+      y: Math.max(-maxY, Math.min(maxY, y)),
+    };
+  }
+
+  function handleLightboxTouchMove(e: ReactTouchEvent<HTMLDivElement>) {
+    if (e.touches.length === 2 && lightboxPinchRef.current) {
+      e.preventDefault();
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      const dist = Math.hypot(dx, dy);
+      const nextScale = Math.max(1, Math.min(3, lightboxPinchRef.current.scale * (dist / lightboxPinchRef.current.dist)));
+      setLightboxScale(nextScale);
+      setLightboxOffset((offset) => clampLightboxOffset(offset.x, offset.y, nextScale));
+      return;
+    }
+    if (e.touches.length === 1 && lightboxScale > 1 && lightboxDragRef.current) {
+      e.preventDefault();
+      const touch = e.touches[0];
+      const nextX = lightboxDragRef.current.ox + touch.clientX - lightboxDragRef.current.x;
+      const nextY = lightboxDragRef.current.oy + touch.clientY - lightboxDragRef.current.y;
+      setLightboxOffset(clampLightboxOffset(nextX, nextY, lightboxScale));
+    }
+  }
+
   function handleLightboxTouchEnd(e: ReactTouchEvent<HTMLDivElement>) {
+    const wasPinching = lightboxPinchRef.current !== null;
+    if (e.touches.length < 2) lightboxPinchRef.current = null;
+    if (e.touches.length === 0) lightboxDragRef.current = null;
+    if (wasPinching || lightboxScale > 1) return;
     if (totalImages <= 1) return;
     const endX = e.changedTouches[0].clientX;
     const endY = e.changedTouches[0].clientY;
     const dx = lightboxTouchStartX.current - endX;
     const dy = lightboxTouchStartY.current - endY;
     if (Math.abs(dx) <= Math.abs(dy) || Math.abs(dx) < 40) return;
-    if (dx > 0) setLightboxIndex((i) => Math.min(i + 1, totalImages - 1));
-    if (dx < 0) setLightboxIndex((i) => Math.max(i - 1, 0));
+    if (dx > 0) {
+      resetLightboxZoom();
+      setLightboxIndex((i) => Math.min(i + 1, totalImages - 1));
+    }
+    if (dx < 0) {
+      resetLightboxZoom();
+      setLightboxIndex((i) => Math.max(i - 1, 0));
+    }
   }
 
   useEffect(() => {
@@ -1034,7 +1110,7 @@ export default function ClassCard({ classData, priorityImage = false, onClassSel
             <button
               type="button"
               aria-label="사진 다운로드"
-              className="absolute top-4 left-4 z-20 text-white"
+              className="absolute top-[calc(env(safe-area-inset-top)+1rem)] left-4 z-20 text-white"
               onClick={(e) => { e.stopPropagation(); handleDownloadImage(currentLightboxImageUrl); }}
             >
               <svg
@@ -1057,7 +1133,7 @@ export default function ClassCard({ classData, priorityImage = false, onClassSel
           <button
             type="button"
             aria-label="닫기"
-            className="absolute top-4 right-4 z-20 text-white"
+            className="absolute top-[calc(env(safe-area-inset-top)+1rem)] right-4 z-20 text-white"
             onClick={() => setLightboxOpen(false)}
           >
             <svg
@@ -1082,6 +1158,7 @@ export default function ClassCard({ classData, priorityImage = false, onClassSel
               className="absolute left-3 z-20 text-white/85 hover:text-white"
               onClick={(e) => {
                 e.stopPropagation();
+                resetLightboxZoom();
                 setLightboxIndex((i) => Math.max(i - 1, 0));
               }}
             >
@@ -1102,8 +1179,15 @@ export default function ClassCard({ classData, priorityImage = false, onClassSel
           )}
           <div
             className="relative flex w-full max-w-[900px] flex-col items-center overflow-visible"
-            onClick={() => setLightboxOpen(false)}
+            onClick={(e) => {
+              if (lightboxScale > 1) {
+                e.stopPropagation();
+                return;
+              }
+              setLightboxOpen(false);
+            }}
             onTouchStart={handleLightboxTouchStart}
+            onTouchMove={handleLightboxTouchMove}
             onTouchEnd={handleLightboxTouchEnd}
           >
             {totalImages > 1 && (
@@ -1130,7 +1214,11 @@ export default function ClassCard({ classData, priorityImage = false, onClassSel
                       alt={title}
                       width={1200}
                       height={1600}
-                      className="w-full h-auto max-h-[88vh] object-contain select-none"
+                      className="w-full h-auto max-h-[88vh] object-contain select-none touch-none"
+                      style={{
+                        transform: `translate3d(${lightboxOffset.x}px, ${lightboxOffset.y}px, 0) scale(${lightboxScale})`,
+                        willChange: "transform",
+                      }}
                       draggable={false}
                     />
                   </div>
@@ -1145,6 +1233,7 @@ export default function ClassCard({ classData, priorityImage = false, onClassSel
               className="absolute right-3 z-20 text-white/85 hover:text-white"
               onClick={(e) => {
                 e.stopPropagation();
+                resetLightboxZoom();
                 setLightboxIndex((i) => Math.min(i + 1, totalImages - 1));
               }}
             >
