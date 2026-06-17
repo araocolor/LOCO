@@ -2,6 +2,8 @@
 
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { startWarmup, resetWarmup } from "@/lib/warmup/manager";
+import { registerWarmupTasks } from "@/lib/warmup/tasks";
 
 const LAST_ACTIVE_PING_KEY = "loco_last_active_ping_v1";
 const LAST_ACTIVE_PING_INTERVAL_MS = 5 * 60 * 1000;
@@ -83,6 +85,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (nextId !== currentUserId) {
         currentUserId = nextId;
         setUser(sessionUser ? { id: sessionUser.id, email: sessionUser.email } : null);
+        if (nextId) {
+          registerWarmupTasks(nextId);
+          startWarmup();
+        } else {
+          resetWarmup();
+        }
       }
       if (sessionUser) sendLastActivePing(sessionUser.id);
       setLoading(false);

@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { warmFriendsCache } from "@/lib/chat/friends-cache";
 
 function getSafePath(value: string | null): string {
   if (!value || !value.startsWith("/") || value.startsWith("//") || value.startsWith("/\\")) return "/";
@@ -12,6 +13,11 @@ function getSafePath(value: string | null): string {
 
 export default function AppDeepLinkHandler() {
   const router = useRouter();
+
+  // 앱 시작 시 친구목록을 미리 받아둬서 메시지 메뉴 클릭 시 즉시 표시되게 한다.
+  useEffect(() => {
+    void warmFriendsCache();
+  }, []);
 
   useEffect(() => {
     const isApp = navigator.userAgent.includes("XlatinApp");
