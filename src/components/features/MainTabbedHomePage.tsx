@@ -437,19 +437,8 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
         }`}
         style={{ paddingTop: 'env(safe-area-inset-top)' }}
       >
-        <div className="shrink-0 h-14 px-4 flex items-center border-b border-[#e5e7eb]">
-          <div className="font-black text-[22px] text-[#4d4d4d] leading-none">알림</div>
-          <button
-            type="button"
-            aria-label="닫기"
-            className="ml-auto h-12 w-12 -mr-2 flex items-center justify-center text-gray-700"
-            onClick={() => setNotiDrawerOpen(false)}
-          >
-            <X size={24} strokeWidth={2.2} />
-          </button>
-        </div>
         <div className="flex-1 overflow-y-auto">
-          {notiDrawerOpen && <NotificationsTab userId={userId} />}
+          {notiDrawerOpen && <NotificationsTab userId={userId} onClose={() => setNotiDrawerOpen(false)} />}
         </div>
       </div>
 

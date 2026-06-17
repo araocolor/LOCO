@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import Image from "next/image";
-import { Trash2 } from "lucide-react";
+import { Trash2, X } from "lucide-react";
 import UserProfileModal from "@/components/user/UserProfileModal";
 import CachedClassDetailPage from "@/components/class/CachedClassDetailPage";
 import ClassHeader from "@/components/layout/ClassHeader";
@@ -28,6 +28,7 @@ interface NotificationItem {
 
 interface NotificationsTabProps {
   userId?: string | null;
+  onClose?: () => void;
 }
 
 function formatTime(dateStr: string) {
@@ -137,7 +138,7 @@ function getEmptyLoadedMap(): Record<NotificationTab, boolean> {
   return { class: false, comment: false, general: false };
 }
 
-export default function NotificationsTab({ userId }: NotificationsTabProps) {
+export default function NotificationsTab({ userId, onClose }: NotificationsTabProps) {
   const [notificationsByTab, setNotificationsByTab] =
     useState<Record<NotificationTab, NotificationItem[]>>(getEmptyNotificationMap);
   const [loadingMap, setLoadingMap] = useState<Record<NotificationTab, boolean>>(getEmptyLoadingMap);
@@ -367,10 +368,20 @@ export default function NotificationsTab({ userId }: NotificationsTabProps) {
                 <button
                   type="button"
                   aria-label="알림 삭제"
-                  className="h-12 w-12 -mr-2 flex items-center justify-center text-gray-700"
+                  className="h-12 w-12 flex items-center justify-center text-gray-700"
                   onClick={() => setEditMode(true)}
                 >
                   <Trash2 size={20} strokeWidth={2.2} />
+                </button>
+              )}
+              {onClose && (
+                <button
+                  type="button"
+                  aria-label="닫기"
+                  className="h-12 w-12 -mr-2 flex items-center justify-center text-gray-700"
+                  onClick={onClose}
+                >
+                  <X size={24} strokeWidth={2.2} />
                 </button>
               )}
             </div>
