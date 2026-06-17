@@ -435,6 +435,7 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
         className={`fixed inset-0 z-[75] bg-white flex flex-col transition-transform duration-300 ease-in-out ${
           notiDrawerOpen ? "translate-x-0" : "translate-x-full"
         }`}
+        style={{ paddingTop: 'env(safe-area-inset-top)' }}
       >
         <div className="shrink-0 h-14 px-4 flex items-center border-b border-[#e5e7eb]">
           <div className="font-black text-[22px] text-[#4d4d4d] leading-none">알림</div>
