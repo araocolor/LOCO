@@ -688,7 +688,7 @@ export default function ClassCommentsPanel({
               el.style.height = "auto";
               el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
             }}
-            className={`min-h-[44px] min-w-0 flex-1 resize-none rounded-2xl border px-4 py-2.5 text-sm outline-none focus:border-gray-400 ${editTarget ? "border-gray-400" : "border-gray-200"}`}
+            className={`min-h-[44px] min-w-0 flex-1 resize-none rounded-2xl border px-4 py-2.5 text-base outline-none focus:border-gray-400 ${editTarget ? "border-gray-400" : "border-gray-200"}`}
           />
           <button
             type="button"
