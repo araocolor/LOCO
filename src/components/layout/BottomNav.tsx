@@ -4,7 +4,6 @@ import { usePathname } from "next/navigation";
 import { useScrollChromeVisibility } from "@/hooks/useScrollChromeVisibility";
 import { type MainTabId, getMainTab, subscribeMainTab, replaceMainTab } from "@/lib/main-tab";
 import { useAuth } from "@/lib/auth-context";
-import { prefetchNotifications } from "@/lib/notification-cache";
 import { createClient } from "@/lib/supabase/client";
 import { playSound } from "@/lib/sound";
 import Avatar from "@/components/ui/Avatar";
@@ -195,7 +194,6 @@ export default function BottomNav() {
     if (!user?.id) return;
     void fetchNotificationUnread();
     void fetchChatUnread();
-    prefetchNotifications(user.id);
   }, [user?.id]);
 
   useEffect(() => {
