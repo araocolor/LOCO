@@ -1195,38 +1195,22 @@ export default function ClassCard({ classData, priorityImage = false, onClassSel
                 {lightboxIndex + 1} / {totalImages}
               </div>
             )}
-            <div className="max-h-[88vh] w-full overflow-hidden">
-              <div
-                className="flex"
-                style={{
-                  transform: `translateX(-${lightboxIndex * 100}%)`,
-                  transition: "transform 320ms cubic-bezier(0.22, 1, 0.36, 1)",
-                  willChange: "transform",
-                }}
-              >
-                {imageList.map((img, index) => (
-                  <div
-                    key={`${img.full_url ?? img.card_url}-${index}`}
-                    className="min-w-full flex items-center justify-center overflow-hidden"
-                  >
-                    <Image
-                      src={img.full_url ?? img.card_url}
-                      alt={title}
-                      width={1200}
-                      height={1600}
-                      className="w-full h-auto max-h-[88vh] object-contain select-none touch-none"
-                      style={{
-                        transform:
-                          index === lightboxIndex
-                            ? `translate3d(${lightboxOffset.x}px, ${lightboxOffset.y}px, 0) scale(${lightboxScale})`
-                            : "none",
-                        willChange: "transform",
-                      }}
-                      draggable={false}
-                    />
-                  </div>
-                ))}
-              </div>
+            <div className="flex max-h-[88vh] w-full items-center justify-center overflow-hidden">
+              {currentLightboxImageUrl && (
+                <Image
+                  key={currentLightboxImageUrl}
+                  src={currentLightboxImageUrl}
+                  alt={title}
+                  width={1200}
+                  height={1600}
+                  className="w-full h-auto max-h-[88vh] object-contain select-none touch-none"
+                  style={{
+                    transform: `translate3d(${lightboxOffset.x}px, ${lightboxOffset.y}px, 0) scale(${lightboxScale})`,
+                    willChange: "transform",
+                  }}
+                  draggable={false}
+                />
+              )}
             </div>
           </div>
           {totalImages > 1 && lightboxIndex < totalImages - 1 && (
