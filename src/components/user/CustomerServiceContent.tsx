@@ -135,7 +135,7 @@ export default function CustomerServiceContent({ active, initialTab = "notice", 
           </header>
           <main className="flex-1 overflow-y-auto scrollbar-hide overscroll-contain">
             <BoardPostList
-              key={listKey}
+              key={`${activeTab}-${listKey}`}
               category={activeTab as BoardCategory}
               onSelectPost={handleSelectPost}
               onWrite={handleWrite}
