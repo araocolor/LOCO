@@ -772,6 +772,9 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
       mergeConversationsByType(type, incomingConversations);
 
       for (const item of apiItems) {
+        if (item.members && item.members.length > 0) {
+          writeRoomMembersCache(item.id, item.members);
+        }
         if (item.recent_messages && item.recent_messages.length > 0) {
           const recentMsgs: Message[] = item.recent_messages.map((rm) => ({
             id: rm.id,
