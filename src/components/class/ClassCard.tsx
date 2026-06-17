@@ -361,7 +361,6 @@ export default function ClassCard({ classData, priorityImage = false, onClassSel
   const lightboxTouchStartY = useRef(0);
   const lightboxPinchRef = useRef<{ dist: number; scale: number } | null>(null);
   const lightboxDragRef = useRef<{ x: number; y: number; ox: number; oy: number } | null>(null);
-  const lightboxLastTapAt = useRef(0);
 
   const primaryGenre = genres?.[0] ?? "other";
   const imageList = images ?? [];
@@ -382,7 +381,6 @@ export default function ClassCard({ classData, priorityImage = false, onClassSel
     setLightboxOffset({ x: 0, y: 0 });
     lightboxPinchRef.current = null;
     lightboxDragRef.current = null;
-    lightboxLastTapAt.current = 0;
   }
 
 
@@ -477,12 +475,6 @@ export default function ClassCard({ classData, priorityImage = false, onClassSel
       return;
     }
     if (lightboxScale > 1 && e.touches.length === 1) {
-      const now = Date.now();
-      if (now - lightboxLastTapAt.current < 300) {
-        resetLightboxZoom();
-        return;
-      }
-      lightboxLastTapAt.current = now;
       const touch = e.touches[0];
       lightboxDragRef.current = {
         x: touch.clientX,
@@ -1229,10 +1221,6 @@ export default function ClassCard({ classData, priorityImage = false, onClassSel
                             ? `translate3d(${lightboxOffset.x}px, ${lightboxOffset.y}px, 0) scale(${lightboxScale})`
                             : "none",
                         willChange: "transform",
-                      }}
-                      onDoubleClick={(e) => {
-                        e.stopPropagation();
-                        resetLightboxZoom();
                       }}
                       draggable={false}
                     />
