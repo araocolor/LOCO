@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Bell, LayoutGrid, Plus, Presentation, Search, X } from "lucide-react";
+import { Bell, LayoutGrid, Plus, Search, WalletCards, X } from "lucide-react";
 import {
   SEARCH_DEFAULTS_STORAGE_KEY,
   type SearchOptions,
@@ -174,7 +174,7 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
             className="ml-auto relative h-12 w-12 -mr-2 flex items-center justify-center text-gray-700"
             onClick={() => setNotiDrawerOpen(true)}
           >
-            <Bell size={22} strokeWidth={2.2} />
+            <Bell size={22} strokeWidth={2.25} />
             {notificationUnread > 0 && (
               <span className="absolute right-1 top-1.5 min-w-[18px] h-[18px] rounded-full bg-blue-500 border-2 border-white flex items-center justify-center">
                 <span className="text-[10px] font-bold text-white leading-none px-0.5">
@@ -205,21 +205,21 @@ export default function MainTabbedHomePage({ initialClasses }: MainTabbedHomePag
             <button
               type="button"
               aria-label="검색"
-              className="mt-1 ml-2 text-gray-400"
+              className="mt-1 ml-2 text-gray-700"
               onClick={() => window.dispatchEvent(new CustomEvent("open-search-sheet"))}
             >
-              <Search size={20} strokeWidth={2.8} />
+              <Search size={22} strokeWidth={2.8} />
             </button>
           )}
           {activeTab === "allClasses" && (
             <button
               type="button"
               aria-label={allViewMode === "grid" ? "카드 보기" : "격자 보기"}
-              className="mt-1 ml-auto mr-[4px] text-gray-400"
+              className="mt-1 ml-auto mr-[4px] text-gray-700"
               onClick={() => setAllViewMode((v) => (v === "grid" ? "card" : "grid"))}
             >
               {allViewMode === "grid" ? (
-                <Presentation size={20} strokeWidth={1.9} />
+                <WalletCards size={22} strokeWidth={2.25} />
               ) : (
                 <LayoutGrid size={20} strokeWidth={1.9} />
               )}
