@@ -11,9 +11,6 @@ export default function LogoutPage() {
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    localStorage.clear();
-    sessionStorage.clear();
-
     if (navigator.userAgent.includes("XlatinApp")) {
       import("@/lib/push-notifications").then(({ removePushToken }) => {
         removePushToken();
@@ -36,6 +33,8 @@ export default function LogoutPage() {
 
     const supabase = createClient();
     supabase.auth.signOut().then(() => {
+      localStorage.clear();
+      sessionStorage.clear();
       if (intervalRef.current) clearInterval(intervalRef.current);
       setDone(true);
     });
