@@ -1,4 +1,4 @@
-export type UserRole = "member" | "pro" | "admin";
+export type UserRole = "member" | "pro" | "admin" | "suspended";
 
 export interface SearchOptions {
   region?: string;

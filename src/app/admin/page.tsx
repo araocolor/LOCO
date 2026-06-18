@@ -21,15 +21,10 @@ export default async function AdminPage() {
   if (profile?.role !== "admin") redirect("/");
 
   const admin = createAdminClient();
-  const [usersResult, proRequestsResult, classesResult] = await Promise.all([
+  const [usersResult, classesResult] = await Promise.all([
     admin
       .from("profiles")
       .select("id, email, nickname, role, created_at")
-      .order("created_at", { ascending: false })
-      .limit(100),
-    admin
-      .from("pro_requests")
-      .select("id, user_id, status, message, created_at, user:profiles!user_id(id, nickname, email)")
       .order("created_at", { ascending: false })
       .limit(100),
     admin
@@ -47,15 +42,6 @@ export default async function AdminPage() {
     created_at: item.created_at,
   }));
 
-  const proRequests = (proRequestsResult.data ?? []).map((item) => ({
-    id: item.id,
-    user_id: item.user_id,
-    status: item.status as "pending" | "approved" | "rejected",
-    message: item.message,
-    created_at: item.created_at,
-    user: Array.isArray(item.user) ? item.user[0] ?? null : item.user,
-  }));
-
   const classes = (classesResult.data ?? []).map((item) => ({
     id: item.id,
     title: item.title,
@@ -68,7 +54,6 @@ export default async function AdminPage() {
   return (
     <AdminPageClient
       initialUsers={users}
-      initialProRequests={proRequests}
       initialClasses={classes}
     />
   );

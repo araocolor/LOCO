@@ -26,9 +26,9 @@ export async function PATCH(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { role } = (await request.json()) as { role?: "member" | "pro" };
+  const { role } = (await request.json()) as { role?: "member" | "pro" | "suspended" };
 
-  if (role !== "member" && role !== "pro") {
+  if (role !== "member" && role !== "pro" && role !== "suspended") {
     return NextResponse.json({ error: "Invalid role" }, { status: 400 });
   }
 

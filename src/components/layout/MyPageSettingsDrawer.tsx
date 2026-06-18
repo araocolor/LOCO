@@ -50,7 +50,7 @@ interface SettingsProfile {
   nickname: string;
   nickname_changed_at: string | null;
   email: string | null;
-  role: "member" | "pro" | "admin";
+  role: "member" | "pro" | "admin" | "suspended";
   profile_image_url: string | null;
   bio: string | null;
   country: string | null;
@@ -338,7 +338,19 @@ export default function MyPageSettingsDrawer({ open, onClose }: MyPageSettingsDr
                   <X className="w-5 h-5 text-gray-500" />
                 </button>
               </div>
-              <p className="pt-1 text-[28px] font-bold text-[#333]">설정</p>
+              <div className="flex items-center justify-between pt-1">
+                <p className="text-[28px] font-bold text-[#333]">설정</p>
+                {settingsProfile?.role === "admin" && (
+                  <button
+                    type="button"
+                    onClick={() => router.push("/admin")}
+                    className="inline-flex items-center gap-1 rounded-full bg-[#1D9BF0] px-3 py-1 text-[13px] font-bold text-white active:bg-[#1a8cd8]"
+                  >
+                    <ShieldCheck size={14} strokeWidth={2.6} />
+                    관리자모드
+                  </button>
+                )}
+              </div>
             </div>
 
             <div className="min-h-0 flex-1 overflow-y-auto">
