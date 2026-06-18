@@ -24,7 +24,7 @@ export default async function ClassEditPage({ params }: { params: Promise<{ id: 
     .eq("id", user.id)
     .single();
 
-  const role = (profile?.role as "member" | "pro" | "admin") ?? "member";
+  const role = (profile?.role as "member" | "pro" | "admin" | "suspended") ?? "member";
 
   return (
     <div data-page-shell className="page-slide-in-from-top">

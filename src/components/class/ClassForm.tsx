@@ -102,7 +102,7 @@ interface AiPosterPrefill {
 interface ClassFormProps {
   initialData?: Partial<DanceClass>;
   classId?: string;
-  userRole: "member" | "pro" | "admin";
+  userRole: "member" | "pro" | "admin" | "suspended";
   aiPosterData?: AiPosterPrefill;
 }
 

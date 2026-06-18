@@ -12,7 +12,7 @@ export interface Follower {
   last_active_at?: string | null;
   gender?: "로" | "라" | null;
   member_type?: string[];
-  role?: "member" | "pro" | "admin";
+  role?: "member" | "pro" | "admin" | "suspended";
   status?: "pending" | "approved" | "friend";
   is_greyed?: boolean;
   is_hidden?: boolean;
