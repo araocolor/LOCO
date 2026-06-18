@@ -3,8 +3,8 @@ import MainContentShell from "@/components/layout/MainContentShell";
 import TabbedMain from "@/components/layout/TabbedMain";
 import SearchSheet from "@/components/features/SearchSheet";
 import PresenceTracker from "@/components/features/PresenceTracker";
-import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth/get-current-user";
+import AuthGate from "@/components/layout/AuthGate";
 
 export default async function MainLayout({
   children,
@@ -14,7 +14,7 @@ export default async function MainLayout({
   const user = await getCurrentUser();
 
   if (!user) {
-    redirect("/login");
+    return <AuthGate />;
   }
 
   return (
