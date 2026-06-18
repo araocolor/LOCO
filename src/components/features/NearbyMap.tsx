@@ -291,7 +291,7 @@ export default function NearbyMap({ soundEnabled = true, onRefreshControlChange 
   const [debugPopupOpen, setDebugPopupOpen] = useState(false);
   const [rippleAnimating, setRippleAnimating] = useState(true);
   const [showMyAvatar, setShowMyAvatar] = useState(false);
-  const [myProfile] = useState<{ nickname: string; profile_image_url: string | null } | null>(() => {
+  const [myProfile, setMyProfile] = useState<{ nickname: string; profile_image_url: string | null } | null>(() => {
     try {
       const keys = Object.keys(localStorage).filter((k) => k.startsWith("loco_home_my_classes_v1:"));
       for (const key of keys) {
@@ -304,6 +304,25 @@ export default function NearbyMap({ soundEnabled = true, onRefreshControlChange 
     } catch {}
     return null;
   });
+  // 캐시에 내 프로필이 없으면(웹뷰 등) 서버에서 한 번 불러온다
+  useEffect(() => {
+    if (myProfile) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/home/my-classes");
+        if (!res.ok) return;
+        const json = await res.json();
+        const p = json?.profile;
+        if (!cancelled && p?.nickname) {
+          setMyProfile({ nickname: p.nickname, profile_image_url: p.profile_image_url ?? null });
+        }
+      } catch {}
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [myProfile]);
   const [debugInfo, setDebugInfo] = useState<NearbyDebug | null>(null);
   const [nowMs] = useState(() => Date.now());
   const [refreshLockedUntil, setRefreshLockedUntil] = useState(() => getNearbyRefreshLockedUntil(initialCache));
