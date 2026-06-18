@@ -2,8 +2,9 @@
 // 각 화면의 "첫 표시" 데이터를 로그인 후 유휴 시간에 미리 받아 캐시에 채운다.
 // 캐시 키/형식은 각 화면이 실제로 읽는 것과 동일해야 한다.
 
-import { registerWarmup } from "./manager";
+import { registerWarmup, getWarmupSignal } from "./manager";
 import { prefetchNotifications } from "@/lib/notification-cache";
+import { warmFriendsCache } from "@/lib/chat/friends-cache";
 
 const HOME_RESULTS_LOCAL_KEY = "loco_home_results_local_v1";
 const HOME_RESULTS_PAGE_SIZE = 12;
@@ -21,7 +22,7 @@ async function warmHomeClasses(): Promise<void> {
   // 이미 캐시가 있으면 건너뛴다. 갱신은 화면 진입 시 자체적으로 한다.
   if (localStorage.getItem(key)) return;
   try {
-    const res = await fetch(`/api/classes/search?page=0&limit=${HOME_RESULTS_PAGE_SIZE}`);
+    const res = await fetch(`/api/classes/search?page=0&limit=${HOME_RESULTS_PAGE_SIZE}`, { signal: getWarmupSignal() });
     if (!res.ok) return;
     const json = await res.json();
     if (json.error) return;
@@ -42,7 +43,7 @@ async function warmChatPreview(userId: string): Promise<void> {
     const key = `${CHAT_ROOMS_PREVIEW_CACHE_PREFIX}${userId}:${type}`;
     if (localStorage.getItem(key)) continue;
     try {
-      const res = await fetch(`/api/chat/rooms/preview?type=${type}`);
+      const res = await fetch(`/api/chat/rooms/preview?type=${type}`, { signal: getWarmupSignal() });
       if (!res.ok) continue;
       const json = await res.json();
       const data = (json.data ?? []) as unknown[];
@@ -59,7 +60,7 @@ async function warmChatPreview(userId: string): Promise<void> {
 async function warmMyPage(): Promise<void> {
   if (localStorage.getItem(MY_PAGE_CACHE_KEY)) return;
   try {
-    const res = await fetch("/api/mypage/summary", { method: "GET", cache: "no-store" });
+    const res = await fetch("/api/mypage/summary", { method: "GET", cache: "no-store", signal: getWarmupSignal() });
     if (!res.ok) return;
     const json = await res.json();
     if (json?.needsOnboarding) return;
@@ -90,6 +91,11 @@ export function registerWarmupTasks(userId: string) {
     name: "notifications",
     priority: 4,
     // 기본 탭(class) 알림을 미리 받아 캐시에 채운다. 이미 캐시 있으면 내부에서 건너뛴다.
-    run: () => prefetchNotifications(userId),
+    run: () => prefetchNotifications(userId, getWarmupSignal()),
+  });
+  registerWarmup({
+    name: "friends",
+    priority: 5,
+    run: () => warmFriendsCache(getWarmupSignal()),
   });
 }

@@ -15,6 +15,11 @@ const registry = new Map<string, WarmupTask>();
 const done = new Set<string>();
 let started = false;
 let running = false;
+let abortController: AbortController | null = null;
+
+export function getWarmupSignal(): AbortSignal | undefined {
+  return abortController?.signal ?? undefined;
+}
 
 // requestIdleCallback 폴백: 웹뷰/Safari 미지원 환경 대비.
 // 표준 동작을 흉내 낸다. 프레임마다 그리기에 남는 여유 시간을 보고,
@@ -77,6 +82,7 @@ async function drain() {
 export function startWarmup() {
   if (started) return;
   started = true;
+  abortController = new AbortController();
   onIdle(() => {
     void drain();
   });
@@ -84,6 +90,10 @@ export function startWarmup() {
 
 // 로그아웃 등으로 상태를 비울 때 사용(다음 로그인에서 다시 웜업).
 export function resetWarmup() {
+  if (abortController) {
+    abortController.abort();
+    abortController = null;
+  }
   started = false;
   running = false;
   done.clear();

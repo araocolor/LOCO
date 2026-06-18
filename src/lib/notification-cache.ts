@@ -56,13 +56,13 @@ export function writeNotificationCache(
   } catch {}
 }
 
-export function prefetchNotifications(userId: string | null | undefined) {
+export function prefetchNotifications(userId: string | null | undefined, signal?: AbortSignal) {
   if (!userId) return;
 
   const cached = readNotificationCache(userId, "class");
   if (cached) return;
 
-  fetch(`/api/notifications?page=0&tab=class`)
+  fetch(`/api/notifications?page=0&tab=class`, { signal })
     .then((res) => (res.ok ? res.json() : null))
     .then((json) => {
       if (json?.notifications) {

@@ -30,9 +30,9 @@ export function isFriendsCacheFresh(cache: FriendsCache | null): boolean {
   return !!cache && Date.now() - cache.ts < CACHE_TTL;
 }
 
-export async function fetchFriends(): Promise<{ following: Follower[]; followers: Follower[] } | null> {
+export async function fetchFriends(signal?: AbortSignal): Promise<{ following: Follower[]; followers: Follower[] } | null> {
   try {
-    const r = await fetchWithAuthRetry("/api/chat/friends");
+    const r = await fetchWithAuthRetry("/api/chat/friends", { signal });
     if (!r.ok) return null;
     const json = await r.json();
     const following = (json.data?.following ?? []) as Follower[];
@@ -45,7 +45,7 @@ export async function fetchFriends(): Promise<{ following: Follower[]; followers
 }
 
 // 앱 시작 시 1회 프리로드: 캐시가 신선하면 건너뛰고, 아니면 백그라운드로 채워둔다.
-export async function warmFriendsCache(): Promise<void> {
+export async function warmFriendsCache(signal?: AbortSignal): Promise<void> {
   if (isFriendsCacheFresh(readFriendsCache())) return;
-  await fetchFriends();
+  await fetchFriends(signal);
 }
