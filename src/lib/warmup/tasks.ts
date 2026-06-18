@@ -5,6 +5,7 @@
 import { registerWarmup, getWarmupSignal } from "./manager";
 import { prefetchNotifications } from "@/lib/notification-cache";
 import { warmFriendsCache } from "@/lib/chat/friends-cache";
+import { prefetchBoardPostsCache } from "@/lib/board-session-cache";
 
 const HOME_RESULTS_LOCAL_KEY = "loco_home_results_local_v1";
 const HOME_RESULTS_PAGE_SIZE = 12;
@@ -97,5 +98,10 @@ export function registerWarmupTasks(userId: string) {
     name: "friends",
     priority: 5,
     run: () => warmFriendsCache(getWarmupSignal()),
+  });
+  registerWarmup({
+    name: "community",
+    priority: 6,
+    run: () => prefetchBoardPostsCache(["notice", "support", "free"], getWarmupSignal()),
   });
 }

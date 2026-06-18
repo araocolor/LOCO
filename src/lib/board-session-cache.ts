@@ -1,6 +1,6 @@
 import type { BoardCategory, BoardComment, BoardPost, BoardBlock } from "@/types/board";
 
-const BOARD_POSTS_CACHE_PREFIX = "loco_board_posts_session_v1";
+const BOARD_POSTS_CACHE_PREFIX = "loco_board_posts_local_v1";
 const BOARD_COMMENTS_CACHE_PREFIX = "loco_board_comments_session_v1";
 const POST_CACHE_LIMIT = 10;
 const COMMENT_CACHE_LIMIT = 10;
@@ -10,6 +10,11 @@ type CachedBoardPost = BoardPost & { thumbnail_url?: string | null };
 function getSessionStorage() {
   if (typeof window === "undefined") return null;
   return window.sessionStorage;
+}
+
+function getLocalStorage() {
+  if (typeof window === "undefined") return null;
+  return window.localStorage;
 }
 
 function getPostThumbnail(post: BoardPost) {
@@ -23,7 +28,7 @@ function getPostThumbnail(post: BoardPost) {
 }
 
 export function readBoardPostsCache(category: BoardCategory): BoardPost[] {
-  const storage = getSessionStorage();
+  const storage = getLocalStorage();
   if (!storage) return [];
 
   try {
@@ -37,7 +42,7 @@ export function readBoardPostsCache(category: BoardCategory): BoardPost[] {
 }
 
 export function writeBoardPostsCache(category: BoardCategory, posts: BoardPost[]) {
-  const storage = getSessionStorage();
+  const storage = getLocalStorage();
   if (!storage) return;
 
   try {
@@ -77,11 +82,12 @@ export function writeBoardPostCache(post: BoardPost) {
 
 export async function prefetchBoardPostsCache(
   categories: BoardCategory[] = ["notice", "support", "free"],
+  signal?: AbortSignal,
 ) {
   await Promise.allSettled(
     categories.map(async (category) => {
       try {
-        const res = await fetch(`/api/board/posts?category=${category}&page=1`, { cache: "no-store" });
+        const res = await fetch(`/api/board/posts?category=${category}&page=1`, { cache: "no-store", signal });
         const data = await res.json().catch(() => ({}));
         if (res.ok && Array.isArray(data.posts)) writeBoardPostsCache(category, data.posts as BoardPost[]);
       } catch {
