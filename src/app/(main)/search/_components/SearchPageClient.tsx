@@ -47,7 +47,7 @@ if (tab === "members") {
       setMemberViewMode("grid");
     }
     if (tab === "followings") {
-      setSocialListMode("mySubscribers");
+      setSocialListMode("followers");
     }
   }, [setFriendListMode, setMemberViewMode, setSocialListMode]);
 

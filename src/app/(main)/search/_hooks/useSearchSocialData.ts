@@ -86,7 +86,7 @@ export function useSearchSocialData(activeTab: Tab) {
 
   useEffect(() => {
     if (activeTab === "followings" && prevActiveTabRef.current !== "followings") {
-      setSocialListMode("mySubscribers");
+      setSocialListMode("followers");
     }
     prevActiveTabRef.current = activeTab;
   }, [activeTab]);
