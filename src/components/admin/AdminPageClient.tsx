@@ -8,6 +8,7 @@ import type { AdminMembersTabProps } from "./AdminMembersTab";
 import AdminClassesTab from "./AdminClassesTab";
 import type { AdminClassesTabProps } from "./AdminClassesTab";
 import AdminSystemTab from "./AdminSystemTab";
+import AdminPaymentsTab from "./AdminPaymentsTab";
 
 type AdminTab = "members" | "classes" | "payments" | "system";
 
@@ -66,11 +67,7 @@ export default function AdminPageClient({
         {activeTab === "classes" && (
           <AdminClassesTab initialClasses={initialClasses} />
         )}
-        {activeTab === "payments" && (
-          <div className="flex items-center justify-center h-40">
-            <p className="text-sm text-gray-400">결제관리 준비 중</p>
-          </div>
-        )}
+        {activeTab === "payments" && <AdminPaymentsTab />}
         {activeTab === "system" && <AdminSystemTab />}
       </div>
     </div>
