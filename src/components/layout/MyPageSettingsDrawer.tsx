@@ -523,103 +523,31 @@ function GeneralSettings({
         />
       </div>
 
-      {/* 채팅알림 */}
+      {/* 알림 설정 */}
       <div className="pt-6" />
       <div className="bg-white rounded-xl overflow-hidden">
         <SettingsLinkRow
           icon={<MessageCircle size={20} />}
-          label="채팅방 전체알림"
+          label="채팅방 알림"
           onClick={() => onOpenDetail("chatAllSound")}
         />
         <div className="h-[1px] bg-gray-100 mx-4" />
         <SettingsLinkRow
-          icon={<Users size={20} />}
-          label="1:1대화"
-          onClick={() => onOpenDetail("chatDm")}
-        />
-        <div className="h-[1px] bg-gray-100 mx-4" />
-        <SettingsLinkRow
-          icon={<Users size={20} />}
-          label="그룹"
-          onClick={() => onOpenDetail("chatGroup")}
-        />
-        <div className="h-[1px] bg-gray-100 mx-4" />
-        <SettingsLinkRow
           icon={<Bookmark size={20} />}
-          label="클래스"
+          label="클래스 알림"
           onClick={() => onOpenDetail("chatClass")}
         />
-      </div>
-
-      {/* 소식알림 */}
-      <div className="pt-6" />
-      <div className="bg-white rounded-xl overflow-hidden">
-        <SettingsLinkRow
-          icon={<Bell size={20} />}
-          label="전체소식알림"
-          onClick={() => onOpenDetail("newsAllSound")}
-        />
         <div className="h-[1px] bg-gray-100 mx-4" />
         <SettingsLinkRow
-          icon={<FileText size={20} />}
-          label="수업신청"
-          onClick={() => onOpenDetail("newsClass")}
-        />
-        <div className="h-[1px] bg-gray-100 mx-4" />
-        <SettingsLinkRow
-          icon={<MessageCircle size={20} />}
-          label="댓글알림"
-          onClick={() => onOpenDetail("newsComment")}
-        />
-        <div className="h-[1px] bg-gray-100 mx-4" />
-        <SettingsLinkRow
-          icon={<CreditCard size={20} />}
-          label="결제알림"
-          onClick={() => onOpenDetail("newsPayment")}
-        />
-      </div>
-
-      {/* 클래스 설정 */}
-      <div className="pt-6" />
-      <div className="bg-white rounded-xl overflow-hidden">
-        <SettingsLinkRow
-          icon={<Eye size={20} />}
-          label="클래스전체공개"
-          onClick={() => onOpenDetail("classPublic")}
-        />
-        <div className="h-[1px] bg-gray-100 mx-4" />
-        <SettingsLinkRow
-          icon={<Users size={20} />}
-          label="친구허용"
-          onClick={() => onOpenDetail("classFriends")}
-        />
-        <div className="h-[1px] bg-gray-100 mx-4" />
-        <SettingsLinkRow
-          icon={<Lock size={20} />}
-          label="전체비공개"
-          onClick={() => onOpenDetail("classPrivate")}
-        />
-      </div>
-
-      {/* 메세지 설정 */}
-      <div className="pt-6" />
-      <div className="bg-white rounded-xl overflow-hidden">
-        <SettingsLinkRow
-          icon={<Eye size={20} />}
-          label="메세지전체수신"
+          icon={<Mail size={20} />}
+          label="메세지 수신"
           onClick={() => onOpenDetail("messagePublic")}
         />
         <div className="h-[1px] bg-gray-100 mx-4" />
         <SettingsLinkRow
-          icon={<Users size={20} />}
-          label="친구허용"
-          onClick={() => onOpenDetail("messageFriends")}
-        />
-        <div className="h-[1px] bg-gray-100 mx-4" />
-        <SettingsLinkRow
-          icon={<Lock size={20} />}
-          label="비공개"
-          onClick={() => onOpenDetail("messagePrivate")}
+          icon={<Bell size={20} />}
+          label="소식함 알림"
+          onClick={() => onOpenDetail("newsAllSound")}
         />
       </div>
 
