@@ -11,8 +11,9 @@ import CustomerServiceContent from "@/components/user/CustomerServiceContent";
 import SearchPageClient from "@/app/(main)/search/_components/SearchPageClient";
 import MyPageHeader from "@/components/layout/MyPageHeader";
 import MyPageCacheLoader from "@/components/user/MyPageCacheLoader";
+import type { ClassWithHost } from "@/components/class/ClassCard";
 
-export default function TabbedMain() {
+export default function TabbedMain({ initialClasses = [] }: { initialClasses?: ClassWithHost[] }) {
   const activeTab = useSyncExternalStore(subscribeMainTab, getMainTab, () => "home" as const);
   const { user } = useAuth();
   const pathname = usePathname();
@@ -37,7 +38,7 @@ export default function TabbedMain() {
     <div className="flex-1 flex flex-col min-h-0">
       {mounted.has("home") && (
         <div className={activeTab === "home" ? "flex flex-col flex-1" : "hidden"}>
-          <MainTabbedHomePage initialClasses={[]} />
+          <MainTabbedHomePage initialClasses={initialClasses} />
         </div>
       )}
 
