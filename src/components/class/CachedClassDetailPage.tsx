@@ -32,10 +32,16 @@ interface CachedHomeResult {
 function readCachedClass(classId: string | undefined): ClassWithHost | null {
   if (!classId || typeof window === "undefined") return null;
   try {
-    const raw = localStorage.getItem(HOME_RESULTS_LOCAL_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as CachedHomeResult;
-    return (parsed.data ?? []).find((item) => item.id === classId) ?? null;
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (!key || !key.startsWith(HOME_RESULTS_LOCAL_KEY)) continue;
+      const raw = localStorage.getItem(key);
+      if (!raw) continue;
+      const parsed = JSON.parse(raw) as CachedHomeResult;
+      const found = (parsed.data ?? []).find((item) => item.id === classId);
+      if (found) return found;
+    }
+    return null;
   } catch {
     return null;
   }
@@ -236,16 +242,17 @@ export default function CachedClassDetailPage({
       }
     };
 
-    if (document.readyState === "complete") {
-      void run();
-      return;
+    // 캐시 표시 직후, 화면 렌더를 막지 않도록 한 박자 뒤 동기화
+    const ric = (window as typeof window & {
+      requestIdleCallback?: (cb: () => void) => number;
+      cancelIdleCallback?: (id: number) => void;
+    }).requestIdleCallback;
+    if (ric) {
+      const id = ric(() => void run());
+      return () => (window as typeof window & { cancelIdleCallback?: (id: number) => void }).cancelIdleCallback?.(id);
     }
-
-    const onLoad = () => {
-      void run();
-    };
-    window.addEventListener("load", onLoad, { once: true });
-    return () => window.removeEventListener("load", onLoad);
+    const timer = window.setTimeout(() => void run(), 0);
+    return () => window.clearTimeout(timer);
   }, [classId]);
 
   useEffect(() => {
@@ -347,15 +354,23 @@ export default function CachedClassDetailPage({
         .catch(() => {});
     };
 
-    if (document.readyState === "complete") {
-      refresh();
+    // 캐시 표시 직후, 화면 렌더를 막지 않도록 한 박자 뒤 동기화
+    const ric = (window as typeof window & {
+      requestIdleCallback?: (cb: () => void) => number;
+      cancelIdleCallback?: (id: number) => void;
+    }).requestIdleCallback;
+    let idleId: number | null = null;
+    let timer: number | null = null;
+    if (ric) {
+      idleId = ric(() => refresh());
     } else {
-      window.addEventListener("load", refresh, { once: true });
+      timer = window.setTimeout(() => refresh(), 0);
     }
 
     return () => {
       cancelled = true;
-      window.removeEventListener("load", refresh);
+      if (idleId !== null) (window as typeof window & { cancelIdleCallback?: (id: number) => void }).cancelIdleCallback?.(idleId);
+      if (timer !== null) window.clearTimeout(timer);
     };
   }, [classId]);
 

@@ -241,8 +241,9 @@ export default function HomeSearchResultsPage({
     let cancelled = false;
 
     async function load() {
-      // 1. 서버에서 받은 stableInitial가 있으면 즉시 표시
+      // 1. 서버에서 받은 stableInitial가 있으면 즉시 표시 + 캐시 저장
       if (stableInitial.length > 0) {
+        writeHomeCache(stableInitial, stableInitial.length);
         warmImages(stableInitial);
         void fetchAndUpdate(cancelled);
         void fetchBookmarkIds();
