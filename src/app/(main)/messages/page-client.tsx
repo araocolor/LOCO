@@ -909,6 +909,37 @@ export default function MessagesPageClient({ userId }: { userId: string }) {
     return () => window.removeEventListener(PRESENCE_EVENT, handler);
   }, []);
 
+  useEffect(() => {
+    function handleVisibilityChange() {
+      if (document.visibilityState !== "visible") return;
+      scheduleListRefresh();
+      const roomId = activeChatRoomRef.current;
+      if (!roomId) return;
+      void (async () => {
+        try {
+          const res = await fetch(`/api/chat/rooms/${roomId}/messages?limit=20`);
+          const json = await res.json();
+          if (!res.ok || !json.data) return;
+          const newMsgs = (json.data as ChatMessageApiItem[]).map(mapChatMessage);
+          if (newMsgs.length === 0) return;
+          setMessages((prev) => {
+            const existingIds = new Set(prev.map((m) => m.id));
+            const toAdd = newMsgs.filter((m) => !existingIds.has(m.id));
+            if (toAdd.length === 0) return prev;
+            const merged = [...prev, ...toAdd].sort(
+              (a, b) => new Date(a.sent_at).getTime() - new Date(b.sent_at).getTime()
+            );
+            toAdd.forEach((m) => appendMessageCache(roomId, m));
+            return merged;
+          });
+        } catch {}
+      })();
+    }
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const refreshListRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const conversationsRef = useRef(conversations);
   conversationsRef.current = conversations;

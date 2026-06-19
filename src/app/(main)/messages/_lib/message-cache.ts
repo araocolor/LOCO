@@ -64,7 +64,7 @@ function readRoomCache(roomId: string): ChatRoomCache {
   return legacy;
 }
 
-const MESSAGE_CACHE_LIMIT = 10;
+const MESSAGE_CACHE_LIMIT = 20;
 
 function writeRoomCache(roomId: string, cache: ChatRoomCache) {
   const trimmed = cache.messages.slice(-MESSAGE_CACHE_LIMIT);
