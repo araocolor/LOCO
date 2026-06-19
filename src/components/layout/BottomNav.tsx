@@ -213,6 +213,26 @@ export default function BottomNav() {
   }, [user?.id]);
 
   useEffect(() => {
+    if (!user?.id) return;
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`bottom-nav-chat-${user.id}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "chat_room_members", filter: `user_id=eq.${user.id}` },
+        () => { void fetchChatUnread(); }
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "chat_rooms" },
+        () => { void fetchChatUnread(); }
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [user?.id]);
+
+  useEffect(() => {
     if (!user?.id) {
       loginUnreadSoundPlayedUserRef.current = null;
       return;
