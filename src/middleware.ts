@@ -26,8 +26,17 @@ export async function middleware(request: NextRequest) {
   );
 
   // 토큰 갱신만 담당 (만료된 쿠키를 새로고침). 로그인 차단은 각 레이아웃에서 처리.
-  // 인증 서버를 기다려 차단하지 않으므로 모바일에서 504/튕김이 발생하지 않음.
-  await supabase.auth.getUser();
+  // 인증 서버가 느리면 짧은 제한 시간 후 그냥 통과시켜 504(미들웨어 타임아웃)를 방지한다.
+  try {
+    await Promise.race([
+      supabase.auth.getUser(),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("auth timeout")), 3000)
+      ),
+    ]);
+  } catch {
+    // 인증 서버 지연/실패 시 토큰 갱신을 건너뛰고 요청을 통과시킨다.
+  }
 
   return response;
 }
