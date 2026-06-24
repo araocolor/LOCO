@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createAuthenticatedRequestClient } from "@/lib/supabase/request-client";
 
 const PAGE_SIZE = 30;
 type NotificationTab = "class" | "comment" | "general";
@@ -37,10 +37,7 @@ interface ApplicationStatusRow {
 }
 
 export async function GET(request: NextRequest) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { user } = await createAuthenticatedRequestClient(request);
 
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

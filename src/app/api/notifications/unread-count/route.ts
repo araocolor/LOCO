@@ -1,6 +1,6 @@
-import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createAuthenticatedRequestClient } from "@/lib/supabase/request-client";
 
 const NOTIFICATION_TYPES_BY_TAB = {
   class: ["friend_class_created", "class_application"],
@@ -11,11 +11,8 @@ const NOTIFICATION_TYPES_BY_TAB = {
 type NotificationTab = keyof typeof NOTIFICATION_TYPES_BY_TAB;
 const TABS: NotificationTab[] = ["class", "comment", "general"];
 
-export async function GET() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+export async function GET(request: NextRequest) {
+  const { user } = await createAuthenticatedRequestClient(request);
 
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
