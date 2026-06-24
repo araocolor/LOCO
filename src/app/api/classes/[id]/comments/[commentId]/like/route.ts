@@ -1,15 +1,34 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
+import { createClient as createServerClient } from "@/lib/supabase/server";
+import { createClient as createTokenClient, type User } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
+
+async function getAuthenticatedUser(request: NextRequest): Promise<User | null> {
+  const authorization = request.headers.get("authorization");
+  const accessToken = authorization?.startsWith("Bearer ")
+    ? authorization.slice("Bearer ".length).trim()
+    : "";
+
+  if (accessToken) {
+    const tokenClient = createTokenClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      { auth: { persistSession: false, autoRefreshToken: false } }
+    );
+    const { data: { user } } = await tokenClient.auth.getUser(accessToken);
+    return user;
+  }
+
+  const serverClient = await createServerClient();
+  const { data: { user } } = await serverClient.auth.getUser();
+  return user;
+}
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; commentId: string }> }
 ) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getAuthenticatedUser(request);
 
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
